@@ -1239,6 +1239,32 @@ namespace DearModdingUI
 
 }
 
+DMUI_EXPORT DMUI_Result DMUI_CALL DMUI_GetStyleMetrics(
+	DMUI_StyleMetrics* a_metrics) noexcept
+{
+	if (!a_metrics)
+		return DMUI_RESULT_INVALID_ARGUMENT;
+	if (a_metrics->structSize < DMUI_STYLE_METRICS_1_0_SIZE)
+		return DMUI_RESULT_STRUCT_TOO_SMALL;
+	if (!ImGui::GetCurrentContext())
+		return DMUI_RESULT_HOST_NOT_READY;
+
+	const auto& style = ImGui::GetStyle();
+	a_metrics->itemSpacing = { style.ItemSpacing.x, style.ItemSpacing.y };
+	a_metrics->framePadding = { style.FramePadding.x, style.FramePadding.y };
+	a_metrics->itemInnerSpacing = { style.ItemInnerSpacing.x, style.ItemInnerSpacing.y };
+	a_metrics->cellPadding = { style.CellPadding.x, style.CellPadding.y };
+	a_metrics->windowPadding = { style.WindowPadding.x, style.WindowPadding.y };
+	a_metrics->indentSpacing = style.IndentSpacing;
+	a_metrics->scrollbarSize = style.ScrollbarSize;
+	return DMUI_RESULT_OK;
+}
+
+DMUI_EXPORT uint32_t DMUI_CALL DMUI_GetImGuiVersionNum(void) noexcept
+{
+	return IMGUI_VERSION_NUM;
+}
+
 DMUI_EXPORT const DMUI_HostAPI* DMUI_CALL DMUI_GetHostAPI(
 	uint32_t a_requestedVersion) noexcept
 {

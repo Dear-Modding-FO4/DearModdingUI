@@ -59,6 +59,6 @@
     "NewLine"
   ],
   "excluded": {
-    "GetStyle": "ImGuiStyle is intentionally opaque; phase 2c will replace direct field access with layout-independent accessors."
+    "GetStyle": "ImGuiStyle is intentionally opaque; use ImGui::GetStyleMetrics for layout scalars."
   }
 }

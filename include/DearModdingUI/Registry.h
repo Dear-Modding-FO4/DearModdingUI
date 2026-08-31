@@ -22,6 +22,7 @@ namespace DearModdingUI
 		DMUI_HostReadyCallback onHostReady{ nullptr };
 		DMUI_HostUnavailableCallback onHostUnavailable{ nullptr };
 		void* userData{ nullptr };
+		bool usesImGuiForwarding{ false };
 		bool notified{ false };
 		bool callbackFailed{ false };
 	};

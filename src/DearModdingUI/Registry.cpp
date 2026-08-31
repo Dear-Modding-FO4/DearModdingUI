@@ -185,12 +185,13 @@ namespace DearModdingUI
 			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!SupportsVersion(a_descriptor->apiVersion))
 			return DMUI_RESULT_UNSUPPORTED_ABI;
-		if (!a_descriptor->expectedImGui)
-			return DMUI_RESULT_INVALID_DESCRIPTOR;
-		if (a_descriptor->expectedImGui->structSize < sizeof(DMUI_ImGuiFingerprint))
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
-		if (!FingerprintsMatch(*a_descriptor->expectedImGui, m_fingerprint))
-			return DMUI_RESULT_FINGERPRINT_MISMATCH;
+		if (a_descriptor->expectedImGui)
+		{
+			if (a_descriptor->expectedImGui->structSize < sizeof(DMUI_ImGuiFingerprint))
+				return DMUI_RESULT_STRUCT_TOO_SMALL;
+			if (!FingerprintsMatch(*a_descriptor->expectedImGui, m_fingerprint))
+				return DMUI_RESULT_FINGERPRINT_MISMATCH;
+		}
 		if (!a_descriptor->onHostReady || !a_descriptor->onHostUnavailable)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
 		if ((a_descriptor->capabilities &
@@ -202,6 +203,7 @@ namespace DearModdingUI
 			RegisteredClient client{};
 			client.version = a_descriptor->version;
 			client.capabilities = a_descriptor->capabilities;
+			client.usesImGuiForwarding = a_descriptor->expectedImGui == nullptr;
 			client.onHostReady = a_descriptor->onHostReady;
 			client.onHostUnavailable = a_descriptor->onHostUnavailable;
 			client.userData = a_descriptor->userData;

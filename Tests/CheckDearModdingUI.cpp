@@ -699,11 +699,6 @@ namespace vmm_tests
 					DMUI_RESULT_STRUCT_TOO_SMALL,
 				"short client descriptor was accepted");
 			client.structSize = sizeof(client);
-			client.expectedImGui = nullptr;
-			require(registry.RegisterClient(&client, &handle) ==
-					DMUI_RESULT_INVALID_DESCRIPTOR,
-				"null fingerprint was accepted");
-			client.expectedImGui = &fingerprint;
 			auto shortFingerprint = fingerprint;
 			shortFingerprint.structSize = sizeof(shortFingerprint) - 1;
 			client.expectedImGui = &shortFingerprint;
@@ -743,6 +738,34 @@ namespace vmm_tests
 			require(registry.RegisterPage(handle, &page, &pageHandle) ==
 					DMUI_RESULT_INVALID_DESCRIPTOR,
 				"null page callback was accepted");
+		});
+
+		runner.test("forwarding clients register without a fingerprint", [] {
+			const auto fingerprint = Fingerprint();
+			Registry registry{ fingerprint };
+			CallbackState state;
+			auto client = Client("forward.mod", "Forward", fingerprint, state);
+			client.expectedImGui = nullptr;
+			DMUI_ClientHandle handle{};
+
+			require(registry.RegisterClient(&client, &handle) == DMUI_RESULT_OK &&
+					handle != DMUI_INVALID_CLIENT_HANDLE,
+				"forwarding client was rejected");
+		});
+
+		runner.test("lockstep clients still reject fingerprint mismatches", [] {
+			const auto fingerprint = Fingerprint();
+			Registry registry{ fingerprint };
+			CallbackState state;
+			auto mismatch = fingerprint;
+			++mismatch.imguiVersionNum;
+			auto client = Client("lockstep.mod", "Lockstep", mismatch, state);
+			DMUI_ClientHandle handle{ 99 };
+
+			require(registry.RegisterClient(&client, &handle) ==
+					DMUI_RESULT_FINGERPRINT_MISMATCH &&
+					handle == DMUI_INVALID_CLIENT_HANDLE,
+				"lockstep fingerprint mismatch was accepted");
 		});
 
 		runner.test("client fingerprint comparison is byte exact", [] {

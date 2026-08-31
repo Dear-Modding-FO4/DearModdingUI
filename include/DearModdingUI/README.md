@@ -4,11 +4,10 @@
 C++ fingerprint builder. They live with `Client.h` and the shared visual helpers in the standalone
 DearModdingUI API repository, which CommonLibF4 re-exports through its public
 `lib/dearmoddingui-api` dependency. Linking that fork is enough to consume them. `Client.h` is a
-header-only C++ wrapper that handles discovery, registration, and the ImGui context handoff; prefer
-it over the raw ABI.
-Clients link their own copy of the pinned Dear ImGui sources and
-discover a host dynamically; they do not link against the host DLL or include Addictol, CommonLibF4,
-F4SE, Windows, D3D, TOML, or C++ library types through the C contract.
+header-only C++ wrapper that handles discovery, registration, and either forwarding or the ImGui
+context handoff; prefer it over the raw ABI. Forwarding clients compile no Dear ImGui sources, while
+lockstep clients link the pinned sources. Neither mode links against the host DLL or exposes Addictol,
+CommonLibF4, F4SE, Windows, D3D, TOML, or C++ library types through the C contract.
 
 ## Discovery and registration
 
@@ -186,9 +185,9 @@ The host publishes the immutable upstream commit, `IMGUI_VERSION_NUM`, explicit 
 flags, size and alignment fields for shared public/internal types, `ImDrawVert` member offsets, and a
 deterministic layout signature. The signature is built from `sizeof`, `alignof`, and `offsetof`
 expressions over public draw, font, IO, style, platform, context, and recovery structures. It is never
-a copied magic value. A client must build its expected fingerprint from the exact headers and
-configuration used to compile its own ImGui sources. Registration rejects any field mismatch before
-storing callbacks.
+a copied magic value. A lockstep client must build its expected fingerprint from the exact headers and configuration used
+to compile its own ImGui sources. Registration rejects any field mismatch before storing callbacks. A
+null fingerprint selects layout-independent forwarding and skips the shared-layout comparison.
 
 Include the pinned `imgui.h` and `imgui_internal.h`, then `ImGuiFingerprint.h`, and call
 `DMUI_MakeImGuiFingerprint()`. The builder derives custom `ImTextureID`, `ImDrawIdx`, callback,
