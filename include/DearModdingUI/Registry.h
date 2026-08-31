@@ -10,18 +10,11 @@
 #include <string_view>
 #include <vector>
 
-namespace Addictol::DearModdingUI
+namespace DearModdingUI
 {
-	enum class ClientOrigin : uint32_t
-	{
-		kHost,
-		kExternal
-	};
-
 	struct RegisteredClient
 	{
 		DMUI_ClientHandle handle{ DMUI_INVALID_CLIENT_HANDLE };
-		ClientOrigin origin{ ClientOrigin::kExternal };
 		std::string id;
 		std::string displayName;
 		uint32_t version{ 0 };
@@ -39,7 +32,6 @@ namespace Addictol::DearModdingUI
 		DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
 		std::string clientId;
 		std::string clientDisplayName;
-		ClientOrigin clientOrigin{ ClientOrigin::kExternal };
 		std::string id;
 		std::string displayName;
 		std::string category;
@@ -83,8 +75,7 @@ namespace Addictol::DearModdingUI
 
 		[[nodiscard]] DMUI_Result RegisterClient(
 			const DMUI_ClientDescriptor* a_descriptor,
-			DMUI_ClientHandle* a_client,
-			ClientOrigin a_origin) noexcept;
+			DMUI_ClientHandle* a_client) noexcept;
 		[[nodiscard]] DMUI_Result RegisterPage(
 			DMUI_ClientHandle a_client,
 			const DMUI_PageDescriptor* a_descriptor,

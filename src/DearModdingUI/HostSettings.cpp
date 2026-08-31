@@ -19,7 +19,7 @@
 #include <string>
 #include <system_error>
 
-namespace Addictol::DearModdingUI::HostSettings
+namespace DearModdingUI::HostSettings
 {
 	using namespace std::literals;
 
@@ -36,7 +36,7 @@ namespace Addictol::DearModdingUI::HostSettings
 
 		[[nodiscard]] std::filesystem::path ConfigPath()
 		{
-			return std::filesystem::path{ Support::GetRuntimeDirectory() } /
+			return std::filesystem::path{ Addictol::Support::GetRuntimeDirectory() } /
 				L"Data/F4SE/Plugins/DearModdingUI.toml";
 		}
 

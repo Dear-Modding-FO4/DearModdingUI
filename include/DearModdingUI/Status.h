@@ -12,7 +12,7 @@
 #include <string_view>
 #include <utility>
 
-namespace Addictol::DearModdingUI
+namespace DearModdingUI
 {
 	using StatusClock = std::chrono::steady_clock;
 	inline constexpr auto kTransientStatusLifetime = std::chrono::seconds{ 4 };

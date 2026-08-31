@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <string_view>
 
-namespace Addictol::DearModdingUI
+namespace DearModdingUI
 {
 	namespace
 	{

@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace Addictol::DearModdingUI::CarrierMenu
+namespace DearModdingUI::CarrierMenu
 {
 	enum class Event : uint32_t
 	{

@@ -6,7 +6,7 @@
 
 #include <imgui/imgui_internal.h>
 
-namespace Addictol::DearModdingUI
+namespace DearModdingUI
 {
 	class ImGuiRecoverySnapshot
 	{

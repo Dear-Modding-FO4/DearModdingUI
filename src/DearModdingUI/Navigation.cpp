@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <tuple>
 
-namespace Addictol::DearModdingUI
+namespace DearModdingUI
 {
 	const NavigationClient* NavigationModel::FindClient(
 		DMUI_ClientHandle a_client) const noexcept
@@ -75,8 +75,8 @@ namespace Addictol::DearModdingUI
 				orderedClients.push_back(&client);
 		}
 		std::ranges::sort(orderedClients, [](const auto* a_left, const auto* a_right) {
-			return std::tie(a_left->origin, a_left->displayName, a_left->id) <
-				std::tie(a_right->origin, a_right->displayName, a_right->id);
+			return std::tie(a_left->displayName, a_left->id) <
+				std::tie(a_right->displayName, a_right->id);
 		});
 
 		NavigationModel model;

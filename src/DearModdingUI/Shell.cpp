@@ -23,7 +23,7 @@
 #include <string>
 #include <string_view>
 
-namespace Addictol::DearModdingUI
+namespace DearModdingUI
 {
 	namespace
 	{

@@ -2,7 +2,7 @@
 
 #include <limits>
 
-namespace Addictol::DearModdingUI
+namespace DearModdingUI
 {
 	DMUI_Result StatusModel::Set(
 		StatusOwnerKind a_ownerKind,

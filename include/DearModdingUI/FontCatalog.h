@@ -5,7 +5,7 @@
 #include <string_view>
 #include <vector>
 
-namespace Addictol::DearModdingUI::FontCatalog
+namespace DearModdingUI::FontCatalog
 {
 	struct FontFamily
 	{

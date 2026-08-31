@@ -7,7 +7,7 @@ struct ID3D11DeviceContext;
 struct ID3D11RenderTargetView;
 struct ID3D11Texture2D;
 
-namespace Addictol::DearModdingUI::BackgroundBlur
+namespace DearModdingUI::BackgroundBlur
 {
 	void BeginFrame() noexcept;
 	void SetHostWindow(float a_minX, float a_minY, float a_maxX, float a_maxY, float a_rounding) noexcept;

@@ -28,7 +28,7 @@ namespace vmm_tests
 {
 	namespace
 	{
-		using namespace Addictol::DearModdingUI;
+		using namespace DearModdingUI;
 
 		struct CallbackState
 		{
@@ -165,12 +165,11 @@ namespace vmm_tests
 			const char* a_id,
 			const char* a_name,
 			const DMUI_ImGuiFingerprint& a_fingerprint,
-			CallbackState& a_state,
-			ClientOrigin a_origin = ClientOrigin::kExternal)
+			CallbackState& a_state)
 		{
 			auto descriptor = Client(a_id, a_name, a_fingerprint, a_state);
 			DMUI_ClientHandle handle{};
-			require(a_registry.RegisterClient(&descriptor, &handle, a_origin) == DMUI_RESULT_OK,
+			require(a_registry.RegisterClient(&descriptor, &handle) == DMUI_RESULT_OK,
 				"client registration failed");
 			return handle;
 		}
@@ -689,36 +688,36 @@ namespace vmm_tests
 			DMUI_ClientHandle handle{};
 			auto client = Client("sample.mod", "Sample", fingerprint, state);
 
-			require(registry.RegisterClient(nullptr, &handle, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(nullptr, &handle) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"null descriptor was accepted");
-			require(registry.RegisterClient(&client, nullptr, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(&client, nullptr) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"null output was accepted");
 			client.structSize = sizeof(client) - 1;
-			require(registry.RegisterClient(&client, &handle, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_STRUCT_TOO_SMALL,
 				"short client descriptor was accepted");
 			client.structSize = sizeof(client);
 			client.expectedImGui = nullptr;
-			require(registry.RegisterClient(&client, &handle, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_INVALID_DESCRIPTOR,
 				"null fingerprint was accepted");
 			client.expectedImGui = &fingerprint;
 			auto shortFingerprint = fingerprint;
 			shortFingerprint.structSize = sizeof(shortFingerprint) - 1;
 			client.expectedImGui = &shortFingerprint;
-			require(registry.RegisterClient(&client, &handle, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_STRUCT_TOO_SMALL,
 				"short fingerprint was accepted");
 			client.expectedImGui = &fingerprint;
 			client.onHostReady = nullptr;
-			require(registry.RegisterClient(&client, &handle, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_INVALID_DESCRIPTOR,
 				"null ready callback was accepted");
 
 			client.onHostReady = &Ready;
-			require(registry.RegisterClient(&client, &handle, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_OK,
 				"valid client was rejected");
 			auto page = Page("settings", "Settings", "General", 0,
@@ -766,37 +765,37 @@ namespace vmm_tests
 			auto mismatch = fingerprint;
 			mismatch.upstreamCommit[0] ^= 1;
 			auto client = Client("sample.mod", "Sample", mismatch, state);
-			require(registry.RegisterClient(&client, &handle, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_FINGERPRINT_MISMATCH,
 				"commit mismatch was accepted");
 			mismatch = fingerprint;
 			++mismatch.sizeOfImGuiIO;
 			client.expectedImGui = &mismatch;
-			require(registry.RegisterClient(&client, &handle, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_FINGERPRINT_MISMATCH,
 				"layout mismatch was accepted");
 			mismatch = fingerprint;
 			mismatch.flags = 0;
 			client.expectedImGui = &mismatch;
-			require(registry.RegisterClient(&client, &handle, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_FINGERPRINT_MISMATCH,
 				"docking mismatch was accepted");
 			mismatch = fingerprint;
 			++mismatch.sizeOfImTextureID;
 			client.expectedImGui = &mismatch;
-			require(registry.RegisterClient(&client, &handle, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_FINGERPRINT_MISMATCH,
 				"texture ID mismatch was accepted");
 			mismatch = fingerprint;
 			++mismatch.offsetOfImDrawVertUv;
 			client.expectedImGui = &mismatch;
-			require(registry.RegisterClient(&client, &handle, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_FINGERPRINT_MISMATCH,
 				"draw vertex layout mismatch was accepted");
 			mismatch = fingerprint;
 			mismatch.layoutSignature ^= 1;
 			client.expectedImGui = &mismatch;
-			require(registry.RegisterClient(&client, &handle, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_FINGERPRINT_MISMATCH,
 				"layout signature mismatch was accepted");
 		});
@@ -816,7 +815,7 @@ namespace vmm_tests
 			renderer.capabilities = DMUI_CLIENT_CAPABILITY_RENDERER_REPLACEMENT;
 			DMUI_ClientHandle rendererHandle{};
 			require(registry.RegisterClient(
-						&renderer, &rendererHandle, ClientOrigin::kExternal) == DMUI_RESULT_OK,
+						&renderer, &rendererHandle) == DMUI_RESULT_OK,
 				"renderer replacement client was rejected");
 			require(registry.ValidateSwapChainClient(rendererHandle) == DMUI_RESULT_OK,
 				"renderer replacement capability was not retained");
@@ -825,7 +824,7 @@ namespace vmm_tests
 			unknown.capabilities = 0x80000000u;
 			DMUI_ClientHandle unknownHandle{};
 			require(registry.RegisterClient(
-						&unknown, &unknownHandle, ClientOrigin::kExternal) ==
+						&unknown, &unknownHandle) ==
 					DMUI_RESULT_INVALID_DESCRIPTOR,
 				"unknown client capabilities were accepted");
 		});
@@ -837,7 +836,7 @@ namespace vmm_tests
 			const auto first = AddClient(registry, "a.mod", "A", fingerprint, state);
 			auto duplicate = Client("a.mod", "Other", fingerprint, state);
 			DMUI_ClientHandle client{};
-			require(registry.RegisterClient(&duplicate, &client, ClientOrigin::kExternal) ==
+			require(registry.RegisterClient(&duplicate, &client) ==
 					DMUI_RESULT_DUPLICATE_CLIENT_ID,
 				"duplicate client ID was accepted");
 			const auto second = AddClient(registry, "b.mod", "B", fingerprint, state);
@@ -1014,8 +1013,7 @@ namespace vmm_tests
 				"dear-modding.addictol",
 				"Addictol",
 				fingerprint,
-				state,
-				ClientOrigin::kHost);
+				state);
 			const auto communityShaders = AddClient(
 				registry,
 				"dear-modding.community-shaders",
@@ -1091,7 +1089,7 @@ namespace vmm_tests
 			auto clientDescriptor = Client(clientId, clientName, fingerprint, state);
 			DMUI_ClientHandle client{};
 			require(registry.RegisterClient(
-						&clientDescriptor, &client, ClientOrigin::kExternal) == DMUI_RESULT_OK,
+						&clientDescriptor, &client) == DMUI_RESULT_OK,
 				"copy client failed");
 			clientId[0] = 'x';
 			clientName[0] = 'X';
@@ -1133,13 +1131,13 @@ namespace vmm_tests
 					"action descriptor strings were not copied");
 		});
 
-		runner.test("frozen pages have deterministic host category and sort ordering", [] {
+		runner.test("frozen pages have deterministic client category and sort ordering", [] {
 			const auto fingerprint = Fingerprint();
 			Registry registry{ fingerprint };
 			CallbackState state;
 			const auto zulu = AddClient(registry, "z.mod", "Zulu", fingerprint, state);
 			const auto alpha = AddClient(
-				registry, "a.host", "Alpha", fingerprint, state, ClientOrigin::kHost);
+				registry, "a.mod", "Alpha", fingerprint, state);
 			(void)AddPage(registry, zulu, "late", "Late", "B", 20,
 				DMUI_PAGE_KIND_SETTINGS, state);
 			(void)AddPage(registry, alpha, "second", "Second", "B", 10,
@@ -1152,8 +1150,8 @@ namespace vmm_tests
 			const auto& pages = registry.OrderedPages();
 			require(pages[0].id == "first", "category ordering changed");
 			require(pages[1].id == "sorted", "sort-key ordering changed");
-			require(pages[2].id == "second", "host page ordering changed");
-			require(pages[3].id == "late", "host pages did not precede external pages");
+			require(pages[2].id == "second", "client page ordering changed");
+			require(pages[3].id == "late", "clients did not sort by display name");
 		});
 
 		runner.test("navigation groups clients categories and settings pages deterministically", [] {
@@ -1162,7 +1160,7 @@ namespace vmm_tests
 			CallbackState state;
 			const auto bravo = AddClient(registry, "bravo.mod", "Bravo", fingerprint, state);
 			const auto alpha = AddClient(
-				registry, "alpha.host", "Alpha", fingerprint, state, ClientOrigin::kHost);
+				registry, "alpha.mod", "Alpha", fingerprint, state);
 			const auto alphaLate = AddPage(registry, alpha, "late", "Late", "General", 20,
 				DMUI_PAGE_KIND_SETTINGS, state);
 			const auto alphaEarly = AddPage(registry, alpha, "early", "Early", "General", -10,
@@ -1177,7 +1175,7 @@ namespace vmm_tests
 
 			const auto& navigation = registry.Navigation();
 			require(navigation.clients.size() == 2, "settings clients were not grouped");
-			require(navigation.clients[0].id == "alpha.host", "client order changed");
+			require(navigation.clients[0].id == "alpha.mod", "client order changed");
 			require(navigation.clients[0].categories.size() == 2, "categories were not grouped");
 			require(navigation.clients[0].categories[0].displayName == "Advanced",
 				"category order changed");
@@ -1961,11 +1959,10 @@ namespace vmm_tests
 				registry, "z.external", "Zulu", fingerprint, callback);
 			const auto alpha = AddClient(
 				registry,
-				"alpha.host",
+				"alpha.mod",
 				"Alpha",
 				fingerprint,
-				callback,
-				ClientOrigin::kHost);
+				callback);
 			const auto zuluPage = AddPage(
 				registry, zulu, "settings", "Settings", "General", 0,
 				DMUI_PAGE_KIND_SETTINGS, callback);
@@ -2368,7 +2365,7 @@ namespace vmm_tests
 			auto lateClient = Client("late.mod", "Late", fingerprint, state);
 			DMUI_ClientHandle clientHandle{};
 			require(registry.RegisterClient(
-						&lateClient, &clientHandle, ClientOrigin::kExternal) ==
+						&lateClient, &clientHandle) ==
 					DMUI_RESULT_REGISTRATION_CLOSED,
 				"late client was accepted");
 			auto latePage = Page("late", "Late", "General", 0, DMUI_PAGE_KIND_SETTINGS, state);
@@ -2430,7 +2427,7 @@ namespace vmm_tests
 			readyClient.onHostReady = &ThrowReady;
 			DMUI_ClientHandle readyHandle{};
 			require(readyRegistry.RegisterClient(
-						&readyClient, &readyHandle, ClientOrigin::kExternal) == DMUI_RESULT_OK,
+						&readyClient, &readyHandle) == DMUI_RESULT_OK,
 				"throwing ready client was not registered");
 			const auto readyPage = AddPage(
 				readyRegistry,
@@ -2488,8 +2485,7 @@ namespace vmm_tests
 			DMUI_ClientHandle unavailableHandle{};
 			require(unavailableRegistry.RegisterClient(
 						&unavailableClient,
-						&unavailableHandle,
-						ClientOrigin::kExternal) == DMUI_RESULT_OK,
+						&unavailableHandle) == DMUI_RESULT_OK,
 				"throwing unavailable client was not registered");
 			(void)AddClient(
 				unavailableRegistry, "healthy.mod", "Healthy", fingerprint, healthyState);

@@ -5,7 +5,7 @@
 
 #include <imgui/imgui.h>
 
-namespace Addictol::DearModdingUI::CursorLoader
+namespace DearModdingUI::CursorLoader
 {
 	namespace
 	{

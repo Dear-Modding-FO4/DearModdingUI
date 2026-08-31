@@ -5,7 +5,7 @@
 #include <system_error>
 #include <utility>
 
-namespace Addictol::DearModdingUI::FontCatalog
+namespace DearModdingUI::FontCatalog
 {
 	namespace
 	{

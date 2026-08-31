@@ -16,7 +16,7 @@
 #include <string>
 #include <string_view>
 
-namespace Addictol::DearModdingUI::Theme
+namespace DearModdingUI::Theme
 {
 	using namespace std::literals;
 
@@ -57,7 +57,7 @@ namespace Addictol::DearModdingUI::Theme
 
 		[[nodiscard]] std::filesystem::path AssetPath(std::string_view a_relative)
 		{
-			auto path = std::filesystem::path{ Support::GetRuntimeDirectory() };
+			auto path = std::filesystem::path{ Addictol::Support::GetRuntimeDirectory() };
 			path /= kFontRoot;
 			path /= a_relative;
 			return path;

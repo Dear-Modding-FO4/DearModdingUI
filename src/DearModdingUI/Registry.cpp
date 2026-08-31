@@ -6,7 +6,7 @@
 #include <new>
 #include <tuple>
 
-namespace Addictol::DearModdingUI
+namespace DearModdingUI
 {
 	namespace
 	{
@@ -176,8 +176,7 @@ namespace Addictol::DearModdingUI
 
 	DMUI_Result Registry::RegisterClient(
 		const DMUI_ClientDescriptor* a_descriptor,
-		DMUI_ClientHandle* a_client,
-		ClientOrigin a_origin) noexcept
+		DMUI_ClientHandle* a_client) noexcept
 	{
 		if (!a_descriptor || !a_client)
 			return DMUI_RESULT_INVALID_ARGUMENT;
@@ -201,7 +200,6 @@ namespace Addictol::DearModdingUI
 		try
 		{
 			RegisteredClient client{};
-			client.origin = a_origin;
 			client.version = a_descriptor->version;
 			client.capabilities = a_descriptor->capabilities;
 			client.onHostReady = a_descriptor->onHostReady;
@@ -284,7 +282,6 @@ namespace Addictol::DearModdingUI
 			page.handle = m_nextPage++;
 			page.clientId = client->id;
 			page.clientDisplayName = client->displayName;
-			page.clientOrigin = client->origin;
 			page.imguiLabel = page.displayName + "###" + page.clientId + "/" + page.id;
 			m_pages.push_back(std::move(page));
 			*a_page = m_pages.back().handle;
@@ -411,7 +408,6 @@ namespace Addictol::DearModdingUI
 				return false;
 			std::ranges::sort(m_pages, [](const auto& a_left, const auto& a_right) {
 				return std::tie(
-					a_left.clientOrigin,
 					a_left.clientDisplayName,
 					a_left.clientId,
 					a_left.category,
@@ -419,7 +415,6 @@ namespace Addictol::DearModdingUI
 					a_left.displayName,
 					a_left.id) <
 					std::tie(
-						a_right.clientOrigin,
 						a_right.clientDisplayName,
 						a_right.clientId,
 						a_right.category,

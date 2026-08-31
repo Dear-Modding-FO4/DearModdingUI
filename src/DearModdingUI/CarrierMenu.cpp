@@ -12,7 +12,7 @@
 #include <mutex>
 #include <string_view>
 
-namespace Addictol::DearModdingUI::CarrierMenu
+namespace DearModdingUI::CarrierMenu
 {
 	namespace
 	{

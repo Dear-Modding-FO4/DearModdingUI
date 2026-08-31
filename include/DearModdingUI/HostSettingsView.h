@@ -5,7 +5,7 @@
 
 #include <optional>
 
-namespace Addictol::DearModdingUI
+namespace DearModdingUI
 {
 	struct HostSettingsDraftState
 	{

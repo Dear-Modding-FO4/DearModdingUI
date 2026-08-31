@@ -7,7 +7,7 @@
 #include <optional>
 #include <string_view>
 
-namespace Addictol::DearModdingUI
+namespace DearModdingUI
 {
 	inline constexpr std::string_view kHostDisplayName{ "Evil Modding" };
 
@@ -41,8 +41,4 @@ namespace Addictol::DearModdingUI
 		std::string_view a_message) noexcept;
 	[[nodiscard]] std::optional<StatusMessage> CurrentStatus() noexcept;
 	[[nodiscard]] bool DismissStatus(uint64_t a_generation) noexcept;
-
-	[[nodiscard]] DMUI_Result RegisterInternalClient(
-		const DMUI_ClientDescriptor* a_descriptor,
-		DMUI_ClientHandle* a_client) noexcept;
 }

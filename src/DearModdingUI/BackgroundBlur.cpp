@@ -20,7 +20,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace Addictol::DearModdingUI::BackgroundBlur
+namespace DearModdingUI::BackgroundBlur
 {
 	using namespace std::literals;
 
@@ -95,7 +95,7 @@ namespace Addictol::DearModdingUI::BackgroundBlur
 
 		[[nodiscard]] std::filesystem::path ShaderPath(std::wstring_view a_file)
 		{
-			auto path = std::filesystem::path{ Support::GetRuntimeDirectory() };
+			auto path = std::filesystem::path{ Addictol::Support::GetRuntimeDirectory() };
 			path /= L"Data\\F4SE\\Plugins\\DearModdingUI\\Shaders";
 			path /= a_file;
 			return path;

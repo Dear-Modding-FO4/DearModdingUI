@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace Addictol::DearModdingUI::CursorLoader
+namespace DearModdingUI::CursorLoader
 {
 	void Initialize(void* a_window) noexcept;
 	void PrepareFrame(bool a_modalVisible) noexcept;

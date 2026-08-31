@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-namespace Addictol::DearModdingUI::Theme
+namespace DearModdingUI::Theme
 {
 	struct Fonts
 	{
@@ -56,9 +56,4 @@ namespace Addictol::DearModdingUI::Theme
 	[[nodiscard]] std::string_view ResolveBodyFontFamily(
 		std::string_view a_requested) noexcept;
 	[[nodiscard]] std::string_view EffectiveBodyFontFamily() noexcept;
-}
-
-namespace Addictol
-{
-	namespace Theme = DearModdingUI::Theme;
 }

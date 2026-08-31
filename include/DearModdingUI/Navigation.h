@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace Addictol::DearModdingUI
+namespace DearModdingUI
 {
 	struct RegisteredClient;
 	struct RegisteredPage;

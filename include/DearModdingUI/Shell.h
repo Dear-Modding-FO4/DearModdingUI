@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <string>
 
-namespace Addictol::DearModdingUI
+namespace DearModdingUI
 {
 	[[nodiscard]] float SettingsActionButtonExtent() noexcept;
 	[[nodiscard]] float SettingsActionButtonWidth(

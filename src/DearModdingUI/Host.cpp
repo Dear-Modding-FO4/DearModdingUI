@@ -27,7 +27,7 @@
 static_assert(IMGUI_VERSION_NUM == DMUI_IMGUI_VERSION_NUM);
 static_assert(sizeof(DMUI_IMGUI_UPSTREAM_COMMIT) == 41);
 
-namespace Addictol::DearModdingUI
+namespace DearModdingUI
 {
 	using namespace std::literals;
 
@@ -170,8 +170,7 @@ namespace Addictol::DearModdingUI
 
 		[[nodiscard]] DMUI_Result RegisterClient(
 			const DMUI_ClientDescriptor* a_descriptor,
-			DMUI_ClientHandle* a_client,
-			ClientOrigin a_origin) noexcept
+			DMUI_ClientHandle* a_client) noexcept
 		{
 			if (!a_descriptor || !a_client)
 				return DMUI_RESULT_INVALID_ARGUMENT;
@@ -183,14 +182,14 @@ namespace Addictol::DearModdingUI
 				return DMUI_RESULT_REGISTRATION_CLOSED;
 			if (state != DMUI_HOST_STATE_WAITING_FOR_PRESENT)
 				return StateResult(state);
-			return service.registry.RegisterClient(a_descriptor, a_client, a_origin);
+			return service.registry.RegisterClient(a_descriptor, a_client);
 		}
 
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterClientCpp(
 			const DMUI_ClientDescriptor* a_descriptor,
 			DMUI_ClientHandle* a_client) noexcept
 		{
-			return RegisterClient(a_descriptor, a_client, ClientOrigin::kExternal);
+			return RegisterClient(a_descriptor, a_client);
 		}
 
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterPageCpp(
@@ -358,7 +357,7 @@ namespace Addictol::DearModdingUI
 			const auto clientResult = service.registry.ValidateSwapChainClient(a_client);
 			if (clientResult != DMUI_RESULT_OK)
 				return clientResult;
-			return PlatformImgui::AttachSwapChain(
+			return Addictol::PlatformImgui::AttachSwapChain(
 					   static_cast<IDXGISwapChain*>(a_nativeSwapChain)) ?
 				DMUI_RESULT_OK :
 				DMUI_RESULT_SWAPCHAIN_REJECTED;
@@ -647,7 +646,7 @@ namespace Addictol::DearModdingUI
 			const auto validation = ValidateDrawingClient(a_client);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
-			return PlatformImgui::QueryVideoMemory(*a_used, *a_budget) ?
+			return Addictol::PlatformImgui::QueryVideoMemory(*a_used, *a_budget) ?
 				DMUI_RESULT_OK :
 				DMUI_RESULT_BACKEND_FAILED;
 		}
@@ -1238,18 +1237,12 @@ namespace Addictol::DearModdingUI
 		return GetService().status.Dismiss(a_generation);
 	}
 
-	DMUI_Result RegisterInternalClient(
-		const DMUI_ClientDescriptor* a_descriptor,
-		DMUI_ClientHandle* a_client) noexcept
-	{
-		return RegisterClient(a_descriptor, a_client, ClientOrigin::kHost);
-	}
 }
 
 DMUI_EXPORT const DMUI_HostAPI* DMUI_CALL DMUI_GetHostAPI(
 	uint32_t a_requestedVersion) noexcept
 {
-	return Addictol::DearModdingUI::Registry::SupportsVersion(a_requestedVersion) ?
-		&Addictol::DearModdingUI::HostAPI() :
+	return DearModdingUI::Registry::SupportsVersion(a_requestedVersion) ?
+		&DearModdingUI::HostAPI() :
 		nullptr;
 }
