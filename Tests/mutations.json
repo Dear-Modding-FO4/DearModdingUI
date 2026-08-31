@@ -9,7 +9,7 @@
   },
   {
     "name": "DearModdingUI client-named categories inherit client glyphs",
-    "target": "include/DearModdingUI/IconGlyphs.h",
+    "target": "Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/IconGlyphs.h",
     "find": "if (!category.empty() &&\n\t\t\t\t(category == NormalizeIconOwnerName(a_clientDisplayName) ||\n\t\t\t\t\tcategory == NormalizeIconOwnerName(a_clientId)))",
     "replace": "if (false)",
     "check": "icon names resolve to deterministic Phosphor glyphs",
@@ -25,7 +25,7 @@
   },
   {
     "name": "DearModdingUI unknown icons use the fallback glyph",
-    "target": "include/DearModdingUI/IconGlyphs.h",
+    "target": "Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/IconGlyphs.h",
     "find": "return PhosphorGlyph::kQuestion;",
     "replace": "return PhosphorGlyph::kSun;",
     "check": "icon names resolve to deterministic Phosphor glyphs",
@@ -33,7 +33,7 @@
   },
   {
     "name": "DearModdingUI icon modes select their theme tints",
-    "target": "include/DearModdingUI/ThemeDefaults.h",
+    "target": "Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/ThemeDefaults.h",
     "find": "return a_mode == IconColorMode::kColored ? a_accent : a_text;",
     "replace": "return a_mode == IconColorMode::kColored ? a_text : a_accent;",
     "check": "theme icon tint selects colored and monochrome modes",
@@ -57,7 +57,7 @@
   },
   {
     "name": "host chrome reserves trailing control spacing",
-    "target": "include/DearModdingUI/VisualDecisions.h",
+    "target": "Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/VisualDecisions.h",
     "find": "controlMin - spacing",
     "replace": "controlMin + spacing",
     "check": "host close and footer gear stay clear of adjacent content",
@@ -97,7 +97,7 @@
   },
   {
     "name": "empty action rows reserve no width",
-    "target": "include/DearModdingUI/VisualDecisions.h",
+    "target": "Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/VisualDecisions.h",
     "find": "if (a_actionCount == 0)",
     "replace": "if (false)",
     "check": "page action row reserves space only for registered actions",
@@ -121,7 +121,7 @@
   },
   {
     "name": "host settings title actions follow dirty state",
-    "target": "include/DearModdingUI/SettingsActions.h",
+    "target": "Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/SettingsActions.h",
     "find": "case SettingsAction::kReset:\n\t\t\treturn true;",
     "replace": "case SettingsAction::kReset:\n\t\t\treturn false;",
     "check": "settings action availability follows dirty state",
@@ -129,7 +129,7 @@
   },
   {
     "name": "host settings title actions preserve close spacing",
-    "target": "include/DearModdingUI/VisualDecisions.h",
+    "target": "Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/VisualDecisions.h",
     "find": "close.adjacentMaxX,\n\t\t\ta_actionButtonWidthSum,",
     "replace": "close.controlMinX,\n\t\t\ta_actionButtonWidthSum,",
     "check": "settings action rows keep fixed non-overlapping geometry",
@@ -161,7 +161,7 @@
   },
   {
     "name": "footer metadata clip ignores status presence",
-    "target": "include/DearModdingUI/VisualDecisions.h",
+    "target": "Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/VisualDecisions.h",
     "find": "const auto metadataMax = metadataLimit;",
     "replace": "const auto metadataMax = a_hasStatus ?\n\t\t\tmetadataLimit :\n\t\t\ttrailing.controlMaxX;",
     "check": "footer metadata geometry stays fixed while idle",
@@ -169,7 +169,7 @@
   },
   {
     "name": "footer metadata clip ignores status text width",
-    "target": "include/DearModdingUI/VisualDecisions.h",
+    "target": "Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/VisualDecisions.h",
     "find": "const auto metadataLimit = trailing.adjacentMaxX;",
     "replace": "const auto metadataLimit = (std::max)(\n\t\t\ta_contentMinX,\n\t\t\ttrailing.adjacentMaxX - a_statusTextWidth);",
     "check": "footer metadata geometry ignores status length",
@@ -177,7 +177,7 @@
   },
   {
     "name": "chrome row text keeps its capital ink offset",
-    "target": "include/DearModdingUI/VisualDecisions.h",
+    "target": "Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/VisualDecisions.h",
     "find": "return origin.y;",
     "replace": "return boxOffset;",
     "check": "capital ink provides stable optical text offset",
@@ -185,7 +185,7 @@
   },
   {
     "name": "header title keeps the bullet run inset",
-    "target": "include/DearModdingUI/VisualDecisions.h",
+    "target": "Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/VisualDecisions.h",
     "find": "return framePaddingX + fontSize * 0.3f;",
     "replace": "return 0.0f;",
     "check": "header title aligns with the footer bullet run",

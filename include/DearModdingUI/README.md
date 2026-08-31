@@ -1,9 +1,11 @@
 # DearModdingUI client API
 
 `API.h` is the C ABI for Dear-Modding F4SE user interfaces, and `ImGuiFingerprint.h` is the optional
-C++ fingerprint builder. Both ship in `Dear-Modding-FO4/commonlibf4` under `include/DearModdingUI/`,
-so linking that fork is enough to consume them. `Client.h` beside them is a header-only C++ wrapper
-that handles discovery, registration, and the ImGui context handoff; prefer it over the raw ABI.
+C++ fingerprint builder. They live with `Client.h` and the shared visual helpers in the standalone
+DearModdingUI API repository, which CommonLibF4 re-exports through its public
+`lib/dearmoddingui-api` dependency. Linking that fork is enough to consume them. `Client.h` is a
+header-only C++ wrapper that handles discovery, registration, and the ImGui context handoff; prefer
+it over the raw ABI.
 Clients link their own copy of the pinned Dear ImGui sources and
 discover a host dynamically; they do not link against the host DLL or include Addictol, CommonLibF4,
 F4SE, Windows, D3D, TOML, or C++ library types through the C contract.

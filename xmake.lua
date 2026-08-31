@@ -93,7 +93,8 @@ target("dmui-tests", function()
         "Tests",
         "include",
         "Depends",
-        "Depends/commonlibf4/include"
+        "Depends/commonlibf4/include",
+        "Depends/commonlibf4/lib/dearmoddingui-api/include"
     )
     add_defines(
         "NDEBUG",
