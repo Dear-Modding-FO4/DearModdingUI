@@ -1000,7 +1000,7 @@ namespace Addictol::DearModdingUI
 						SettingsAction::kApply,
 						"##DearModdingUI.HostSettingsApplyButton",
 						"Apply",
-						"Apply saves interface settings to AddictolCustom.toml. "
+						"Apply saves host settings to DearModdingUI.toml. "
 						"Appearance previews update immediately; typography "
 						"rebuilds once if needed.",
 						SettingsActionButtonWidth(

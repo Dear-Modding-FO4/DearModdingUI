@@ -122,10 +122,9 @@ namespace Addictol::ImguiPlatform
 	}
 
 	[[nodiscard]] constexpr bool ShouldInitializeHost(
-		bool a_hasClients,
 		bool a_windowReady) noexcept
 	{
-		return a_hasClients && a_windowReady;
+		return a_windowReady;
 	}
 
 	[[nodiscard]] constexpr bool ShouldRenderHostFrame(

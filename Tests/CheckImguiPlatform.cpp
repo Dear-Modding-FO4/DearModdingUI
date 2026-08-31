@@ -162,10 +162,10 @@ namespace vmm_tests
 		});
 
 		runner.test("host initializes eagerly while overlays never suppress game input", [] {
-			require(ShouldInitializeHost(true, true),
-				"accepted clients did not initialize on an active Present");
-			require(!ShouldInitializeHost(false, true),
-				"an empty registry initialized the renderer");
+			require(ShouldInitializeHost(true),
+				"the host did not initialize on an active Present");
+			require(!ShouldInitializeHost(false),
+				"the host initialized before the window was ready");
 			require(ShouldRenderHostFrame(false, true),
 				"overlay demand did not produce a frame");
 			require(!ShouldSuppressGameInput(false),

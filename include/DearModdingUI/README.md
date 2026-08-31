@@ -78,12 +78,18 @@ warning, error, info, and muted colors plus every status color. `pushFont` accep
 Heading, Subheading, or Subtext role; balance every successful push with `popFont`. The C++ wrapper
 provides `dmui::FontGuard` and converts `DMUI_Vec4` to `ImVec4` with `dmui::ToImVec4`.
 
-`drawSectionHeader`, `drawCollapsingSectionHeader`, `drawSearchInput`, and
-`drawSettingsActionButton` are thin calls into the same helpers used by the host. Search buffers must
-have a nonzero capacity and contain a NUL terminator within that capacity. A successful call always
-leaves the buffer NUL-terminated, truncates edited output to `capacity - 1`, and reports whether the
-text changed through the fixed-width output flag. The C++ wrapper marshals this contract to
-`std::string&`.
+`drawSectionHeader`, `drawCollapsingSectionHeader`, `drawSearchInput`,
+`drawSettingsActionButton`, `settingsActionButtonWidth`, and `settingsActionButtonExtent` are thin
+calls into the same helpers used by the host. The sizing calls return live host font and style
+measurements through `float` output parameters. Search buffers must have a nonzero capacity and
+contain a NUL terminator within that capacity. A successful call always leaves the buffer
+NUL-terminated, truncates edited output to `capacity - 1`, and reports whether the text changed
+through the fixed-width output flag. The C++ wrapper marshals this contract to `std::string&` and
+returns sizing results through `std::optional<float>`.
+
+The C++ wrapper returns the accepted page handle from `AddPage` as
+`std::optional<DMUI_PageHandle>`. Pass that handle to `SelectPage` to select the registered settings
+page and open the shared menu. Both methods preserve `LastResult()` for failure details.
 
 ## Client actions
 

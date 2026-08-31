@@ -85,6 +85,17 @@ static_assert(std::is_nothrow_invocable_v<
 	const char*,
 	uint32_t,
 	uint32_t*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_SettingsActionButtonWidthFn,
+	DMUI_ClientHandle,
+	DMUI_SettingsAction,
+	const char*,
+	float,
+	float*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_SettingsActionButtonExtentFn,
+	DMUI_ClientHandle,
+	float*>);
 static_assert(DMUI_PAGE_KIND_SETTINGS == 1u);
 static_assert(DMUI_PAGE_KIND_OVERLAY == 2u);
 static_assert(DMUI_STATUS_SEVERITY_INFO == 0u);
@@ -133,7 +144,7 @@ static_assert(offsetof(DMUI_ThemeColors, statusCurrentHotkey) == 180);
 static_assert(offsetof(DMUI_ThemeColors, statusSuccess) == 196);
 static_assert(offsetof(DMUI_ThemeColors, statusInfo) == 212);
 static_assert(DMUI_THEME_COLORS_1_0_SIZE == sizeof(DMUI_ThemeColors));
-static_assert(sizeof(DMUI_HostAPI) == 152);
+static_assert(sizeof(DMUI_HostAPI) == 168);
 static_assert(offsetof(DMUI_HostAPI, structSize) == 0);
 static_assert(offsetof(DMUI_HostAPI, apiVersion) == 4);
 static_assert(offsetof(DMUI_HostAPI, imguiFingerprint) == 8);
@@ -154,6 +165,9 @@ static_assert(offsetof(DMUI_HostAPI, drawSectionHeader) == 120);
 static_assert(offsetof(DMUI_HostAPI, drawSearchInput) == 128);
 static_assert(offsetof(DMUI_HostAPI, drawCollapsingSectionHeader) == 136);
 static_assert(offsetof(DMUI_HostAPI, drawSettingsActionButton) == 144);
+static_assert(offsetof(DMUI_HostAPI, settingsActionButtonWidth) == 152);
+static_assert(offsetof(DMUI_HostAPI, settingsActionButtonExtent) == 160);
+static_assert(DMUI_HOST_API_SELECT_PAGE_SIZE == 72);
 static_assert(DMUI_HOST_API_ATTACH_SWAP_CHAIN_SIZE == 80);
 static_assert(DMUI_HOST_API_REGISTER_ACTION_SIZE == 88);
 static_assert(DMUI_HOST_API_SET_STATUS_SIZE == 96);
@@ -163,5 +177,7 @@ static_assert(DMUI_HOST_API_POP_FONT_SIZE == 120);
 static_assert(DMUI_HOST_API_DRAW_SECTION_HEADER_SIZE == 128);
 static_assert(DMUI_HOST_API_DRAW_SEARCH_INPUT_SIZE == 136);
 static_assert(DMUI_HOST_API_DRAW_COLLAPSING_SECTION_HEADER_SIZE == 144);
-static_assert(DMUI_HOST_API_DRAW_SETTINGS_ACTION_BUTTON_SIZE == sizeof(DMUI_HostAPI));
+static_assert(DMUI_HOST_API_DRAW_SETTINGS_ACTION_BUTTON_SIZE == 152);
+static_assert(DMUI_HOST_API_SETTINGS_ACTION_BUTTON_WIDTH_SIZE == 160);
+static_assert(DMUI_HOST_API_SETTINGS_ACTION_BUTTON_EXTENT_SIZE == sizeof(DMUI_HostAPI));
 #endif

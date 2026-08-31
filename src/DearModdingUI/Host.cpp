@@ -565,6 +565,42 @@ namespace Addictol::DearModdingUI
 			return DMUI_RESULT_OK;
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiSettingsActionButtonWidthCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_SettingsAction a_action,
+			const char* a_fallbackLabel,
+			float a_buttonExtent,
+			float* a_width) noexcept
+		{
+			if (!a_width || a_action > DMUI_SETTINGS_ACTION_APPLY)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_width = 0.0f;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+
+			*a_width = SettingsActionButtonWidth(
+				static_cast<SettingsAction>(a_action),
+				a_fallbackLabel,
+				a_buttonExtent);
+			return DMUI_RESULT_OK;
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiSettingsActionButtonExtentCpp(
+			DMUI_ClientHandle a_client,
+			float* a_extent) noexcept
+		{
+			if (!a_extent)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_extent = 0.0f;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+
+			*a_extent = SettingsActionButtonExtent();
+			return DMUI_RESULT_OK;
+		}
+
 		template <class Function>
 		[[nodiscard]] DMUI_Result GuardApiCall(Function&& a_function) noexcept
 		{
@@ -770,6 +806,32 @@ namespace Addictol::DearModdingUI
 			});
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiSettingsActionButtonWidth(
+			DMUI_ClientHandle a_client,
+			DMUI_SettingsAction a_action,
+			const char* a_fallbackLabel,
+			float a_buttonExtent,
+			float* a_width) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiSettingsActionButtonWidthCpp(
+					a_client,
+					a_action,
+					a_fallbackLabel,
+					a_buttonExtent,
+					a_width);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiSettingsActionButtonExtent(
+			DMUI_ClientHandle a_client,
+			float* a_extent) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiSettingsActionButtonExtentCpp(a_client, a_extent);
+			});
+		}
+
 		template <class InvokeCallback, class DisableCallback>
 		[[nodiscard]] bool InvokeClientCallback(
 			const char* a_kind,
@@ -833,7 +895,9 @@ namespace Addictol::DearModdingUI
 			&ApiDrawSectionHeader,
 			&ApiDrawSearchInput,
 			&ApiDrawCollapsingSectionHeader,
-			&ApiDrawSettingsActionButton
+			&ApiDrawSettingsActionButton,
+			&ApiSettingsActionButtonWidth,
+			&ApiSettingsActionButtonExtent
 		};
 		return api;
 	}
@@ -867,8 +931,6 @@ namespace Addictol::DearModdingUI
 	bool BeginBackendInitialization() noexcept
 	{
 		auto& service = GetService();
-		if (service.registry.Empty())
-			return false;
 		auto expected = DMUI_HOST_STATE_WAITING_FOR_PRESENT;
 		if (!service.state.compare_exchange_strong(
 				expected,
@@ -931,11 +993,6 @@ namespace Addictol::DearModdingUI
 		service.registry.NotifyUnavailable(DMUI_UNAVAILABLE_BACKEND_FAILED);
 	}
 
-	bool HasClients() noexcept
-	{
-		return !GetService().registry.Empty();
-	}
-
 	bool NeedsFrame() noexcept
 	{
 		auto& service = GetService();
@@ -959,8 +1016,6 @@ namespace Addictol::DearModdingUI
 		const auto state = service.state.load(std::memory_order_acquire);
 		if (state != DMUI_HOST_STATE_READY)
 			return StateResult(state);
-		if (a_visible && !service.registry.HasSettingsPages())
-			return DMUI_RESULT_PAGE_NOT_FOUND;
 		SetMenuVisibleState(service, a_visible);
 		return DMUI_RESULT_OK;
 	}

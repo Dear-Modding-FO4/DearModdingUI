@@ -32,6 +32,7 @@ namespace Addictol::DearModdingUI::HostSettings
 		std::once_flag s_loadOnce;
 		std::mutex s_settingsMutex;
 		PersistedHostInterfaceSettings s_settings;
+		std::atomic<uint32_t> s_menuToggleKey{ kMenuDefaultToggleKey };
 
 		[[nodiscard]] std::filesystem::path ConfigPath()
 		{
@@ -62,6 +63,15 @@ namespace Addictol::DearModdingUI::HostSettings
 				section, "fMenuUiScale", settings.uiScale);
 			settings.bodyFontFamily = toml::find_or<std::string>(
 				section, "sMenuBodyFontFamily", settings.bodyFontFamily);
+			settings.menuToggleKey = toml::find_or<std::string>(
+				section, "sMenuToggleKey", settings.menuToggleKey);
+			const auto parsed = ParseMenuToggleKey(settings.menuToggleKey);
+			if (!parsed.recognized)
+			{
+				REX::WARN(
+					"DearModdingUI: sMenuToggleKey \"{}\" is not one of F1-F12, Home, End, Insert, or Delete; falling back to F11."sv,
+					settings.menuToggleKey);
+			}
 			return EncodeHostInterfaceSettings(DecodeHostInterfaceSettings(settings));
 		}
 
@@ -72,8 +82,13 @@ namespace Addictol::DearModdingUI::HostSettings
 				{
 					const std::scoped_lock lock{ s_settingsMutex };
 					s_settings = LoadSettings();
+					s_menuToggleKey.store(
+						ParseMenuToggleKey(s_settings.menuToggleKey).virtualKey,
+						std::memory_order_release);
 					REX::INFO("DearModdingUI: loaded host settings from {}"sv,
 						ConfigPath().string());
+					REX::INFO("DearModdingUI: menu toggle key {}"sv,
+						s_settings.menuToggleKey);
 				}
 				catch (const std::exception& error)
 				{
@@ -105,6 +120,7 @@ namespace Addictol::DearModdingUI::HostSettings
 					a_settings.backgroundBlurStrength);
 				section["fMenuUiScale"] = static_cast<double>(a_settings.uiScale);
 				section["sMenuBodyFontFamily"] = a_settings.bodyFontFamily;
+				section["sMenuToggleKey"] = a_settings.menuToggleKey;
 
 				const auto path = ConfigPath();
 				std::filesystem::create_directories(path.parent_path());
@@ -221,6 +237,9 @@ namespace Addictol::DearModdingUI::HostSettings
 				return false;
 			}
 			s_settings = persisted;
+			s_menuToggleKey.store(
+				ParseMenuToggleKey(s_settings.menuToggleKey).virtualKey,
+				std::memory_order_release);
 		}
 		(void)SetHostStatus(
 			DMUI_STATUS_SEVERITY_SUCCESS,
@@ -274,5 +293,11 @@ namespace Addictol::DearModdingUI::HostSettings
 	uint64_t PanelRevision() noexcept
 	{
 		return s_panelRevision.load(std::memory_order_acquire);
+	}
+
+	uint32_t MenuToggleVirtualKey() noexcept
+	{
+		EnsureLoaded();
+		return s_menuToggleKey.load(std::memory_order_acquire);
 	}
 }

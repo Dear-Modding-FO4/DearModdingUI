@@ -2,6 +2,7 @@
 #include <DearModdingUI/CursorLoader.h>
 #include <DearModdingUI/Host.h>
 #include <DearModdingUI/HostSettings.h>
+#include <DearModdingUI/MenuToggleKey.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
 #include <Platform/PlatformImgui.h>
@@ -9,6 +10,7 @@
 #include <F4SE/F4SE.h>
 #include <REX/REX.h>
 
+#include <atomic>
 #include <mutex>
 
 namespace Addictol
@@ -17,6 +19,8 @@ namespace Addictol
 
 	namespace
 	{
+		std::atomic<bool> s_backendFailureLogged{ false };
+
 		void SetupHost(void* a_window) noexcept
 		{
 			DearModdingUI::Theme::Initialize(a_window);
@@ -31,10 +35,34 @@ namespace Addictol
 				DearModdingUI::DrawShell();
 		}
 
+		[[nodiscard]] bool ToggleHost(uint32_t a_virtualKey) noexcept
+		{
+			const auto decision = DearModdingUI::DecideMenuToggle(
+				a_virtualKey,
+				DearModdingUI::HostSettings::MenuToggleVirtualKey(),
+				DearModdingUI::IsMenuVisible(),
+				PlatformImgui::IsReady());
+			if (!decision.matched)
+				return false;
+
+			const auto result = DearModdingUI::SetMenuVisible(decision.open);
+			PlatformImgui::SetDrawingEnabled(
+				result == DMUI_RESULT_OK && decision.open);
+			if (decision.open && result != DMUI_RESULT_OK &&
+				!s_backendFailureLogged.exchange(true, std::memory_order_acq_rel))
+			{
+				REX::ERROR(
+					"DearModdingUI: menu cannot open, result {}"sv,
+					result);
+			}
+			return true;
+		}
+
 		[[nodiscard]] bool RegisterHostSinks() noexcept
 		{
 			if (PlatformImgui::RegisterSetupSink("DearModdingUI"sv, &SetupHost) &&
-				PlatformImgui::RegisterDrawSink("DearModdingUI"sv, &DrawHost))
+				PlatformImgui::RegisterDrawSink("DearModdingUI"sv, &DrawHost) &&
+				PlatformImgui::RegisterToggleSink("DearModdingUI"sv, &ToggleHost))
 				return true;
 
 			REX::ERROR("DearModdingUI: the ImGui platform refused the host sinks"sv);

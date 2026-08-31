@@ -20,7 +20,6 @@ namespace Addictol::DearModdingUI
 	[[nodiscard]] bool BeginBackendInitialization() noexcept;
 	void CompleteBackendInitialization(void* a_imguiContext) noexcept;
 	void FailBackendInitialization() noexcept;
-	[[nodiscard]] bool HasClients() noexcept;
 	[[nodiscard]] bool NeedsFrame() noexcept;
 	[[nodiscard]] bool HasSettingsPages() noexcept;
 	[[nodiscard]] bool IsMenuVisible() noexcept;

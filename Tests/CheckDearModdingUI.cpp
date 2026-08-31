@@ -2,6 +2,7 @@
 #include <DearModdingUI/FontCatalog.h>
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/HostSettingsView.h>
+#include <DearModdingUI/MenuToggleKey.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/Registry.h>
 #include <DearModdingUI/SettingsActions.h>
@@ -1570,6 +1571,34 @@ namespace vmm_tests
 				"settings reopened with the menu");
 		});
 
+		runner.test("menu toggle keys parse and round trip", [] {
+			static_assert(kMenuDefaultToggleKey == 0x7A);
+			static_assert(ParseMenuToggleKey("F11"sv).virtualKey == 0x7A);
+			static_assert(ParseMenuToggleKey("F11"sv).recognized);
+			static_assert(!ParseMenuToggleKey("Q"sv).recognized);
+
+			for (const auto& key : kMenuToggleKeys)
+			{
+				const auto parsed = ParseMenuToggleKey(key.name);
+				require(parsed.recognized, "supported toggle key was rejected");
+				require(parsed.virtualKey == key.virtualKey,
+					"toggle key resolved to the wrong virtual key");
+				require(MenuToggleKeyName(parsed.virtualKey) == key.name,
+					"toggle key did not round trip");
+			}
+			require(ParseMenuToggleKey("f11"sv).virtualKey == 0x7A,
+				"lowercase toggle key was rejected");
+			require(ParseMenuToggleKey("hOmE"sv).virtualKey == 0x24,
+				"mixed-case toggle key was rejected");
+			for (const auto name : { ""sv, "F13"sv, "PageUp"sv, " F11"sv })
+			{
+				const auto parsed = ParseMenuToggleKey(name);
+				require(!parsed.recognized, "unsupported toggle key was accepted");
+				require(parsed.virtualKey == kMenuDefaultToggleKey,
+					"unsupported toggle key did not fall back to F11");
+			}
+		});
+
 		runner.test("host settings draft detects unapplied changes", [] {
 			const auto committed = DefaultHostInterfaceSettings();
 			auto state = BeginHostSettingsDraft(committed);
@@ -1613,7 +1642,8 @@ namespace vmm_tests
 				false,
 				0.75f,
 				1.75f,
-				"Atkinson Hyperlegible"
+				"Atkinson Hyperlegible",
+				"Home"
 			};
 			state.draft = changed;
 			const auto applied = ApplyHostSettingsDraft(state);
@@ -1702,7 +1732,8 @@ namespace vmm_tests
 					true,
 					kMinBackgroundBlurStrength,
 					Theme::kMinUserScale,
-					"Jost"
+					"Jost",
+					"Delete"
 				}
 			};
 			for (const auto& runtime : settings)
@@ -1726,6 +1757,7 @@ namespace vmm_tests
 				std::numeric_limits<float>::infinity();
 			persisted.uiScale = 99.0f;
 			persisted.bodyFontFamily = "..\\escaped";
+			persisted.menuToggleKey = "PageUp";
 			const auto decoded = DecodeHostInterfaceSettings(persisted);
 			require(
 				decoded.accentColor == kDefaultHostAccentColor,
@@ -1744,6 +1776,9 @@ namespace vmm_tests
 			require(
 				decoded.bodyFontFamily == kDefaultBodyFontFamily,
 				"malformed font family did not fall back");
+			require(
+				decoded.menuToggleKey == "F11",
+				"malformed toggle key did not fall back");
 			require(
 				DefaultHostInterfaceSettings() == HostInterfaceSettings{},
 				"reset did not restore shipped defaults");

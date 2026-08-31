@@ -265,6 +265,30 @@ namespace Addictol::DearModdingUI
 			ImGui::Spacing();
 		}
 
+		void DrawInput() noexcept
+		{
+			DrawSectionHeader("Input");
+			auto& settings = g_settingsDraft.draft;
+			const auto selectedKey = ParseMenuToggleKey(settings.menuToggleKey);
+			const auto selectedName = MenuToggleKeyName(selectedKey.virtualKey);
+
+			ImGui::SetNextItemWidth(ControlWidth());
+			if (ImGui::BeginCombo("Menu toggle key", selectedName.data()))
+			{
+				for (const auto& key : kMenuToggleKeys)
+				{
+					const auto selected = key.virtualKey == selectedKey.virtualKey;
+					if (ImGui::Selectable(key.name.data(), selected))
+						settings.menuToggleKey = key.name;
+					if (selected)
+						ImGui::SetItemDefaultFocus();
+				}
+				ImGui::EndCombo();
+			}
+			DrawHelp(
+				"Opens and closes the shared menu. Apply saves the key for this session and future launches.");
+		}
+
 		void DrawReadOnlyHostFact(
 			const char* a_label,
 			const char* a_value,
@@ -344,6 +368,8 @@ namespace Addictol::DearModdingUI
 		DrawAppearance();
 		ImGui::Spacing();
 		DrawReadability();
+		ImGui::Spacing();
+		DrawInput();
 		ImGui::Spacing();
 		DrawReadOnlyFacts();
 	}

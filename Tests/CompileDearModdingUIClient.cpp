@@ -25,10 +25,12 @@ namespace
 		if (!client.Connect())
 			return;
 		const auto label = g_counter;
-		(void)client.AddPage("settings", "Settings", "General", [label] {
+		const auto page = client.AddPage("settings", "Settings", "General", [label] {
 			ImGui::TextUnformatted("hello");
 			(void)label;
 		});
+		if (page)
+			(void)client.SelectPage(*page);
 		(void)client.AddAction(
 			"copy",
 			"Copy",
@@ -58,6 +60,14 @@ namespace
 			"Apply",
 			"Apply changes.",
 			true);
+		const auto extent = client.SettingsActionButtonExtent();
+		if (extent)
+		{
+			(void)client.SettingsActionButtonWidth(
+				DMUI_SETTINGS_ACTION_APPLY,
+				"Apply",
+				*extent);
+		}
 		(void)client.IsMenuVisible();
 		(void)client.QueryState();
 		(void)client.UnavailableReason();

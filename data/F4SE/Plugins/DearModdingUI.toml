@@ -6,3 +6,4 @@ bMenuBackgroundBlur = true
 fMenuBackgroundBlurStrength = 0.30
 fMenuUiScale = 1.0
 sMenuBodyFontFamily = "Jost"
+sMenuToggleKey = "F11"

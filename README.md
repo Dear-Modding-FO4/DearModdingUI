@@ -2,13 +2,13 @@
 
 DearModdingUI is a standalone F4SE plugin that hosts one shared Dear ImGui menu for Fallout 4 mods. Client plugins discover `DearModdingUI.dll` at runtime and register settings or overlay pages through a versioned C ABI, so clients do not link against the host binary.
 
-The host owns the ImGui context, D3D11 and Win32 backends, common shell, navigation, fonts, theme, cursor, background blur, and host appearance settings. Window layout is stored in `Data/F4SE/Plugins/DearModdingUI/imgui.ini`; appearance settings are stored in `Data/F4SE/Plugins/DearModdingUI.toml`.
+The host owns the ImGui context, D3D11 and Win32 backends, common shell, navigation, fonts, theme, cursor, background blur, menu toggle key, and host appearance settings. Window layout is stored in `Data/F4SE/Plugins/DearModdingUI/imgui.ini`; host settings are stored in `Data/F4SE/Plugins/DearModdingUI.toml`.
 
 ## Client registration
 
 The ABI, lifecycle, compatibility fingerprint, and registration examples are documented in [`include/DearModdingUI/README.md`](include/DearModdingUI/README.md). Public client headers also ship in the Dear Modding FO4 CommonLibF4 fork under `include/DearModdingUI/`.
 
-Clients locate the `DMUI_GetHostAPI` export at F4SE `kPostPostLoad`, request the current API version, register the client and all pages, then wait for the host-ready callback before drawing. Clients may open a registered settings page through `selectPage`; the host does not impose a global hotkey.
+Clients locate the `DMUI_GetHostAPI` export at F4SE `kPostPostLoad`, request the current API version, register the client and all pages, then wait for the host-ready callback before drawing. Clients may open a registered settings page through `selectPage`; the host opens and closes the shared menu with `[Additional] sMenuToggleKey`, which defaults to F11.
 
 ## Building
 

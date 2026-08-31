@@ -958,7 +958,6 @@ namespace Addictol
 		static void DrawFrame(IDXGISwapChain* a_swapChain) noexcept
 		{
 			if (!ShouldInitializeHost(
-					DearModdingUI::HasClients(),
 					s_windowReady.load(std::memory_order_acquire)))
 			{
 				DearModdingUI::CarrierMenu::Handle(

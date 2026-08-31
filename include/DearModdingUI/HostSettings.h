@@ -1,5 +1,6 @@
 #pragma once
 
+#include <DearModdingUI/MenuToggleKey.h>
 #include <DearModdingUI/ThemeDefaults.h>
 
 #include <algorithm>
@@ -38,6 +39,7 @@ namespace Addictol::DearModdingUI
 		float backgroundBlurStrength{ kDefaultBackgroundBlurStrength };
 		float uiScale{ Theme::kDefaultUserScale };
 		std::string bodyFontFamily{ kDefaultBodyFontFamily };
+		std::string menuToggleKey{ MenuToggleKeyName(kMenuDefaultToggleKey) };
 
 		[[nodiscard]] bool operator==(
 			const HostInterfaceSettings&) const noexcept = default;
@@ -64,6 +66,7 @@ namespace Addictol::DearModdingUI
 		float backgroundBlurStrength{ kDefaultBackgroundBlurStrength };
 		float uiScale{ Theme::kDefaultUserScale };
 		std::string bodyFontFamily{ kDefaultBodyFontFamily };
+		std::string menuToggleKey{ MenuToggleKeyName(kMenuDefaultToggleKey) };
 
 		[[nodiscard]] bool operator==(
 			const PersistedHostInterfaceSettings&) const noexcept = default;
@@ -200,7 +203,9 @@ namespace Addictol::DearModdingUI
 				Theme::kMinUserScale,
 				Theme::kMaxUserScale,
 				Theme::kDefaultUserScale),
-			DecodeBodyFontFamily(a_settings.bodyFontFamily)
+			DecodeBodyFontFamily(a_settings.bodyFontFamily),
+			std::string{ MenuToggleKeyName(
+				ParseMenuToggleKey(a_settings.menuToggleKey).virtualKey) }
 		};
 	}
 
@@ -226,7 +231,9 @@ namespace Addictol::DearModdingUI
 				Theme::kMinUserScale,
 				Theme::kMaxUserScale,
 				Theme::kDefaultUserScale),
-			DecodeBodyFontFamily(a_settings.bodyFontFamily)
+			DecodeBodyFontFamily(a_settings.bodyFontFamily),
+			std::string{ MenuToggleKeyName(
+				ParseMenuToggleKey(a_settings.menuToggleKey).virtualKey) }
 		};
 	}
 
@@ -329,5 +336,6 @@ namespace Addictol::DearModdingUI
 		void DismissPanel() noexcept;
 		[[nodiscard]] bool IsPanelOpen() noexcept;
 		[[nodiscard]] uint64_t PanelRevision() noexcept;
+		[[nodiscard]] uint32_t MenuToggleVirtualKey() noexcept;
 	}
 }
