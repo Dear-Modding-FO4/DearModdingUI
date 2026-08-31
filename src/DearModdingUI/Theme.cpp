@@ -262,7 +262,7 @@ namespace DearModdingUI::Theme
 			}
 		}
 
-		[[nodiscard]] bool BuildEmergencyAtlas(ImGuiIO& a_io) noexcept
+		[[nodiscard]] bool LoadEmergencyFont(ImGuiIO& a_io) noexcept
 		{
 			a_io.Fonts->Clear();
 			g_fonts = {};
@@ -273,7 +273,7 @@ namespace DearModdingUI::Theme
 			g_fonts.subtext = g_fonts.body;
 			g_effectiveBodyFontFamily = "Built-in fallback";
 			a_io.FontDefault = g_fonts.body;
-			return g_fonts.body && a_io.Fonts->Build();
+			return g_fonts.body != nullptr;
 		}
 	}
 
@@ -346,7 +346,7 @@ namespace DearModdingUI::Theme
 			REX::WARN("DearModdingUI: bundled font roles are incomplete; using safe fallbacks"sv);
 		if (!loaded.icons)
 			REX::WARN("DearModdingUI: Phosphor icon font is unavailable; using text-only labels"sv);
-		if (!io.Fonts->Build() && !BuildEmergencyAtlas(io))
+		if (!g_fonts.body && !LoadEmergencyFont(io))
 			REX::ERROR("DearModdingUI: no usable font atlas could be prepared"sv);
 		g_baseFontSize =
 			ResolveFontSize(static_cast<uint32_t>(kDefaultScreenHeight)) *
@@ -381,19 +381,15 @@ namespace DearModdingUI::Theme
 			return false;
 
 		auto& io = ImGui::GetIO();
-		ImGui_ImplDX11_InvalidateDeviceObjects();
 		io.Fonts->Clear();
 		const auto loaded = LoadFonts(
 			io,
 			a_backBufferHeight,
 			settings.uiScale,
 			family);
-		const auto built = io.Fonts->Build() && ImGui_ImplDX11_CreateDeviceObjects();
-		if (!built)
+		if (!g_fonts.body)
 		{
-			ImGui_ImplDX11_InvalidateDeviceObjects();
-			if (!BuildEmergencyAtlas(io) ||
-				!ImGui_ImplDX11_CreateDeviceObjects())
+			if (!LoadEmergencyFont(io))
 			{
 				REX::ERROR("DearModdingUI: font atlas rebuild failed"sv);
 				return false;
@@ -419,12 +415,12 @@ namespace DearModdingUI::Theme
 		return g_fonts;
 	}
 
-	bool PushFont(FontRole a_role) noexcept
+	bool PushFont(FontRole a_role, float a_scale) noexcept
 	{
 		auto* font = FontForRole(a_role);
 		if (!font)
 			return false;
-		ImGui::PushFont(font, font->LegacySize);
+		ImGui::PushFont(font, font->LegacySize * a_scale);
 		return true;
 	}
 
@@ -474,9 +470,9 @@ namespace DearModdingUI::Theme
 		return g_effectiveBodyFontFamily;
 	}
 
-	FontGuard::FontGuard(FontRole a_role) noexcept
+	FontGuard::FontGuard(FontRole a_role, float a_scale) noexcept
 	{
-		m_pushed = PushFont(a_role);
+		m_pushed = PushFont(a_role, a_scale);
 	}
 
 	FontGuard::~FontGuard() noexcept

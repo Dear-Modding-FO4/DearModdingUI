@@ -481,8 +481,10 @@ namespace DearModdingUI
 			ImVec2 textSize{};
 			float rowHeight{ 0.0f };
 			{
-				const Theme::FontGuard font{ Theme::FontRole::kTitle };
-				ImGui::SetWindowFontScale(textScale);
+				const Theme::FontGuard font{
+					Theme::FontRole::kTitle,
+					textScale
+				};
 				textSize = ImGui::CalcTextSize(breadcrumb.c_str());
 				rowHeight = (std::max)(
 					textSize.y,
@@ -505,7 +507,6 @@ namespace DearModdingUI
 						nullptr,
 						&textSize);
 				}
-				ImGui::SetWindowFontScale(1.0f);
 				ImGui::Dummy({
 					contentMaxX - start.x,
 					rowHeight
@@ -890,8 +891,10 @@ namespace DearModdingUI
 				ImGui::GetStyle().ItemSpacing.x);
 			ImVec2 titleSize{};
 			{
-				const Theme::FontGuard font{ Theme::FontRole::kTitle };
-				ImGui::SetWindowFontScale(Theme::kFeatureTitleScale);
+				const Theme::FontGuard font{
+					Theme::FontRole::kTitle,
+					Theme::kFeatureTitleScale
+				};
 				titleSize = ImGui::CalcTextSize(a_page.displayName.c_str());
 				const auto rowHeight =
 					(std::max)(
@@ -908,7 +911,6 @@ namespace DearModdingUI
 						nullptr,
 						&titleSize);
 				}
-				ImGui::SetWindowFontScale(1.0f);
 				ImGui::Dummy({
 					contentMaxX - start.x,
 					rowHeight
@@ -1030,8 +1032,10 @@ namespace DearModdingUI
 					spacing);
 				ImVec2 titleSize{};
 				{
-					const Theme::FontGuard font{ Theme::FontRole::kTitle };
-					ImGui::SetWindowFontScale(Theme::kFeatureTitleScale);
+					const Theme::FontGuard font{
+						Theme::FontRole::kTitle,
+						Theme::kFeatureTitleScale
+					};
 					titleSize = ImGui::CalcTextSize("Interface Settings");
 					const auto rowHeight =
 						(std::max)(titleSize.y, buttonExtent);
@@ -1046,7 +1050,6 @@ namespace DearModdingUI
 							nullptr,
 							&titleSize);
 					}
-					ImGui::SetWindowFontScale(1.0f);
 					ImGui::Dummy({
 						contentMaxX - start.x,
 						rowHeight

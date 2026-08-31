@@ -21,7 +21,7 @@ namespace DearModdingUI::Theme
 	class FontGuard
 	{
 	public:
-		explicit FontGuard(FontRole a_role) noexcept;
+		explicit FontGuard(FontRole a_role, float a_scale = 1.0f) noexcept;
 		~FontGuard() noexcept;
 
 		FontGuard(const FontGuard&) = delete;
@@ -47,7 +47,7 @@ namespace DearModdingUI::Theme
 	[[nodiscard]] bool PrepareFrame(uint32_t a_backBufferHeight) noexcept;
 	void ApplyStyle() noexcept;
 	[[nodiscard]] const Fonts& GetFonts() noexcept;
-	[[nodiscard]] bool PushFont(FontRole a_role) noexcept;
+	[[nodiscard]] bool PushFont(FontRole a_role, float a_scale = 1.0f) noexcept;
 	void PopFont() noexcept;
 	[[nodiscard]] float Scale() noexcept;
 	[[nodiscard]] float SearchScale() noexcept;
