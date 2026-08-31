@@ -1,0 +1,8 @@
+[Additional]
+bMenuMonochromeIcons = false
+sMenuAccentColor = "#42FA60"
+fMenuWindowOpacity = 0.55
+bMenuBackgroundBlur = true
+fMenuBackgroundBlurStrength = 0.30
+fMenuUiScale = 1.0
+sMenuBodyFontFamily = "Jost"
