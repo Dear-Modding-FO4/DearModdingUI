@@ -18,8 +18,10 @@ Requirements:
 - [xmake](https://xmake.io/)
 
 ```powershell
-git clone --recurse-submodules <repository-url>
+git clone <repository-url>
 cd DearModdingUI
+git submodule update --init
+git -C Depends/commonlibf4 submodule update --init --recursive
 xmake build -y
 ```
 

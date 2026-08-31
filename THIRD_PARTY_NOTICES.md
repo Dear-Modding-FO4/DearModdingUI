@@ -4,6 +4,10 @@
 
 Dear ImGui is copyright 2014-2026 Omar Cornut and is distributed under the MIT License. Its complete license is retained at `Depends/imgui/LICENSE.txt`.
 
+## cimgui
+
+cimgui is copyright 2015-2026 Stefano D'Ambro and is distributed under the MIT License. Its complete license is retained at `Depends/cimgui/LICENSE`.
+
 ## CommonLibF4 and toml11
 
 The Dear Modding FO4 CommonLibF4 fork and toml11 are distributed under their respective MIT licenses. Their complete license texts are retained in their submodules.

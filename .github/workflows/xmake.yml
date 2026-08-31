@@ -15,7 +15,10 @@ jobs:
     steps:
     - uses: actions/checkout@v6
       with:
-        submodules: recursive
+        submodules: true
+
+    - name: Initialize CommonLibF4 dependencies
+      run: git -C Depends/commonlibf4 submodule update --init --recursive
 
     - name: Add MSVC to PATH
       uses: ilammy/msvc-dev-cmd@v1

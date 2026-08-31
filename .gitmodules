@@ -4,6 +4,10 @@
 [submodule "Depends/imgui"]
 	path = Depends/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "Depends/cimgui"]
+	path = Depends/cimgui
+	url = https://github.com/cimgui/cimgui.git
+	branch = docking_inter
 [submodule "Depends/toml11"]
 	path = Depends/toml11
 	url = https://github.com/ToruNiina/toml11.git

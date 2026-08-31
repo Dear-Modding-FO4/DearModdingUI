@@ -123,7 +123,10 @@ target(plugin_name, function()
     })
 
     add_deps("imgui")
-    add_files("src/**.cpp")
+    add_files(
+        "src/**.cpp",
+        "Depends/cimgui/cimgui.cpp"
+    )
     add_headerfiles("include/**.h")
     add_extrafiles("data/**", "README.md", "THIRD_PARTY_NOTICES.md")
     add_includedirs(
