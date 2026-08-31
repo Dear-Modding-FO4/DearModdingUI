@@ -71,6 +71,42 @@ target("imgui", function()
     )
 end)
 
+target("dmui-tests", function()
+    set_kind("binary")
+    set_arch("x64")
+    set_languages("c++23")
+    set_optimize("fastest")
+    set_runtimes("MT")
+    set_targetdir(project_dir(".Build/Tests"))
+    set_objectdir(project_dir(".LinkConf/xmake/dmui-tests"))
+    set_dependir(project_dir(".LinkConf/xmake/dmui-tests/deps"))
+
+    add_deps("imgui")
+    add_files(
+        "Tests/**.cpp",
+        "src/DearModdingUI/FontCatalog.cpp",
+        "src/DearModdingUI/Navigation.cpp",
+        "src/DearModdingUI/Registry.cpp",
+        "src/DearModdingUI/Status.cpp"
+    )
+    add_includedirs(
+        "Tests",
+        "include",
+        "Depends",
+        "Depends/commonlibf4/include"
+    )
+    add_defines(
+        "NDEBUG",
+        "NOMINMAX",
+        "WIN32_LEAN_AND_MEAN"
+    )
+    add_cxxflags(
+        "/permissive-",
+        "/Zc:preprocessor",
+        { public = true }
+    )
+end)
+
 target(plugin_name, function()
     set_optimize("fastest")
     set_symbols("debug")
