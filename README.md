@@ -27,6 +27,14 @@ xmake build -y
 
 The build writes the deployable payload to `.Build/F4SE/Plugins/`, including `DearModdingUI.dll`, `DearModdingUI.toml`, fonts, and blur shaders.
 
+## Generating the client ImGui header
+
+The forwarding surface is curated in `Tools/imgui_forward_allowlist.json`. Generate the API repository header and validate every referenced symbol against the built host with:
+
+```powershell
+python Tools/generate_imgui_forward.py --definitions Depends/cimgui/generator/output/definitions.json --allowlist Tools/imgui_forward_allowlist.json --output ../DearModdingUI-API/include/DearModdingUI/ImGuiForward.h --dll .Build/F4SE/Plugins/DearModdingUI.dll --dumpbin <path-to-dumpbin.exe>
+```
+
 ## License
 
 DearModdingUI is licensed under GPL-3.0. See [LICENSE](LICENSE). Third-party software, fonts, provenance, and licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
