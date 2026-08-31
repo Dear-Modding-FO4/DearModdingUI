@@ -1047,6 +1047,8 @@ namespace Addictol
 			}
 
 			const auto result = original(a_swapChain, a_syncInterval, a_flags);
+			if (active && ObservesDisplayedFrame(a_flags, result == S_OK))
+				DearModdingUI::ObserveFrame();
 			if (active && IsDefinitiveSwapChainLoss(static_cast<uint32_t>(result)))
 			{
 				const ContextLock lock;

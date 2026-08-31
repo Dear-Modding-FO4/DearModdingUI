@@ -150,6 +150,16 @@ namespace vmm_tests
 			};
 		}
 
+		[[nodiscard]] DMUI_FrameObserverDescriptor FrameObserver(
+			CallbackState& a_state) noexcept
+		{
+			return {
+				sizeof(DMUI_FrameObserverDescriptor),
+				&Draw,
+				&a_state
+			};
+		}
+
 		[[nodiscard]] DMUI_ClientHandle AddClient(
 			Registry& a_registry,
 			const char* a_id,
@@ -902,6 +912,75 @@ namespace vmm_tests
 			require(registry.RegisterAction(first, &action, &handle) ==
 					DMUI_RESULT_REGISTRATION_CLOSED,
 				"action registration remained open after freeze");
+		});
+
+		runner.test("frame observer registration validates descriptors clients and freeze", [] {
+			const auto fingerprint = Fingerprint();
+			Registry registry{ fingerprint };
+			CallbackState state;
+			const auto client = AddClient(
+				registry, "observer.mod", "Observer", fingerprint, state);
+			auto observer = FrameObserver(state);
+			DMUI_FrameObserverHandle handle{ 99 };
+
+			require(!registry.HasActiveFrameObservers(),
+				"empty registry reported an active frame observer");
+			require(registry.RegisterFrameObserver(client, nullptr, &handle) ==
+					DMUI_RESULT_INVALID_ARGUMENT &&
+					handle == 99,
+				"null frame observer descriptor was accepted");
+			require(registry.RegisterFrameObserver(client, &observer, nullptr) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"null frame observer output was accepted");
+			require(registry.RegisterFrameObserver(
+						DMUI_INVALID_CLIENT_HANDLE, &observer, &handle) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"invalid frame observer client handle was accepted");
+			observer.structSize = sizeof(observer) - 1;
+			require(registry.RegisterFrameObserver(client, &observer, &handle) ==
+					DMUI_RESULT_STRUCT_TOO_SMALL,
+				"short frame observer descriptor was accepted");
+			observer.structSize = sizeof(observer);
+			observer.callback = nullptr;
+			require(registry.RegisterFrameObserver(client, &observer, &handle) ==
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"null frame observer callback was accepted");
+			observer.callback = &Draw;
+			require(registry.RegisterFrameObserver(9999, &observer, &handle) ==
+					DMUI_RESULT_CLIENT_NOT_FOUND,
+				"frame observer for an unknown client was accepted");
+			require(registry.RegisterFrameObserver(client, &observer, &handle) ==
+					DMUI_RESULT_OK &&
+					handle != DMUI_INVALID_FRAME_OBSERVER_HANDLE &&
+					registry.HasActiveFrameObservers(),
+				"valid frame observer was rejected");
+			require(registry.InvokeFrameObserver(handle) == DMUI_RESULT_OK &&
+					state.draws == 1,
+				"valid frame observer was not dispatched");
+			require(registry.Freeze(), "frame observer registry did not freeze");
+			require(registry.RegisterFrameObserver(client, &observer, &handle) ==
+					DMUI_RESULT_REGISTRATION_CLOSED,
+				"frame observer registration remained open after freeze");
+		});
+
+		runner.test("frame observer dispatch contains and disables callback failures", [] {
+			const auto fingerprint = Fingerprint();
+			Registry registry{ fingerprint };
+			CallbackState state;
+			const auto client = AddClient(
+				registry, "observer.mod", "Observer", fingerprint, state);
+			auto observer = FrameObserver(state);
+			observer.callback = &ThrowDraw;
+			DMUI_FrameObserverHandle handle{};
+			require(registry.RegisterFrameObserver(client, &observer, &handle) ==
+					DMUI_RESULT_OK,
+				"throwing frame observer registration failed");
+			require(registry.InvokeFrameObserver(handle) == DMUI_RESULT_CALLBACK_FAILED,
+				"throwing frame observer escaped its guard");
+			require(!registry.HasActiveFrameObservers(),
+				"failed frame observer remained active");
+			require(registry.InvokeFrameObserver(handle) == DMUI_RESULT_CALLBACK_FAILED,
+				"failed frame observer was invoked again");
 		});
 
 		runner.test("client actions order by sort key then stable ID", [] {

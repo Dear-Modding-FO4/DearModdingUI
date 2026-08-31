@@ -37,6 +37,10 @@ namespace
 			"clipboard-text",
 			"Copy something.",
 			[label] { (void)label; });
+		(void)client.AddFrameObserver([label] { (void)label; });
+		const auto videoMemory = client.QueryVideoMemory();
+		if (videoMemory)
+			(void)videoMemory->budget;
 		(void)client.SetStatus(DMUI_STATUS_SEVERITY_SUCCESS, "ready");
 		const auto colors = client.GetThemeColors();
 		if (colors)

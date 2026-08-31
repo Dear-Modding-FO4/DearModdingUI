@@ -229,6 +229,27 @@ namespace Addictol::DearModdingUI
 			return service.registry.RegisterAction(a_client, a_descriptor, a_action);
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterFrameObserverCpp(
+			DMUI_ClientHandle a_client,
+			const DMUI_FrameObserverDescriptor* a_descriptor,
+			DMUI_FrameObserverHandle* a_observer) noexcept
+		{
+			if (!a_descriptor || !a_observer || a_client == DMUI_INVALID_CLIENT_HANDLE)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_observer = DMUI_INVALID_FRAME_OBSERVER_HANDLE;
+			auto& service = GetService();
+			const auto state = service.state.load(std::memory_order_acquire);
+			if (state == DMUI_HOST_STATE_INITIALIZING ||
+				state == DMUI_HOST_STATE_READY)
+				return DMUI_RESULT_REGISTRATION_CLOSED;
+			if (state != DMUI_HOST_STATE_WAITING_FOR_PRESENT)
+				return StateResult(state);
+			return service.registry.RegisterFrameObserver(
+				a_client,
+				a_descriptor,
+				a_observer);
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryStateCpp(
 			DMUI_HostStateInfo* a_state) noexcept
 		{
@@ -601,6 +622,23 @@ namespace Addictol::DearModdingUI
 			return DMUI_RESULT_OK;
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryVideoMemoryCpp(
+			DMUI_ClientHandle a_client,
+			uint64_t* a_used,
+			uint64_t* a_budget) noexcept
+		{
+			if (!a_used || !a_budget)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_used = 0;
+			*a_budget = 0;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			return PlatformImgui::QueryVideoMemory(*a_used, *a_budget) ?
+				DMUI_RESULT_OK :
+				DMUI_RESULT_BACKEND_FAILED;
+		}
+
 		template <class Function>
 		[[nodiscard]] DMUI_Result GuardApiCall(Function&& a_function) noexcept
 		{
@@ -644,6 +682,16 @@ namespace Addictol::DearModdingUI
 		{
 			return GuardApiCall([&]() noexcept {
 				return ApiRegisterActionCpp(a_client, a_descriptor, a_action);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterFrameObserver(
+			DMUI_ClientHandle a_client,
+			const DMUI_FrameObserverDescriptor* a_descriptor,
+			DMUI_FrameObserverHandle* a_observer) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiRegisterFrameObserverCpp(a_client, a_descriptor, a_observer);
 			});
 		}
 
@@ -832,6 +880,16 @@ namespace Addictol::DearModdingUI
 			});
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryVideoMemory(
+			DMUI_ClientHandle a_client,
+			uint64_t* a_used,
+			uint64_t* a_budget) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiQueryVideoMemoryCpp(a_client, a_used, a_budget);
+			});
+		}
+
 		template <class InvokeCallback, class DisableCallback>
 		[[nodiscard]] bool InvokeClientCallback(
 			const char* a_kind,
@@ -897,7 +955,9 @@ namespace Addictol::DearModdingUI
 			&ApiDrawCollapsingSectionHeader,
 			&ApiDrawSettingsActionButton,
 			&ApiSettingsActionButtonWidth,
-			&ApiSettingsActionButtonExtent
+			&ApiSettingsActionButtonExtent,
+			&ApiRegisterFrameObserver,
+			&ApiQueryVideoMemory
 		};
 		return api;
 	}
@@ -1075,6 +1135,30 @@ namespace Addictol::DearModdingUI
 	bool ActionFailed(DMUI_ActionHandle a_action) noexcept
 	{
 		return GetService().registry.ActionFailed(a_action);
+	}
+
+	void ObserveFrame() noexcept
+	{
+		auto& service = GetService();
+		auto& registry = service.registry;
+		if (!registry.HasActiveFrameObservers())
+			return;
+		if (service.state.load(std::memory_order_acquire) != DMUI_HOST_STATE_READY)
+			return;
+		for (const auto& observer : registry.OrderedFrameObservers())
+		{
+			if (observer.callbackFailed)
+				continue;
+			(void)InvokeClientCallback(
+				"frame observer",
+				observer.handle,
+				[&]() noexcept {
+					return registry.InvokeFrameObserver(observer.handle);
+				},
+				[&]() noexcept {
+					registry.MarkFrameObserverFailed(observer.handle);
+				});
+		}
 	}
 
 	void DrawDemandedOverlays() noexcept

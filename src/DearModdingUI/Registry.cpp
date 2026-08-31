@@ -362,6 +362,46 @@ namespace Addictol::DearModdingUI
 		}
 	}
 
+	DMUI_Result Registry::RegisterFrameObserver(
+		DMUI_ClientHandle a_client,
+		const DMUI_FrameObserverDescriptor* a_descriptor,
+		DMUI_FrameObserverHandle* a_observer) noexcept
+	{
+		if (!a_descriptor || !a_observer || a_client == DMUI_INVALID_CLIENT_HANDLE)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		*a_observer = DMUI_INVALID_FRAME_OBSERVER_HANDLE;
+		if (a_descriptor->structSize < sizeof(DMUI_FrameObserverDescriptor))
+			return DMUI_RESULT_STRUCT_TOO_SMALL;
+		if (!a_descriptor->callback)
+			return DMUI_RESULT_INVALID_DESCRIPTOR;
+
+		try
+		{
+			RegisteredFrameObserver observer{};
+			observer.client = a_client;
+			observer.callback = a_descriptor->callback;
+			observer.userData = a_descriptor->userData;
+
+			const std::scoped_lock lock{ m_mutex };
+			if (!m_open)
+				return DMUI_RESULT_REGISTRATION_CLOSED;
+			if (!FindClient(a_client))
+				return DMUI_RESULT_CLIENT_NOT_FOUND;
+			if (m_nextFrameObserver == DMUI_INVALID_FRAME_OBSERVER_HANDLE)
+				return DMUI_RESULT_RESOURCE_EXHAUSTED;
+
+			observer.handle = m_nextFrameObserver++;
+			m_frameObservers.push_back(observer);
+			m_activeFrameObserverCount.fetch_add(1, std::memory_order_release);
+			*a_observer = observer.handle;
+			return DMUI_RESULT_OK;
+		}
+		catch (...)
+		{
+			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		}
+	}
+
 	bool Registry::Freeze() noexcept
 	{
 		try
@@ -451,6 +491,17 @@ namespace Addictol::DearModdingUI
 	const std::vector<RegisteredAction>& Registry::OrderedActions() const noexcept
 	{
 		return m_actions;
+	}
+
+	const std::vector<RegisteredFrameObserver>&
+		Registry::OrderedFrameObservers() const noexcept
+	{
+		return m_frameObservers;
+	}
+
+	bool Registry::HasActiveFrameObservers() const noexcept
+	{
+		return m_activeFrameObserverCount.load(std::memory_order_acquire) != 0;
 	}
 
 	const NavigationModel& Registry::Navigation() const noexcept
@@ -626,6 +677,40 @@ namespace Addictol::DearModdingUI
 			action->callbackFailed = true;
 	}
 
+	DMUI_Result Registry::InvokeFrameObserver(
+		DMUI_FrameObserverHandle a_observer) noexcept
+	{
+		DMUI_FrameCallback callback{ nullptr };
+		void* userData{ nullptr };
+		{
+			const std::scoped_lock lock{ m_mutex };
+			auto* observer = FindFrameObserver(a_observer);
+			if (!observer)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			if (observer->callbackFailed)
+				return DMUI_RESULT_CALLBACK_FAILED;
+			callback = observer->callback;
+			userData = observer->userData;
+		}
+
+		if (InvokeDraw(callback, userData))
+			return DMUI_RESULT_OK;
+
+		MarkFrameObserverFailed(a_observer);
+		return DMUI_RESULT_CALLBACK_FAILED;
+	}
+
+	void Registry::MarkFrameObserverFailed(
+		DMUI_FrameObserverHandle a_observer) noexcept
+	{
+		const std::scoped_lock lock{ m_mutex };
+		auto* observer = FindFrameObserver(a_observer);
+		if (!observer || observer->callbackFailed)
+			return;
+		observer->callbackFailed = true;
+		m_activeFrameObserverCount.fetch_sub(1, std::memory_order_release);
+	}
+
 	void Registry::NotifyReady(const DMUI_HostReadyInfo& a_info) noexcept
 	{
 		{
@@ -667,6 +752,14 @@ namespace Addictol::DearModdingUI
 				{
 					if (action.client == handle)
 						action.callbackFailed = true;
+				}
+				for (auto& observer : m_frameObservers)
+				{
+					if (observer.client == handle && !observer.callbackFailed)
+					{
+						observer.callbackFailed = true;
+						m_activeFrameObserverCount.fetch_sub(1, std::memory_order_release);
+					}
 				}
 			}
 		}
@@ -814,6 +907,17 @@ namespace Addictol::DearModdingUI
 			return a_existing.handle == a_action;
 		});
 		return found != m_actions.end() ? &*found : nullptr;
+	}
+
+	RegisteredFrameObserver* Registry::FindFrameObserver(
+		DMUI_FrameObserverHandle a_observer) noexcept
+	{
+		const auto found = std::ranges::find_if(
+			m_frameObservers,
+			[&](const auto& a_existing) {
+				return a_existing.handle == a_observer;
+			});
+		return found != m_frameObservers.end() ? &*found : nullptr;
 	}
 
 	bool Registry::OwnsPage(

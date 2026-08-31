@@ -3,6 +3,7 @@
 #include <DearModdingUI/API.h>
 #include <DearModdingUI/Navigation.h>
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -66,6 +67,15 @@ namespace Addictol::DearModdingUI
 		bool callbackFailed{ false };
 	};
 
+	struct RegisteredFrameObserver
+	{
+		DMUI_FrameObserverHandle handle{ DMUI_INVALID_FRAME_OBSERVER_HANDLE };
+		DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
+		DMUI_FrameCallback callback{ nullptr };
+		void* userData{ nullptr };
+		bool callbackFailed{ false };
+	};
+
 	class Registry
 	{
 	public:
@@ -83,6 +93,10 @@ namespace Addictol::DearModdingUI
 			DMUI_ClientHandle a_client,
 			const DMUI_ActionDescriptor* a_descriptor,
 			DMUI_ActionHandle* a_action) noexcept;
+		[[nodiscard]] DMUI_Result RegisterFrameObserver(
+			DMUI_ClientHandle a_client,
+			const DMUI_FrameObserverDescriptor* a_descriptor,
+			DMUI_FrameObserverHandle* a_observer) noexcept;
 		[[nodiscard]] bool Freeze() noexcept;
 		[[nodiscard]] bool IsOpen() const noexcept;
 		[[nodiscard]] bool Empty() const noexcept;
@@ -92,6 +106,9 @@ namespace Addictol::DearModdingUI
 		[[nodiscard]] bool HasSettingsPages() const noexcept;
 		[[nodiscard]] const std::vector<RegisteredPage>& OrderedPages() const noexcept;
 		[[nodiscard]] const std::vector<RegisteredAction>& OrderedActions() const noexcept;
+		[[nodiscard]] const std::vector<RegisteredFrameObserver>&
+			OrderedFrameObservers() const noexcept;
+		[[nodiscard]] bool HasActiveFrameObservers() const noexcept;
 		[[nodiscard]] const NavigationModel& Navigation() const noexcept;
 		[[nodiscard]] DMUI_Result RequestFrame(
 			DMUI_ClientHandle a_client,
@@ -117,6 +134,9 @@ namespace Addictol::DearModdingUI
 		[[nodiscard]] DMUI_Result InvokeAction(DMUI_ActionHandle a_action) noexcept;
 		[[nodiscard]] bool ActionFailed(DMUI_ActionHandle a_action) const noexcept;
 		void MarkActionFailed(DMUI_ActionHandle a_action) noexcept;
+		[[nodiscard]] DMUI_Result InvokeFrameObserver(
+			DMUI_FrameObserverHandle a_observer) noexcept;
+		void MarkFrameObserverFailed(DMUI_FrameObserverHandle a_observer) noexcept;
 		void NotifyReady(const DMUI_HostReadyInfo& a_info) noexcept;
 		void NotifyUnavailable(DMUI_UnavailableReason a_reason) noexcept;
 
@@ -140,6 +160,8 @@ namespace Addictol::DearModdingUI
 		[[nodiscard]] const RegisteredPage* FindPage(DMUI_PageHandle a_page) const noexcept;
 		[[nodiscard]] RegisteredAction* FindAction(DMUI_ActionHandle a_action) noexcept;
 		[[nodiscard]] const RegisteredAction* FindAction(DMUI_ActionHandle a_action) const noexcept;
+		[[nodiscard]] RegisteredFrameObserver* FindFrameObserver(
+			DMUI_FrameObserverHandle a_observer) noexcept;
 		[[nodiscard]] bool OwnsPage(
 			DMUI_ClientHandle a_client,
 			DMUI_PageHandle a_page) const noexcept;
@@ -149,10 +171,13 @@ namespace Addictol::DearModdingUI
 		std::vector<RegisteredClient> m_clients;
 		std::vector<RegisteredPage> m_pages;
 		std::vector<RegisteredAction> m_actions;
+		std::vector<RegisteredFrameObserver> m_frameObservers;
 		NavigationModel m_navigation;
 		DMUI_ClientHandle m_nextClient{ 1 };
 		DMUI_PageHandle m_nextPage{ 1 };
 		DMUI_ActionHandle m_nextAction{ 1 };
+		DMUI_FrameObserverHandle m_nextFrameObserver{ 1 };
+		std::atomic<size_t> m_activeFrameObserverCount{ 0 };
 		Notification m_notification{ Notification::kNone };
 		bool m_open{ true };
 	};

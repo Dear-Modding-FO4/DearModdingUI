@@ -16,8 +16,8 @@ version is unsupported. Discovery may succeed before the host plugin initializes
 registration then return `DMUI_RESULT_HOST_NOT_INITIALIZED`. Export presence does not mean the
 renderer is ready: register at `kPostPostLoad` and wait for exactly one lifecycle callback.
 
-Client, page, and action registration closes when the first valid active-swapchain `Present` begins
-host initialization. Register every page and action immediately after the client. All descriptor strings are copied;
+Client, page, action, and frame-observer registration closes when the first valid active-swapchain
+`Present` begins host initialization. Register them immediately after the client. All descriptor strings are copied;
 callback and userdata pointers must remain valid for the process lifetime. IDs use ASCII letters,
 digits, `.`, `_`, and `-`. Client IDs are process-wide; page and action IDs are unique within their client.
 Set only documented `DMUI_ClientDescriptor::capabilities`; unknown bits reject the descriptor.
@@ -104,6 +104,20 @@ Action callbacks run only when the host-rendered control is pressed. The host co
 and Windows structured exceptions, recovers shared ImGui state, and permanently disables a faulting
 action. Clients must not draw their own header, footer, or action chrome.
 
+## Frame observation and video memory
+
+The optional `registerFrameObserver` entry accepts a descriptor with a callback and user data. The host
+calls each observer on the render thread after every successful non-test active-swapchain `Present`,
+regardless of menu visibility. Registration is permanent for the process lifetime in DMUI v1. The host
+contains C++ and Windows structured exceptions, recovers shared ImGui state, and permanently disables a
+faulting observer. The C++ wrapper stores capturing callables in stable storage and returns the observer
+handle from `AddFrameObserver`.
+
+The optional `queryVideoMemory` entry returns current local-segment usage and budget in bytes from the
+adapter retained from the active swapchain. A non-OK result means no authoritative information is
+available. The C++ wrapper returns `std::optional<dmui::VideoMemoryInfo>`. Gate both entries with their
+published size constants and non-null function pointers when using the C ABI directly.
+
 ## Shared status
 
 Clients may report status through the optional appended `setStatus` entry. Check
@@ -179,7 +193,7 @@ Include the pinned `imgui.h` and `imgui_internal.h`, then `ImGuiFingerprint.h`, 
 `ImDrawVert`, `ImWchar`, color packing, docking, obsolete API, test-engine, CRC, FreeType, debug-tool,
 math-operator, and vector-extension flags directly from the active preprocessor configuration.
 
-`onHostReady`, `onHostUnavailable`, page draw callbacks, and action callbacks run on the render thread.
+`onHostReady`, `onHostUnavailable`, page draw, action, and frame callbacks run on the render thread.
 `setStatus` is the exception and may be called from any thread. The context and allocator functions
 exist only in `DMUI_HostReadyInfo`; clients must not poll for a context. In the ready callback, set the
 client's statically linked ImGui globals:

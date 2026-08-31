@@ -10,6 +10,8 @@ static_assert(std::is_standard_layout_v<DMUI_PageDescriptor>);
 static_assert(std::is_trivially_copyable_v<DMUI_PageDescriptor>);
 static_assert(std::is_standard_layout_v<DMUI_ActionDescriptor>);
 static_assert(std::is_trivially_copyable_v<DMUI_ActionDescriptor>);
+static_assert(std::is_standard_layout_v<DMUI_FrameObserverDescriptor>);
+static_assert(std::is_trivially_copyable_v<DMUI_FrameObserverDescriptor>);
 static_assert(std::is_standard_layout_v<DMUI_Vec2>);
 static_assert(std::is_trivially_copyable_v<DMUI_Vec2>);
 static_assert(std::is_standard_layout_v<DMUI_Vec4>);
@@ -31,6 +33,9 @@ static_assert(std::is_nothrow_invocable_v<
 	void*>);
 static_assert(!std::is_nothrow_invocable_v<
 	DMUI_ActionCallback,
+	void*>);
+static_assert(!std::is_nothrow_invocable_v<
+	DMUI_FrameCallback,
 	void*>);
 static_assert(std::is_nothrow_invocable_v<
 	DMUI_RegisterActionFn,
@@ -96,6 +101,16 @@ static_assert(std::is_nothrow_invocable_v<
 	DMUI_SettingsActionButtonExtentFn,
 	DMUI_ClientHandle,
 	float*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_RegisterFrameObserverFn,
+	DMUI_ClientHandle,
+	const DMUI_FrameObserverDescriptor*,
+	DMUI_FrameObserverHandle*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_QueryVideoMemoryFn,
+	DMUI_ClientHandle,
+	uint64_t*,
+	uint64_t*>);
 static_assert(DMUI_PAGE_KIND_SETTINGS == 1u);
 static_assert(DMUI_PAGE_KIND_OVERLAY == 2u);
 static_assert(DMUI_STATUS_SEVERITY_INFO == 0u);
@@ -118,6 +133,7 @@ static_assert(sizeof(DMUI_HostReadyInfo) == 40);
 static_assert(sizeof(DMUI_ClientDescriptor) == 72);
 static_assert(sizeof(DMUI_PageDescriptor) == 64);
 static_assert(sizeof(DMUI_ActionDescriptor) == 64);
+static_assert(sizeof(DMUI_FrameObserverDescriptor) == 24);
 static_assert(sizeof(DMUI_HostStateInfo) == 28);
 static_assert(sizeof(DMUI_Vec2) == 8);
 static_assert(sizeof(DMUI_Vec4) == 16);
@@ -144,7 +160,10 @@ static_assert(offsetof(DMUI_ThemeColors, statusCurrentHotkey) == 180);
 static_assert(offsetof(DMUI_ThemeColors, statusSuccess) == 196);
 static_assert(offsetof(DMUI_ThemeColors, statusInfo) == 212);
 static_assert(DMUI_THEME_COLORS_1_0_SIZE == sizeof(DMUI_ThemeColors));
-static_assert(sizeof(DMUI_HostAPI) == 168);
+static_assert(offsetof(DMUI_FrameObserverDescriptor, structSize) == 0);
+static_assert(offsetof(DMUI_FrameObserverDescriptor, callback) == 8);
+static_assert(offsetof(DMUI_FrameObserverDescriptor, userData) == 16);
+static_assert(sizeof(DMUI_HostAPI) == 184);
 static_assert(offsetof(DMUI_HostAPI, structSize) == 0);
 static_assert(offsetof(DMUI_HostAPI, apiVersion) == 4);
 static_assert(offsetof(DMUI_HostAPI, imguiFingerprint) == 8);
@@ -167,6 +186,8 @@ static_assert(offsetof(DMUI_HostAPI, drawCollapsingSectionHeader) == 136);
 static_assert(offsetof(DMUI_HostAPI, drawSettingsActionButton) == 144);
 static_assert(offsetof(DMUI_HostAPI, settingsActionButtonWidth) == 152);
 static_assert(offsetof(DMUI_HostAPI, settingsActionButtonExtent) == 160);
+static_assert(offsetof(DMUI_HostAPI, registerFrameObserver) == 168);
+static_assert(offsetof(DMUI_HostAPI, queryVideoMemory) == 176);
 static_assert(DMUI_HOST_API_SELECT_PAGE_SIZE == 72);
 static_assert(DMUI_HOST_API_ATTACH_SWAP_CHAIN_SIZE == 80);
 static_assert(DMUI_HOST_API_REGISTER_ACTION_SIZE == 88);
@@ -179,5 +200,7 @@ static_assert(DMUI_HOST_API_DRAW_SEARCH_INPUT_SIZE == 136);
 static_assert(DMUI_HOST_API_DRAW_COLLAPSING_SECTION_HEADER_SIZE == 144);
 static_assert(DMUI_HOST_API_DRAW_SETTINGS_ACTION_BUTTON_SIZE == 152);
 static_assert(DMUI_HOST_API_SETTINGS_ACTION_BUTTON_WIDTH_SIZE == 160);
-static_assert(DMUI_HOST_API_SETTINGS_ACTION_BUTTON_EXTENT_SIZE == sizeof(DMUI_HostAPI));
+static_assert(DMUI_HOST_API_SETTINGS_ACTION_BUTTON_EXTENT_SIZE == 168);
+static_assert(DMUI_HOST_API_REGISTER_FRAME_OBSERVER_SIZE == 176);
+static_assert(DMUI_HOST_API_QUERY_VIDEO_MEMORY_SIZE == sizeof(DMUI_HostAPI));
 #endif

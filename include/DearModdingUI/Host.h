@@ -31,6 +31,7 @@ namespace Addictol::DearModdingUI
 	[[nodiscard]] bool PageFailed(DMUI_PageHandle a_page) noexcept;
 	[[nodiscard]] bool InvokeAction(DMUI_ActionHandle a_action) noexcept;
 	[[nodiscard]] bool ActionFailed(DMUI_ActionHandle a_action) noexcept;
+	void ObserveFrame() noexcept;
 	void DrawDemandedOverlays() noexcept;
 	[[nodiscard]] const std::vector<RegisteredPage>& OrderedPages() noexcept;
 	[[nodiscard]] const std::vector<RegisteredAction>& OrderedActions() noexcept;
