@@ -34,6 +34,50 @@ jobs:
     - name: Build
       run: xmake build -P . -y
 
+    - name: Check ImGui forwarding header
+      shell: pwsh
+      run: |
+        $generated = Join-Path $env:RUNNER_TEMP 'ImGuiForward.h'
+        $committed = 'Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/ImGuiForward.h'
+        $dll = '.Build/F4SE/Plugins/DearModdingUI.dll'
+
+        python Tools/generate_imgui_forward.py `
+          --definitions Depends/cimgui/generator/output/definitions.json `
+          --allowlist Tools/imgui_forward_allowlist.json `
+          --output $generated `
+          --dll $dll
+        if ($LASTEXITCODE -ne 0) {
+          throw 'ImGui forwarding generation or DLL export validation failed.'
+        }
+
+        function Get-NormalizedBytes([string] $path) {
+          $inputBytes = [IO.File]::ReadAllBytes((Resolve-Path $path))
+          $outputBytes = [IO.MemoryStream]::new()
+          for ($index = 0; $index -lt $inputBytes.Length; $index++) {
+            if ($inputBytes[$index] -eq 13) {
+              $outputBytes.WriteByte(10)
+              if ($index + 1 -lt $inputBytes.Length -and $inputBytes[$index + 1] -eq 10) {
+                $index++
+              }
+            } else {
+              $outputBytes.WriteByte($inputBytes[$index])
+            }
+          }
+          return $outputBytes.ToArray()
+        }
+
+        [byte[]] $generatedBytes = Get-NormalizedBytes $generated
+        [byte[]] $committedBytes = Get-NormalizedBytes $committed
+        if (-not [Linq.Enumerable]::SequenceEqual[byte]($generatedBytes, $committedBytes)) {
+          throw @'
+        The committed ImGui forwarding header is out of date.
+        From DearModdingUI, run:
+          python Tools/generate_imgui_forward.py --definitions Depends/cimgui/generator/output/definitions.json --allowlist Tools/imgui_forward_allowlist.json --output Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/ImGuiForward.h
+        Commit include/DearModdingUI/ImGuiForward.h in the nested DearModdingUI-API checkout, then update the CommonLibF4 and DearModdingUI submodule references.
+        '@
+        }
+        Write-Host 'ImGui forwarding header matches the generator and DLL exports.'
+
     - name: Check plugin exports
       shell: pwsh
       run: |
