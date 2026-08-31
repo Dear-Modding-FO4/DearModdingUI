@@ -106,6 +106,8 @@ namespace Addictol::DearModdingUI
 			DMUI_PageKind a_kind) const noexcept;
 		[[nodiscard]] DMUI_Result ValidateSwapChainClient(
 			DMUI_ClientHandle a_client) const noexcept;
+		[[nodiscard]] DMUI_Result ValidateClient(
+			DMUI_ClientHandle a_client) const noexcept;
 		[[nodiscard]] DMUI_Result CopyClientDisplayName(
 			DMUI_ClientHandle a_client,
 			std::string& a_displayName) const noexcept;

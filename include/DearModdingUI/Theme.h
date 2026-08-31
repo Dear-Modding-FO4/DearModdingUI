@@ -47,6 +47,8 @@ namespace Addictol::DearModdingUI::Theme
 	[[nodiscard]] bool PrepareFrame(uint32_t a_backBufferHeight) noexcept;
 	void ApplyStyle() noexcept;
 	[[nodiscard]] const Fonts& GetFonts() noexcept;
+	[[nodiscard]] bool PushFont(FontRole a_role) noexcept;
+	void PopFont() noexcept;
 	[[nodiscard]] float Scale() noexcept;
 	[[nodiscard]] float SearchScale() noexcept;
 	[[nodiscard]] ImVec4 IconTint() noexcept;

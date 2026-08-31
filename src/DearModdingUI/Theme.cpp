@@ -419,6 +419,20 @@ namespace Addictol::DearModdingUI::Theme
 		return g_fonts;
 	}
 
+	bool PushFont(FontRole a_role) noexcept
+	{
+		auto* font = FontForRole(a_role);
+		if (!font)
+			return false;
+		ImGui::PushFont(font, font->LegacySize);
+		return true;
+	}
+
+	void PopFont() noexcept
+	{
+		ImGui::PopFont();
+	}
+
 	float Scale() noexcept
 	{
 		return g_fonts.body ?
@@ -462,16 +476,12 @@ namespace Addictol::DearModdingUI::Theme
 
 	FontGuard::FontGuard(FontRole a_role) noexcept
 	{
-		auto* font = FontForRole(a_role);
-		if (!font)
-			return;
-		ImGui::PushFont(font, font->LegacySize);
-		m_pushed = true;
+		m_pushed = PushFont(a_role);
 	}
 
 	FontGuard::~FontGuard() noexcept
 	{
 		if (m_pushed)
-			ImGui::PopFont();
+			PopFont();
 	}
 }

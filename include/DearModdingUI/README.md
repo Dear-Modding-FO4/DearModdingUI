@@ -39,8 +39,8 @@ window, and falls back deterministically if the previous selection is not availa
 
 Clients receive a clean scrolling content region below the host-owned page title, category, and
 summary. Draw regular ImGui controls there. Do not begin independent top-level windows, draw over
-the sidebar/header, change the host style or fonts, or retain pointers into host navigation data.
-Client pages inherit the active theme and may use their own balanced child regions and popups.
+the sidebar/header, change the host style or fonts directly, or retain pointers into host navigation
+data. Client pages inherit the active theme and may use their own balanced child regions and popups.
 
 The host ports Community Shaders' current default palette, style dimensions, Jost Body, Title,
 Heading, Subheading, and Subtext roles, resolution scaling, search and navigation treatments,
@@ -65,6 +65,25 @@ code. A missing or failed family falls back to Jost, while a missing icon font f
 labels without disabling the menu or the C ABI host.
 When a normalized category name equals its client's normalized display name or full client ID, the
 category inherits that client's glyph.
+
+## Shared theme and widgets
+
+The optional appended theme and widget entries expose the host's visual vocabulary without publishing
+ImGui or C++ types in `API.h`. Gate every call with its matching
+`DMUI_HOST_API_<ENTRY>_SIZE` constant and a non-null function pointer. These calls accept only a
+registered client and are available while the host is ready on the render thread.
+
+`getThemeColors` fills a caller-sized `DMUI_ThemeColors` with the current accent, muted accent, success,
+warning, error, info, and muted colors plus every status color. `pushFont` accepts the Body, Title,
+Heading, Subheading, or Subtext role; balance every successful push with `popFont`. The C++ wrapper
+provides `dmui::FontGuard` and converts `DMUI_Vec4` to `ImVec4` with `dmui::ToImVec4`.
+
+`drawSectionHeader`, `drawCollapsingSectionHeader`, `drawSearchInput`, and
+`drawSettingsActionButton` are thin calls into the same helpers used by the host. Search buffers must
+have a nonzero capacity and contain a NUL terminator within that capacity. A successful call always
+leaves the buffer NUL-terminated, truncates edited output to `capacity - 1`, and reports whether the
+text changed through the fixed-width output flag. The C++ wrapper marshals this contract to
+`std::string&`.
 
 ## Client actions
 

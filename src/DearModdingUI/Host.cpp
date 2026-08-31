@@ -2,6 +2,8 @@
 #include <DearModdingUI/Host.h>
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/ImGuiRecovery.h>
+#include <DearModdingUI/Shell.h>
+#include <DearModdingUI/Theme.h>
 #include <Platform/PlatformImgui.h>
 
 #include <REX/REX.h>
@@ -11,9 +13,12 @@
 
 #include <DearModdingUI/ImGuiFingerprint.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cstring>
 #include <limits>
 #include <mutex>
+#include <new>
 
 #ifndef IMGUI_HAS_DOCK
 #error "DearModdingUI requires the pinned Dear ImGui docking build"
@@ -51,6 +56,14 @@ namespace Addictol::DearModdingUI
 			StatusModel status;
 		};
 
+		struct ClientFontPush
+		{
+			DMUI_ClientHandle client;
+			int depth;
+		};
+
+		thread_local std::vector<ClientFontPush> s_clientFontPushes;
+
 		[[nodiscard]] Service& GetService() noexcept
 		{
 			static Service service;
@@ -79,6 +92,23 @@ namespace Addictol::DearModdingUI
 			default:
 				return DMUI_RESULT_HOST_NOT_READY;
 			}
+		}
+
+		[[nodiscard]] DMUI_Result ValidateDrawingClient(
+			DMUI_ClientHandle a_client) noexcept
+		{
+			if (a_client == DMUI_INVALID_CLIENT_HANDLE)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			auto& service = GetService();
+			const auto state = service.state.load(std::memory_order_acquire);
+			if (state != DMUI_HOST_STATE_READY)
+				return StateResult(state);
+			return service.registry.ValidateClient(a_client);
+		}
+
+		[[nodiscard]] constexpr DMUI_Vec4 ToDMUIVec4(const ImVec4& a_color) noexcept
+		{
+			return { a_color.x, a_color.y, a_color.z, a_color.w };
 		}
 
 		[[nodiscard]] void* AllocCpp(size_t a_size, void* a_userData) noexcept
@@ -333,6 +363,208 @@ namespace Addictol::DearModdingUI
 				a_message);
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiGetThemeColorsCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_ThemeColors* a_colors) noexcept
+		{
+			if (!a_colors)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			if (a_colors->structSize < DMUI_THEME_COLORS_1_0_SIZE)
+				return DMUI_RESULT_STRUCT_TOO_SMALL;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+
+			a_colors->success = ToDMUIVec4(Theme::colors::kSuccess);
+			a_colors->warning = ToDMUIVec4(Theme::colors::kWarning);
+			a_colors->error = ToDMUIVec4(Theme::colors::kError);
+			a_colors->info = ToDMUIVec4(Theme::colors::kInfo);
+			a_colors->muted = ToDMUIVec4(Theme::colors::kMuted);
+			a_colors->accent = ToDMUIVec4(Theme::colors::Accent());
+			a_colors->accentMuted = ToDMUIVec4(Theme::colors::AccentMuted());
+			a_colors->statusDisable = ToDMUIVec4(
+				Theme::kStatusPaletteDefaults.disable);
+			a_colors->statusError = ToDMUIVec4(
+				Theme::kStatusPaletteDefaults.error);
+			a_colors->statusWarning = ToDMUIVec4(
+				Theme::kStatusPaletteDefaults.warning);
+			a_colors->statusRestartNeeded = ToDMUIVec4(
+				Theme::kStatusPaletteDefaults.restartNeeded);
+			a_colors->statusCurrentHotkey = ToDMUIVec4(
+				Theme::kStatusPaletteDefaults.currentHotkey);
+			a_colors->statusSuccess = ToDMUIVec4(
+				Theme::kStatusPaletteDefaults.success);
+			a_colors->statusInfo = ToDMUIVec4(
+				Theme::kStatusPaletteDefaults.info);
+			return DMUI_RESULT_OK;
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiPushFontCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_FontRole a_role) noexcept
+		{
+			if (a_role >= DMUI_FONT_ROLE_COUNT)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			const auto* context = ImGui::GetCurrentContext();
+			if (!context)
+				return DMUI_RESULT_HOST_NOT_READY;
+
+			try
+			{
+				s_clientFontPushes.push_back(
+					{ a_client, context->FontStack.Size + 1 });
+			}
+			catch (const std::bad_alloc&)
+			{
+				return DMUI_RESULT_RESOURCE_EXHAUSTED;
+			}
+			catch (...)
+			{
+				return DMUI_RESULT_CALLBACK_FAILED;
+			}
+			if (!Theme::PushFont(static_cast<Theme::FontRole>(a_role)))
+			{
+				s_clientFontPushes.pop_back();
+				return DMUI_RESULT_HOST_NOT_READY;
+			}
+			return DMUI_RESULT_OK;
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiPopFontCpp(
+			DMUI_ClientHandle a_client) noexcept
+		{
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			const auto* context = ImGui::GetCurrentContext();
+			if (!context ||
+				s_clientFontPushes.empty() ||
+				s_clientFontPushes.back().client != a_client ||
+				s_clientFontPushes.back().depth != context->FontStack.Size)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+
+			Theme::PopFont();
+			s_clientFontPushes.pop_back();
+			return DMUI_RESULT_OK;
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSectionHeaderCpp(
+			DMUI_ClientHandle a_client,
+			const char* a_text,
+			uint32_t a_glyph) noexcept
+		{
+			if (!a_text)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			DrawSectionHeader(a_text, static_cast<char32_t>(a_glyph));
+			return DMUI_RESULT_OK;
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSearchInputCpp(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			const char* a_hint,
+			char* a_buffer,
+			size_t a_capacity,
+			uint32_t* a_changed) noexcept
+		{
+			if (!a_id || !a_hint || !a_buffer || !a_capacity || !a_changed)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_changed = 0u;
+
+			size_t length = 0;
+			while (length < a_capacity && a_buffer[length])
+				++length;
+			if (length == a_capacity)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+
+			try
+			{
+				std::string search{ a_buffer, length };
+				DrawSearchInput(a_id, a_hint, search);
+				*a_changed = search.size() != length ||
+						std::memcmp(search.data(), a_buffer, length) != 0 ?
+					1u :
+					0u;
+				const auto outputLength = (std::min)(search.size(), a_capacity - 1);
+				std::memcpy(a_buffer, search.data(), outputLength);
+				a_buffer[outputLength] = '\0';
+				return DMUI_RESULT_OK;
+			}
+			catch (const std::bad_alloc&)
+			{
+				return DMUI_RESULT_RESOURCE_EXHAUSTED;
+			}
+			catch (...)
+			{
+				return DMUI_RESULT_CALLBACK_FAILED;
+			}
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawCollapsingSectionHeaderCpp(
+			DMUI_ClientHandle a_client,
+			const char* a_key,
+			const char* a_text,
+			uint32_t a_glyph,
+			uint32_t* a_expanded,
+			size_t a_count) noexcept
+		{
+			if (!a_key || !a_text || !a_expanded)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+
+			auto expanded = *a_expanded != 0;
+			DrawCollapsingSectionHeader(
+				a_key,
+				a_text,
+				static_cast<char32_t>(a_glyph),
+				expanded,
+				a_count);
+			*a_expanded = expanded ? 1u : 0u;
+			return DMUI_RESULT_OK;
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSettingsActionButtonCpp(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			DMUI_Vec2 a_origin,
+			DMUI_Vec2 a_size,
+			DMUI_SettingsAction a_action,
+			const char* a_fallbackLabel,
+			const char* a_tooltip,
+			uint32_t a_enabled,
+			uint32_t* a_pressed) noexcept
+		{
+			if (!a_id || !a_pressed || a_action > DMUI_SETTINGS_ACTION_APPLY)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_pressed = 0u;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+
+			*a_pressed = DrawSettingsActionButton(
+							 a_id,
+							 { a_origin.x, a_origin.y },
+							 { a_size.x, a_size.y },
+							 static_cast<SettingsAction>(a_action),
+							 a_fallbackLabel,
+							 a_tooltip,
+							 a_enabled != 0) ?
+				1u :
+				0u;
+			return DMUI_RESULT_OK;
+		}
+
 		template <class Function>
 		[[nodiscard]] DMUI_Result GuardApiCall(Function&& a_function) noexcept
 		{
@@ -439,6 +671,105 @@ namespace Addictol::DearModdingUI
 			});
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiGetThemeColors(
+			DMUI_ClientHandle a_client,
+			DMUI_ThemeColors* a_colors) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiGetThemeColorsCpp(a_client, a_colors);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiPushFont(
+			DMUI_ClientHandle a_client,
+			DMUI_FontRole a_role) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiPushFontCpp(a_client, a_role);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiPopFont(
+			DMUI_ClientHandle a_client) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiPopFontCpp(a_client);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSectionHeader(
+			DMUI_ClientHandle a_client,
+			const char* a_text,
+			uint32_t a_glyph) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiDrawSectionHeaderCpp(a_client, a_text, a_glyph);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSearchInput(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			const char* a_hint,
+			char* a_buffer,
+			size_t a_capacity,
+			uint32_t* a_changed) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiDrawSearchInputCpp(
+					a_client,
+					a_id,
+					a_hint,
+					a_buffer,
+					a_capacity,
+					a_changed);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawCollapsingSectionHeader(
+			DMUI_ClientHandle a_client,
+			const char* a_key,
+			const char* a_text,
+			uint32_t a_glyph,
+			uint32_t* a_expanded,
+			size_t a_count) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiDrawCollapsingSectionHeaderCpp(
+					a_client,
+					a_key,
+					a_text,
+					a_glyph,
+					a_expanded,
+					a_count);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSettingsActionButton(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			DMUI_Vec2 a_origin,
+			DMUI_Vec2 a_size,
+			DMUI_SettingsAction a_action,
+			const char* a_fallbackLabel,
+			const char* a_tooltip,
+			uint32_t a_enabled,
+			uint32_t* a_pressed) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiDrawSettingsActionButtonCpp(
+					a_client,
+					a_id,
+					a_origin,
+					a_size,
+					a_action,
+					a_fallbackLabel,
+					a_tooltip,
+					a_enabled,
+					a_pressed);
+			});
+		}
+
 		template <class InvokeCallback, class DisableCallback>
 		[[nodiscard]] bool InvokeClientCallback(
 			const char* a_kind,
@@ -449,6 +780,7 @@ namespace Addictol::DearModdingUI
 			auto recovery = ImGuiRecoverySnapshot::Capture();
 			if (!recovery)
 			{
+				s_clientFontPushes.clear();
 				a_disable();
 				REX::ERROR(
 					"DearModdingUI: {} callback {} could not be isolated and was disabled"sv,
@@ -460,6 +792,7 @@ namespace Addictol::DearModdingUI
 			if (result == DMUI_RESULT_CALLBACK_FAILED)
 			{
 				recovery->RecoverFailure();
+				s_clientFontPushes.clear();
 				REX::ERROR(
 					"DearModdingUI: {} callback {} failed and was disabled"sv,
 					a_kind,
@@ -467,6 +800,7 @@ namespace Addictol::DearModdingUI
 				return false;
 			}
 			recovery->RecoverAfterCallback();
+			s_clientFontPushes.clear();
 			return result == DMUI_RESULT_OK;
 		}
 	}
@@ -492,7 +826,14 @@ namespace Addictol::DearModdingUI
 			&ApiSelectPage,
 			&ApiAttachSwapChain,
 			&ApiRegisterAction,
-			&ApiSetStatus
+			&ApiSetStatus,
+			&ApiGetThemeColors,
+			&ApiPushFont,
+			&ApiPopFont,
+			&ApiDrawSectionHeader,
+			&ApiDrawSearchInput,
+			&ApiDrawCollapsingSectionHeader,
+			&ApiDrawSettingsActionButton
 		};
 		return api;
 	}

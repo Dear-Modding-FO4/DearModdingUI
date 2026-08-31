@@ -525,6 +525,12 @@ namespace Addictol::DearModdingUI
 			DMUI_RESULT_CLIENT_CAPABILITY_REQUIRED;
 	}
 
+	DMUI_Result Registry::ValidateClient(DMUI_ClientHandle a_client) const noexcept
+	{
+		const std::scoped_lock lock{ m_mutex };
+		return FindClient(a_client) ? DMUI_RESULT_OK : DMUI_RESULT_CLIENT_NOT_FOUND;
+	}
+
 	DMUI_Result Registry::CopyClientDisplayName(
 		DMUI_ClientHandle a_client,
 		std::string& a_displayName) const noexcept
