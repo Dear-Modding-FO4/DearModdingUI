@@ -1189,18 +1189,28 @@ namespace Addictol::DearModdingUI
 					rowHeight,
 					ImGui::GetFontSize())
 			});
-			ImGui::BulletText("Host: Evil Modding");
+			DrawBulletText("Host: Evil Modding");
 			auto metadataRight = ImGui::GetItemRectMax().x;
 			if (const auto* client =
 					a_model.FindClient(a_state.activeClient))
 			{
+				char modText[320]{};
+				std::snprintf(
+					modText,
+					sizeof(modText),
+					"Mod: %s",
+					client->displayName.c_str());
 				ImGui::SameLine();
-				ImGui::BulletText("Mod: %s", client->displayName.c_str());
-				ImGui::SameLine();
-				ImGui::BulletText(
+				DrawBulletText(modText);
+				char versionText[64]{};
+				std::snprintf(
+					versionText,
+					sizeof(versionText),
 					"Version: %u.%u",
 					client->version >> 16,
 					client->version & 0xFFFFu);
+				ImGui::SameLine();
+				DrawBulletText(versionText);
 				metadataRight = ImGui::GetItemRectMax().x;
 			}
 			ImGui::PopClipRect();
@@ -1520,11 +1530,16 @@ namespace Addictol::DearModdingUI
 			packed);
 		if (clicked)
 			a_expanded = !a_expanded;
+		// The InvisibleButton above already sized and advanced this row.
 		ImGui::PopID();
+	}
 
-		ImGui::SetCursorScreenPos(
-			{ position.x, position.y + layout.contentHeight + 8.0f });
-		ImGui::Dummy({ availableWidth, 0.0f });
+	void DrawBulletText(const char* a_text) noexcept
+	{
+		a_text = a_text ? a_text : "";
+		ImGui::Bullet();
+		// Bullet positions the wrapped text with scaled frame padding.
+		ImGui::TextWrapped("%s", a_text);
 	}
 
 	void DrawSectionHeader(const char* a_text, char32_t a_glyph) noexcept
@@ -1567,9 +1582,9 @@ namespace Addictol::DearModdingUI
 			a_glyph,
 			a_text,
 			color);
-		ImGui::SetCursorScreenPos(
-			{ position.x, position.y + layout.contentHeight + 8.0f });
-		ImGui::Dummy({ availableWidth, 0.0f });
+		// Dummy must carry the real height; a zero-height one re-adds the stale line height.
+		ImGui::SetCursorScreenPos(position);
+		ImGui::Dummy({ availableWidth, layout.contentHeight });
 	}
 
 	void DrawShell() noexcept

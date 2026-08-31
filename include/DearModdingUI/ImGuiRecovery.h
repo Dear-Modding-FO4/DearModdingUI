@@ -11,12 +11,13 @@ namespace Addictol::DearModdingUI
 	class ImGuiRecoverySnapshot
 	{
 	public:
+		// Only valid inside an ImGui frame; CurrentWindow is null once Render() has run.
 		[[nodiscard]] static std::optional<ImGuiRecoverySnapshot> Capture() noexcept
 		{
 			try
 			{
 				auto* context = ImGui::GetCurrentContext();
-				if (!context)
+				if (!context || !context->CurrentWindow)
 					return std::nullopt;
 				return ImGuiRecoverySnapshot(*context);
 			}

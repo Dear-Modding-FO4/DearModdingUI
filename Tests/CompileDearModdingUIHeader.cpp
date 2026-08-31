@@ -64,6 +64,10 @@ static_assert(std::is_nothrow_invocable_v<
 	const char*,
 	uint32_t>);
 static_assert(std::is_nothrow_invocable_v<
+	DMUI_DrawBulletTextFn,
+	DMUI_ClientHandle,
+	const char*>);
+static_assert(std::is_nothrow_invocable_v<
 	DMUI_DrawSearchInputFn,
 	DMUI_ClientHandle,
 	const char*,
@@ -163,7 +167,7 @@ static_assert(DMUI_THEME_COLORS_1_0_SIZE == sizeof(DMUI_ThemeColors));
 static_assert(offsetof(DMUI_FrameObserverDescriptor, structSize) == 0);
 static_assert(offsetof(DMUI_FrameObserverDescriptor, callback) == 8);
 static_assert(offsetof(DMUI_FrameObserverDescriptor, userData) == 16);
-static_assert(sizeof(DMUI_HostAPI) == 184);
+static_assert(sizeof(DMUI_HostAPI) == 192);
 static_assert(offsetof(DMUI_HostAPI, structSize) == 0);
 static_assert(offsetof(DMUI_HostAPI, apiVersion) == 4);
 static_assert(offsetof(DMUI_HostAPI, imguiFingerprint) == 8);
@@ -188,6 +192,7 @@ static_assert(offsetof(DMUI_HostAPI, settingsActionButtonWidth) == 152);
 static_assert(offsetof(DMUI_HostAPI, settingsActionButtonExtent) == 160);
 static_assert(offsetof(DMUI_HostAPI, registerFrameObserver) == 168);
 static_assert(offsetof(DMUI_HostAPI, queryVideoMemory) == 176);
+static_assert(offsetof(DMUI_HostAPI, drawBulletText) == 184);
 static_assert(DMUI_HOST_API_SELECT_PAGE_SIZE == 72);
 static_assert(DMUI_HOST_API_ATTACH_SWAP_CHAIN_SIZE == 80);
 static_assert(DMUI_HOST_API_REGISTER_ACTION_SIZE == 88);
@@ -202,5 +207,6 @@ static_assert(DMUI_HOST_API_DRAW_SETTINGS_ACTION_BUTTON_SIZE == 152);
 static_assert(DMUI_HOST_API_SETTINGS_ACTION_BUTTON_WIDTH_SIZE == 160);
 static_assert(DMUI_HOST_API_SETTINGS_ACTION_BUTTON_EXTENT_SIZE == 168);
 static_assert(DMUI_HOST_API_REGISTER_FRAME_OBSERVER_SIZE == 176);
-static_assert(DMUI_HOST_API_QUERY_VIDEO_MEMORY_SIZE == sizeof(DMUI_HostAPI));
+static_assert(DMUI_HOST_API_QUERY_VIDEO_MEMORY_SIZE == 184);
+static_assert(DMUI_HOST_API_DRAW_BULLET_TEXT_SIZE == sizeof(DMUI_HostAPI));
 #endif

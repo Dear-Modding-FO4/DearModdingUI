@@ -486,6 +486,19 @@ namespace Addictol::DearModdingUI
 			return DMUI_RESULT_OK;
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawBulletTextCpp(
+			DMUI_ClientHandle a_client,
+			const char* a_text) noexcept
+		{
+			if (!a_text)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			DrawBulletText(a_text);
+			return DMUI_RESULT_OK;
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSearchInputCpp(
 			DMUI_ClientHandle a_client,
 			const char* a_id,
@@ -639,21 +652,11 @@ namespace Addictol::DearModdingUI
 				DMUI_RESULT_BACKEND_FAILED;
 		}
 
+		// No SEH guard: /EHsc would skip destructors and leak the registry mutex.
 		template <class Function>
 		[[nodiscard]] DMUI_Result GuardApiCall(Function&& a_function) noexcept
 		{
-#if defined(_MSC_VER)
-			__try
-			{
-				return a_function();
-			}
-			__except (1)
-			{
-				return DMUI_RESULT_INVALID_ARGUMENT;
-			}
-#else
 			return a_function();
-#endif
 		}
 
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterClient(
@@ -791,6 +794,15 @@ namespace Addictol::DearModdingUI
 			});
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawBulletText(
+			DMUI_ClientHandle a_client,
+			const char* a_text) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiDrawBulletTextCpp(a_client, a_text);
+			});
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSearchInput(
 			DMUI_ClientHandle a_client,
 			const char* a_id,
@@ -890,6 +902,7 @@ namespace Addictol::DearModdingUI
 			});
 		}
 
+		// Pages and actions draw inside the frame, so isolate the host's frame state.
 		template <class InvokeCallback, class DisableCallback>
 		[[nodiscard]] bool InvokeClientCallback(
 			const char* a_kind,
@@ -921,6 +934,25 @@ namespace Addictol::DearModdingUI
 			}
 			recovery->RecoverAfterCallback();
 			s_clientFontPushes.clear();
+			return result == DMUI_RESULT_OK;
+		}
+
+		// Frame observers run after Present, outside the frame, where there is nothing to isolate.
+		template <class InvokeCallback>
+		[[nodiscard]] bool InvokeNonDrawingClientCallback(
+			const char* a_kind,
+			uint64_t a_handle,
+			InvokeCallback&& a_invoke) noexcept
+		{
+			const auto result = a_invoke();
+			if (result == DMUI_RESULT_CALLBACK_FAILED)
+			{
+				REX::ERROR(
+					"DearModdingUI: {} callback {} failed and was disabled"sv,
+					a_kind,
+					a_handle);
+				return false;
+			}
 			return result == DMUI_RESULT_OK;
 		}
 	}
@@ -957,7 +989,8 @@ namespace Addictol::DearModdingUI
 			&ApiSettingsActionButtonWidth,
 			&ApiSettingsActionButtonExtent,
 			&ApiRegisterFrameObserver,
-			&ApiQueryVideoMemory
+			&ApiQueryVideoMemory,
+			&ApiDrawBulletText
 		};
 		return api;
 	}
@@ -1149,14 +1182,11 @@ namespace Addictol::DearModdingUI
 		{
 			if (observer.callbackFailed)
 				continue;
-			(void)InvokeClientCallback(
+			(void)InvokeNonDrawingClientCallback(
 				"frame observer",
 				observer.handle,
 				[&]() noexcept {
 					return registry.InvokeFrameObserver(observer.handle);
-				},
-				[&]() noexcept {
-					registry.MarkFrameObserverFailed(observer.handle);
 				});
 		}
 	}
