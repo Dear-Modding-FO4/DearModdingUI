@@ -1,0 +1,58 @@
+name: xmake
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        submodules: recursive
+
+    - name: Add MSVC to PATH
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Set up xmake
+      uses: xmake-io/github-action-setup-xmake@v1
+      with:
+        xmake-version: latest
+
+    - name: Configure
+      run: xmake config --yes
+
+    - name: Build
+      run: xmake build -P . -y
+
+    - name: Check plugin exports
+      shell: pwsh
+      run: |
+        $dll = '.Build/F4SE/Plugins/DearModdingUI.dll'
+        if (-not (Test-Path $dll)) { throw "$dll was not produced" }
+
+        $exports = (dumpbin /exports $dll) -join "`n"
+        $missing = @('DMUI_GetHostAPI','F4SEPlugin_Load','F4SEPlugin_Query','F4SEPlugin_Version') |
+          Where-Object { $exports -notmatch [regex]::Escape($_) }
+
+        if ($missing) { throw "missing DearModdingUI exports: $($missing -join ', ')" }
+        Write-Host "all four DearModdingUI exports present"
+
+    - name: Run checks
+      run: .Build/Tests/dmui-tests.exe
+
+    - name: Upload build output
+      uses: actions/upload-artifact@v6
+      with:
+        name: dearmoddingui-xmake-${{ github.sha }}
+        path: |
+          .Build/F4SE/Plugins/DearModdingUI.dll
+          .Build/F4SE/Plugins/DearModdingUI.pdb
+          .Build/F4SE/Plugins/DearModdingUI.toml
+          .Build/F4SE/Plugins/DearModdingUI
