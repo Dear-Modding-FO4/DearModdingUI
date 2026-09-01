@@ -2344,11 +2344,11 @@ namespace vmm_tests
 			require(
 				kDefaultPaletteBackgroundColor == expectedBackground,
 				"command palette background default changed");
-			require(kDefaultPaletteBackgroundOpacity == 0.75f,
+			require(kDefaultPaletteBackgroundOpacity == 0.85f,
 				"command palette opacity default changed");
 			require(
 				persisted.paletteBackgroundColor == "#050505" &&
-					persisted.paletteBackgroundOpacity == 0.75f,
+					persisted.paletteBackgroundOpacity == 0.85f,
 				"persisted command palette defaults diverged");
 			auto popupBackground =
 				HostAccentToImVec4(settings.paletteBackgroundColor);
@@ -2399,13 +2399,15 @@ namespace vmm_tests
 			}
 			const auto hostTransmission =
 				1.0f - settings.windowBackgroundOpacity;
+			require(palette[ImGuiCol_ModalWindowDimBg].w == 0.35f,
+				"command palette composite used the wrong modal dim opacity");
 			const auto stackedTransmission =
 				hostTransmission *
 				(1.0f - palette[ImGuiCol_ModalWindowDimBg].w) *
 				(1.0f - popupBackground.w);
 			require(
-				stackedTransmission > 0.05f &&
-					stackedTransmission < 0.10f,
+				stackedTransmission > 0.04f &&
+					stackedTransmission < 0.05f,
 				"command palette did not preserve a faint view of the host");
 		});
 

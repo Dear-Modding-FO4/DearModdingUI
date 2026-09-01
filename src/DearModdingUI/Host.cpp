@@ -1110,6 +1110,49 @@ namespace DearModdingUI
 		}
 
 		// Pages and actions draw inside the frame, so isolate the host's frame state.
+		void LogImGuiRecovery(
+			const char* a_kind,
+			uint64_t a_handle,
+			const ImGuiRecoveryResult& a_recovery) noexcept
+		{
+			if (!a_recovery.Repaired())
+				return;
+
+			const auto& before = a_recovery.before;
+			const auto& after = a_recovery.after;
+			REX::ERROR(
+				"DearModdingUI: {} callback {} required ImGui recovery "
+				"(windows {}->{}, tables {}->{}, IDs {}->{}, trees {}->{}, "
+				"colors {}->{}, style vars {}->{}, fonts {}->{}, focus scopes {}->{}, "
+				"groups {}->{}, item flags {}->{}, popups {}->{}, disabled {}->{})"sv,
+				a_kind,
+				a_handle,
+				before.windows,
+				after.windows,
+				before.tables,
+				after.tables,
+				before.ids,
+				after.ids,
+				before.trees,
+				after.trees,
+				before.colors,
+				after.colors,
+				before.styleVariables,
+				after.styleVariables,
+				before.fonts,
+				after.fonts,
+				before.focusScopes,
+				after.focusScopes,
+				before.groups,
+				after.groups,
+				before.itemFlags,
+				after.itemFlags,
+				before.popups,
+				after.popups,
+				before.disabled,
+				after.disabled);
+		}
+
 		template <class InvokeCallback, class DisableCallback>
 		[[nodiscard]] bool InvokeClientCallback(
 			const char* a_kind,
@@ -1131,7 +1174,8 @@ namespace DearModdingUI
 			const auto result = a_invoke();
 			if (result == DMUI_RESULT_CALLBACK_FAILED)
 			{
-				recovery->RecoverFailure();
+				const auto recovered = recovery->RecoverFailure();
+				LogImGuiRecovery(a_kind, a_handle, recovered);
 				s_clientFontPushes.clear();
 				REX::ERROR(
 					"DearModdingUI: {} callback {} failed and was disabled"sv,
@@ -1139,7 +1183,8 @@ namespace DearModdingUI
 					a_handle);
 				return false;
 			}
-			recovery->RecoverAfterCallback();
+			const auto recovered = recovery->RecoverAfterCallback();
+			LogImGuiRecovery(a_kind, a_handle, recovered);
 			s_clientFontPushes.clear();
 			return result == DMUI_RESULT_OK;
 		}

@@ -1,3 +1,4 @@
+#include <DearModdingUI/ImGuiRecovery.h>
 #include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
@@ -97,6 +98,31 @@ namespace vmm_tests
 
 	void run_settings_table_checks(Runner& runner)
 	{
+		runner.test("ImGui recovery reports repaired stack depths", [] {
+			ImGuiTestFrame frame;
+			auto recovery = ImGuiRecoverySnapshot::Capture();
+			require(recovery.has_value(), "recovery snapshot was not captured");
+			ImGui::PushID("leaked-id");
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{});
+			ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
+			ImGui::PushFont(ImGui::GetFont());
+			require(ImGui::BeginTable("leaked-table", 1),
+				"diagnostic table did not begin");
+
+			const auto repaired = recovery->RecoverAfterCallback();
+			require(repaired.Repaired(), "stack repair was not reported");
+			require(
+				repaired.before.tables == repaired.after.tables + 1 &&
+					repaired.before.ids == repaired.after.ids + 2 &&
+					repaired.before.colors == repaired.after.colors + 1 &&
+					repaired.before.styleVariables ==
+						repaired.after.styleVariables + 1 &&
+					repaired.before.fonts == repaired.after.fonts + 1,
+				"reported stack depths did not describe the repair");
+			require(frame.IsAtBaseline(),
+				"reported recovery did not restore the ImGui baseline");
+		});
+
 		runner.test("settings row closes its nested controls table", [] {
 			constexpr DMUI_ClientHandle owner{ 7 };
 			ImGuiTestFrame frame;
@@ -119,6 +145,118 @@ namespace vmm_tests
 			}
 			require(frame.IsAtBaseline() && frame.Errors() == 0,
 				"balanced row changed the ImGui stack");
+		});
+
+		runner.test("first-frame host controls need no ImGui recovery", [] {
+			ImGuiTestFrame frame;
+			auto recovery = ImGuiRecoverySnapshot::Capture();
+			require(recovery.has_value(), "recovery snapshot was not captured");
+			const auto table = SettingsTable::Begin(
+				DMUI_INVALID_CLIENT_HANDLE,
+				"host-settings");
+			require(table.result == DMUI_RESULT_OK && table.visible,
+				"host settings table did not begin");
+
+			const auto drawRow = [](const char* a_id, auto&& a_draw) {
+				const auto row = SettingsTable::BeginRow(
+					DMUI_INVALID_CLIENT_HANDLE,
+					a_id,
+					"Setting",
+					"Description");
+				require(row.result == DMUI_RESULT_OK && row.visible,
+					"host settings row did not begin");
+				a_draw();
+				bool resetPressed{};
+				require(SettingsTable::EndRow(
+							DMUI_INVALID_CLIENT_HANDLE,
+							{ true, false },
+							resetPressed) == DMUI_RESULT_OK,
+					"host settings row did not end");
+			};
+
+			float color[]{ 0.25f, 0.50f, 0.75f };
+			drawRow("color", [&]() {
+				(void)ImGui::ColorPicker3("##Value", color);
+				for (int index = 0; index < 3; ++index)
+				{
+					ImGui::PushID(index);
+					if (index > 0)
+						ImGui::SameLine();
+					(void)ImGui::ColorButton(
+						"Preset",
+						{ color[0], color[1], color[2], 1.0f });
+					ImGui::PopID();
+				}
+			});
+			bool checked{};
+			drawRow("checkbox", [&]() {
+				(void)ImGui::Checkbox("##Value", &checked);
+			});
+			float scalar{ 0.5f };
+			drawRow("slider", [&]() {
+				(void)ImGui::SliderFloat(
+					"##Value",
+					&scalar,
+					0.0f,
+					1.0f);
+			});
+
+			require(SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE) ==
+					DMUI_RESULT_OK,
+				"host settings table did not end");
+			const auto repaired = recovery->RecoverAfterCallback();
+			require(!repaired.Repaired() && frame.Errors() == 0,
+				"balanced first-frame controls required ImGui recovery");
+		});
+
+		runner.test("first-frame page callback preserves its host table", [] {
+			constexpr DMUI_ClientHandle owner{ 7 };
+			ImGuiTestFrame frame;
+			require(ImGui::BeginTable(
+						"host-shell",
+						2,
+						ImGuiTableFlags_SizingStretchProp |
+							ImGuiTableFlags_Resizable),
+				"host shell table did not begin");
+			ImGui::TableSetupColumn("Navigation", ImGuiTableColumnFlags_None, 3.0f);
+			ImGui::TableSetupColumn("Page", ImGuiTableColumnFlags_None, 7.0f);
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Navigation");
+			ImGui::TableNextColumn();
+			require(ImGui::BeginChild("page-frame", {}, ImGuiChildFlags_Borders),
+				"page frame did not begin");
+			ImGui::PushID(11);
+
+			{
+				const SettingsTable::ClientCallbackGuard guard{ owner };
+				auto recovery = ImGuiRecoverySnapshot::Capture();
+				require(recovery.has_value(), "recovery snapshot was not captured");
+				const auto table = SettingsTable::Begin(owner, "settings");
+				require(table.result == DMUI_RESULT_OK && table.visible,
+					"client settings table did not begin");
+				const auto row = SettingsTable::BeginRow(
+					owner, "row", "Setting", "Description");
+				require(row.result == DMUI_RESULT_OK && row.visible,
+					"client settings row did not begin");
+				bool value{};
+				(void)ImGui::Checkbox("##Value", &value);
+				bool resetPressed{};
+				require(SettingsTable::EndRow(
+							owner, { true, false }, resetPressed) ==
+						DMUI_RESULT_OK,
+					"client settings row did not end");
+				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
+					"client settings table did not end");
+				const auto repaired = recovery->RecoverAfterCallback();
+				require(!repaired.Repaired(),
+					"balanced page callback required ImGui recovery");
+			}
+
+			ImGui::PopID();
+			ImGui::EndChild();
+			ImGui::EndTable();
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"page callback changed the host table stack");
 		});
 
 		runner.test("invisible settings row opens no bracket", [] {

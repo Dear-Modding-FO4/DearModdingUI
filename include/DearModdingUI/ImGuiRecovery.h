@@ -8,6 +8,36 @@
 
 namespace DearModdingUI
 {
+	struct ImGuiStackDepths
+	{
+		int windows{ 0 };
+		int ids{ 0 };
+		int tables{ 0 };
+		int trees{ 0 };
+		int colors{ 0 };
+		int styleVariables{ 0 };
+		int fonts{ 0 };
+		int focusScopes{ 0 };
+		int groups{ 0 };
+		int itemFlags{ 0 };
+		int popups{ 0 };
+		int disabled{ 0 };
+
+		[[nodiscard]] bool operator==(
+			const ImGuiStackDepths&) const noexcept = default;
+	};
+
+	struct ImGuiRecoveryResult
+	{
+		ImGuiStackDepths before;
+		ImGuiStackDepths after;
+
+		[[nodiscard]] bool Repaired() const noexcept
+		{
+			return before != after;
+		}
+	};
+
 	class ImGuiRecoverySnapshot
 	{
 	public:
@@ -48,21 +78,24 @@ namespace DearModdingUI
 				ImGui::MemFree(m_openPopupData);
 		}
 
-		void RecoverAfterCallback() noexcept
+		[[nodiscard]] ImGuiRecoveryResult RecoverAfterCallback() noexcept
 		{
 			ImGui::SetCurrentContext(m_context);
+			const auto before = CaptureStackDepths(*m_context);
 			auto& io = ImGui::GetIO();
 			const auto assertEnabled = io.ConfigErrorRecoveryEnableAssert;
 			io.ConfigErrorRecoveryEnableAssert = false;
 			ImGui::ErrorRecoveryTryToRecoverState(&m_stackState);
 			io.ConfigErrorRecoveryEnableAssert = assertEnabled;
+			const auto after = CaptureStackDepths(*m_context);
 			m_context->NextWindowData = m_nextWindowData;
 			m_context->NextItemData = m_nextItemData;
+			return { before, after };
 		}
 
-		void RecoverFailure() noexcept
+		[[nodiscard]] ImGuiRecoveryResult RecoverFailure() noexcept
 		{
-			RecoverAfterCallback();
+			const auto recovery = RecoverAfterCallback();
 			if (m_context->OpenPopupStack.Data)
 				ImGui::MemFree(m_context->OpenPopupStack.Data);
 			m_context->OpenPopupStack.Data = m_openPopupData;
@@ -72,9 +105,30 @@ namespace DearModdingUI
 			m_openPopupSize = 0;
 			if (!m_context->OpenPopupStack.empty())
 				ImGui::ClosePopupToLevel(0, true);
+			return recovery;
 		}
 
 	private:
+		[[nodiscard]] static ImGuiStackDepths CaptureStackDepths(
+			const ImGuiContext& a_context) noexcept
+		{
+			const auto* window = a_context.CurrentWindow;
+			return {
+				a_context.CurrentWindowStack.Size,
+				window ? window->IDStack.Size : 0,
+				a_context.TablesTempDataStacked,
+				window ? window->DC.TreeDepth : 0,
+				a_context.ColorStack.Size,
+				a_context.StyleVarStack.Size,
+				a_context.FontStack.Size,
+				a_context.FocusScopeStack.Size,
+				a_context.GroupStack.Size,
+				a_context.ItemFlagsStack.Size,
+				a_context.BeginPopupStack.Size,
+				a_context.DisabledStackSize
+			};
+		}
+
 		explicit ImGuiRecoverySnapshot(ImGuiContext& a_context) :
 			m_context(&a_context),
 			m_nextWindowData(a_context.NextWindowData),

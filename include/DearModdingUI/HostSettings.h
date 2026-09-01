@@ -31,7 +31,7 @@ namespace DearModdingUI
 	inline constexpr float kDefaultWindowBackgroundOpacity{ 0.55f };
 	inline constexpr float kMinWindowBackgroundOpacity{ 0.20f };
 	inline constexpr float kMaxWindowBackgroundOpacity{ 1.0f };
-	inline constexpr float kDefaultPaletteBackgroundOpacity{ 0.75f };
+	inline constexpr float kDefaultPaletteBackgroundOpacity{ 0.85f };
 	inline constexpr float kMinPaletteBackgroundOpacity{ 0.20f };
 	inline constexpr float kMaxPaletteBackgroundOpacity{ 1.0f };
 	inline constexpr float kDefaultBackgroundBlurStrength{ 0.30f };
