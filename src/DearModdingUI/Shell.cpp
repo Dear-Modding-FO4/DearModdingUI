@@ -12,7 +12,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cfloat>
 #include <cmath>
 #include <cstdio>
@@ -27,37 +26,24 @@ namespace DearModdingUI
 {
 	namespace
 	{
+		inline constexpr char kCommandPalettePopupId[] =
+			"Search pages and actions###DearModdingPalette";
+
 		struct ShellState : ClientSelectionState
 		{
 			std::map<std::string, bool> categoryExpansion;
+			std::map<std::string, bool> modExpansion;
+			std::string paletteQuery;
+			size_t paletteSelection{ 0 };
+			bool paletteOpenRequested{ false };
+			bool paletteFocusRequested{ false };
+			bool paletteVisible{ false };
 		};
 
 		[[nodiscard]] ShellState& State() noexcept
 		{
 			static ShellState state;
 			return state;
-		}
-
-		[[nodiscard]] std::string Lower(std::string_view a_value)
-		{
-			std::string result{ a_value };
-			std::ranges::transform(result, result.begin(), [](unsigned char a_character) {
-				return static_cast<char>(std::tolower(a_character));
-			});
-			return result;
-		}
-
-		[[nodiscard]] bool Matches(
-			const NavigationPage& a_page,
-			std::string_view a_search)
-		{
-			if (a_search.empty())
-				return true;
-			const auto search = Lower(a_search);
-			return Lower(a_page.displayName).contains(search) ||
-				Lower(a_page.id).contains(search) ||
-				Lower(a_page.category).contains(search) ||
-				Lower(a_page.summary).contains(search);
 		}
 
 		[[nodiscard]] bool HasIconGlyph(char32_t a_glyph) noexcept
@@ -597,9 +583,59 @@ namespace DearModdingUI
 				a_size * Theme::kSearchIconHandleStrokeRatio);
 		}
 
-		void DrawPageSearch(std::string& a_search) noexcept
+		void DrawPaletteAffordance(ShellState& a_state) noexcept
 		{
-			DrawSearchInput("PageSearchBar", "Search Pages...", a_search);
+			const auto position = ImGui::GetCursorScreenPos();
+			const auto size = ImVec2{
+				ImGui::GetContentRegionAvail().x,
+				ImGui::GetFrameHeight()
+			};
+			const auto pressed = ImGui::InvisibleButton(
+				"##OpenNavigationPalette",
+				size);
+			const auto hovered = ImGui::IsItemHovered();
+			const auto held = ImGui::IsItemActive();
+			const auto color = ImGui::GetColorU32(
+				held ?
+					ImGuiCol_FrameBgActive :
+					(hovered ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg));
+			ImGui::RenderFrame(
+				position,
+				{ position.x + size.x, position.y + size.y },
+				color,
+				true,
+				ImGui::GetStyle().FrameRounding);
+
+			const auto scale = Theme::SearchScale();
+			const auto iconSize = Theme::kSearchIconSize * scale;
+			const auto iconPosition = ImVec2{
+				position.x + ImGui::GetStyle().FramePadding.x,
+				position.y + (size.y - iconSize) * 0.5f
+			};
+			DrawSearchIcon(
+				iconPosition,
+				iconSize,
+				Theme::kSearchIconAlpha);
+
+			constexpr auto hint = "Search pages and actions...";
+			const auto textSize = ImGui::CalcTextSize(hint);
+			const auto textPosition = ImVec2{
+				iconPosition.x + iconSize + ImGui::GetStyle().ItemInnerSpacing.x,
+				position.y + CenterOffsetY(size.y, textSize.y)
+			};
+			ImGui::RenderTextEllipsis(
+				ImGui::GetWindowDrawList(),
+				textPosition,
+				{
+					position.x + size.x - ImGui::GetStyle().FramePadding.x,
+					position.y + size.y
+				},
+				position.x + size.x - ImGui::GetStyle().FramePadding.x,
+				hint,
+				nullptr,
+				&textSize);
+			if (pressed)
+				a_state.paletteOpenRequested = true;
 		}
 
 		[[nodiscard]] std::string CategoryKey(
@@ -609,116 +645,133 @@ namespace DearModdingUI
 			return a_client.id + "/" + a_category.displayName;
 		}
 
-		void DrawClientList(
+		void ExpandPageAncestors(
 			const NavigationModel& a_model,
+			DMUI_PageHandle a_page,
+			ShellState& a_state)
+		{
+			const auto* page = a_model.FindPage(a_page);
+			const auto* client = page ?
+				a_model.FindClient(page->client) :
+				nullptr;
+			if (!page || !client)
+				return;
+			a_state.modExpansion[client->id] = true;
+			a_state.categoryExpansion[
+				client->id + "/" + page->category] = true;
+		}
+
+		void NavigateToPage(
+			const NavigationModel& a_model,
+			DMUI_PageHandle a_page,
 			ShellState& a_state) noexcept
 		{
-			DrawSectionHeader("Mods", PhosphorGlyph::kSquaresFour);
-			const Theme::FontGuard font{ Theme::FontRole::kSubheading };
-			const auto* active = a_model.FindClient(a_state.activeClient);
-			const char* previewText =
-				active ? active->displayName.c_str() : "No mods registered";
-			const auto previewGlyph = active ?
-				ResolveIconGlyph(IconKind::kClient, active->id) :
-				char32_t{};
+			const auto* page = a_model.FindPage(a_page);
+			if (!page)
+				return;
+			HostSettings::NotifyModSelected();
+			a_state.activeClient = page->client;
+			a_state.activePage = page->handle;
+			RecordRecentPage(a_model, page->handle, a_state);
+			ExpandPageAncestors(a_model, page->handle, a_state);
+		}
 
-			ImGui::SetNextItemWidth(-FLT_MIN);
-			const auto open = ImGui::BeginCombo(
-				"##DearModdingClientSelector",
-				"",
-				ImGuiComboFlags_CustomPreview);
-			if (open)
-			{
-				for (const auto& client : a_model.clients)
+		[[nodiscard]] const ClientStatus* FindClientStatus(
+			const std::vector<ClientStatus>& a_statuses,
+			DMUI_ClientHandle a_client) noexcept
+		{
+			const auto found = std::ranges::find(
+				a_statuses,
+				a_client,
+				&ClientStatus::client);
+			return found != a_statuses.end() ? &*found : nullptr;
+		}
+
+		void DrawClientStatusDot(
+			const ImRect& a_bounds,
+			const ClientStatus* a_status) noexcept
+		{
+			if (!a_status || !IsPersistentStatus(a_status->severity))
+				return;
+			const auto color =
+				a_status->severity == DMUI_STATUS_SEVERITY_WARNING ?
+					Theme::kStatusPaletteDefaults.warning :
+					Theme::kStatusPaletteDefaults.error;
+			const auto radius = ImGui::GetFontSize() *
+				Theme::kSearchIconStrokeRatio;
+			ImGui::GetWindowDrawList()->AddCircleFilled(
 				{
-					const auto glyph =
-						ResolveIconGlyph(IconKind::kClient, client.id);
-					const auto textSize =
-						ImGui::CalcTextSize(client.displayName.c_str());
-					const auto layout = DecideInlineIconLayout(
-						HasIconGlyph(glyph),
-						textSize.x,
-						textSize.y,
-						ImGui::GetFontSize(),
-						ImGui::GetStyle().ItemSpacing.x);
-					const auto rowHeight =
-						layout.contentHeight +
-						ImGui::GetStyle().FramePadding.y * 2.0f;
-					const auto selected =
-						client.handle == a_state.activeClient;
-					const auto label =
-						"###DearModdingClient/" + client.id;
-					if (ImGui::Selectable(
-							label.c_str(),
-							selected,
-							ImGuiSelectableFlags_None,
-							{ 0.0f, rowHeight }))
-					{
-						HostSettings::NotifyModSelected();
-						Theme::ApplyStyle();
-						(void)SelectClient(a_model, client.handle, a_state);
-					}
-					const auto itemMin = ImGui::GetItemRectMin();
-					const auto itemMax = ImGui::GetItemRectMax();
-					const ImVec4 clip{
-						itemMin.x,
-						itemMin.y,
-						itemMax.x,
-						itemMax.y
-					};
-					DrawIconText(
-						{
-							itemMin.x + ImGui::GetStyle().FramePadding.x,
-							itemMin.y
-						},
-						rowHeight,
-						glyph,
-						client.displayName.c_str(),
-						ImGui::GetColorU32(ImGuiCol_Text),
-						&clip);
-					if (selected)
-						ImGui::SetItemDefaultFocus();
-				}
-				ImGui::EndCombo();
-			}
-			if (ImGui::BeginComboPreview())
-			{
-				const auto position = ImGui::GetCursorScreenPos();
-				const auto textSize = ImGui::CalcTextSize(previewText);
-				const auto layout = DecideInlineIconLayout(
-					active && HasIconGlyph(previewGlyph),
-					textSize.x,
-					textSize.y,
-					ImGui::GetFontSize(),
-					ImGui::GetStyle().ItemSpacing.x);
-				DrawIconText(
-					position,
-					layout.contentHeight,
-					previewGlyph,
-					previewText,
-					ImGui::GetColorU32(ImGuiCol_Text));
-				ImGui::Dummy({ layout.contentWidth, layout.contentHeight });
-				ImGui::EndComboPreview();
-			}
+					a_bounds.Max.x - ImGui::GetStyle().FramePadding.x - radius,
+					a_bounds.GetCenter().y
+				},
+				radius,
+				ImGui::GetColorU32(color));
+		}
+
+		[[nodiscard]] bool DrawClientRow(
+			const NavigationClient& a_client,
+			const ClientStatus* a_status,
+			bool a_selected,
+			bool& a_expanded) noexcept
+		{
+			ImGui::PushID(a_client.id.c_str());
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4());
+			ImGui::PushStyleColor(
+				ImGuiCol_ButtonHovered,
+				Theme::kFullPalette[ImGuiCol_HeaderHovered]);
+			ImGui::PushStyleColor(
+				ImGuiCol_ButtonActive,
+				Theme::kFullPalette[ImGuiCol_HeaderActive]);
+			if (ImGui::ArrowButton(
+					"##ModExpansion",
+					a_expanded ? ImGuiDir_Down : ImGuiDir_Right))
+				a_expanded = !a_expanded;
+			ImGui::PopStyleColor(3);
+			ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+
+			const auto rowHeight = ImGui::GetFrameHeight();
+			const auto pressed = ImGui::Selectable(
+				"##ModName",
+				a_selected,
+				ImGuiSelectableFlags_None,
+				{ ImGui::GetContentRegionAvail().x, rowHeight });
+			const auto bounds = ImRect{
+				ImGui::GetItemRectMin(),
+				ImGui::GetItemRectMax()
+			};
+			const auto glyph = ResolveIconGlyph(IconKind::kClient, a_client.id);
+			const auto dotInset = IsPersistentStatus(
+				a_status ? a_status->severity : DMUI_STATUS_SEVERITY_INFO) ?
+				ImGui::GetFontSize() :
+				0.0f;
+			const ImVec4 clip{
+				bounds.Min.x,
+				bounds.Min.y,
+				bounds.Max.x - dotInset,
+				bounds.Max.y
+			};
+			DrawIconText(
+				{
+					bounds.Min.x + ImGui::GetStyle().FramePadding.x,
+					bounds.Min.y
+				},
+				rowHeight,
+				glyph,
+				a_client.displayName.c_str(),
+				ImGui::GetColorU32(ImGuiCol_Text),
+				&clip);
+			DrawClientStatusDot(bounds, a_status);
+			ImGui::PopID();
+			return pressed;
 		}
 
 		void DrawPageList(
+			const NavigationModel& a_model,
 			const NavigationClient& a_client,
 			ShellState& a_state) noexcept
 		{
-			DrawSectionHeader("Pages", PhosphorGlyph::kFiles);
-			DrawPageSearch(a_state.search);
-
 			for (const auto& category : a_client.categories)
 			{
-				const auto hasMatch = std::ranges::any_of(
-					category.pages,
-					[&](const auto& a_page) {
-						return Matches(a_page, a_state.search);
-					});
-				if (!hasMatch)
-					continue;
-
 				const auto key = CategoryKey(a_client, category);
 				auto state =
 					a_state.categoryExpansion.try_emplace(key, true).first;
@@ -736,12 +789,9 @@ namespace DearModdingUI
 
 				for (const auto& page : category.pages)
 				{
-					if (!Matches(page, a_state.search))
-						continue;
 					const auto failed = PageFailed(page.handle);
 					const auto selected = page.handle == a_state.activePage;
-					const auto label =
-						" " + page.displayName + " ###DearModdingPage/" + page.id;
+					const auto label = PageRowLabel(a_client, page);
 					const Theme::FontGuard font{ Theme::FontRole::kSubheading };
 					if (failed)
 					{
@@ -753,10 +803,7 @@ namespace DearModdingUI
 							label.c_str(),
 							selected,
 							ImGuiSelectableFlags_SpanAllColumns))
-					{
-						HostSettings::NotifyModSelected();
-						a_state.activePage = page.handle;
-					}
+						NavigateToPage(a_model, page.handle, a_state);
 					if (failed)
 						ImGui::PopStyleColor();
 				}
@@ -774,14 +821,232 @@ namespace DearModdingUI
 					"##DearModdingMenusList",
 					{ -FLT_MIN, -FLT_MIN }))
 			{
-				DrawClientList(a_model, a_state);
-				if (const auto* client =
-						a_model.FindClient(a_state.activeClient))
-					DrawPageList(*client, a_state);
+				DrawSectionHeader("Mods", PhosphorGlyph::kSquaresFour);
+				DrawPaletteAffordance(a_state);
+				ImGui::Spacing();
+				const auto statusSnapshot = CurrentClientStatuses();
+				const auto statuses = RollupClientStatuses(statusSnapshot);
+				for (const auto& client : a_model.clients)
+				{
+					auto expansion =
+						a_state.modExpansion.try_emplace(client.id, true).first;
+					const auto* status =
+						FindClientStatus(statuses, client.handle);
+					auto selected = client.handle == a_state.activeClient;
+					{
+						const Theme::FontGuard font{
+							Theme::FontRole::kSubheading
+						};
+						if (DrawClientRow(
+								client,
+								status,
+								selected,
+								expansion->second))
+						{
+							expansion->second = true;
+							NavigateToPage(
+								a_model,
+								ResolveLandingPage(client),
+								a_state);
+						}
+					}
+					if (!expansion->second)
+						continue;
+					ImGui::Indent();
+					DrawPageList(a_model, client, a_state);
+					ImGui::Unindent();
+				}
 				ImGui::EndListBox();
 			}
 			ImGui::PopStyleVar();
 			ImGui::PopStyleColor();
+		}
+
+		[[nodiscard]] std::vector<NavigationSearchEntry> BuildPaletteResults(
+			const NavigationModel& a_model,
+			const ShellState& a_state)
+		{
+			std::vector<NavigationSearchEntry> results;
+			if (!a_state.paletteQuery.empty())
+			{
+				auto hits = SearchNavigation(
+					a_model,
+					OrderedActions(),
+					a_state.paletteQuery);
+				results.reserve(hits.size());
+				for (auto& hit : hits)
+					results.push_back(std::move(hit.entry));
+				return results;
+			}
+
+			const auto index =
+				BuildNavigationSearchIndex(a_model, OrderedActions());
+			results.reserve(a_state.recentPages.size());
+			for (const auto page : a_state.recentPages)
+			{
+				const auto found = std::ranges::find_if(
+					index,
+					[&](const auto& a_entry) {
+						return a_entry.kind == NavigationItemKind::kPage &&
+							a_entry.page == page;
+					});
+				if (found != index.end())
+					results.push_back(*found);
+			}
+			return results;
+		}
+
+		[[nodiscard]] std::string PaletteRowLabel(
+			const NavigationSearchEntry& a_entry)
+		{
+			std::string label{ a_entry.displayName };
+			label.append(" \xE2\x80\x94 ");
+			label.append(a_entry.clientDisplayName);
+			label.append(" \xE2\x80\xBA ");
+			label.append(
+				a_entry.category.empty() ? "Actions" : a_entry.category);
+			label.append("###DearModdingPalette/");
+			label.append(
+				a_entry.kind == NavigationItemKind::kPage ?
+					"page/" :
+					"action/");
+			label.append(a_entry.clientId);
+			label.push_back('/');
+			label.append(a_entry.id);
+			return label;
+		}
+
+		void ActivatePaletteEntry(
+			const NavigationModel& a_model,
+			const NavigationSearchEntry& a_entry,
+			ShellState& a_state) noexcept
+		{
+			if (a_entry.kind == NavigationItemKind::kPage)
+				NavigateToPage(a_model, a_entry.page, a_state);
+			else
+				(void)InvokeAction(a_entry.action);
+		}
+
+		void DrawCommandPalette(
+			const NavigationModel& a_model,
+			ShellState& a_state) noexcept
+		{
+			if (a_state.paletteOpenRequested)
+			{
+				a_state.paletteQuery.clear();
+				a_state.paletteSelection = 0;
+				a_state.paletteFocusRequested = true;
+				ImGui::OpenPopup(kCommandPalettePopupId);
+				a_state.paletteOpenRequested = false;
+			}
+
+			const auto& style = ImGui::GetStyle();
+			const auto paletteWidth =
+				ImGui::GetWindowSize().x - style.WindowPadding.x * 2.0f;
+			const auto paletteHeight =
+				ImGui::GetFrameHeightWithSpacing() * 2.0f +
+				ImGui::GetTextLineHeightWithSpacing() *
+					static_cast<float>(kRecentPageCapacity + 1) +
+				style.WindowPadding.y * 2.0f;
+			ImGui::SetNextWindowSize(
+				{ paletteWidth, paletteHeight },
+				ImGuiCond_Appearing);
+			if (!ImGui::BeginPopupModal(
+					kCommandPalettePopupId,
+					nullptr,
+					ImGuiWindowFlags_NoSavedSettings))
+			{
+				a_state.paletteVisible = false;
+				return;
+			}
+			a_state.paletteVisible = true;
+
+			if (a_state.paletteFocusRequested)
+			{
+				ImGui::SetKeyboardFocusHere();
+				a_state.paletteFocusRequested = false;
+			}
+			const auto previousQuery = a_state.paletteQuery;
+			DrawSearchInput(
+				"NavigationPaletteSearch",
+				"Search pages and actions...",
+				a_state.paletteQuery);
+			const auto queryChanged = previousQuery != a_state.paletteQuery;
+			auto results = BuildPaletteResults(a_model, a_state);
+			a_state.paletteSelection = ResolvePaletteSelectionIndex(
+				a_state.paletteSelection,
+				results.size(),
+				queryChanged);
+
+			auto keyboardMoved = false;
+			if (!results.empty() &&
+				ImGui::IsKeyPressed(ImGuiKey_UpArrow, false))
+			{
+				if (a_state.paletteSelection > 0)
+					--a_state.paletteSelection;
+				keyboardMoved = true;
+			}
+			if (!results.empty() &&
+				ImGui::IsKeyPressed(ImGuiKey_DownArrow, false))
+			{
+				a_state.paletteSelection = (std::min)(
+					a_state.paletteSelection + 1,
+					results.size() - 1);
+				keyboardMoved = true;
+			}
+
+			const auto escapePressed =
+				ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+			auto activatedIndex = results.size();
+			if (!escapePressed && !results.empty() &&
+				ImGui::IsKeyPressed(ImGuiKey_Enter, false))
+				activatedIndex = a_state.paletteSelection;
+
+			ImGui::Spacing();
+			{
+				const Theme::FontGuard font{ Theme::FontRole::kHeading };
+				ImGui::TextUnformatted(
+					a_state.paletteQuery.empty() ?
+						"Recent pages" :
+						"Results");
+			}
+			ImGui::Separator();
+			if (results.empty())
+			{
+				ImGui::TextDisabled(
+					"%s",
+					a_state.paletteQuery.empty() ?
+						"No recent pages yet." :
+						"No matching pages or actions.");
+			}
+			for (size_t index = 0; index < results.size(); ++index)
+			{
+				const auto label = PaletteRowLabel(results[index]);
+				const auto selected = index == a_state.paletteSelection;
+				const Theme::FontGuard font{
+					Theme::FontRole::kSubheading
+				};
+				if (ImGui::Selectable(label.c_str(), selected))
+					activatedIndex = index;
+				if (selected && keyboardMoved)
+					ImGui::SetScrollHereY();
+			}
+
+			if (activatedIndex < results.size())
+			{
+				ActivatePaletteEntry(
+					a_model,
+					results[activatedIndex],
+					a_state);
+				ImGui::CloseCurrentPopup();
+				a_state.paletteVisible = false;
+			}
+			else if (escapePressed)
+			{
+				ImGui::CloseCurrentPopup();
+				a_state.paletteVisible = false;
+			}
+			ImGui::EndPopup();
 		}
 
 		void DrawFailure(const NavigationPage& a_page) noexcept
@@ -1592,15 +1857,24 @@ namespace DearModdingUI
 
 	void DrawShell() noexcept
 	{
+		auto& state = State();
 		if (HostSettings::IsPanelOpen() &&
+			!state.paletteVisible &&
+			!state.paletteOpenRequested &&
 			ImGui::IsKeyPressed(ImGuiKey_Escape, false))
 			HostSettings::DismissPanel();
 		Theme::ApplyStyle();
 		const auto& model = Navigation();
-		auto& state = State();
+		PruneRecentPages(model, state);
 		const auto requested = SelectedPage();
+		const auto previousPage = state.activePage;
 		state.activePage =
 			ResolvePageSelection(model, requested, state.activePage);
+		if (state.activePage != previousPage)
+		{
+			RecordRecentPage(model, state.activePage, state);
+			ExpandPageAncestors(model, state.activePage, state);
+		}
 		if (requested != DMUI_INVALID_PAGE_HANDLE)
 			ClearPageSelection(requested);
 		if (const auto* client =
@@ -1693,6 +1967,7 @@ namespace DearModdingUI
 				ImGui::EndTable();
 			}
 			ImGui::EndChild();
+			DrawCommandPalette(model, state);
 
 			ImGui::Spacing();
 			ImGui::SeparatorEx(

@@ -1425,6 +1425,41 @@ namespace vmm_tests
 				"stale recent-page handle survived a model rebuild");
 		});
 
+		runner.test("palette selection resets and clamps as results change", [] {
+			require(ResolvePaletteSelectionIndex(2, 5, false) == 2,
+				"stable palette results changed the selected index");
+			require(ResolvePaletteSelectionIndex(4, 2, false) == 1,
+				"shrinking palette results did not clamp the selected index");
+			require(ResolvePaletteSelectionIndex(3, 4, true) == 0,
+				"a changed palette query did not reset selection");
+			require(ResolvePaletteSelectionIndex(3, 0, false) == 0,
+				"zero palette results retained an invalid selection");
+		});
+
+		runner.test("page row labels namespace duplicate page IDs by mod", [] {
+			const NavigationPage firstPage{
+				10, 1, "settings", "Settings", "General", {}, 0
+			};
+			const NavigationPage secondPage{
+				20, 2, "settings", "Settings", "General", {}, 0
+			};
+			const NavigationClient firstClient{
+				1, "first.mod", "First", DMUI_MAKE_VERSION(1, 0), {}
+			};
+			const NavigationClient secondClient{
+				2, "second.mod", "Second", DMUI_MAKE_VERSION(1, 0), {}
+			};
+
+			const auto firstLabel = PageRowLabel(firstClient, firstPage);
+			const auto secondLabel = PageRowLabel(secondClient, secondPage);
+			require(firstLabel == " Settings ###DearModdingPage/first.mod/settings",
+				"page row label changed visible padding or ID format");
+			require(secondLabel == " Settings ###DearModdingPage/second.mod/settings",
+				"page row label omitted the owning mod ID");
+			require(firstLabel != secondLabel,
+				"duplicate page IDs in different mods produced colliding row labels");
+		});
+
 		runner.test("client status rollup keeps each mod's most severe status", [] {
 			const std::array statuses{
 				ClientStatus{ 2, DMUI_STATUS_SEVERITY_WARNING },
@@ -2218,7 +2253,7 @@ namespace vmm_tests
 				"missing font family did not fall back to Jost");
 		});
 
-		runner.test("client dropdown selection handles zero one and many clients", [] {
+		runner.test("client selection handles zero one and many clients", [] {
 			ClientSelectionState selection{
 				DMUI_INVALID_CLIENT_HANDLE,
 				DMUI_INVALID_PAGE_HANDLE,
@@ -2279,7 +2314,7 @@ namespace vmm_tests
 			require(many.clients.size() == 2 &&
 					many.clients[0].handle == alpha &&
 					many.clients[1].handle == zulu,
-				"client dropdown order was not deterministic");
+				"client selection order was not deterministic");
 
 			selection = { alpha, alphaPage, "pages" };
 			require(SelectClient(many, zulu, selection),

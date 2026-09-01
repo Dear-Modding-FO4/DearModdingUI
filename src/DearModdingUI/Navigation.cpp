@@ -114,6 +114,14 @@ namespace DearModdingUI
 		return DMUI_INVALID_PAGE_HANDLE;
 	}
 
+	std::string PageRowLabel(
+		const NavigationClient& a_client,
+		const NavigationPage& a_page)
+	{
+		return " " + a_page.displayName + " ###DearModdingPage/" +
+			a_client.id + "/" + a_page.id;
+	}
+
 	NavigationModel BuildNavigationModel(
 		const std::vector<RegisteredClient>& a_clients,
 		const std::vector<RegisteredPage>& a_pages)

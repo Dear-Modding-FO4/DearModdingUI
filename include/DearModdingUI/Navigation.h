@@ -98,6 +98,16 @@ namespace DearModdingUI
 		std::vector<DMUI_PageHandle> recentPages;
 	};
 
+	[[nodiscard]] constexpr size_t ResolvePaletteSelectionIndex(
+		size_t a_index,
+		size_t a_resultCount,
+		bool a_queryChanged) noexcept
+	{
+		if (a_queryChanged || a_resultCount == 0)
+			return 0;
+		return a_index < a_resultCount ? a_index : a_resultCount - 1;
+	}
+
 	enum class PagePresentation : uint32_t
 	{
 		kEmpty,
@@ -133,6 +143,9 @@ namespace DearModdingUI
 		ClientSelectionState& a_state);
 	[[nodiscard]] DMUI_PageHandle ResolveLandingPage(
 		const NavigationClient& a_client) noexcept;
+	[[nodiscard]] std::string PageRowLabel(
+		const NavigationClient& a_client,
+		const NavigationPage& a_page);
 	[[nodiscard]] PagePresentation DecidePagePresentation(
 		const NavigationPage* a_page,
 		bool a_callbackFailed) noexcept;
