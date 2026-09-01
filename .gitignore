@@ -30,3 +30,5 @@
 .clangd
 *.lastcodeanalysissucceeded
 compile_commands.json
+/vsxmake2022/.vs/DearModdingUI
+/vsxmake2022
