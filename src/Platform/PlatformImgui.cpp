@@ -170,7 +170,7 @@ namespace Addictol
 			[[maybe_unused]] PVOID a_parameter,
 			[[maybe_unused]] PVOID* a_context) noexcept
 		{
-			InitializeCriticalSection(&s_contextLock);
+			InitializeCriticalSection(std::addressof(s_contextLock));
 			return TRUE;
 		}
 
@@ -178,17 +178,19 @@ namespace Addictol
 		{
 			ContextLock() noexcept
 			{
-				InitOnceExecuteOnce(&s_contextLockOnce, InitializeContextLock, nullptr, nullptr);
-				EnterCriticalSection(&s_contextLock);
+				InitOnceExecuteOnce(std::addressof(s_contextLockOnce), InitializeContextLock, nullptr, nullptr);
+				EnterCriticalSection(std::addressof(s_contextLock));
 			}
 
 			~ContextLock() noexcept
 			{
-				LeaveCriticalSection(&s_contextLock);
+				LeaveCriticalSection(std::addressof(s_contextLock));
 			}
 
 			ContextLock(const ContextLock&) = delete;
+			ContextLock(ContextLock&&) = delete;
 			ContextLock& operator=(const ContextLock&) = delete;
+			ContextLock& operator=(ContextLock&&) = delete;
 		};
 
 		static void SetGameInputSuppressed(bool a_suppressed) noexcept
@@ -294,8 +296,8 @@ namespace Addictol
 		[[nodiscard]] static MousePosition ReadClientMousePosition(HWND a_window) noexcept
 		{
 			POINT position{};
-			if (!GetCursorPos(&position) ||
-				!ScreenToClient(a_window, &position))
+			if (!GetCursorPos(std::addressof(position)) ||
+				!ScreenToClient(a_window, std::addressof(position)))
 			{
 				constexpr auto unavailable =
 					-(std::numeric_limits<float>::max)();
@@ -382,9 +384,9 @@ namespace Addictol
 			IDXGIAdapter* adapter{ nullptr };
 			IDXGIAdapter3* adapter3{ nullptr };
 			const auto valid =
-				SUCCEEDED(a_device->QueryInterface(IID_PPV_ARGS(&dxgiDevice))) &&
-				SUCCEEDED(dxgiDevice->GetParent(IID_PPV_ARGS(&adapter))) &&
-				SUCCEEDED(adapter->QueryInterface(IID_PPV_ARGS(&adapter3)));
+				SUCCEEDED(a_device->QueryInterface(IID_PPV_ARGS(std::addressof(dxgiDevice)))) &&
+				SUCCEEDED(dxgiDevice->GetParent(IID_PPV_ARGS(std::addressof(adapter)))) &&
+				SUCCEEDED(adapter->QueryInterface(IID_PPV_ARGS(std::addressof(adapter3))));
 			if (adapter)
 				adapter->Release();
 			if (dxgiDevice)
@@ -401,17 +403,17 @@ namespace Addictol
 
 			a_swapChain->AddRef();
 			a_attachment.swapChain = a_swapChain;
-			if (FAILED(a_swapChain->GetDevice(IID_PPV_ARGS(&a_attachment.device))) ||
+			if (FAILED(a_swapChain->GetDevice(IID_PPV_ARGS(std::addressof(a_attachment.device)))) ||
 				!a_attachment.device)
 			{
 				ReleaseAttachment(a_attachment);
 				return false;
 			}
 
-			a_attachment.device->GetImmediateContext(&a_attachment.context);
+			a_attachment.device->GetImmediateContext(std::addressof(a_attachment.context));
 			DXGI_SWAP_CHAIN_DESC description{};
 			if (!a_attachment.context ||
-				FAILED(a_swapChain->GetDesc(&description)) ||
+				FAILED(a_swapChain->GetDesc(std::addressof(description))) ||
 				!description.OutputWindow)
 			{
 				ReleaseAttachment(a_attachment);
@@ -428,7 +430,7 @@ namespace Addictol
 			for (auto& record : s_swapChainHooks)
 			{
 				if (record.vtable.load(std::memory_order_acquire) == a_vtable)
-					return &record;
+					return std::addressof(record);
 			}
 			return nullptr;
 		}
@@ -467,7 +469,7 @@ namespace Addictol
 			{
 				if (dispatch.swapChain.load(std::memory_order_acquire) == a_swapChain)
 				{
-					dispatch.hook.store(&a_hook, std::memory_order_release);
+					dispatch.hook.store(std::addressof(a_hook), std::memory_order_release);
 					return true;
 				}
 			}
@@ -478,7 +480,7 @@ namespace Addictol
 				if (!dispatch.claimed.compare_exchange_strong(
 						expected, true, std::memory_order_acq_rel))
 					continue;
-				dispatch.hook.store(&a_hook, std::memory_order_relaxed);
+				dispatch.hook.store(std::addressof(a_hook), std::memory_order_relaxed);
 				dispatch.swapChain.store(a_swapChain, std::memory_order_release);
 				return true;
 			}
