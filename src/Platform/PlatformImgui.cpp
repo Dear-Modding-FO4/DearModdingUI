@@ -199,11 +199,14 @@ namespace Addictol
 					s_inputSuppressed = false;
 				return;
 			}
-			if (a_suppressed && !s_inputSuppressed)
+			if (a_suppressed)
 			{
-				s_previousIgnoreKeyboardMouse = controlMap->ignoreKeyboardMouse;
+				if (!s_inputSuppressed)
+				{
+					s_previousIgnoreKeyboardMouse = controlMap->ignoreKeyboardMouse;
+					s_inputSuppressed = true;
+				}
 				controlMap->SetIgnoreKeyboardMouse(true);
-				s_inputSuppressed = true;
 			}
 			else if (!a_suppressed && s_inputSuppressed)
 			{
