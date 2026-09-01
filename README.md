@@ -27,6 +27,23 @@ xmake build -y
 
 The build writes the deployable payload to `.Build/F4SE/Plugins/`, including `DearModdingUI.dll`, `DearModdingUI.toml`, fonts, and blur shaders.
 
+## Standalone preview
+
+The `dmui-preview` target runs the production menu renderer in its own Win32/D3D11 window with representative fake clients:
+
+```powershell
+xmake build -y dmui-preview
+.\.Build\Preview\dmui-preview.exe
+```
+
+Headless capture defaults to 3840x2160 and waits three frames before writing the PNG. Use `--page` to select a registered settings page:
+
+```powershell
+.\.Build\Preview\dmui-preview.exe --screenshot out.png --page dearmodding.addictol/settings
+```
+
+`--width`, `--height`, and `--frames` override the capture defaults. The build copies the theme, fonts, and shaders to `.Build/Preview/Data/F4SE/Plugins/`.
+
 ## Generating the client ImGui header
 
 The forwarding surface is curated in `Tools/imgui_forward_allowlist.json`. Generate the API repository header and validate every referenced symbol against the built host with:

@@ -110,6 +110,81 @@ target("dmui-tests", function()
     )
 end)
 
+target("dmui-preview", function()
+    set_kind("binary")
+    set_arch("x64")
+    set_languages("c++23")
+    set_optimize("fastest")
+    set_symbols("debug")
+    set_exceptions("cxx")
+    set_runtimes("MT")
+    set_targetdir(project_dir(".Build/Preview"))
+    set_objectdir(project_dir(".LinkConf/xmake/dmui-preview"))
+    set_dependir(project_dir(".LinkConf/xmake/dmui-preview/deps"))
+
+    add_deps("imgui")
+    add_files(
+        "Preview/Main.cpp",
+        "Preview/FakeData.cpp",
+        "Preview/PlatformImguiStub.cpp",
+        "src/DearModdingUI/BackgroundBlur.cpp",
+        "src/DearModdingUI/CursorLoader.cpp",
+        "src/DearModdingUI/FontCatalog.cpp",
+        "src/DearModdingUI/Host.cpp",
+        "src/DearModdingUI/HostSettings.cpp",
+        "src/DearModdingUI/HostSettingsView.cpp",
+        "src/DearModdingUI/Hotkeys.cpp",
+        "src/DearModdingUI/Navigation.cpp",
+        "src/DearModdingUI/Registry.cpp",
+        "src/DearModdingUI/SettingsTable.cpp",
+        "src/DearModdingUI/Shell.cpp",
+        "src/DearModdingUI/Status.cpp",
+        "src/DearModdingUI/Theme.cpp",
+        "src/Support/Runtime.cpp",
+        "Depends/cimgui/cimgui.cpp"
+    )
+    add_includedirs(
+        "Preview/include",
+        "Preview",
+        "include",
+        "Depends",
+        "Depends/toml11/single_include",
+        "Depends/commonlibf4/lib/dearmoddingui-api/include"
+    )
+    add_defines(
+        "NDEBUG",
+        "NOMINMAX",
+        "WIN32_LEAN_AND_MEAN",
+        "_CRT_SECURE_NO_WARNINGS"
+    )
+    add_cxxflags(
+        "/permissive-",
+        "/Zc:preprocessor",
+        { public = true }
+    )
+    add_syslinks(
+        "d3d11",
+        "dxgi",
+        "d3dcompiler",
+        "windowscodecs",
+        "ole32",
+        "shell32",
+        "user32",
+        "gdi32",
+        "imm32",
+        "dwmapi"
+    )
+
+    after_build(function(target)
+        local data_dir = path.join(target:targetdir(), "Data/F4SE/Plugins")
+        os.mkdir(data_dir)
+        os.cp(
+            path.join(project_dir("data/F4SE/Plugins"), "*"),
+            data_dir
+        )
+    end)
+end)
+
 target(plugin_name, function()
     set_optimize("fastest")
     set_symbols("debug")
