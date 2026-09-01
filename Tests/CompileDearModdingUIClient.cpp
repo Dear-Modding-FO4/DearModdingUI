@@ -79,6 +79,21 @@ namespace
 				"Apply",
 				*extent);
 		}
+		const auto settingsTable = client.BeginSettingsTable("settings");
+		if (settingsTable.value_or(false))
+		{
+			const auto row = client.BeginSettingsRow(
+				"enabled",
+				"Enabled",
+				"Enables the example.");
+			if (row.value_or(false))
+			{
+				bool enabled{};
+				(void)ImGui::Checkbox("##Value", &enabled);
+				(void)client.EndSettingsRow(true, enabled);
+			}
+			(void)client.EndSettingsTable();
+		}
 		(void)client.IsMenuVisible();
 		(void)client.QueryState();
 		(void)client.UnavailableReason();

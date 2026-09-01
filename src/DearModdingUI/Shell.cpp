@@ -4,6 +4,7 @@
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/HostSettingsView.h>
 #include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Theme.h>
 #include <DearModdingUI/VisualDecisions.h>
 
@@ -1810,11 +1811,21 @@ namespace DearModdingUI
 		const auto presentation = ResolveSettingsActionButtonPresentation(
 			a_action,
 			HasIconGlyph(SettingsActionGlyph(a_action)));
-		return ActionButtonWidth(
-			!presentation.useTextFallback,
-			a_fallbackLabel ? ImGui::CalcTextSize(a_fallbackLabel).x : 0.0f,
-			a_buttonExtent,
-			ImGui::GetStyle().FramePadding.x);
+		const auto hasGlyph = !presentation.useTextFallback;
+		const auto labelWidth =
+			a_fallbackLabel ? ImGui::CalcTextSize(a_fallbackLabel).x : 0.0f;
+		const auto framePaddingX = ImGui::GetStyle().FramePadding.x;
+		return a_action == SettingsAction::kReset ?
+			SettingsTable::ResolveResetColumnWidth(
+				hasGlyph,
+				labelWidth,
+				a_buttonExtent,
+				framePaddingX) :
+			ActionButtonWidth(
+				hasGlyph,
+				labelWidth,
+				a_buttonExtent,
+				framePaddingX);
 	}
 
 	bool DrawSettingsActionButton(

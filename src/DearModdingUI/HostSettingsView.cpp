@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/Hotkeys.h>
+#include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
 
@@ -64,6 +65,49 @@ namespace DearModdingUI
 			return (std::min)(
 				ImGui::GetContentRegionAvail().x,
 				ImGui::GetFontSize() * 22.0f);
+		}
+
+		[[nodiscard]] const HostInterfaceSettings& DefaultSettings() noexcept
+		{
+			static const HostInterfaceSettings settings;
+			return settings;
+		}
+
+		[[nodiscard]] bool BeginSettingsSection(const char* a_id) noexcept
+		{
+			const auto result = SettingsTable::Begin(
+				DMUI_INVALID_CLIENT_HANDLE,
+				a_id);
+			return result.result == DMUI_RESULT_OK && result.visible;
+		}
+
+		template <class DrawValue, class ResetEnabled>
+		[[nodiscard]] bool DrawSettingsRow(
+			const char* a_id,
+			const char* a_label,
+			const char* a_description,
+			bool a_resetVisible,
+			DrawValue&& a_drawValue,
+			ResetEnabled&& a_resetEnabled) noexcept
+		{
+			const auto result = SettingsTable::BeginRow(
+				DMUI_INVALID_CLIENT_HANDLE,
+				a_id,
+				a_label,
+				a_description);
+			if (result.result != DMUI_RESULT_OK || !result.visible)
+				return false;
+
+			a_drawValue();
+			bool resetPressed{};
+			const auto endResult = SettingsTable::EndRow(
+				DMUI_INVALID_CLIENT_HANDLE,
+				{
+					a_resetVisible,
+					a_resetVisible && a_resetEnabled()
+				},
+				resetPressed);
+			return endResult == DMUI_RESULT_OK && resetPressed;
 		}
 
 		void DrawHelp(const char* a_text) noexcept
@@ -138,124 +182,226 @@ namespace DearModdingUI
 					ImGui::SetTooltip("%s", preset.description);
 				ImGui::PopID();
 			}
-			ImGui::Spacing();
 		}
 
 		void DrawAppearance() noexcept
 		{
 			DrawSectionHeader("Appearance");
+			if (!BeginSettingsSection("##DearModdingUI.AppearanceSettings"))
+				return;
+
 			auto& settings = g_settingsDraft.draft;
+			const auto& defaults = DefaultSettings();
 			auto changed = false;
 
-			ImGui::TextUnformatted("Accent color");
-			DrawHelp(
-				"Retints selections, controls, links, and every Phosphor menu icon in colored mode.");
-			auto accent = HostAccentToImVec4(settings.accentColor);
-			ImGui::SetNextItemWidth(ControlWidth());
-			if (ImGui::ColorPicker3(
-					"##DearModdingUI.AccentColor",
-					&accent.x,
-					ImGuiColorEditFlags_NoAlpha |
-						ImGuiColorEditFlags_DisplayRGB |
-						ImGuiColorEditFlags_InputRGB |
-						ImGuiColorEditFlags_PickerHueBar))
+			if (DrawSettingsRow(
+					"AccentColor",
+					"Accent color",
+					"Retints selections, controls, links, and every Phosphor menu icon in colored mode.",
+					true,
+					[&]() noexcept {
+						auto accent = HostAccentToImVec4(settings.accentColor);
+						ImGui::SetNextItemWidth(ControlWidth());
+						if (ImGui::ColorPicker3(
+								"##Value",
+								&accent.x,
+								ImGuiColorEditFlags_NoAlpha |
+									ImGuiColorEditFlags_DisplayRGB |
+									ImGuiColorEditFlags_InputRGB |
+									ImGuiColorEditFlags_PickerHueBar))
+						{
+							settings.accentColor = HostAccentFromImVec4(accent);
+							changed = true;
+						}
+						DrawAccentPresets(settings, changed);
+					},
+					[&]() noexcept {
+						return settings.accentColor != defaults.accentColor;
+					}))
 			{
-				settings.accentColor = HostAccentFromImVec4(accent);
+				settings.accentColor = defaults.accentColor;
 				changed = true;
 			}
-			DrawAccentPresets(settings, changed);
 
-			auto iconMode =
-				settings.iconColorMode == Theme::IconColorMode::kMonochrome ? 1 : 0;
-			constexpr const char* iconModes[]{ "Colored (accent)", "Monochrome (text)" };
-			ImGui::SetNextItemWidth(ControlWidth());
-			if (ImGui::Combo(
+			if (DrawSettingsRow(
+					"IconColorMode",
 					"Icon color mode",
-					&iconMode,
-					iconModes,
-					static_cast<int>(std::size(iconModes))))
+					"Colored icons use the accent above; monochrome icons use the active text color.",
+					true,
+					[&]() noexcept {
+						auto iconMode =
+							settings.iconColorMode ==
+									Theme::IconColorMode::kMonochrome ?
+							1 :
+							0;
+						constexpr const char* iconModes[]{
+							"Colored (accent)",
+							"Monochrome (text)"
+						};
+						ImGui::SetNextItemWidth(ControlWidth());
+						if (ImGui::Combo(
+								"##Value",
+								&iconMode,
+								iconModes,
+								static_cast<int>(std::size(iconModes))))
+						{
+							settings.iconColorMode = iconMode == 1 ?
+								Theme::IconColorMode::kMonochrome :
+								Theme::IconColorMode::kColored;
+							changed = true;
+						}
+					},
+					[&]() noexcept {
+						return settings.iconColorMode != defaults.iconColorMode;
+					}))
 			{
-				settings.iconColorMode = iconMode == 1 ?
-					Theme::IconColorMode::kMonochrome :
-					Theme::IconColorMode::kColored;
+				settings.iconColorMode = defaults.iconColorMode;
 				changed = true;
 			}
-			DrawHelp(
-				"Colored icons use the accent above; monochrome icons use the active text color.");
 
-			auto opacityPercent = settings.windowBackgroundOpacity * 100.0f;
-			ImGui::SetNextItemWidth(ControlWidth());
-			if (ImGui::SliderFloat(
+			if (DrawSettingsRow(
+					"WindowBackgroundOpacity",
 					"Window background opacity",
-					&opacityPercent,
-					kMinWindowBackgroundOpacity * 100.0f,
-					kMaxWindowBackgroundOpacity * 100.0f,
-					"%.0f%%",
-					ImGuiSliderFlags_AlwaysClamp))
+					"Raises or lowers the darkness of the host window without changing client content.",
+					true,
+					[&]() noexcept {
+						auto opacityPercent =
+							settings.windowBackgroundOpacity * 100.0f;
+						ImGui::SetNextItemWidth(ControlWidth());
+						if (ImGui::SliderFloat(
+								"##Value",
+								&opacityPercent,
+								kMinWindowBackgroundOpacity * 100.0f,
+								kMaxWindowBackgroundOpacity * 100.0f,
+								"%.0f%%",
+								ImGuiSliderFlags_AlwaysClamp))
+						{
+							settings.windowBackgroundOpacity =
+								opacityPercent / 100.0f;
+							changed = true;
+						}
+					},
+					[&]() noexcept {
+						return settings.windowBackgroundOpacity !=
+							defaults.windowBackgroundOpacity;
+					}))
 			{
-				settings.windowBackgroundOpacity = opacityPercent / 100.0f;
+				settings.windowBackgroundOpacity =
+					defaults.windowBackgroundOpacity;
 				changed = true;
 			}
-			DrawHelp(
-				"Raises or lowers the darkness of the host window without changing client content.");
 
-			ImGui::TextUnformatted("Command palette background");
-			DrawHelp(
-				"Sets the neutral background color used by the command palette.");
-			auto paletteBackground =
-				HostAccentToImVec4(settings.paletteBackgroundColor);
-			ImGui::SetNextItemWidth(ControlWidth());
-			if (ImGui::ColorEdit3(
-					"##DearModdingUI.PaletteBackgroundColor",
-					&paletteBackground.x,
-					ImGuiColorEditFlags_NoAlpha |
-						ImGuiColorEditFlags_DisplayRGB |
-						ImGuiColorEditFlags_InputRGB |
-						ImGuiColorEditFlags_PickerHueBar))
+			if (DrawSettingsRow(
+					"PaletteBackgroundColor",
+					"Command palette background",
+					"Sets the neutral background color used by the command palette.",
+					true,
+					[&]() noexcept {
+						auto paletteBackground =
+							HostAccentToImVec4(settings.paletteBackgroundColor);
+						ImGui::SetNextItemWidth(ControlWidth());
+						if (ImGui::ColorEdit3(
+								"##Value",
+								&paletteBackground.x,
+								ImGuiColorEditFlags_NoAlpha |
+									ImGuiColorEditFlags_DisplayRGB |
+									ImGuiColorEditFlags_InputRGB |
+									ImGuiColorEditFlags_PickerHueBar))
+						{
+							settings.paletteBackgroundColor =
+								HostAccentFromImVec4(paletteBackground);
+							changed = true;
+						}
+					},
+					[&]() noexcept {
+						return settings.paletteBackgroundColor !=
+							defaults.paletteBackgroundColor;
+					}))
 			{
 				settings.paletteBackgroundColor =
-					HostAccentFromImVec4(paletteBackground);
+					defaults.paletteBackgroundColor;
 				changed = true;
 			}
 
-			auto paletteOpacityPercent =
-				settings.paletteBackgroundOpacity * 100.0f;
-			ImGui::SetNextItemWidth(ControlWidth());
-			if (ImGui::SliderFloat(
+			if (DrawSettingsRow(
+					"PaletteBackgroundOpacity",
 					"Command palette opacity",
-					&paletteOpacityPercent,
-					kMinPaletteBackgroundOpacity * 100.0f,
-					kMaxPaletteBackgroundOpacity * 100.0f,
-					"%.0f%%",
-					ImGuiSliderFlags_AlwaysClamp))
+					"Controls how much of the blurred game remains visible through the palette.",
+					true,
+					[&]() noexcept {
+						auto paletteOpacityPercent =
+							settings.paletteBackgroundOpacity * 100.0f;
+						ImGui::SetNextItemWidth(ControlWidth());
+						if (ImGui::SliderFloat(
+								"##Value",
+								&paletteOpacityPercent,
+								kMinPaletteBackgroundOpacity * 100.0f,
+								kMaxPaletteBackgroundOpacity * 100.0f,
+								"%.0f%%",
+								ImGuiSliderFlags_AlwaysClamp))
+						{
+							settings.paletteBackgroundOpacity =
+								paletteOpacityPercent / 100.0f;
+							changed = true;
+						}
+					},
+					[&]() noexcept {
+						return settings.paletteBackgroundOpacity !=
+							defaults.paletteBackgroundOpacity;
+					}))
 			{
 				settings.paletteBackgroundOpacity =
-					paletteOpacityPercent / 100.0f;
+					defaults.paletteBackgroundOpacity;
 				changed = true;
 			}
-			DrawHelp(
-				"Controls how much of the blurred game remains visible through the palette.");
 
-			changed |= ImGui::Checkbox(
-				"Background blur",
-				&settings.backgroundBlur);
-			DrawHelp(
-				"Blurs the game behind the host window and command palette; disabling it avoids the blur passes.");
-
-			ImGui::BeginDisabled(!settings.backgroundBlur);
-			ImGui::SetNextItemWidth(ControlWidth());
-			if (ImGui::SliderFloat(
-					"Blur strength",
-					&settings.backgroundBlurStrength,
-					kMinBackgroundBlurStrength,
-					kMaxBackgroundBlurStrength,
-					"%.2f",
-					ImGuiSliderFlags_AlwaysClamp))
+			if (DrawSettingsRow(
+					"BackgroundBlur",
+					"Background blur",
+					"Blurs the game behind the host window and command palette; disabling it avoids the blur passes.",
+					true,
+					[&]() noexcept {
+						changed |= ImGui::Checkbox(
+							"##Value",
+							&settings.backgroundBlur);
+					},
+					[&]() noexcept {
+						return settings.backgroundBlur != defaults.backgroundBlur;
+					}))
+			{
+				settings.backgroundBlur = defaults.backgroundBlur;
 				changed = true;
-			ImGui::EndDisabled();
-			DrawHelp(
-				"Adjusts the per-frame blur sample spread without reallocating graphics resources.");
+			}
 
+			if (DrawSettingsRow(
+					"BackgroundBlurStrength",
+					"Blur strength",
+					"Adjusts the per-frame blur sample spread without reallocating graphics resources.",
+					true,
+					[&]() noexcept {
+						ImGui::BeginDisabled(!settings.backgroundBlur);
+						ImGui::SetNextItemWidth(ControlWidth());
+						if (ImGui::SliderFloat(
+								"##Value",
+								&settings.backgroundBlurStrength,
+								kMinBackgroundBlurStrength,
+								kMaxBackgroundBlurStrength,
+								"%.2f",
+								ImGuiSliderFlags_AlwaysClamp))
+							changed = true;
+						ImGui::EndDisabled();
+					},
+					[&]() noexcept {
+						return settings.backgroundBlurStrength !=
+							defaults.backgroundBlurStrength;
+					}))
+			{
+				settings.backgroundBlurStrength =
+					defaults.backgroundBlurStrength;
+				changed = true;
+			}
+
+			(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
 			if (changed)
 				PreviewDraft();
 		}
@@ -263,69 +409,125 @@ namespace DearModdingUI
 		void DrawReadability() noexcept
 		{
 			DrawSectionHeader("Readability");
-			auto& settings = g_settingsDraft.draft;
+			if (!BeginSettingsSection("##DearModdingUI.ReadabilitySettings"))
+				return;
 
-			ImGui::SetNextItemWidth(ControlWidth());
-			ImGui::SliderFloat(
-				"UI scale (requires Apply)",
-				&settings.uiScale,
-				Theme::kMinUserScale,
-				Theme::kMaxUserScale,
-				"%.2fx",
-				ImGuiSliderFlags_AlwaysClamp);
-			DrawHelp(
-				"Multiplies resolution-derived sizing; Apply rebuilds typography once before the next frame.");
-			const auto& families = Theme::AvailableBodyFontFamilies();
-			const auto resolvedFamily =
-				Theme::ResolveBodyFontFamily(settings.bodyFontFamily);
-			ImGui::SetNextItemWidth(ControlWidth());
-			if (ImGui::BeginCombo(
+			auto& settings = g_settingsDraft.draft;
+			const auto& defaults = DefaultSettings();
+
+			if (DrawSettingsRow(
+					"UiScale",
+					"UI scale (requires Apply)",
+					"Multiplies resolution-derived sizing; Apply rebuilds typography once before the next frame.",
+					true,
+					[&]() noexcept {
+						ImGui::SetNextItemWidth(ControlWidth());
+						(void)ImGui::SliderFloat(
+							"##Value",
+							&settings.uiScale,
+							Theme::kMinUserScale,
+							Theme::kMaxUserScale,
+							"%.2fx",
+							ImGuiSliderFlags_AlwaysClamp);
+					},
+					[&]() noexcept {
+						return settings.uiScale != defaults.uiScale;
+					}))
+				settings.uiScale = defaults.uiScale;
+
+			if (DrawSettingsRow(
+					"BodyFontFamily",
 					"Body font family (requires Apply)",
-					resolvedFamily.data()))
+					"Lists font-family folders in Data/F4SE/Plugins/DearModdingUI/Fonts; Apply rebuilds the selected family once.",
+					true,
+					[&]() noexcept {
+						const auto& families =
+							Theme::AvailableBodyFontFamilies();
+						const auto resolvedFamily =
+							Theme::ResolveBodyFontFamily(
+								settings.bodyFontFamily);
+						ImGui::SetNextItemWidth(ControlWidth());
+						if (ImGui::BeginCombo(
+								"##Value",
+								resolvedFamily.data()))
+						{
+							for (const auto& family : families)
+							{
+								const auto selected = family == resolvedFamily;
+								if (ImGui::Selectable(
+										family.c_str(),
+										selected))
+									settings.bodyFontFamily = family;
+								if (selected)
+									ImGui::SetItemDefaultFocus();
+							}
+							ImGui::EndCombo();
+						}
+						const auto effectiveFamily =
+							Theme::EffectiveBodyFontFamily();
+						ImGui::TextDisabled(
+							"Applied this frame: %.*s",
+							static_cast<int>(effectiveFamily.size()),
+							effectiveFamily.data());
+					},
+					[&]() noexcept {
+						return settings.bodyFontFamily !=
+							defaults.bodyFontFamily;
+					}))
 			{
-				for (const auto& family : families)
-				{
-					const auto selected = family == resolvedFamily;
-					if (ImGui::Selectable(family.c_str(), selected))
-						settings.bodyFontFamily = family;
-					if (selected)
-						ImGui::SetItemDefaultFocus();
-				}
-				ImGui::EndCombo();
+				settings.bodyFontFamily = defaults.bodyFontFamily;
 			}
-			DrawHelp(
-				"Lists font-family folders in Data/F4SE/Plugins/DearModdingUI/Fonts; Apply rebuilds the selected family once.");
-			const auto effectiveFamily = Theme::EffectiveBodyFontFamily();
-			ImGui::TextDisabled(
-				"Applied this frame: %.*s",
-				static_cast<int>(effectiveFamily.size()),
-				effectiveFamily.data());
-			ImGui::Spacing();
+			(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
 		}
 
 		void DrawInput() noexcept
 		{
 			DrawSectionHeader("Input");
 			auto& settings = g_settingsDraft.draft;
-			const auto selectedKey = ParseMenuToggleKey(settings.menuToggleKey);
-			const auto selectedName = MenuToggleKeyName(selectedKey.virtualKey);
-
-			ImGui::SetNextItemWidth(ControlWidth());
-			if (ImGui::BeginCombo("Menu toggle key", selectedName.data()))
+			const auto& defaults = DefaultSettings();
+			if (BeginSettingsSection("##DearModdingUI.InputSettings"))
 			{
-				for (const auto& key : kMenuToggleKeys)
+				if (DrawSettingsRow(
+						"MenuToggleKey",
+						"Menu toggle key",
+						"Opens and closes the shared menu. Apply saves the key for this session and future launches.",
+						true,
+						[&]() noexcept {
+							const auto selectedKey =
+								ParseMenuToggleKey(settings.menuToggleKey);
+							const auto selectedName =
+								MenuToggleKeyName(selectedKey.virtualKey);
+							ImGui::SetNextItemWidth(ControlWidth());
+							if (ImGui::BeginCombo(
+									"##Value",
+									selectedName.data()))
+							{
+								for (const auto& key : kMenuToggleKeys)
+								{
+									const auto selected =
+										key.virtualKey ==
+										selectedKey.virtualKey;
+									if (ImGui::Selectable(
+											key.name.data(),
+											selected))
+										settings.menuToggleKey = key.name;
+									if (selected)
+										ImGui::SetItemDefaultFocus();
+								}
+								ImGui::EndCombo();
+							}
+						},
+						[&]() noexcept {
+							return settings.menuToggleKey !=
+								defaults.menuToggleKey;
+						}))
 				{
-					const auto selected = key.virtualKey == selectedKey.virtualKey;
-					if (ImGui::Selectable(key.name.data(), selected))
-						settings.menuToggleKey = key.name;
-					if (selected)
-						ImGui::SetItemDefaultFocus();
+					settings.menuToggleKey = defaults.menuToggleKey;
 				}
-				ImGui::EndCombo();
+				(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
 			}
-			DrawHelp(
-				"Opens and closes the shared menu. Apply saves the key for this session and future launches.");
 
+			ImGui::Spacing();
 			ImGui::TextUnformatted("Client hotkeys");
 			DrawHelp(
 				"Bindings are owned by DearModdingUI. Changes below are saved immediately.");
@@ -430,17 +632,22 @@ namespace DearModdingUI
 		}
 
 		void DrawReadOnlyHostFact(
+			const char* a_id,
 			const char* a_label,
 			const char* a_value,
 			const char* a_source) noexcept
 		{
-			{
-				const Theme::FontGuard font{ Theme::FontRole::kHeading };
-				ImGui::TextUnformatted(a_label);
-			}
-			ImGui::SameLine();
-			ImGui::TextUnformatted(a_value);
-			DrawHelp(a_source);
+			(void)DrawSettingsRow(
+				a_id,
+				a_label,
+				a_source,
+				false,
+				[&]() noexcept {
+					ImGui::TextUnformatted(a_value);
+				},
+				[]() noexcept {
+					return false;
+				});
 		}
 
 		void DrawReadOnlyFacts() noexcept
@@ -448,6 +655,8 @@ namespace DearModdingUI
 			DrawSectionHeader("Host facts (read-only)");
 			ImGui::TextDisabled("Values resolved by the DearModdingUI host.");
 			ImGui::Spacing();
+			if (!BeginSettingsSection("##DearModdingUI.HostFacts"))
+				return;
 
 			const auto* body = Theme::GetFonts().body;
 			char typography[32]{};
@@ -457,6 +666,7 @@ namespace DearModdingUI
 				"%.0f px",
 				body ? body->LegacySize : ImGui::GetFontSize());
 			DrawReadOnlyHostFact(
+				"ResolvedTypographySize",
 				"Resolved typography size",
 				typography,
 				"Derived from the backbuffer height and the applied UI scale at a frame boundary.");
@@ -468,9 +678,11 @@ namespace DearModdingUI
 				"%.2fx",
 				Theme::Scale());
 			DrawReadOnlyHostFact(
+				"EffectiveUiScale",
 				"Effective UI scale",
 				scale,
 				"Derived from resolution and [Additional] fMenuUiScale.");
+			(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
 		}
 	}
 

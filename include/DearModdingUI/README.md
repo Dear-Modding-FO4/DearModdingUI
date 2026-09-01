@@ -91,6 +91,24 @@ NUL-terminated, truncates edited output to `capacity - 1`, and reports whether t
 through the fixed-width output flag. The C++ wrapper marshals this contract to `std::string&` and
 returns sizing results through `std::optional<float>`.
 
+`beginSettingsTable`, `beginSettingsRow`, `endSettingsRow`, and `endSettingsTable` form the
+host-owned label/value geometry bracket for settings pages. Both begin calls report clipping through
+their `visible` output: call the matching end only when `visible` is nonzero. Each row has a stable
+caller-supplied ID, a label, and an optional description; the host copies the text, draws the label
+column, opens the value cell, reserves the reset column from live font/style metrics, and draws Reset
+through the shared settings-action treatment. `DMUI_SettingsRowOptions` controls reset visibility and
+enabled state and must provide at least `DMUI_SETTINGS_ROW_OPTIONS_1_0_SIZE`.
+
+The bracket is valid only on the render thread during that client's page callback. Settings brackets
+cannot nest or reenter, and a row cannot begin without an open settings table. Calls outside the active
+settings-page callback return `DMUI_RESULT_WRONG_THREAD`. Balanced ordinary ImGui tables may surround
+the bracket or appear inside a value cell. A mismatched call returns
+`DMUI_RESULT_UNBALANCED_BRACKET` without guessing which client stack entry to close. At the callback
+boundary, the existing ImGui recovery restores any abandoned table, row, or ID state before the host
+clears its bracket state, so an early return cannot leak into shared chrome. The C++ wrapper exposes
+the two begin calls as `std::optional<bool>`, constructs the versioned row options, and applies every
+appended-table availability check.
+
 The C++ wrapper returns the accepted page handle from `AddPage` as
 `std::optional<DMUI_PageHandle>`. Pass that handle to `SelectPage` to select the registered settings
 page and open the shared menu. Both methods preserve `LastResult()` for failure details.
@@ -246,7 +264,8 @@ instead of terminating the process. Host API entry points and allocator callback
 The host catches C++ exceptions and Windows structured exceptions around client callbacks, disables a
 faulting page or action, recovers the pinned ImGui stack state, and keeps the rest of the host usable.
 Shared-context drawing cannot provide process isolation, so callbacks must still balance every ImGui
-stack operation.
+stack operation. The settings-table bracket additionally recovers abandoned bracket state at the
+callback boundary; structural misuse still returns `DMUI_RESULT_UNBALANCED_BRACKET`.
 
 If initialization fails, each accepted client receives `onHostUnavailable` with an explicit reason
 and may start its standalone fallback. A client that receives `onHostReady` must stay hosted for the

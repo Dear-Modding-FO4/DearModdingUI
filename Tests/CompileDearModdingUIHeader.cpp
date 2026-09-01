@@ -20,6 +20,8 @@ static_assert(std::is_standard_layout_v<DMUI_Vec2>);
 static_assert(std::is_trivially_copyable_v<DMUI_Vec2>);
 static_assert(std::is_standard_layout_v<DMUI_Vec4>);
 static_assert(std::is_trivially_copyable_v<DMUI_Vec4>);
+static_assert(std::is_standard_layout_v<DMUI_SettingsRowOptions>);
+static_assert(std::is_trivially_copyable_v<DMUI_SettingsRowOptions>);
 static_assert(std::is_standard_layout_v<DMUI_ThemeColors>);
 static_assert(std::is_trivially_copyable_v<DMUI_ThemeColors>);
 static_assert(std::is_standard_layout_v<DMUI_HostAPI>);
@@ -135,6 +137,26 @@ static_assert(std::is_nothrow_invocable_v<
 	DMUI_ClientHandle,
 	DMUI_HotkeyActionHandle,
 	DMUI_HotkeyBindingInfo*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_BeginSettingsTableFn,
+	DMUI_ClientHandle,
+	const char*,
+	uint32_t*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_BeginSettingsRowFn,
+	DMUI_ClientHandle,
+	const char*,
+	const char*,
+	const char*,
+	uint32_t*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_EndSettingsRowFn,
+	DMUI_ClientHandle,
+	const DMUI_SettingsRowOptions*,
+	uint32_t*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_EndSettingsTableFn,
+	DMUI_ClientHandle>);
 static_assert(DMUI_PAGE_KIND_SETTINGS == 1u);
 static_assert(DMUI_PAGE_KIND_OVERLAY == 2u);
 static_assert(DMUI_STATUS_SEVERITY_INFO == 0u);
@@ -169,6 +191,7 @@ static_assert(sizeof(DMUI_HotkeyBindingInfo) == 40);
 static_assert(sizeof(DMUI_HostStateInfo) == 28);
 static_assert(sizeof(DMUI_Vec2) == 8);
 static_assert(sizeof(DMUI_Vec4) == 16);
+static_assert(sizeof(DMUI_SettingsRowOptions) == 12);
 static_assert(sizeof(DMUI_ThemeColors) == 228);
 static_assert(offsetof(DMUI_Vec2, x) == 0);
 static_assert(offsetof(DMUI_Vec2, y) == 4);
@@ -192,10 +215,15 @@ static_assert(offsetof(DMUI_ThemeColors, statusCurrentHotkey) == 180);
 static_assert(offsetof(DMUI_ThemeColors, statusSuccess) == 196);
 static_assert(offsetof(DMUI_ThemeColors, statusInfo) == 212);
 static_assert(DMUI_THEME_COLORS_1_0_SIZE == sizeof(DMUI_ThemeColors));
+static_assert(offsetof(DMUI_SettingsRowOptions, structSize) == 0);
+static_assert(offsetof(DMUI_SettingsRowOptions, resetVisible) == 4);
+static_assert(offsetof(DMUI_SettingsRowOptions, resetEnabled) == 8);
+static_assert(DMUI_SETTINGS_ROW_OPTIONS_1_0_SIZE ==
+	sizeof(DMUI_SettingsRowOptions));
 static_assert(offsetof(DMUI_FrameObserverDescriptor, structSize) == 0);
 static_assert(offsetof(DMUI_FrameObserverDescriptor, callback) == 8);
 static_assert(offsetof(DMUI_FrameObserverDescriptor, userData) == 16);
-static_assert(sizeof(DMUI_HostAPI) == 216);
+static_assert(sizeof(DMUI_HostAPI) == 248);
 static_assert(offsetof(DMUI_HostAPI, structSize) == 0);
 static_assert(offsetof(DMUI_HostAPI, apiVersion) == 4);
 static_assert(offsetof(DMUI_HostAPI, imguiFingerprint) == 8);
@@ -224,6 +252,10 @@ static_assert(offsetof(DMUI_HostAPI, drawBulletText) == 184);
 static_assert(offsetof(DMUI_HostAPI, registerHotkeyAction) == 192);
 static_assert(offsetof(DMUI_HostAPI, queryHotkeyBinding) == 200);
 static_assert(offsetof(DMUI_HostAPI, unregisterHotkeyAction) == 208);
+static_assert(offsetof(DMUI_HostAPI, beginSettingsTable) == 216);
+static_assert(offsetof(DMUI_HostAPI, beginSettingsRow) == 224);
+static_assert(offsetof(DMUI_HostAPI, endSettingsRow) == 232);
+static_assert(offsetof(DMUI_HostAPI, endSettingsTable) == 240);
 static_assert(DMUI_HOST_API_SELECT_PAGE_SIZE == 72);
 static_assert(DMUI_HOST_API_ATTACH_SWAP_CHAIN_SIZE == 80);
 static_assert(DMUI_HOST_API_REGISTER_ACTION_SIZE == 88);
@@ -242,5 +274,9 @@ static_assert(DMUI_HOST_API_QUERY_VIDEO_MEMORY_SIZE == 184);
 static_assert(DMUI_HOST_API_DRAW_BULLET_TEXT_SIZE == 192);
 static_assert(DMUI_HOST_API_REGISTER_HOTKEY_ACTION_SIZE == 200);
 static_assert(DMUI_HOST_API_QUERY_HOTKEY_BINDING_SIZE == 208);
-static_assert(DMUI_HOST_API_UNREGISTER_HOTKEY_ACTION_SIZE == sizeof(DMUI_HostAPI));
+static_assert(DMUI_HOST_API_UNREGISTER_HOTKEY_ACTION_SIZE == 216);
+static_assert(DMUI_HOST_API_BEGIN_SETTINGS_TABLE_SIZE == 224);
+static_assert(DMUI_HOST_API_BEGIN_SETTINGS_ROW_SIZE == 232);
+static_assert(DMUI_HOST_API_END_SETTINGS_ROW_SIZE == 240);
+static_assert(DMUI_HOST_API_END_SETTINGS_TABLE_SIZE == sizeof(DMUI_HostAPI));
 #endif

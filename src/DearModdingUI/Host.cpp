@@ -3,6 +3,7 @@
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/Hotkeys.h>
 #include <DearModdingUI/ImGuiRecovery.h>
+#include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
 #include <Platform/PlatformImgui.h>
@@ -678,6 +679,92 @@ namespace DearModdingUI
 			return DMUI_RESULT_OK;
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiBeginSettingsTableCpp(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			uint32_t* a_visible) noexcept
+		{
+			if (!a_id || !a_visible)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_visible = 0u;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			if (!SettingsTable::AcceptsClient(a_client))
+				return DMUI_RESULT_WRONG_THREAD;
+
+			const auto result = SettingsTable::Begin(a_client, a_id);
+			*a_visible = result.visible ? 1u : 0u;
+			return result.result;
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiBeginSettingsRowCpp(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			const char* a_label,
+			const char* a_description,
+			uint32_t* a_visible) noexcept
+		{
+			if (!a_id || !a_label || !a_visible)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_visible = 0u;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			if (!SettingsTable::AcceptsClient(a_client))
+				return DMUI_RESULT_WRONG_THREAD;
+
+			const auto result = SettingsTable::BeginRow(
+				a_client,
+				a_id,
+				a_label,
+				a_description);
+			*a_visible = result.visible ? 1u : 0u;
+			return result.result;
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiEndSettingsRowCpp(
+			DMUI_ClientHandle a_client,
+			const DMUI_SettingsRowOptions* a_options,
+			uint32_t* a_resetPressed) noexcept
+		{
+			if (!a_resetPressed)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_resetPressed = 0u;
+			const auto optionsValidation =
+				SettingsTable::ValidateRowOptions(a_options);
+			if (optionsValidation != DMUI_RESULT_OK)
+				return optionsValidation;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			if (!SettingsTable::AcceptsClient(a_client))
+				return DMUI_RESULT_WRONG_THREAD;
+
+			bool resetPressed{};
+			const auto result = SettingsTable::EndRow(
+				a_client,
+				{
+					a_options->resetVisible != 0,
+					a_options->resetEnabled != 0
+				},
+				resetPressed);
+			if (result == DMUI_RESULT_OK)
+				*a_resetPressed = resetPressed ? 1u : 0u;
+			return result;
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiEndSettingsTableCpp(
+			DMUI_ClientHandle a_client) noexcept
+		{
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			if (!SettingsTable::AcceptsClient(a_client))
+				return DMUI_RESULT_WRONG_THREAD;
+			return SettingsTable::End(a_client);
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryVideoMemoryCpp(
 			DMUI_ClientHandle a_client,
 			uint64_t* a_used,
@@ -935,6 +1022,54 @@ namespace DearModdingUI
 			});
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiBeginSettingsTable(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			uint32_t* a_visible) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiBeginSettingsTableCpp(a_client, a_id, a_visible);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiBeginSettingsRow(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			const char* a_label,
+			const char* a_description,
+			uint32_t* a_visible) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiBeginSettingsRowCpp(
+					a_client,
+					a_id,
+					a_label,
+					a_description,
+					a_visible);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiEndSettingsRow(
+			DMUI_ClientHandle a_client,
+			const DMUI_SettingsRowOptions* a_options,
+			uint32_t* a_resetPressed) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiEndSettingsRowCpp(
+					a_client,
+					a_options,
+					a_resetPressed);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiEndSettingsTable(
+			DMUI_ClientHandle a_client) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiEndSettingsTableCpp(a_client);
+			});
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryVideoMemory(
 			DMUI_ClientHandle a_client,
 			uint64_t* a_used,
@@ -1065,7 +1200,11 @@ namespace DearModdingUI
 			&ApiDrawBulletText,
 			&ApiRegisterHotkeyAction,
 			&ApiQueryHotkeyBinding,
-			&ApiUnregisterHotkeyAction
+			&ApiUnregisterHotkeyAction,
+			&ApiBeginSettingsTable,
+			&ApiBeginSettingsRow,
+			&ApiEndSettingsRow,
+			&ApiEndSettingsTable
 		};
 		return api;
 	}
@@ -1212,6 +1351,17 @@ namespace DearModdingUI
 	{
 		Hotkeys::BindRenderThread();
 		auto& service = GetService();
+		const auto& pages = service.registry.OrderedPages();
+		const auto page = std::ranges::find(
+			pages,
+			a_page,
+			&RegisteredPage::handle);
+		const SettingsTable::ClientCallbackGuard settingsTableGuard{
+			page != pages.end() &&
+					page->kind == DMUI_PAGE_KIND_SETTINGS ?
+				page->client :
+				DMUI_INVALID_CLIENT_HANDLE
+		};
 		return InvokeClientCallback(
 			"page",
 			a_page,

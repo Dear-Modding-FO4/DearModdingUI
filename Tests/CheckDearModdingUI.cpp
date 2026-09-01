@@ -5,6 +5,7 @@
 #include <DearModdingUI/MenuToggleKey.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/Registry.h>
+#include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/SettingsActions.h>
 #include <DearModdingUI/Status.h>
 #include <DearModdingUI/Theme.h>
@@ -217,6 +218,85 @@ namespace vmm_tests
 			require(!Registry::SupportsVersion(DMUI_MAKE_VERSION(1, 1)), "future minor was accepted");
 			require(!Registry::SupportsVersion(DMUI_MAKE_VERSION(2, 0)), "future major was accepted");
 			require(!Registry::SupportsVersion(0), "zero ABI was accepted");
+		});
+
+		runner.test("settings reset column follows scaled live metrics", [] {
+			require(SettingsTable::ResolveResetColumnWidth(
+						true,
+						48.0f,
+						24.0f,
+						4.0f) == 24.0f,
+				"glyph reset column did not use the button extent");
+			require(SettingsTable::ResolveResetColumnWidth(
+						false,
+						48.0f,
+						24.0f,
+						4.0f) == 56.0f,
+				"text reset column omitted frame padding");
+			require(SettingsTable::ResolveResetColumnWidth(
+						false,
+						96.0f,
+						48.0f,
+						8.0f) == 112.0f,
+				"text reset column did not scale with live metrics");
+		});
+
+		runner.test("settings brackets reject mismatched transitions", [] {
+			constexpr DMUI_ClientHandle owner{ 7 };
+			constexpr DMUI_ClientHandle other{ 8 };
+			require(std::string_view{
+						DMUI_ResultToString(DMUI_RESULT_UNBALANCED_BRACKET) } ==
+					"UNBALANCED_BRACKET",
+				"bracket error string was not published");
+			SettingsTable::BracketState state;
+			require(state.BeginRow(owner) == DMUI_RESULT_UNBALANCED_BRACKET,
+				"row began without a table");
+			require(state.EndTable(owner) == DMUI_RESULT_UNBALANCED_BRACKET,
+				"idle table ended");
+			require(state.BeginTable(owner) == DMUI_RESULT_OK,
+				"table did not begin");
+			require(state.BeginTable(owner) == DMUI_RESULT_UNBALANCED_BRACKET,
+				"settings table nested");
+			require(state.BeginRow(other) == DMUI_RESULT_UNBALANCED_BRACKET,
+				"another owner began a row");
+			require(state.BeginRow(owner) == DMUI_RESULT_OK,
+				"row did not begin");
+			require(state.EndTable(owner) == DMUI_RESULT_UNBALANCED_BRACKET,
+				"table ended with an open row");
+			require(state.EndRow(other) == DMUI_RESULT_UNBALANCED_BRACKET,
+				"another owner ended a row");
+			require(state.EndRow(owner) == DMUI_RESULT_OK,
+				"row did not end");
+			require(state.EndTable(owner) == DMUI_RESULT_OK,
+				"table did not end");
+			require(state.CurrentPhase() == SettingsTable::Phase::kIdle,
+				"balanced table did not return to idle");
+			require(state.BeginTable(owner) == DMUI_RESULT_OK &&
+					state.BeginRow(owner) == DMUI_RESULT_OK,
+				"state could not be reused");
+			state.Reset();
+			require(state.CurrentPhase() == SettingsTable::Phase::kIdle &&
+					state.Owner() == DMUI_INVALID_CLIENT_HANDLE,
+				"forced reset retained bracket state");
+		});
+
+		runner.test("settings row options enforce their versioned prefix", [] {
+			require(SettingsTable::ValidateRowOptions(nullptr) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"null row options were accepted");
+			DMUI_SettingsRowOptions options{};
+			options.structSize = DMUI_SETTINGS_ROW_OPTIONS_1_0_SIZE - 1;
+			require(SettingsTable::ValidateRowOptions(&options) ==
+					DMUI_RESULT_STRUCT_TOO_SMALL,
+				"short row options were accepted");
+			options.structSize = DMUI_SETTINGS_ROW_OPTIONS_1_0_SIZE;
+			require(SettingsTable::ValidateRowOptions(&options) ==
+					DMUI_RESULT_OK,
+				"exact row options were rejected");
+			options.structSize += sizeof(uint32_t);
+			require(SettingsTable::ValidateRowOptions(&options) ==
+					DMUI_RESULT_OK,
+				"extended row options were rejected");
 		});
 
 		runner.test("status severity controls expiry and persistence", [] {
