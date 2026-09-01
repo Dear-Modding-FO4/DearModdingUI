@@ -1967,6 +1967,8 @@ namespace vmm_tests
 				"host settings gear glyph changed");
 			require(PhosphorGlyph::kX == 0xE4F6,
 				"host close glyph changed");
+			require(PhosphorGlyph::kMagnifyingGlass == 0xE30C,
+				"search glyph changed");
 			require(
 				PhosphorGlyph::kArrowCounterClockwise == 0xE038 &&
 					PhosphorGlyph::kArrowsClockwise == 0xE094 &&
@@ -2220,6 +2222,16 @@ namespace vmm_tests
 							footer.adjacentMaxX <= footer.controlMinX,
 						"host chrome overlapped adjacent content");
 			}
+		});
+
+		runner.test("title bar button padding follows the scaled style", [] {
+			require(
+				ResolveTitleBarButtonPadding(
+					Theme::kStyleDefaults.framePadding.y) == 2.0f &&
+					ResolveTitleBarButtonPadding(
+						Theme::kStyleDefaults.framePadding.y * 2.0f) == 4.0f &&
+					ResolveTitleBarButtonPadding(-1.0f) == 0.0f,
+				"title bar button padding did not follow frame padding");
 		});
 
 		runner.test("title rows preserve their explicit button extent policy", [] {

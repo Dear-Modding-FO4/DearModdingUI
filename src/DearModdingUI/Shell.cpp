@@ -64,10 +64,13 @@ namespace DearModdingUI
 				font->IsGlyphInFont(static_cast<ImWchar>(a_glyph));
 		}
 
-		[[nodiscard]] ImU32 IconColor(ImU32 a_textColor) noexcept
+		[[nodiscard]] ImU32 IconColor(
+			ImU32 a_textColor,
+			float a_alpha = 1.0f) noexcept
 		{
 			auto tint = Theme::IconTint();
-			tint.w *= ImGui::ColorConvertU32ToFloat4(a_textColor).w;
+			tint.w *=
+				ImGui::ColorConvertU32ToFloat4(a_textColor).w * a_alpha;
 			return ImGui::ColorConvertFloat4ToU32(tint);
 		}
 
@@ -576,17 +579,28 @@ namespace DearModdingUI
 			return result;
 		}
 
-		inline constexpr float kTitleBarButtonPadding{ 2.0f };
 		inline constexpr float kCloseCrossDiagonalScale{
 			0.5f / std::numbers::sqrt2_v<float>
 		};
-		inline constexpr float kCloseCrossInset{ 1.0f };
+		inline constexpr float kCloseCrossInsetAtBaseline{ 1.0f };
 		inline constexpr ImVec4 kTransparentButtonChrome{ 0, 0, 0, 0 };
+		[[nodiscard]] float TitleBarButtonPadding() noexcept
+		{
+			return ResolveTitleBarButtonPadding(
+				ImGui::GetStyle().FramePadding.y);
+		}
+
+		[[nodiscard]] float SeparatorThickness() noexcept
+		{
+			return Theme::kSeparatorThickness * Theme::Scale();
+		}
+
 		[[nodiscard]] ImRect TitleBarButtonRect(
 			const ImVec2& a_origin,
 			float a_fontSize) noexcept
 		{
-			const auto full = a_fontSize + kTitleBarButtonPadding * 2.0f;
+			const auto full =
+				a_fontSize + TitleBarButtonPadding() * 2.0f;
 			return { a_origin, { a_origin.x + full, a_origin.y + full } };
 		}
 
@@ -596,6 +610,7 @@ namespace DearModdingUI
 			float a_offset = 0.0f) noexcept
 		{
 			const auto& style = ImGui::GetStyle();
+			const auto buttonPadding = TitleBarButtonPadding();
 			return {
 				RightTitleBarButtonOriginX(
 					a_window->Rect().Max.x,
@@ -603,10 +618,10 @@ namespace DearModdingUI
 					style.FramePadding.x,
 					a_fontSize,
 					a_offset,
-					kTitleBarButtonPadding),
+					buttonPadding),
 				a_window->Rect().Min.y +
 					style.FramePadding.y -
-					kTitleBarButtonPadding
+					buttonPadding
 			};
 		}
 
@@ -666,7 +681,8 @@ namespace DearModdingUI
 			{
 				const auto center = bounds.GetCenter();
 				const auto diagonal =
-					size * kCloseCrossDiagonalScale - kCloseCrossInset;
+					size * kCloseCrossDiagonalScale -
+					kCloseCrossInsetAtBaseline * Theme::Scale();
 				const auto color = ImGui::GetColorU32(ImGuiCol_Text);
 				a_window->DrawList->AddLine(
 					{ center.x - diagonal, center.y - diagonal },
@@ -839,7 +855,7 @@ namespace DearModdingUI
 			const auto buttonExtent = ResolveTitleRowButtonExtent(
 				a_options.buttonExtentPolicy,
 				bodyFontSize,
-				kTitleBarButtonPadding);
+				TitleBarButtonPadding());
 			const auto buttonGlyphSize =
 				a_options.buttonExtentPolicy ==
 						TitleRowButtonExtentPolicy::kHostChrome ?
@@ -964,7 +980,7 @@ namespace DearModdingUI
 				});
 				ImGui::SeparatorEx(
 					ImGuiSeparatorFlags_Horizontal,
-					Theme::kSeparatorThickness);
+					SeparatorThickness());
 				ImGui::Spacing();
 			}
 			return pressedIndex;
@@ -989,7 +1005,7 @@ namespace DearModdingUI
 			const auto buttonExtent = ResolveTitleRowButtonExtent(
 				extentPolicy,
 				ImGui::GetFontSize(),
-				kTitleBarButtonPadding);
+				TitleBarButtonPadding());
 			const auto hasCloseGlyph = HasIconGlyph(PhosphorGlyph::kX);
 			constexpr const char* closeLabel{ "Close" };
 			const auto buttonWidth = ActionButtonWidth(
@@ -1054,41 +1070,6 @@ namespace DearModdingUI
 			});
 		}
 
-		void DrawSearchIcon(
-			const ImVec2& a_position,
-			float a_size,
-			float a_alpha) noexcept
-		{
-			auto* drawList = ImGui::GetWindowDrawList();
-			const ImVec2 center{
-				a_position.x + a_size * 0.46f,
-				a_position.y + a_size * 0.5f
-			};
-			const auto radius = a_size * 0.3f;
-			auto color = Theme::kFullPalette[ImGuiCol_Text];
-			color.w *= a_alpha;
-			const auto packed = ImGui::GetColorU32(color);
-			drawList->AddCircle(
-				center,
-				radius,
-				packed,
-				12,
-				a_size * Theme::kSearchIconStrokeRatio);
-			const ImVec2 handleStart{
-				center.x + radius * 0.81f,
-				center.y + radius * 0.81f
-			};
-			const ImVec2 handleEnd{
-				handleStart.x + a_size * 0.29f,
-				handleStart.y + a_size * 0.29f
-			};
-			drawList->AddLine(
-				handleStart,
-				handleEnd,
-				packed,
-				a_size * Theme::kSearchIconHandleStrokeRatio);
-		}
-
 		void DrawPaletteAffordance(ShellState& a_state) noexcept
 		{
 			const auto position = ImGui::GetCursorScreenPos();
@@ -1121,10 +1102,21 @@ namespace DearModdingUI
 					{ iconSize },
 					RowContentMetric::kBox)
 			};
-			DrawSearchIcon(
-				iconPosition,
+			DrawCenteredIcon(
+				ImGui::GetWindowDrawList(),
+				PhosphorGlyph::kMagnifyingGlass,
+				{
+					iconPosition,
+					{
+						iconPosition.x + iconSize,
+						iconPosition.y + iconSize
+					}
+				},
 				iconSize,
-				Theme::kSearchIconAlpha);
+				IconColor(
+					ImGui::GetColorU32(ImGuiCol_Text),
+					Theme::kSearchIconAlpha),
+				nullptr);
 
 			constexpr auto hint = "Search mods, pages, and actions...";
 			const auto textSize = ImGui::CalcTextSize(hint);
@@ -1803,7 +1795,7 @@ namespace DearModdingUI
 			const auto buttonExtent = ResolveTitleRowButtonExtent(
 				extentPolicy,
 				ImGui::GetFontSize(),
-				kTitleBarButtonPadding);
+				TitleBarButtonPadding());
 			std::vector<TitleRowButton> buttons;
 			std::vector<DMUI_ActionHandle> actions;
 			for (const auto& action : OrderedActions())
@@ -1863,7 +1855,7 @@ namespace DearModdingUI
 				const auto buttonExtent = ResolveTitleRowButtonExtent(
 					extentPolicy,
 					ImGui::GetFontSize(),
-					kTitleBarButtonPadding);
+					TitleBarButtonPadding());
 				const auto hasCloseGlyph = HasIconGlyph(PhosphorGlyph::kX);
 				constexpr const char* fallbackLabel{ "Back" };
 				const auto closeButtonWidth = ActionButtonWidth(
@@ -1981,7 +1973,7 @@ namespace DearModdingUI
 					ImGui::Spacing();
 					ImGui::SeparatorEx(
 						ImGuiSeparatorFlags_Horizontal,
-						Theme::kSeparatorThickness);
+						SeparatorThickness());
 					ImGui::Spacing();
 					DrawFailure(*page);
 				}
@@ -2000,9 +1992,9 @@ namespace DearModdingUI
 				start.x + ImGui::GetContentRegionAvail().x;
 			const auto iconSize = HostChromeIconSize(ImGui::GetFontSize());
 			const auto settingsButtonExtent = HostChromeButtonExtent(
-				ImGui::GetFontSize(), kTitleBarButtonPadding);
+				ImGui::GetFontSize(), TitleBarButtonPadding());
 			const auto dismissButtonExtent = TitleBarButtonExtent(
-				ImGui::GetFontSize(), kTitleBarButtonPadding);
+				ImGui::GetFontSize(), TitleBarButtonPadding());
 			const auto rowHeight = (std::max)(
 				ImGui::GetFrameHeight(),
 				settingsButtonExtent);
@@ -2035,7 +2027,7 @@ namespace DearModdingUI
 				rowHeight,
 				ImGui::GetStyle().ItemSpacing.y,
 				ImGui::GetStyle().WindowPadding.y,
-				Theme::kSeparatorThickness,
+				SeparatorThickness(),
 				status.has_value(),
 				persistent);
 			ImGui::PushClipRect(
@@ -2085,7 +2077,7 @@ namespace DearModdingUI
 				rowHeight,
 				ImGui::GetStyle().ItemSpacing.y,
 				ImGui::GetStyle().WindowPadding.y,
-				Theme::kSeparatorThickness,
+				SeparatorThickness(),
 				status.has_value(),
 				persistent);
 			std::optional<StatusTextPresentation> presentation;
@@ -2119,7 +2111,7 @@ namespace DearModdingUI
 						rowHeight,
 						ImGui::GetStyle().ItemSpacing.y,
 						ImGui::GetStyle().WindowPadding.y,
-						Theme::kSeparatorThickness,
+						SeparatorThickness(),
 						true,
 						persistent);
 				}
@@ -2348,7 +2340,7 @@ namespace DearModdingUI
 	{
 		return TitleBarButtonExtent(
 			ImGui::GetFontSize(),
-			kTitleBarButtonPadding);
+			TitleBarButtonPadding());
 	}
 
 	void DrawSearchInput(
@@ -2391,16 +2383,28 @@ namespace DearModdingUI
 				sizeof(buffer)))
 			a_search = buffer;
 
-		DrawSearchIcon(
+		const ImVec2 iconPosition{
+			cursor.x + Theme::kSearchIconOffsetX * scale,
+			cursor.y + RowContentOffsetY(
+				frameHeight,
+				{ iconSize },
+				RowContentMetric::kBox)
+		};
+		DrawCenteredIcon(
+			ImGui::GetWindowDrawList(),
+			PhosphorGlyph::kMagnifyingGlass,
 			{
-				cursor.x + Theme::kSearchIconOffsetX * scale,
-				cursor.y + RowContentOffsetY(
-					frameHeight,
-					{ iconSize },
-					RowContentMetric::kBox)
+				iconPosition,
+				{
+					iconPosition.x + iconSize,
+					iconPosition.y + iconSize
+				}
 			},
 			iconSize,
-			Theme::kSearchIconAlpha);
+			IconColor(
+				ImGui::GetColorU32(ImGuiCol_Text),
+				Theme::kSearchIconAlpha),
+			nullptr);
 		ImGui::PopStyleVar(2);
 		ImGui::PopStyleColor(5);
 		ImGui::PopID();
@@ -2573,7 +2577,7 @@ namespace DearModdingUI
 				open = false;
 			const auto footerButtonExtent = HostChromeButtonExtent(
 				ImGui::GetFontSize(),
-				kTitleBarButtonPadding);
+				TitleBarButtonPadding());
 			const auto footerHeight =
 				ReservedFooterHeight(
 					(std::max)(
@@ -2581,7 +2585,7 @@ namespace DearModdingUI
 						footerButtonExtent),
 					ImGui::GetStyle().ItemSpacing.y,
 					ImGui::GetStyle().WindowPadding.y,
-					Theme::kSeparatorThickness);
+					SeparatorThickness());
 			ImGui::BeginChild(
 				"Dear Modding Menus Table",
 				{ 0.0f, -footerHeight });
@@ -2609,7 +2613,7 @@ namespace DearModdingUI
 			ImGui::Spacing();
 			ImGui::SeparatorEx(
 				ImGuiSeparatorFlags_Horizontal,
-				Theme::kSeparatorThickness);
+				SeparatorThickness());
 			const auto footerPosition = ImGui::GetCursorScreenPos();
 			ImGui::SetCursorScreenPos({
 				footerPosition.x,

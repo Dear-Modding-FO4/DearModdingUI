@@ -322,6 +322,12 @@ namespace DearModdingUI
 		return a_open;
 	}
 
+	[[nodiscard]] constexpr float ResolveTitleBarButtonPadding(
+		float a_framePaddingY) noexcept
+	{
+		return (a_framePaddingY > 0.0f ? a_framePaddingY : 0.0f) * 0.5f;
+	}
+
 	[[nodiscard]] constexpr float TitleBarButtonExtent(
 		float a_fontSize,
 		float a_buttonPadding) noexcept
