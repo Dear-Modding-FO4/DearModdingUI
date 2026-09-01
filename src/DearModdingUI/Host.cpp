@@ -1,6 +1,7 @@
 #define DMUI_HOST_EXPORTS
 #include <DearModdingUI/Host.h>
 #include <DearModdingUI/HostSettings.h>
+#include <DearModdingUI/Hotkeys.h>
 #include <DearModdingUI/ImGuiRecovery.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
@@ -247,6 +248,49 @@ namespace DearModdingUI
 				a_client,
 				a_descriptor,
 				a_observer);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterHotkeyActionCpp(
+			DMUI_ClientHandle a_client,
+			const DMUI_HotkeyActionDescriptor* a_descriptor,
+			DMUI_HotkeyActionHandle* a_action) noexcept
+		{
+			if (!a_descriptor || !a_action ||
+				a_client == DMUI_INVALID_CLIENT_HANDLE)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_action = DMUI_INVALID_HOTKEY_ACTION_HANDLE;
+			auto& service = GetService();
+			const auto state = service.state.load(std::memory_order_acquire);
+			if (state == DMUI_HOST_STATE_INITIALIZING ||
+				state == DMUI_HOST_STATE_READY)
+				return DMUI_RESULT_REGISTRATION_CLOSED;
+			if (state != DMUI_HOST_STATE_WAITING_FOR_PRESENT)
+				return StateResult(state);
+			const auto clientResult = service.registry.ValidateClient(a_client);
+			if (clientResult != DMUI_RESULT_OK)
+				return clientResult;
+			return Hotkeys::Register(a_client, a_descriptor, a_action);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryHotkeyBindingCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_HotkeyActionHandle a_action,
+			DMUI_HotkeyBindingInfo* a_binding) noexcept
+		{
+			const auto clientResult = GetService().registry.ValidateClient(a_client);
+			if (clientResult != DMUI_RESULT_OK)
+				return clientResult;
+			return Hotkeys::Query(a_client, a_action, a_binding);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiUnregisterHotkeyActionCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_HotkeyActionHandle a_action) noexcept
+		{
+			const auto clientResult = GetService().registry.ValidateClient(a_client);
+			if (clientResult != DMUI_RESULT_OK)
+				return clientResult;
+			return Hotkeys::Unregister(a_client, a_action);
 		}
 
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryStateCpp(
@@ -901,6 +945,35 @@ namespace DearModdingUI
 			});
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterHotkeyAction(
+			DMUI_ClientHandle a_client,
+			const DMUI_HotkeyActionDescriptor* a_descriptor,
+			DMUI_HotkeyActionHandle* a_action) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiRegisterHotkeyActionCpp(a_client, a_descriptor, a_action);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryHotkeyBinding(
+			DMUI_ClientHandle a_client,
+			DMUI_HotkeyActionHandle a_action,
+			DMUI_HotkeyBindingInfo* a_binding) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiQueryHotkeyBindingCpp(a_client, a_action, a_binding);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiUnregisterHotkeyAction(
+			DMUI_ClientHandle a_client,
+			DMUI_HotkeyActionHandle a_action) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiUnregisterHotkeyActionCpp(a_client, a_action);
+			});
+		}
+
 		// Pages and actions draw inside the frame, so isolate the host's frame state.
 		template <class InvokeCallback, class DisableCallback>
 		[[nodiscard]] bool InvokeClientCallback(
@@ -989,7 +1062,10 @@ namespace DearModdingUI
 			&ApiSettingsActionButtonExtent,
 			&ApiRegisterFrameObserver,
 			&ApiQueryVideoMemory,
-			&ApiDrawBulletText
+			&ApiDrawBulletText,
+			&ApiRegisterHotkeyAction,
+			&ApiQueryHotkeyBinding,
+			&ApiUnregisterHotkeyAction
 		};
 		return api;
 	}
@@ -1046,6 +1122,7 @@ namespace DearModdingUI
 
 	void CompleteBackendInitialization(void* a_imguiContext) noexcept
 	{
+		Hotkeys::BindRenderThread();
 		auto& service = GetService();
 		auto expected = DMUI_HOST_STATE_INITIALIZING;
 		if (!service.state.compare_exchange_strong(
@@ -1133,6 +1210,7 @@ namespace DearModdingUI
 
 	bool DrawPage(DMUI_PageHandle a_page) noexcept
 	{
+		Hotkeys::BindRenderThread();
 		auto& service = GetService();
 		return InvokeClientCallback(
 			"page",
@@ -1152,6 +1230,7 @@ namespace DearModdingUI
 
 	bool InvokeAction(DMUI_ActionHandle a_action) noexcept
 	{
+		Hotkeys::BindRenderThread();
 		auto& service = GetService();
 		return InvokeClientCallback(
 			"action",
@@ -1171,11 +1250,13 @@ namespace DearModdingUI
 
 	void ObserveFrame() noexcept
 	{
+		Hotkeys::BindRenderThread();
 		auto& service = GetService();
 		auto& registry = service.registry;
-		if (!registry.HasActiveFrameObservers())
-			return;
 		if (service.state.load(std::memory_order_acquire) != DMUI_HOST_STATE_READY)
+			return;
+		Hotkeys::DispatchQueued();
+		if (!registry.HasActiveFrameObservers())
 			return;
 		for (const auto& observer : registry.OrderedFrameObservers())
 		{

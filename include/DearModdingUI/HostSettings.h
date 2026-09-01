@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <string_view>
 
@@ -67,6 +68,7 @@ namespace DearModdingUI
 		float uiScale{ Theme::kDefaultUserScale };
 		std::string bodyFontFamily{ kDefaultBodyFontFamily };
 		std::string menuToggleKey{ MenuToggleKeyName(kMenuDefaultToggleKey) };
+		std::map<std::string, std::string> hotkeys;
 
 		[[nodiscard]] bool operator==(
 			const PersistedHostInterfaceSettings&) const noexcept = default;
@@ -233,7 +235,8 @@ namespace DearModdingUI
 				Theme::kDefaultUserScale),
 			DecodeBodyFontFamily(a_settings.bodyFontFamily),
 			std::string{ MenuToggleKeyName(
-				ParseMenuToggleKey(a_settings.menuToggleKey).virtualKey) }
+				ParseMenuToggleKey(a_settings.menuToggleKey).virtualKey) },
+			{}
 		};
 	}
 
@@ -337,5 +340,9 @@ namespace DearModdingUI
 		[[nodiscard]] bool IsPanelOpen() noexcept;
 		[[nodiscard]] uint64_t PanelRevision() noexcept;
 		[[nodiscard]] uint32_t MenuToggleVirtualKey() noexcept;
+		[[nodiscard]] bool SetHotkeyOverride(
+			std::string_view a_id,
+			std::string_view a_chord) noexcept;
+		[[nodiscard]] bool RemoveHotkeyOverride(std::string_view a_id) noexcept;
 	}
 }

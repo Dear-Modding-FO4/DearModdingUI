@@ -17,7 +17,7 @@ version is unsupported. Discovery may succeed before the host plugin initializes
 registration then return `DMUI_RESULT_HOST_NOT_INITIALIZED`. Export presence does not mean the
 renderer is ready: register at `kPostPostLoad` and wait for exactly one lifecycle callback.
 
-Client, page, action, and frame-observer registration closes when the first valid active-swapchain
+Client, page, action, hotkey-action, and frame-observer registration closes when the first valid active-swapchain
 `Present` begins host initialization. Register them immediately after the client. All descriptor strings are copied;
 callback and userdata pointers must remain valid for the process lifetime. IDs use ASCII letters,
 digits, `.`, `_`, and `-`. Client IDs are process-wide; page and action IDs are unique within their client.
@@ -105,6 +105,35 @@ Action callbacks run only when the host-rendered control is pressed. The host co
 and Windows structured exceptions, recovers shared ImGui state, and permanently disables a faulting
 action. Clients must not draw their own header, footer, or action chrome.
 
+## Client hotkeys
+
+The optional appended `registerHotkeyAction` entry registers a stable, process-wide namespaced action
+ID, display name, suggested default chord, callback, and user data. The action ID must contain at least
+two nonempty ASCII segments separated by `.`; each segment starts with a letter and continues with
+letters, digits, `_`, or `-`. Registration rejects malformed IDs, duplicate IDs across all clients, and
+unknown chord strings. Supported chords combine `Ctrl`, `Alt`, and `Shift` with the host key table, such
+as `F11` or `Shift+F11`; `none` is an explicit unbound suggestion.
+
+Registration success does not imply a binding. Query `queryHotkeyBinding` with the returned handle to
+obtain the current canonical chord and a distinct state for bound, user-cleared, suggested-default
+conflict, never set, saved-override conflict, or invalid saved override. The host persists user
+overrides by stable action ID in the `[Hotkeys]` TOML table. Overrides for uninstalled clients remain
+visible as not-registered rows in the host hotkey manager until the user removes them.
+
+The appended `unregisterHotkeyAction` entry is render-thread-only and returns `WRONG_THREAD` otherwise.
+Successful removal tombstones the action; queued events resolve dead and are discarded during dispatch.
+No later callback for the action runs after unregister returns.
+It retains the saved override as a not-registered row, reapplies it on re-registration, and immediately
+recomputes bindings so another action can use the chord.
+
+The window procedure decides and swallows bound presses, repeats, and matching releases synchronously.
+It only queues callback events. Both press and release callbacks are dispatched FIFO on the render
+thread beside frame observers after a successful displayed `Present`, so client render state needs no
+cross-thread synchronization for hotkeys. Repeats are coalesced, events survive stalled presentation,
+and the 512-event queue reserves release capacity for every accepted press. Overflow drops and logs a
+whole press/release pair rather than leaving a client in a held state. The C++ wrapper exposes
+`AddHotkeyAction`, `QueryHotkeyBinding`, and `UnregisterHotkeyAction` with appended-table guards.
+
 ## Frame observation and video memory
 
 The optional `registerFrameObserver` entry accepts a descriptor with a callback and user data. The host
@@ -155,7 +184,8 @@ capture input, or open the carrier.
 
 The standalone host initializes on the first valid active-swapchain `Present` whenever any client was
 accepted. Clients can open the common menu by selecting one of their registered settings pages through
-the host API; the host does not reserve a global hotkey.
+the host API. The existing host menu toggle remains in `[Additional]` for compatibility and reserves its
+virtual key against client chords.
 
 ## Final swapchain handoff
 
@@ -194,7 +224,7 @@ Include the pinned `imgui.h` and `imgui_internal.h`, then `ImGuiFingerprint.h`, 
 `ImDrawVert`, `ImWchar`, color packing, docking, obsolete API, test-engine, CRC, FreeType, debug-tool,
 math-operator, and vector-extension flags directly from the active preprocessor configuration.
 
-`onHostReady`, `onHostUnavailable`, page draw, action, and frame callbacks run on the render thread.
+`onHostReady`, `onHostUnavailable`, page draw, action, hotkey, and frame callbacks run on the render thread.
 `setStatus` is the exception and may be called from any thread. The context and allocator functions
 exist only in `DMUI_HostReadyInfo`; clients must not poll for a context. In the ready callback, set the
 client's statically linked ImGui globals:
@@ -217,7 +247,7 @@ stack operation.
 
 If initialization fails, each accepted client receives `onHostUnavailable` with an explicit reason
 and may start its standalone fallback. A client that receives `onHostReady` must stay hosted for the
-process lifetime; v1 does not support runtime migration, unload, unregister, or hot reload.
+process lifetime; v1 supports hotkey-action unregistration but not client unload or hot reload.
 
 ## Minimal registration
 

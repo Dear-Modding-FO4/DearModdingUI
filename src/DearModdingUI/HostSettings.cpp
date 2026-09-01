@@ -1,6 +1,7 @@
 #include <DearModdingUI/HostSettings.h>
 
 #include <DearModdingUI/Host.h>
+#include <DearModdingUI/Hotkeys.h>
 #include <Support/Runtime.h>
 
 #include <REX/REX.h>
@@ -65,6 +66,14 @@ namespace DearModdingUI::HostSettings
 				section, "sMenuBodyFontFamily", settings.bodyFontFamily);
 			settings.menuToggleKey = toml::find_or<std::string>(
 				section, "sMenuToggleKey", settings.menuToggleKey);
+			if (root.contains("Hotkeys") && root.at("Hotkeys").is_table())
+			{
+				for (const auto& [id, value] : root.at("Hotkeys").as_table())
+				{
+					if (value.is_string())
+						settings.hotkeys.emplace(id, value.as_string());
+				}
+			}
 			const auto parsed = ParseMenuToggleKey(settings.menuToggleKey);
 			if (!parsed.recognized)
 			{
@@ -85,6 +94,9 @@ namespace DearModdingUI::HostSettings
 					s_menuToggleKey.store(
 						ParseMenuToggleKey(s_settings.menuToggleKey).virtualKey,
 						std::memory_order_release);
+					Hotkeys::InitializeOverrides(s_settings.hotkeys);
+					Hotkeys::SetReservedVirtualKey(
+						s_menuToggleKey.load(std::memory_order_acquire));
 					REX::INFO("DearModdingUI: loaded host settings from {}"sv,
 						ConfigPath().string());
 					REX::INFO("DearModdingUI: menu toggle key {}"sv,
@@ -121,6 +133,9 @@ namespace DearModdingUI::HostSettings
 				section["fMenuUiScale"] = static_cast<double>(a_settings.uiScale);
 				section["sMenuBodyFontFamily"] = a_settings.bodyFontFamily;
 				section["sMenuToggleKey"] = a_settings.menuToggleKey;
+				root["Hotkeys"] = toml::table{};
+				for (const auto& [id, chord] : a_settings.hotkeys)
+					root["Hotkeys"][id] = chord;
 
 				const auto path = ConfigPath();
 				std::filesystem::create_directories(path.parent_path());
@@ -221,14 +236,16 @@ namespace DearModdingUI::HostSettings
 		std::string error;
 		{
 			const std::scoped_lock lock{ s_settingsMutex };
-			if (persisted == s_settings)
+			auto complete = persisted;
+			complete.hotkeys = s_settings.hotkeys;
+			if (complete == s_settings)
 			{
 				(void)SetHostStatus(
 					DMUI_STATUS_SEVERITY_SUCCESS,
 					"Settings saved.");
 				return true;
 			}
-			if (!SaveSettings(persisted, error))
+			if (!SaveSettings(complete, error))
 			{
 				REX::WARN(
 					"DearModdingUI: interface settings could not be persisted: {}"sv,
@@ -236,10 +253,12 @@ namespace DearModdingUI::HostSettings
 				(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, error);
 				return false;
 			}
-			s_settings = persisted;
+			s_settings = std::move(complete);
 			s_menuToggleKey.store(
 				ParseMenuToggleKey(s_settings.menuToggleKey).virtualKey,
 				std::memory_order_release);
+			Hotkeys::SetReservedVirtualKey(
+				s_menuToggleKey.load(std::memory_order_acquire));
 		}
 		(void)SetHostStatus(
 			DMUI_STATUS_SEVERITY_SUCCESS,
@@ -299,5 +318,55 @@ namespace DearModdingUI::HostSettings
 	{
 		EnsureLoaded();
 		return s_menuToggleKey.load(std::memory_order_acquire);
+	}
+
+	bool SetHotkeyOverride(
+		std::string_view a_id,
+		std::string_view a_chord) noexcept
+	{
+		EnsureLoaded();
+		const auto previous = Hotkeys::Overrides();
+		const auto result = Hotkeys::SetOverride(a_id, a_chord);
+		if (result != DMUI_RESULT_OK)
+		{
+			Hotkeys::InitializeOverrides(previous);
+			return false;
+		}
+		std::string error;
+		{
+			const std::scoped_lock lock{ s_settingsMutex };
+			auto updated = s_settings;
+			updated.hotkeys = Hotkeys::Overrides();
+			if (SaveSettings(updated, error))
+			{
+				s_settings = std::move(updated);
+				return true;
+			}
+		}
+		Hotkeys::InitializeOverrides(previous);
+		(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, error);
+		return false;
+	}
+
+	bool RemoveHotkeyOverride(std::string_view a_id) noexcept
+	{
+		EnsureLoaded();
+		const auto previous = Hotkeys::Overrides();
+		if (!Hotkeys::RemoveOverride(a_id))
+			return false;
+		std::string error;
+		{
+			const std::scoped_lock lock{ s_settingsMutex };
+			auto updated = s_settings;
+			updated.hotkeys = Hotkeys::Overrides();
+			if (SaveSettings(updated, error))
+			{
+				s_settings = std::move(updated);
+				return true;
+			}
+		}
+		Hotkeys::InitializeOverrides(previous);
+		(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, error);
+		return false;
 	}
 }

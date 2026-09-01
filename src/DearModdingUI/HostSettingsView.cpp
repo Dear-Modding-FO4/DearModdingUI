@@ -1,6 +1,7 @@
 #include <DearModdingUI/HostSettingsView.h>
 
 #include <DearModdingUI/HostSettings.h>
+#include <DearModdingUI/Hotkeys.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
 
@@ -287,6 +288,108 @@ namespace DearModdingUI
 			}
 			DrawHelp(
 				"Opens and closes the shared menu. Apply saves the key for this session and future launches.");
+
+			ImGui::TextUnformatted("Client hotkeys");
+			DrawHelp(
+				"Bindings are owned by DearModdingUI. Changes below are saved immediately.");
+			const auto actions = Hotkeys::Snapshot();
+			if (actions.empty())
+			{
+				ImGui::TextDisabled("No client actions or saved overrides.");
+				return;
+			}
+
+			if (!ImGui::BeginTable(
+					"##DearModdingUI.Hotkeys",
+					3,
+					ImGuiTableFlags_BordersInnerH |
+						ImGuiTableFlags_RowBg |
+						ImGuiTableFlags_SizingStretchProp))
+				return;
+			ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthStretch, 1.5f);
+			ImGui::TableSetupColumn("Binding", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+			ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+			ImGui::TableHeadersRow();
+			for (const auto& action : actions)
+			{
+				ImGui::PushID(action.id.c_str());
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				if (action.registered)
+				{
+					ImGui::TextUnformatted(action.displayName.c_str());
+					ImGui::TextDisabled("%s", action.id.c_str());
+				}
+				else
+					ImGui::TextUnformatted(action.id.c_str());
+
+				ImGui::TableSetColumnIndex(1);
+				if (action.registered)
+				{
+					const auto preview = action.state == DMUI_HOTKEY_BINDING_BOUND ?
+						action.effectiveChord.c_str() :
+						"Unbound";
+					ImGui::SetNextItemWidth(-1.0f);
+					if (ImGui::BeginCombo("##Binding", preview))
+					{
+						if (ImGui::Selectable(
+								"Unbound",
+								action.state == DMUI_HOTKEY_BINDING_UNBOUND_USER))
+							(void)HostSettings::SetHotkeyOverride(action.id, "none");
+						for (uint32_t modifiers = 0; modifiers < 8; ++modifiers)
+						{
+							for (const auto& key : kMenuToggleKeys)
+							{
+								const auto chord = SerializeHotkeyChord({
+									key.virtualKey,
+									modifiers
+								});
+								const auto selected =
+									action.state == DMUI_HOTKEY_BINDING_BOUND &&
+									action.effectiveChord == chord;
+								if (ImGui::Selectable(chord.c_str(), selected))
+									(void)HostSettings::SetHotkeyOverride(
+										action.id, chord);
+								if (selected)
+									ImGui::SetItemDefaultFocus();
+							}
+						}
+						ImGui::EndCombo();
+					}
+				}
+				else
+				{
+					ImGui::TextUnformatted(action.overrideChord.c_str());
+					if (ImGui::SmallButton("Remove saved override"))
+						(void)HostSettings::RemoveHotkeyOverride(action.id);
+				}
+
+				ImGui::TableSetColumnIndex(2);
+				switch (action.state)
+				{
+				case DMUI_HOTKEY_BINDING_BOUND:
+					ImGui::TextUnformatted(action.registered ? "Bound" : "Not registered");
+					break;
+				case DMUI_HOTKEY_BINDING_UNBOUND_USER:
+					ImGui::TextUnformatted("Cleared by user");
+					break;
+				case DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT:
+					ImGui::TextUnformatted("Suggested default is taken");
+					break;
+				case DMUI_HOTKEY_BINDING_UNBOUND_OVERRIDE_CONFLICT:
+					ImGui::TextUnformatted("Saved binding conflicts");
+					break;
+				case DMUI_HOTKEY_BINDING_UNBOUND_INVALID_OVERRIDE:
+					ImGui::TextUnformatted("Saved binding is invalid");
+					break;
+				default:
+					ImGui::TextUnformatted(
+						action.registered ? "No suggested binding" : "Not registered");
+					break;
+				}
+				ImGui::PopID();
+			}
+			ImGui::EndTable();
 		}
 
 		void DrawReadOnlyHostFact(

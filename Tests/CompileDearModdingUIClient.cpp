@@ -38,6 +38,13 @@ namespace
 			"Copy something.",
 			[label] { (void)label; });
 		(void)client.AddFrameObserver([label] { (void)label; });
+		const auto hotkey = client.AddHotkeyAction(
+			"example.author.mod.Toggle",
+			"Toggle example",
+			"Shift+F11",
+			[label](bool) { (void)label; });
+		if (hotkey)
+			(void)client.QueryHotkeyBinding(*hotkey);
 		const auto videoMemory = client.QueryVideoMemory();
 		if (videoMemory)
 			(void)videoMemory->budget;

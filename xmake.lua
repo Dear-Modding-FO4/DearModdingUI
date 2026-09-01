@@ -85,6 +85,7 @@ target("dmui-tests", function()
     add_files(
         "Tests/**.cpp",
         "src/DearModdingUI/FontCatalog.cpp",
+        "src/DearModdingUI/Hotkeys.cpp",
         "src/DearModdingUI/Navigation.cpp",
         "src/DearModdingUI/Registry.cpp",
         "src/DearModdingUI/Status.cpp"

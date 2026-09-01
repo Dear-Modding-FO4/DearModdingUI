@@ -12,6 +12,10 @@ static_assert(std::is_standard_layout_v<DMUI_ActionDescriptor>);
 static_assert(std::is_trivially_copyable_v<DMUI_ActionDescriptor>);
 static_assert(std::is_standard_layout_v<DMUI_FrameObserverDescriptor>);
 static_assert(std::is_trivially_copyable_v<DMUI_FrameObserverDescriptor>);
+static_assert(std::is_standard_layout_v<DMUI_HotkeyActionDescriptor>);
+static_assert(std::is_trivially_copyable_v<DMUI_HotkeyActionDescriptor>);
+static_assert(std::is_standard_layout_v<DMUI_HotkeyBindingInfo>);
+static_assert(std::is_trivially_copyable_v<DMUI_HotkeyBindingInfo>);
 static_assert(std::is_standard_layout_v<DMUI_Vec2>);
 static_assert(std::is_trivially_copyable_v<DMUI_Vec2>);
 static_assert(std::is_standard_layout_v<DMUI_Vec4>);
@@ -23,6 +27,7 @@ static_assert(std::is_trivially_copyable_v<DMUI_HostAPI>);
 static_assert(sizeof(DMUI_StatusSeverity) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_FontRole) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_SettingsAction) == sizeof(uint32_t));
+static_assert(sizeof(DMUI_HotkeyBindingState) == sizeof(uint32_t));
 static_assert(!std::is_nothrow_invocable_v<
 	DMUI_HostReadyCallback,
 	const DMUI_HostReadyInfo*,
@@ -36,6 +41,11 @@ static_assert(!std::is_nothrow_invocable_v<
 	void*>);
 static_assert(!std::is_nothrow_invocable_v<
 	DMUI_FrameCallback,
+	void*>);
+static_assert(!std::is_nothrow_invocable_v<
+	DMUI_HotkeyCallback,
+	DMUI_HotkeyActionHandle,
+	uint32_t,
 	void*>);
 static_assert(std::is_nothrow_invocable_v<
 	DMUI_RegisterActionFn,
@@ -115,6 +125,16 @@ static_assert(std::is_nothrow_invocable_v<
 	DMUI_ClientHandle,
 	uint64_t*,
 	uint64_t*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_RegisterHotkeyActionFn,
+	DMUI_ClientHandle,
+	const DMUI_HotkeyActionDescriptor*,
+	DMUI_HotkeyActionHandle*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_QueryHotkeyBindingFn,
+	DMUI_ClientHandle,
+	DMUI_HotkeyActionHandle,
+	DMUI_HotkeyBindingInfo*>);
 static_assert(DMUI_PAGE_KIND_SETTINGS == 1u);
 static_assert(DMUI_PAGE_KIND_OVERLAY == 2u);
 static_assert(DMUI_STATUS_SEVERITY_INFO == 0u);
@@ -130,6 +150,12 @@ static_assert(DMUI_FONT_ROLE_COUNT == 5u);
 static_assert(DMUI_SETTINGS_ACTION_RESET == 0u);
 static_assert(DMUI_SETTINGS_ACTION_REVERT == 1u);
 static_assert(DMUI_SETTINGS_ACTION_APPLY == 2u);
+static_assert(DMUI_HOTKEY_BINDING_BOUND == 0u);
+static_assert(DMUI_HOTKEY_BINDING_UNBOUND_USER == 1u);
+static_assert(DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT == 2u);
+static_assert(DMUI_HOTKEY_BINDING_UNBOUND_NEVER_SET == 3u);
+static_assert(DMUI_HOTKEY_BINDING_UNBOUND_OVERRIDE_CONFLICT == 4u);
+static_assert(DMUI_HOTKEY_BINDING_UNBOUND_INVALID_OVERRIDE == 5u);
 
 #if UINTPTR_MAX == UINT64_MAX
 static_assert(sizeof(DMUI_ImGuiFingerprint) == 216);
@@ -138,6 +164,8 @@ static_assert(sizeof(DMUI_ClientDescriptor) == 72);
 static_assert(sizeof(DMUI_PageDescriptor) == 64);
 static_assert(sizeof(DMUI_ActionDescriptor) == 64);
 static_assert(sizeof(DMUI_FrameObserverDescriptor) == 24);
+static_assert(sizeof(DMUI_HotkeyActionDescriptor) == 48);
+static_assert(sizeof(DMUI_HotkeyBindingInfo) == 40);
 static_assert(sizeof(DMUI_HostStateInfo) == 28);
 static_assert(sizeof(DMUI_Vec2) == 8);
 static_assert(sizeof(DMUI_Vec4) == 16);
@@ -167,7 +195,7 @@ static_assert(DMUI_THEME_COLORS_1_0_SIZE == sizeof(DMUI_ThemeColors));
 static_assert(offsetof(DMUI_FrameObserverDescriptor, structSize) == 0);
 static_assert(offsetof(DMUI_FrameObserverDescriptor, callback) == 8);
 static_assert(offsetof(DMUI_FrameObserverDescriptor, userData) == 16);
-static_assert(sizeof(DMUI_HostAPI) == 192);
+static_assert(sizeof(DMUI_HostAPI) == 216);
 static_assert(offsetof(DMUI_HostAPI, structSize) == 0);
 static_assert(offsetof(DMUI_HostAPI, apiVersion) == 4);
 static_assert(offsetof(DMUI_HostAPI, imguiFingerprint) == 8);
@@ -193,6 +221,9 @@ static_assert(offsetof(DMUI_HostAPI, settingsActionButtonExtent) == 160);
 static_assert(offsetof(DMUI_HostAPI, registerFrameObserver) == 168);
 static_assert(offsetof(DMUI_HostAPI, queryVideoMemory) == 176);
 static_assert(offsetof(DMUI_HostAPI, drawBulletText) == 184);
+static_assert(offsetof(DMUI_HostAPI, registerHotkeyAction) == 192);
+static_assert(offsetof(DMUI_HostAPI, queryHotkeyBinding) == 200);
+static_assert(offsetof(DMUI_HostAPI, unregisterHotkeyAction) == 208);
 static_assert(DMUI_HOST_API_SELECT_PAGE_SIZE == 72);
 static_assert(DMUI_HOST_API_ATTACH_SWAP_CHAIN_SIZE == 80);
 static_assert(DMUI_HOST_API_REGISTER_ACTION_SIZE == 88);
@@ -208,5 +239,8 @@ static_assert(DMUI_HOST_API_SETTINGS_ACTION_BUTTON_WIDTH_SIZE == 160);
 static_assert(DMUI_HOST_API_SETTINGS_ACTION_BUTTON_EXTENT_SIZE == 168);
 static_assert(DMUI_HOST_API_REGISTER_FRAME_OBSERVER_SIZE == 176);
 static_assert(DMUI_HOST_API_QUERY_VIDEO_MEMORY_SIZE == 184);
-static_assert(DMUI_HOST_API_DRAW_BULLET_TEXT_SIZE == sizeof(DMUI_HostAPI));
+static_assert(DMUI_HOST_API_DRAW_BULLET_TEXT_SIZE == 192);
+static_assert(DMUI_HOST_API_REGISTER_HOTKEY_ACTION_SIZE == 200);
+static_assert(DMUI_HOST_API_QUERY_HOTKEY_BINDING_SIZE == 208);
+static_assert(DMUI_HOST_API_UNREGISTER_HOTKEY_ACTION_SIZE == sizeof(DMUI_HostAPI));
 #endif

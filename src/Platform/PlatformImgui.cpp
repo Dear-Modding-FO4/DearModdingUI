@@ -3,6 +3,7 @@
 #include <DearModdingUI/CarrierMenu.h>
 #include <DearModdingUI/CursorLoader.h>
 #include <DearModdingUI/Host.h>
+#include <DearModdingUI/Hotkeys.h>
 #include <DearModdingUI/Theme.h>
 #include <Support/Detours.h>
 #include <Support/Runtime.h>
@@ -1125,6 +1126,34 @@ namespace Addictol
 			};
 
 			const auto keyIndex = static_cast<size_t>(a_wparam);
+			const auto keyPressed =
+				a_message == WM_KEYDOWN || a_message == WM_SYSKEYDOWN;
+			const auto keyReleased =
+				a_message == WM_KEYUP || a_message == WM_SYSKEYUP;
+			if (keyPressed || keyReleased)
+			{
+				uint32_t modifiers{ 0 };
+				if ((GetKeyState(VK_SHIFT) & 0x8000) != 0)
+					modifiers |= DearModdingUI::kHotkeyModifierShift;
+				if ((GetKeyState(VK_CONTROL) & 0x8000) != 0)
+					modifiers |= DearModdingUI::kHotkeyModifierControl;
+				if ((GetKeyState(VK_MENU) & 0x8000) != 0)
+					modifiers |= DearModdingUI::kHotkeyModifierAlt;
+				const auto hotkeyResult = DearModdingUI::Hotkeys::HandleKey(
+					static_cast<uint32_t>(a_wparam),
+					modifiers,
+					keyPressed,
+					(static_cast<uint64_t>(a_lparam) & kKeyRepeatBit) != 0);
+				if (hotkeyResult ==
+					DearModdingUI::HotkeyMessageResult::kConsumedPairDropped)
+				{
+					REX::WARN(
+						"DearModdingUI: hotkey event queue overflowed; one press/release pair was dropped"sv);
+				}
+				if (hotkeyResult !=
+					DearModdingUI::HotkeyMessageResult::kPassThrough)
+					return 0;
+			}
 			const auto trackableKey = keyIndex < s_consumedToggleKeys.size();
 			const auto pressConsumed = trackableKey &&
 				s_consumedToggleKeys[keyIndex].load(std::memory_order_acquire);
