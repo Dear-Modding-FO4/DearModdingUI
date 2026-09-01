@@ -11,6 +11,7 @@ namespace DearModdingUI::BackgroundBlur
 {
 	void BeginFrame() noexcept;
 	void SetHostWindow(float a_minX, float a_minY, float a_maxX, float a_maxY, float a_rounding) noexcept;
+	void AddWindow(float a_minX, float a_minY, float a_maxX, float a_maxY, float a_rounding) noexcept;
 	void InvalidateBackBuffer() noexcept;
 	void ResetDeviceResources() noexcept;
 	void Render(

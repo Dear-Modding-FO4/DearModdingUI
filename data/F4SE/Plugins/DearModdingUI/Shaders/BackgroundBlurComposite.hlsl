@@ -2,8 +2,9 @@
 
 cbuffer WindowBuffer : register(b1)
 {
-	float4 WindowRect;    // xy = minimum; zw = maximum
-	float4 WindowParams;  // x = radius; yz = screen size; w = fullscreen
+	float4 WindowRects[2];   // xy = minimum; zw = maximum
+	float4 WindowParams[2];  // x = radius; y = enabled
+	float4 ScreenParams;     // xy = screen size
 };
 
 cbuffer BlurBuffer : register(b0)
@@ -17,6 +18,7 @@ Texture2D InputTexture : register(t0);
 
 static const float TWO_PI = 6.28318530718f;
 static const int NUM_JITTER_SAMPLES = 4;
+static const int NUM_WINDOW_REGIONS = 2;
 static const float CLIP_EPSILON = 0.001f;
 
 struct VS_OUTPUT
@@ -82,23 +84,26 @@ float RoundedRectSDF(float2 pixelPos, float2 rectMin, float2 rectMax, float radi
 float4 PS_Main(VS_OUTPUT input) :
 	SV_TARGET
 {
-	float2 pixelPos = input.TexCoord * float2(WindowParams.y, WindowParams.z);
-
-	float2 rectMin = WindowRect.xy;
-	float2 rectMax = WindowRect.zw;
-	float cornerRadius = WindowParams.x;
-
-	float alpha = 1.0f;
-	if (WindowParams.w < 0.5f) {
-		float sdf = RoundedRectSDF(pixelPos, rectMin, rectMax, cornerRadius);
-		alpha = saturate(-sdf);
-
-		if (alpha <= 0.0f) {
-			discard;
+	float2 pixelPos = input.TexCoord * ScreenParams.xy;
+	float alpha = 0.0f;
+	[unroll] for (int region = 0; region < NUM_WINDOW_REGIONS; region++)
+	{
+		if (WindowParams[region].y > 0.5f)
+		{
+			float sdf = RoundedRectSDF(
+				pixelPos,
+				WindowRects[region].xy,
+				WindowRects[region].zw,
+				WindowParams[region].x);
+			alpha = max(alpha, saturate(-sdf));
 		}
 	}
+	if (alpha <= 0.0f)
+	{
+		discard;
+	}
 
-	float2 blurTexelSize = TexelSize.w / float2(WindowParams.y, WindowParams.z);
+	float2 blurTexelSize = TexelSize.w / ScreenParams.xy;
 
 	float4 blurColor = SampleWithSoftening(input.TexCoord, pixelPos, blurTexelSize);
 	blurColor.a = alpha;
@@ -110,8 +115,21 @@ float4 PS_Main(VS_OUTPUT input) :
 float4 PS_Clear(VS_OUTPUT input) :
 	SV_TARGET
 {
-	float2 pixelPos = input.TexCoord * float2(WindowParams.y, WindowParams.z);
-	float sdf = RoundedRectSDF(pixelPos, WindowRect.xy, WindowRect.zw, WindowParams.x);
+	float2 pixelPos = input.TexCoord * ScreenParams.xy;
+	float sdf = 1e20f;
+	[unroll] for (int region = 0; region < NUM_WINDOW_REGIONS; region++)
+	{
+		if (WindowParams[region].y > 0.5f)
+		{
+			sdf = min(
+				sdf,
+				RoundedRectSDF(
+					pixelPos,
+					WindowRects[region].xy,
+					WindowRects[region].zw,
+					WindowParams[region].x));
+		}
+	}
 
 	clip(-sdf - CLIP_EPSILON);
 

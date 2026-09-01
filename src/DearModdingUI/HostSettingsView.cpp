@@ -199,11 +199,48 @@ namespace DearModdingUI
 			DrawHelp(
 				"Raises or lowers the darkness of the host window without changing client content.");
 
+			ImGui::TextUnformatted("Command palette background");
+			DrawHelp(
+				"Sets the neutral background color used by the command palette.");
+			auto paletteBackground =
+				HostAccentToImVec4(settings.paletteBackgroundColor);
+			ImGui::SetNextItemWidth(ControlWidth());
+			if (ImGui::ColorEdit3(
+					"##DearModdingUI.PaletteBackgroundColor",
+					&paletteBackground.x,
+					ImGuiColorEditFlags_NoAlpha |
+						ImGuiColorEditFlags_DisplayRGB |
+						ImGuiColorEditFlags_InputRGB |
+						ImGuiColorEditFlags_PickerHueBar))
+			{
+				settings.paletteBackgroundColor =
+					HostAccentFromImVec4(paletteBackground);
+				changed = true;
+			}
+
+			auto paletteOpacityPercent =
+				settings.paletteBackgroundOpacity * 100.0f;
+			ImGui::SetNextItemWidth(ControlWidth());
+			if (ImGui::SliderFloat(
+					"Command palette opacity",
+					&paletteOpacityPercent,
+					kMinPaletteBackgroundOpacity * 100.0f,
+					kMaxPaletteBackgroundOpacity * 100.0f,
+					"%.0f%%",
+					ImGuiSliderFlags_AlwaysClamp))
+			{
+				settings.paletteBackgroundOpacity =
+					paletteOpacityPercent / 100.0f;
+				changed = true;
+			}
+			DrawHelp(
+				"Controls how much of the blurred game remains visible through the palette.");
+
 			changed |= ImGui::Checkbox(
 				"Background blur",
 				&settings.backgroundBlur);
 			DrawHelp(
-				"Blurs the game only behind the host window; disabling it avoids the blur passes.");
+				"Blurs the game behind the host window and command palette; disabling it avoids the blur passes.");
 
 			ImGui::BeginDisabled(!settings.backgroundBlur);
 			ImGui::SetNextItemWidth(ControlWidth());

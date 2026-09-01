@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/ThemeDefaults.h>
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -41,6 +42,16 @@ namespace DearModdingUI::Theme
 
 		[[nodiscard]] ImVec4 Accent() noexcept;
 		[[nodiscard]] ImVec4 AccentMuted() noexcept;
+	}
+
+	[[nodiscard]] inline std::array<ImVec4, ImGuiCol_COUNT> MakeHostPalette(
+		const ImVec4& a_accent,
+		float a_windowOpacity,
+		const ImVec4& a_popupBackground) noexcept
+	{
+		auto palette = MakeEffectivePalette(a_accent, a_windowOpacity);
+		palette[ImGuiCol_PopupBg] = a_popupBackground;
+		return palette;
 	}
 
 	void Initialize(void* a_window) noexcept;

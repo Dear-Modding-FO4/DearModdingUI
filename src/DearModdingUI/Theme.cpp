@@ -321,9 +321,13 @@ namespace DearModdingUI::Theme
 		style.FontScaleMain = std::exp2(kDefaultGlobalScale);
 
 		const auto settings = HostSettings::EffectivePreview();
-		const auto palette = MakeEffectivePalette(
+		auto paletteBackground =
+			HostAccentToImVec4(settings.paletteBackgroundColor);
+		paletteBackground.w = settings.paletteBackgroundOpacity;
+		const auto palette = MakeHostPalette(
 			HostAccentToImVec4(settings.accentColor),
-			settings.windowBackgroundOpacity);
+			settings.windowBackgroundOpacity,
+			paletteBackground);
 		for (size_t index = 0; index < palette.size(); ++index)
 			style.Colors[index] = palette[index];
 		ImGui::GetStyle() = style;

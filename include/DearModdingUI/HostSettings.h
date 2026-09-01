@@ -22,10 +22,18 @@ namespace DearModdingUI
 			const HostAccentColor&) const noexcept = default;
 	};
 
+	using HostPaletteColor = HostAccentColor;
+
 	inline constexpr HostAccentColor kDefaultHostAccentColor{};
+	inline constexpr HostPaletteColor kDefaultPaletteBackgroundColor{
+		0x08, 0x08, 0x08
+	};
 	inline constexpr float kDefaultWindowBackgroundOpacity{ 0.55f };
 	inline constexpr float kMinWindowBackgroundOpacity{ 0.20f };
 	inline constexpr float kMaxWindowBackgroundOpacity{ 1.0f };
+	inline constexpr float kDefaultPaletteBackgroundOpacity{ 0.85f };
+	inline constexpr float kMinPaletteBackgroundOpacity{ 0.20f };
+	inline constexpr float kMaxPaletteBackgroundOpacity{ 1.0f };
 	inline constexpr float kDefaultBackgroundBlurStrength{ 0.30f };
 	inline constexpr float kMinBackgroundBlurStrength{ 0.10f };
 	inline constexpr float kMaxBackgroundBlurStrength{ 1.0f };
@@ -36,6 +44,10 @@ namespace DearModdingUI
 		Theme::IconColorMode iconColorMode{ Theme::IconColorMode::kColored };
 		HostAccentColor accentColor{};
 		float windowBackgroundOpacity{ kDefaultWindowBackgroundOpacity };
+		HostPaletteColor paletteBackgroundColor{
+			kDefaultPaletteBackgroundColor
+		};
+		float paletteBackgroundOpacity{ kDefaultPaletteBackgroundOpacity };
 		bool backgroundBlur{ true };
 		float backgroundBlurStrength{ kDefaultBackgroundBlurStrength };
 		float uiScale{ Theme::kDefaultUserScale };
@@ -51,6 +63,10 @@ namespace DearModdingUI
 		Theme::IconColorMode iconColorMode{ Theme::IconColorMode::kColored };
 		HostAccentColor accentColor{};
 		float windowBackgroundOpacity{ kDefaultWindowBackgroundOpacity };
+		HostPaletteColor paletteBackgroundColor{
+			kDefaultPaletteBackgroundColor
+		};
+		float paletteBackgroundOpacity{ kDefaultPaletteBackgroundOpacity };
 		bool backgroundBlur{ true };
 		float backgroundBlurStrength{ kDefaultBackgroundBlurStrength };
 
@@ -63,6 +79,8 @@ namespace DearModdingUI
 		bool monochromeIcons{ false };
 		std::string accentColor{ "#42FA60" };
 		float windowBackgroundOpacity{ kDefaultWindowBackgroundOpacity };
+		std::string paletteBackgroundColor{ "#080808" };
+		float paletteBackgroundOpacity{ kDefaultPaletteBackgroundOpacity };
 		bool backgroundBlur{ true };
 		float backgroundBlurStrength{ kDefaultBackgroundBlurStrength };
 		float uiScale{ Theme::kDefaultUserScale };
@@ -96,13 +114,14 @@ namespace DearModdingUI
 		return -1;
 	}
 
-	[[nodiscard]] constexpr HostAccentColor DecodeHostAccentColor(
-		std::string_view a_value) noexcept
+	[[nodiscard]] constexpr HostAccentColor DecodeHostColor(
+		std::string_view a_value,
+		HostAccentColor a_fallback) noexcept
 	{
 		if (a_value.size() == 7 && a_value.front() == '#')
 			a_value.remove_prefix(1);
 		if (a_value.size() != 6)
-			return kDefaultHostAccentColor;
+			return a_fallback;
 
 		const auto component = [a_value](size_t a_offset) {
 			const auto high = HexDigitValue(a_value[a_offset]);
@@ -113,12 +132,18 @@ namespace DearModdingUI
 		const auto green = component(2);
 		const auto blue = component(4);
 		if (red < 0 || green < 0 || blue < 0)
-			return kDefaultHostAccentColor;
+			return a_fallback;
 		return {
 			static_cast<uint8_t>(red),
 			static_cast<uint8_t>(green),
 			static_cast<uint8_t>(blue)
 		};
+	}
+
+	[[nodiscard]] constexpr HostAccentColor DecodeHostAccentColor(
+		std::string_view a_value) noexcept
+	{
+		return DecodeHostColor(a_value, kDefaultHostAccentColor);
 	}
 
 	[[nodiscard]] inline std::string EncodeHostAccentColor(
@@ -194,6 +219,14 @@ namespace DearModdingUI
 				kMinWindowBackgroundOpacity,
 				kMaxWindowBackgroundOpacity,
 				kDefaultWindowBackgroundOpacity),
+			DecodeHostColor(
+				a_settings.paletteBackgroundColor,
+				kDefaultPaletteBackgroundColor),
+			ClampHostSetting(
+				a_settings.paletteBackgroundOpacity,
+				kMinPaletteBackgroundOpacity,
+				kMaxPaletteBackgroundOpacity,
+				kDefaultPaletteBackgroundOpacity),
 			a_settings.backgroundBlur,
 			ClampHostSetting(
 				a_settings.backgroundBlurStrength,
@@ -222,6 +255,12 @@ namespace DearModdingUI
 				kMinWindowBackgroundOpacity,
 				kMaxWindowBackgroundOpacity,
 				kDefaultWindowBackgroundOpacity),
+			EncodeHostAccentColor(a_settings.paletteBackgroundColor),
+			ClampHostSetting(
+				a_settings.paletteBackgroundOpacity,
+				kMinPaletteBackgroundOpacity,
+				kMaxPaletteBackgroundOpacity,
+				kDefaultPaletteBackgroundOpacity),
 			a_settings.backgroundBlur,
 			ClampHostSetting(
 				a_settings.backgroundBlurStrength,
@@ -252,6 +291,8 @@ namespace DearModdingUI
 			a_settings.iconColorMode,
 			a_settings.accentColor,
 			a_settings.windowBackgroundOpacity,
+			a_settings.paletteBackgroundColor,
+			a_settings.paletteBackgroundOpacity,
 			a_settings.backgroundBlur,
 			a_settings.backgroundBlurStrength
 		};

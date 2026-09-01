@@ -53,7 +53,8 @@ namespace DearModdingUI
 	enum class NavigationItemKind : uint32_t
 	{
 		kPage,
-		kAction
+		kAction,
+		kClient
 	};
 
 	enum class NavigationMatchQuality : uint32_t
@@ -77,6 +78,7 @@ namespace DearModdingUI
 		std::string clientDisplayName;
 		std::string id;
 		std::string displayName;
+		std::string iconName;
 		std::string category;
 		std::string summary;
 		int32_t sortKey{ 0 };

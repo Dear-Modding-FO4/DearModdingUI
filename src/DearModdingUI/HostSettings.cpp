@@ -56,6 +56,10 @@ namespace DearModdingUI::HostSettings
 				section, "sMenuAccentColor", settings.accentColor);
 			settings.windowBackgroundOpacity = toml::find_or<float>(
 				section, "fMenuWindowOpacity", settings.windowBackgroundOpacity);
+			settings.paletteBackgroundColor = toml::find_or<std::string>(
+				section, "sMenuPaletteBackgroundColor", settings.paletteBackgroundColor);
+			settings.paletteBackgroundOpacity = toml::find_or<float>(
+				section, "fMenuPaletteOpacity", settings.paletteBackgroundOpacity);
 			settings.backgroundBlur = toml::find_or<bool>(
 				section, "bMenuBackgroundBlur", settings.backgroundBlur);
 			settings.backgroundBlurStrength = toml::find_or<float>(
@@ -127,6 +131,10 @@ namespace DearModdingUI::HostSettings
 				section["sMenuAccentColor"] = a_settings.accentColor;
 				section["fMenuWindowOpacity"] = static_cast<double>(
 					a_settings.windowBackgroundOpacity);
+				section["sMenuPaletteBackgroundColor"] =
+					a_settings.paletteBackgroundColor;
+				section["fMenuPaletteOpacity"] = static_cast<double>(
+					a_settings.paletteBackgroundOpacity);
 				section["bMenuBackgroundBlur"] = a_settings.backgroundBlur;
 				section["fMenuBackgroundBlurStrength"] = static_cast<double>(
 					a_settings.backgroundBlurStrength);

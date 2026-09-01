@@ -7,6 +7,7 @@
 #include <DearModdingUI/Registry.h>
 #include <DearModdingUI/SettingsActions.h>
 #include <DearModdingUI/Status.h>
+#include <DearModdingUI/Theme.h>
 #include <DearModdingUI/ThemeDefaults.h>
 #include <DearModdingUI/VisualDecisions.h>
 #include "Harness.h"
@@ -1251,14 +1252,24 @@ namespace vmm_tests
 			});
 
 			const auto hits = SearchNavigation(model, {}, "SHADERS");
-			require(hits.size() == 3,
-				"mod-name search did not return every owned page");
-			require(std::ranges::all_of(hits, [](const auto& a_hit) {
-					return a_hit.entry.kind == NavigationItemKind::kPage &&
-						a_hit.entry.clientDisplayName == "Community Shaders" &&
-						a_hit.match == NavigationMatchQuality::kClientDisplayName;
-				}),
-				"mod-name search returned an unrelated or weak match");
+			require(hits.size() == 4,
+				"mod-name search did not return the mod and every owned page");
+			require(
+				hits.front().entry.kind == NavigationItemKind::kClient &&
+					hits.front().entry.client == 1 &&
+					hits.front().entry.displayName == "Community Shaders" &&
+					hits.front().match ==
+						NavigationMatchQuality::kDisplayNameSubstring,
+				"matching mod did not rank above its pages");
+			require(std::ranges::all_of(
+					hits.begin() + 1,
+					hits.end(),
+					[](const auto& a_hit) {
+						return a_hit.entry.kind == NavigationItemKind::kPage &&
+							a_hit.entry.clientDisplayName == "Community Shaders" &&
+							a_hit.match == NavigationMatchQuality::kClientDisplayName;
+					}),
+				"mod-name search did not retain the mod's pages below it");
 		});
 
 		runner.test("navigation search exposes pages and actions with row metadata", [] {
@@ -1305,8 +1316,8 @@ namespace vmm_tests
 			};
 
 			const auto index = BuildNavigationSearchIndex(model, actions);
-			require(index.size() == 3,
-				"search index did not include both item kinds");
+			require(index.size() == 4,
+				"search index did not include clients, pages, and actions");
 			const auto hits = SearchNavigation(model, actions, "records");
 			require(hits.size() == 2,
 				"page and action did not both match the query");
@@ -1316,6 +1327,7 @@ namespace vmm_tests
 						hits[0].entry.category == "Telemetry" &&
 						hits[1].entry.kind == NavigationItemKind::kAction &&
 						hits[1].entry.action == 20 &&
+						hits[1].entry.iconName == "clipboard-text" &&
 						hits[1].entry.category.empty(),
 					"search hits did not retain actionable row metadata");
 			const auto actionOnly = SearchNavigation(model, actions, "toolbox");
@@ -2043,6 +2055,12 @@ namespace vmm_tests
 			require(PreviewHostInterfaceSettings(draft) !=
 					PreviewHostInterfaceSettings(committed),
 				"appearance change was omitted from the live preview");
+			draft = committed;
+			draft.paletteBackgroundColor = { 0x12, 0x12, 0x12 };
+			draft.paletteBackgroundOpacity = 0.70f;
+			require(PreviewHostInterfaceSettings(draft) !=
+					PreviewHostInterfaceSettings(committed),
+				"palette appearance was omitted from the live preview");
 		});
 
 		runner.test("host settings draft applies all fields once", [] {
@@ -2056,6 +2074,8 @@ namespace vmm_tests
 				Theme::IconColorMode::kMonochrome,
 				{ 0xD5, 0x5E, 0x00 },
 				0.80f,
+				{ 0x12, 0x12, 0x12 },
+				0.70f,
 				false,
 				0.75f,
 				1.75f,
@@ -2080,6 +2100,8 @@ namespace vmm_tests
 				Theme::IconColorMode::kMonochrome,
 				{ 0x00, 0x72, 0xB2 },
 				0.80f,
+				{ 0x10, 0x10, 0x10 },
+				0.75f,
 				false,
 				0.75f,
 				1.50f,
@@ -2137,6 +2159,8 @@ namespace vmm_tests
 					Theme::IconColorMode::kMonochrome,
 					{ 0x00, 0x72, 0xB2 },
 					0.80f,
+					{ 0x12, 0x12, 0x12 },
+					0.70f,
 					false,
 					0.75f,
 					1.75f,
@@ -2146,6 +2170,8 @@ namespace vmm_tests
 					Theme::IconColorMode::kColored,
 					{ 0xD5, 0x5E, 0x00 },
 					kMinWindowBackgroundOpacity,
+					{ 0x02, 0x02, 0x02 },
+					kMinPaletteBackgroundOpacity,
 					true,
 					kMinBackgroundBlurStrength,
 					Theme::kMinUserScale,
@@ -2170,6 +2196,9 @@ namespace vmm_tests
 			PersistedHostInterfaceSettings persisted;
 			persisted.accentColor = "#GG00ZZ";
 			persisted.windowBackgroundOpacity = -5.0f;
+			persisted.paletteBackgroundColor = "#palette";
+			persisted.paletteBackgroundOpacity =
+				std::numeric_limits<float>::infinity();
 			persisted.backgroundBlurStrength =
 				std::numeric_limits<float>::infinity();
 			persisted.uiScale = 99.0f;
@@ -2183,6 +2212,14 @@ namespace vmm_tests
 				decoded.windowBackgroundOpacity ==
 					kMinWindowBackgroundOpacity,
 				"window opacity did not clamp");
+			require(
+				decoded.paletteBackgroundColor ==
+					kDefaultPaletteBackgroundColor,
+				"malformed palette background did not fall back");
+			require(
+				decoded.paletteBackgroundOpacity ==
+					kDefaultPaletteBackgroundOpacity,
+				"non-finite palette opacity did not fall back");
 			require(
 				decoded.backgroundBlurStrength ==
 					kDefaultBackgroundBlurStrength,
@@ -2514,6 +2551,14 @@ namespace vmm_tests
 					customized[ImGuiCol_Button].z == customAccent.z &&
 					customized[ImGuiCol_WindowBg].w == 0.85f,
 				"accent or window opacity did not drive the effective palette");
+			const ImVec4 paletteBackground{ 0.02f, 0.02f, 0.02f, 0.82f };
+			const auto hostPalette =
+				Theme::MakeHostPalette(customAccent, 0.85f, paletteBackground);
+			require(
+				SameColor(
+					hostPalette[ImGuiCol_PopupBg],
+					paletteBackground),
+				"command palette background was not independently pinned");
 		});
 
 		runner.test("theme font roles and scaling stay exact", [] {

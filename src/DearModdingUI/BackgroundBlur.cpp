@@ -34,6 +34,7 @@ namespace DearModdingUI::BackgroundBlur
 		inline constexpr float kScissorPadding{ 2.0f };
 		inline constexpr UINT kFullscreenVertexCount{ 3 };
 		inline constexpr size_t kClassInstanceCapacity{ 256 };
+		inline constexpr size_t kRegionCapacity{ 2 };
 
 		struct BlurConstants
 		{
@@ -43,8 +44,9 @@ namespace DearModdingUI::BackgroundBlur
 
 		struct WindowConstants
 		{
-			float windowRect[4]{};
-			float windowParameters[4]{};
+			float windowRects[kRegionCapacity][4]{};
+			float windowParameters[kRegionCapacity][4]{};
+			float screenParameters[4]{};
 		};
 
 		struct Region
@@ -54,7 +56,6 @@ namespace DearModdingUI::BackgroundBlur
 			float maxX{ 0.0f };
 			float maxY{ 0.0f };
 			float rounding{ 0.0f };
-			bool valid{ false };
 		};
 
 		struct Resources
@@ -90,8 +91,29 @@ namespace DearModdingUI::BackgroundBlur
 			bool frameFailureLogged{ false };
 		};
 
-		Region g_region;
+		std::array<Region, kRegionCapacity> g_regions;
+		size_t g_regionCount{ 0 };
 		Resources g_resources;
+
+		void AppendRegion(
+			float a_minX,
+			float a_minY,
+			float a_maxX,
+			float a_maxY,
+			float a_rounding) noexcept
+		{
+			if (g_regionCount >= g_regions.size() ||
+				a_maxX <= a_minX ||
+				a_maxY <= a_minY)
+				return;
+			g_regions[g_regionCount++] = {
+				a_minX,
+				a_minY,
+				a_maxX,
+				a_maxY,
+				(std::max)(0.0f, a_rounding)
+			};
+		}
 
 		[[nodiscard]] std::filesystem::path ShaderPath(std::wstring_view a_file)
 		{
@@ -699,27 +721,44 @@ namespace DearModdingUI::BackgroundBlur
 				1.0f
 			};
 			a_context->RSSetViewports(1, &targetViewport);
+			auto scissorMinX = static_cast<float>(a_description.Width);
+			auto scissorMinY = static_cast<float>(a_description.Height);
+			auto scissorMaxX = 0.0f;
+			auto scissorMaxY = 0.0f;
+			for (size_t index = 0; index < g_regionCount; ++index)
+			{
+				const auto& region = g_regions[index];
+				scissorMinX = (std::min)(scissorMinX, region.minX);
+				scissorMinY = (std::min)(scissorMinY, region.minY);
+				scissorMaxX = (std::max)(scissorMaxX, region.maxX);
+				scissorMaxY = (std::max)(scissorMaxY, region.maxY);
+			}
 			const D3D11_RECT targetScissor{
-				static_cast<LONG>((std::max)(0.0f, g_region.minX - kScissorPadding)),
-				static_cast<LONG>((std::max)(0.0f, g_region.minY - kScissorPadding)),
+				static_cast<LONG>((std::max)(0.0f, scissorMinX - kScissorPadding)),
+				static_cast<LONG>((std::max)(0.0f, scissorMinY - kScissorPadding)),
 				static_cast<LONG>((std::min)(
 					static_cast<float>(a_description.Width),
-					g_region.maxX + kScissorPadding)),
+					scissorMaxX + kScissorPadding)),
 				static_cast<LONG>((std::min)(
 					static_cast<float>(a_description.Height),
-					g_region.maxY + kScissorPadding))
+					scissorMaxY + kScissorPadding))
 			};
 			a_context->RSSetScissorRects(1, &targetScissor);
 
 			WindowConstants windowConstants{};
-			windowConstants.windowRect[0] = g_region.minX;
-			windowConstants.windowRect[1] = g_region.minY;
-			windowConstants.windowRect[2] = g_region.maxX;
-			windowConstants.windowRect[3] = g_region.maxY;
-			windowConstants.windowParameters[0] = g_region.rounding;
-			windowConstants.windowParameters[1] =
+			for (size_t index = 0; index < g_regionCount; ++index)
+			{
+				const auto& region = g_regions[index];
+				windowConstants.windowRects[index][0] = region.minX;
+				windowConstants.windowRects[index][1] = region.minY;
+				windowConstants.windowRects[index][2] = region.maxX;
+				windowConstants.windowRects[index][3] = region.maxY;
+				windowConstants.windowParameters[index][0] = region.rounding;
+				windowConstants.windowParameters[index][1] = 1.0f;
+			}
+			windowConstants.screenParameters[0] =
 				static_cast<float>(a_description.Width);
-			windowConstants.windowParameters[2] =
+			windowConstants.screenParameters[1] =
 				static_cast<float>(a_description.Height);
 			a_context->UpdateSubresource(
 				resources.windowConstants.Get(),
@@ -741,7 +780,8 @@ namespace DearModdingUI::BackgroundBlur
 
 	void BeginFrame() noexcept
 	{
-		g_region = {};
+		g_regions = {};
+		g_regionCount = 0;
 	}
 
 	void SetHostWindow(
@@ -751,14 +791,19 @@ namespace DearModdingUI::BackgroundBlur
 		float a_maxY,
 		float a_rounding) noexcept
 	{
-		g_region = {
-			a_minX,
-			a_minY,
-			a_maxX,
-			a_maxY,
-			(std::max)(0.0f, a_rounding),
-			a_maxX > a_minX && a_maxY > a_minY
-		};
+		g_regions = {};
+		g_regionCount = 0;
+		AppendRegion(a_minX, a_minY, a_maxX, a_maxY, a_rounding);
+	}
+
+	void AddWindow(
+		float a_minX,
+		float a_minY,
+		float a_maxX,
+		float a_maxY,
+		float a_rounding) noexcept
+	{
+		AppendRegion(a_minX, a_minY, a_maxX, a_maxY, a_rounding);
 	}
 
 	void InvalidateBackBuffer() noexcept
@@ -769,7 +814,8 @@ namespace DearModdingUI::BackgroundBlur
 	void ResetDeviceResources() noexcept
 	{
 		g_resources = {};
-		g_region = {};
+		g_regions = {};
+		g_regionCount = 0;
 	}
 
 	void Render(
@@ -780,7 +826,7 @@ namespace DearModdingUI::BackgroundBlur
 	{
 		const auto settings = HostSettings::EffectivePreview();
 		if (!settings.backgroundBlur ||
-			!g_region.valid ||
+			g_regionCount == 0 ||
 			!a_device ||
 			!a_context ||
 			!a_backBuffer ||
@@ -800,15 +846,24 @@ namespace DearModdingUI::BackgroundBlur
 			return;
 		}
 
-		g_region.minX = std::clamp(
-			g_region.minX, 0.0f, static_cast<float>(description.Width));
-		g_region.minY = std::clamp(
-			g_region.minY, 0.0f, static_cast<float>(description.Height));
-		g_region.maxX = std::clamp(
-			g_region.maxX, 0.0f, static_cast<float>(description.Width));
-		g_region.maxY = std::clamp(
-			g_region.maxY, 0.0f, static_cast<float>(description.Height));
-		if (g_region.maxX <= g_region.minX || g_region.maxY <= g_region.minY)
+		size_t validRegionCount = 0;
+		for (size_t index = 0; index < g_regionCount; ++index)
+		{
+			auto region = g_regions[index];
+			region.minX = std::clamp(
+				region.minX, 0.0f, static_cast<float>(description.Width));
+			region.minY = std::clamp(
+				region.minY, 0.0f, static_cast<float>(description.Height));
+			region.maxX = std::clamp(
+				region.maxX, 0.0f, static_cast<float>(description.Width));
+			region.maxY = std::clamp(
+				region.maxY, 0.0f, static_cast<float>(description.Height));
+			if (region.maxX <= region.minX || region.maxY <= region.minY)
+				continue;
+			g_regions[validRegionCount++] = region;
+		}
+		g_regionCount = validRegionCount;
+		if (g_regionCount == 0)
 			return;
 
 		if (description.SampleDesc.Count > 1)

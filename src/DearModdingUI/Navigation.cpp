@@ -51,10 +51,18 @@ namespace DearModdingUI
 				a_entry.clientId.size() + a_entry.id.size() + 8);
 			result.append(a_entry.clientId);
 			result.push_back('/');
-			result.append(
-				a_entry.kind == NavigationItemKind::kPage ?
-					"page/" :
-					"action/");
+			switch (a_entry.kind)
+			{
+			case NavigationItemKind::kClient:
+				result.append("client/");
+				break;
+			case NavigationItemKind::kAction:
+				result.append("action/");
+				break;
+			default:
+				result.append("page/");
+				break;
+			}
 			result.append(a_entry.id);
 			return result;
 		}
@@ -200,6 +208,20 @@ namespace DearModdingUI
 		std::vector<NavigationSearchEntry> entries;
 		for (const auto& client : a_model.clients)
 		{
+			entries.push_back({
+				NavigationItemKind::kClient,
+				client.handle,
+				DMUI_INVALID_PAGE_HANDLE,
+				DMUI_INVALID_ACTION_HANDLE,
+				client.id,
+				client.displayName,
+				client.id,
+				client.displayName,
+				{},
+				{},
+				{},
+				0
+			});
 			for (const auto& category : client.categories)
 			{
 				for (const auto& page : category.pages)
@@ -213,6 +235,7 @@ namespace DearModdingUI
 						client.displayName,
 						page.id,
 						page.displayName,
+						{},
 						page.category,
 						page.summary,
 						page.sortKey
@@ -232,6 +255,7 @@ namespace DearModdingUI
 				action.clientDisplayName,
 				action.id,
 				action.displayLabel,
+				action.iconName,
 				{},
 				action.tooltip,
 				action.sortKey

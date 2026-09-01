@@ -2,6 +2,8 @@
 bMenuMonochromeIcons = false
 sMenuAccentColor = "#42FA60"
 fMenuWindowOpacity = 0.55
+sMenuPaletteBackgroundColor = "#080808"
+fMenuPaletteOpacity = 0.85
 bMenuBackgroundBlur = true
 fMenuBackgroundBlurStrength = 0.30
 fMenuUiScale = 1.0

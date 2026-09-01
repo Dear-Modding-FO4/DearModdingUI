@@ -37,6 +37,8 @@ display names. The sidebar groups each client's settings pages by category and o
 `sortKey`, display name, and ID. Switching mods selects that client's first page. Overlay pages never
 appear there. `selectPage` accepts settings pages, switches both the active mod and page, opens the
 window, and falls back deterministically if the previous selection is not available.
+The command palette searches mods, pages, and actions globally. A matching mod ranks above its pages
+and opens its lowest-`sortKey` landing page while expanding that mod in the sidebar.
 
 Clients receive a clean scrolling content region below the host-owned page title, category, and
 summary. Draw regular ImGui controls there. Do not begin independent top-level windows, draw over
@@ -52,12 +54,13 @@ table after lowercase slug normalization. Icons use the accent tint by default. 
 toggles a host-only settings view inside the existing scrolling content pane without changing the
 active client page or adding an entry to the mod dropdown. The view closes from its title-row control,
 the gear, Escape, or a mod selection. It exposes an accent picker with color-vision-friendly presets,
-colored or monochrome icon tint, host-window opacity, background blur and safe per-frame strength,
-accessibility UI scale, and body-font family. It also reports resolved typography size and effective
-UI scale as read-only facts. Appearance options preview from a local draft; Apply persists all
-editable values once to `Data\F4SE\Plugins\DearModdingUI.toml`, while Revert or leaving the view
-discards the draft. UI scale and body-font changes rebuild the atlas only after Apply. Editable values
-use the `[Additional]` TOML table.
+colored or monochrome icon tint, host-window opacity, command-palette color and opacity, background
+blur and safe per-frame strength, accessibility UI scale, and body-font family. It also reports
+resolved typography size and effective UI scale as read-only facts. Appearance options preview from
+a local draft; Apply persists all editable values once to
+`Data\F4SE\Plugins\DearModdingUI.toml`, while Revert or leaving the view discards the draft. UI scale
+and body-font changes rebuild the atlas only after Apply. Editable values use the `[Additional]` TOML
+table.
 
 Body-font families are enumerated from subfolders of
 `Data\F4SE\Plugins\DearModdingUI\Fonts`; the selected regular face is rebuilt only between frames.
