@@ -5,6 +5,7 @@
 #include <DearModdingUI/Host.h>
 #include <DearModdingUI/Hotkeys.h>
 #include <DearModdingUI/Theme.h>
+#include <Platform/GameInput.h>
 #include <Support/Detours.h>
 #include <Support/Runtime.h>
 #include <RE/C/ControlMap.h>
@@ -215,12 +216,26 @@ namespace Addictol
 			}
 		}
 
+		static void SetModalInputState(bool a_visible) noexcept
+		{
+			const auto previous = s_drawingEnabled.exchange(
+				a_visible, std::memory_order_acq_rel);
+			const auto suppress = ShouldSuppressGameInput(a_visible);
+			GameInput::SetBlocked(suppress);
+			SetGameInputSuppressed(suppress);
+			if (previous == a_visible || !ImGui::GetCurrentContext())
+				return;
+
+			auto& io = ImGui::GetIO();
+			io.ClearInputKeys();
+			io.ClearInputMouse();
+		}
+
 		static void CloseModalState(
 			DearModdingUI::CarrierMenu::Event a_event) noexcept
 		{
+			SetModalInputState(false);
 			DearModdingUI::CloseMenu();
-			s_drawingEnabled.store(false, std::memory_order_release);
-			SetGameInputSuppressed(false);
 			DearModdingUI::CarrierMenu::Handle(a_event);
 			if (ImGui::GetCurrentContext())
 				DearModdingUI::CursorLoader::PrepareFrame(false);
@@ -977,12 +992,11 @@ namespace Addictol
 
 			const auto modalVisible = DearModdingUI::IsMenuVisible();
 			const auto overlayDemanded = DearModdingUI::NeedsFrame() && !modalVisible;
-			s_drawingEnabled.store(modalVisible, std::memory_order_release);
+			SetModalInputState(modalVisible);
 			DearModdingUI::CarrierMenu::Handle(
 				modalVisible ?
 					DearModdingUI::CarrierMenu::Event::kOpen :
 					DearModdingUI::CarrierMenu::Event::kOverlayOnly);
-			SetGameInputSuppressed(ShouldSuppressGameInput(modalVisible));
 			DearModdingUI::CursorLoader::PrepareFrame(modalVisible);
 			if (!ShouldRenderHostFrame(modalVisible, overlayDemanded) ||
 				!EnsureBackBuffer(a_swapChain))
@@ -1454,8 +1468,7 @@ namespace Addictol
 			s_activeSwapChain.load(std::memory_order_acquire) != nullptr &&
 			s_windowReady.load(std::memory_order_acquire) &&
 			s_backend.load(std::memory_order_acquire) == Backend::kReady;
-		s_drawingEnabled.store(enable, std::memory_order_release);
-		SetGameInputSuppressed(enable);
+		SetModalInputState(enable);
 		DearModdingUI::CarrierMenu::Handle(
 			enable ?
 				DearModdingUI::CarrierMenu::Event::kOpen :

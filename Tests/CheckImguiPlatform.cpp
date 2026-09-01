@@ -1,4 +1,5 @@
 #include <Platform/ImguiPlatformTargets.h>
+#include <Platform/GameInput.h>
 #include "Harness.h"
 
 #include <limits>
@@ -6,6 +7,7 @@
 
 namespace
 {
+	using namespace Addictol::GameInput;
 	using namespace Addictol::ImguiPlatform;
 
 	void draw_sink_a() noexcept {}
@@ -172,6 +174,35 @@ namespace vmm_tests
 				"overlay-only drawing suppressed game input");
 			require(ShouldSuppressGameInput(true),
 				"a modal menu did not suppress game input");
+		});
+
+		runner.test("modal input queues block every device only while visible", [] {
+			require(
+				kMenuInputSuppression == InputSuppressionPolicy::kAllDevices,
+				"modal input suppression must include gamepads");
+			require(
+				DecideInputQueue(false) == InputQueueDecision::kForward,
+				"a closed menu must forward the original input queue");
+			require(
+				DecideInputQueue(true) == InputQueueDecision::kDiscard,
+				"a visible menu must replace the input queue with an empty head");
+		});
+
+		runner.test("input receiver offsets select the intended vtables", [] {
+			require(kPerformInputProcessingSlot == 0,
+				"PerformInputProcessing must use receiver vtable slot zero");
+			require(
+				MatchesReceiverOffset(0x1000, 0x1000, 0),
+				"a primary input receiver must use the object's vtable");
+			require(
+				MatchesReceiverOffset(
+					0x1000,
+					0x1000 + kPlayerCameraReceiverOffset,
+					kPlayerCameraReceiverOffset),
+				"PlayerCamera must use its secondary input receiver vtable");
+			require(
+				!MatchesReceiverOffset(0x1000, 0x1000, kPlayerCameraReceiverOffset),
+				"PlayerCamera's primary vtable must be rejected");
 		});
 
 		runner.test("backbuffer state recreates on identity size and view changes", [] {

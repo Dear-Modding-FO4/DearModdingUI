@@ -5,6 +5,7 @@
 #include <DearModdingUI/MenuToggleKey.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
+#include <Platform/GameInput.h>
 #include <Platform/PlatformImgui.h>
 
 #include <F4SE/F4SE.h>
@@ -81,8 +82,12 @@ namespace Addictol
 			case F4SE::MessagingInterface::kPreLoadGame:
 			case F4SE::MessagingInterface::kNewGame:
 			case F4SE::MessagingInterface::kGameLoaded:
+				PlatformImgui::HandleGameTransition();
+				break;
 			case F4SE::MessagingInterface::kGameDataReady:
 				PlatformImgui::HandleGameTransition();
+				if (a_message->data)
+					(void)GameInput::InstallHooks();
 				break;
 			default:
 				break;
