@@ -19,8 +19,8 @@ namespace DearModdingUI::SettingsTable
 		struct RenderState
 		{
 			BracketState bracket;
-			ImGuiTable* table{ nullptr };
-			ImGuiTable* controls{ nullptr };
+			ImGuiID tableId{ 0 };
+			ImGuiID controlsId{ 0 };
 			ImGuiWindow* window{ nullptr };
 			int tableIdDepth{ 0 };
 			int rowIdDepth{ 0 };
@@ -47,12 +47,13 @@ namespace DearModdingUI::SettingsTable
 		}
 
 		[[nodiscard]] bool HasExpectedTable(
-			const ImGuiTable* a_table,
+			ImGuiID a_tableId,
 			int a_idDepth) noexcept
 		{
 			const auto* context = ImGui::GetCurrentContext();
 			return context &&
-				context->CurrentTable == a_table &&
+				context->CurrentTable &&
+				context->CurrentTable->ID == a_tableId &&
 				context->CurrentWindow == s_state.window &&
 				context->CurrentWindow->IDStack.Size == a_idDepth;
 		}
@@ -122,7 +123,7 @@ namespace DearModdingUI::SettingsTable
 
 		void ClearRowState() noexcept
 		{
-			s_state.controls = nullptr;
+			s_state.controlsId = 0;
 			s_state.rowIdDepth = 0;
 			s_state.controlsIdDepth = 0;
 			s_state.labelHeight = 0.0f;
@@ -134,7 +135,7 @@ namespace DearModdingUI::SettingsTable
 
 		void ClearTableState() noexcept
 		{
-			s_state.table = nullptr;
+			s_state.tableId = 0;
 			s_state.window = nullptr;
 			s_state.tableIdDepth = 0;
 		}
@@ -144,11 +145,11 @@ namespace DearModdingUI::SettingsTable
 			const auto owner = s_state.bracket.Owner();
 			if (s_state.bracket.CurrentPhase() == Phase::kRow &&
 				HasExpectedTable(
-					s_state.controls,
+					s_state.controlsId,
 					s_state.controlsIdDepth))
 			{
 				ImGui::EndTable();
-				if (HasExpectedTable(s_state.table, s_state.rowIdDepth))
+				if (HasExpectedTable(s_state.tableId, s_state.rowIdDepth))
 				{
 					ImGui::PopID();
 					ClearRowState();
@@ -157,7 +158,7 @@ namespace DearModdingUI::SettingsTable
 			}
 
 			if (s_state.bracket.CurrentPhase() == Phase::kTable &&
-				HasExpectedTable(s_state.table, s_state.tableIdDepth))
+				HasExpectedTable(s_state.tableId, s_state.tableIdDepth))
 			{
 				ImGui::EndTable();
 				ClearTableState();
@@ -237,7 +238,7 @@ namespace DearModdingUI::SettingsTable
 			"Value",
 			ImGuiTableColumnFlags_WidthStretch,
 			2.0f);
-		s_state.table = ImGui::GetCurrentTable();
+		s_state.tableId = ImGui::GetCurrentTable()->ID;
 		s_state.window = ImGui::GetCurrentWindow();
 		s_state.tableIdDepth = s_state.window->IDStack.Size;
 		return { DMUI_RESULT_OK, true };
@@ -251,7 +252,7 @@ namespace DearModdingUI::SettingsTable
 	{
 		if (!a_id || a_id[0] == '\0' || !a_label || a_label[0] == '\0')
 			return { DMUI_RESULT_INVALID_ARGUMENT, false };
-		if (!HasExpectedTable(s_state.table, s_state.tableIdDepth))
+		if (!HasExpectedTable(s_state.tableId, s_state.tableIdDepth))
 			return { DMUI_RESULT_UNBALANCED_BRACKET, false };
 
 		try
@@ -304,6 +305,7 @@ namespace DearModdingUI::SettingsTable
 			ClearRowState();
 			return { DMUI_RESULT_OK, false };
 		}
+		s_state.controlsId = ImGui::GetCurrentTable()->ID;
 		s_state.controlsIdDepth = s_state.window->IDStack.Size;
 
 		ImGui::TableSetupColumn(
@@ -318,7 +320,6 @@ namespace DearModdingUI::SettingsTable
 			s_state.buttonExtent + ImGui::GetStyle().CellPadding.y * 2.0f);
 		(void)ImGui::TableSetColumnIndex(0);
 		ImGui::SetNextItemWidth(-FLT_MIN);
-		s_state.controls = ImGui::GetCurrentTable();
 		return { DMUI_RESULT_OK, true };
 	}
 
@@ -331,17 +332,18 @@ namespace DearModdingUI::SettingsTable
 		if (s_state.bracket.CurrentPhase() != Phase::kRow ||
 			s_state.bracket.Owner() != a_owner ||
 			!HasExpectedTable(
-				s_state.controls,
+				s_state.controlsId,
 				s_state.controlsIdDepth))
 			return DMUI_RESULT_UNBALANCED_BRACKET;
+		const auto* controls = ImGui::GetCurrentTable();
 		(void)ImGui::TableSetColumnIndex(1);
 		const auto resetCellOrigin = ImGui::GetCursorScreenPos();
 		const auto resetRow = ImGui::TableGetCellBgRect(
-			s_state.controls,
+			controls,
 			1);
 		const auto resetContentHeight = (std::max)(
 			resetRow.GetHeight() -
-				s_state.controls->RowCellPaddingY * 2.0f,
+				controls->RowCellPaddingY * 2.0f,
 			0.0f);
 		if (a_options.resetVisible)
 		{
@@ -363,18 +365,19 @@ namespace DearModdingUI::SettingsTable
 		}
 		ImGui::EndTable();
 
-		if (!HasExpectedTable(s_state.table, s_state.rowIdDepth))
+		if (!HasExpectedTable(s_state.tableId, s_state.rowIdDepth))
 			return DMUI_RESULT_UNBALANCED_BRACKET;
+		const auto* table = ImGui::GetCurrentTable();
 		(void)ImGui::TableSetColumnIndex(0);
 		const auto labelOrigin = ImGui::GetCursorScreenPos();
 		const auto labelWidth = (std::max)(
 			ImGui::GetContentRegionAvail().x,
 			ImGui::GetFontSize());
 		// Table row geometry follows ItemSize, unlike Selectable's inflated item rectangle.
-		const auto labelRow = ImGui::TableGetCellBgRect(s_state.table, 0);
+		const auto labelRow = ImGui::TableGetCellBgRect(table, 0);
 		const auto labelContentHeight = (std::max)(
 			labelRow.GetHeight() -
-				s_state.table->RowCellPaddingY * 2.0f,
+				table->RowCellPaddingY * 2.0f,
 			0.0f);
 		DrawLabel(labelOrigin, labelWidth, labelContentHeight);
 		ImGui::PopID();
@@ -386,7 +389,7 @@ namespace DearModdingUI::SettingsTable
 	{
 		if (s_state.bracket.CurrentPhase() != Phase::kTable ||
 			s_state.bracket.Owner() != a_owner ||
-			!HasExpectedTable(s_state.table, s_state.tableIdDepth))
+			!HasExpectedTable(s_state.tableId, s_state.tableIdDepth))
 			return DMUI_RESULT_UNBALANCED_BRACKET;
 
 		ImGui::EndTable();

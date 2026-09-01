@@ -147,6 +147,55 @@ namespace vmm_tests
 				"balanced row changed the ImGui stack");
 		});
 
+		runner.test("settings row survives ImGui table pool growth", [] {
+			constexpr DMUI_ClientHandle owner{ 7 };
+			ImGuiTestFrame frame;
+			auto& tables = ImGui::GetCurrentContext()->Tables;
+			auto seed = 0;
+			const auto seedTable = [&]() {
+				ImGui::PushID(seed++);
+				require(ImGui::BeginTable("seed", 1),
+					"table pool seed did not begin");
+				ImGui::EndTable();
+				ImGui::PopID();
+			};
+			seedTable();
+			while (tables.GetBufSize() + 1 < tables.Buf.Capacity)
+				seedTable();
+			const auto capacity = tables.Buf.Capacity;
+
+			{
+				const SettingsTable::ClientCallbackGuard guard{ owner };
+				auto recovery = ImGuiRecoverySnapshot::Capture();
+				require(recovery.has_value(), "recovery snapshot was not captured");
+				const auto table = SettingsTable::Begin(owner, "settings");
+				require(table.result == DMUI_RESULT_OK && table.visible,
+					"settings table did not begin");
+				require(tables.Buf.Capacity == capacity,
+					"outer settings table unexpectedly grew the table pool");
+				const auto row = SettingsTable::BeginRow(
+					owner, "row", "Setting", "Description");
+				require(row.result == DMUI_RESULT_OK && row.visible,
+					"settings row did not begin");
+				require(tables.Buf.Capacity > capacity,
+					"nested controls table did not grow the table pool");
+				bool value{};
+				(void)ImGui::Checkbox("##Value", &value);
+				bool resetPressed{};
+				require(SettingsTable::EndRow(
+							owner, { true, false }, resetPressed) ==
+						DMUI_RESULT_OK,
+					"table pool growth invalidated the settings row");
+				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
+					"table pool growth invalidated the settings table");
+				const auto repaired = recovery->RecoverAfterCallback();
+				require(!repaired.Repaired(),
+					"table pool growth required ImGui recovery");
+			}
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"table pool growth changed the ImGui stack");
+		});
+
 		runner.test("first-frame host controls need no ImGui recovery", [] {
 			ImGuiTestFrame frame;
 			auto recovery = ImGuiRecoverySnapshot::Capture();

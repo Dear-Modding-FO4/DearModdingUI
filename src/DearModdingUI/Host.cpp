@@ -21,6 +21,7 @@
 #include <limits>
 #include <mutex>
 #include <new>
+#include <string_view>
 
 #ifndef IMGUI_HAS_DOCK
 #error "DearModdingUI requires the pinned Dear ImGui docking build"
@@ -65,6 +66,16 @@ namespace DearModdingUI
 		};
 
 		thread_local std::vector<ClientFontPush> s_clientFontPushes;
+
+		struct ClientCallbackIdentity
+		{
+			const char* kind{ "unknown" };
+			uint64_t handle{ 0 };
+			std::string_view id{ "<unknown>" };
+			std::string_view displayName{ "<unknown>" };
+			std::string_view clientId{ "<unknown>" };
+			std::string_view clientDisplayName{ "<unknown>" };
+		};
 
 		[[nodiscard]] Service& GetService() noexcept
 		{
@@ -1111,8 +1122,7 @@ namespace DearModdingUI
 
 		// Pages and actions draw inside the frame, so isolate the host's frame state.
 		void LogImGuiRecovery(
-			const char* a_kind,
-			uint64_t a_handle,
+			const ClientCallbackIdentity& a_identity,
 			const ImGuiRecoveryResult& a_recovery) noexcept
 		{
 			if (!a_recovery.Repaired())
@@ -1121,12 +1131,17 @@ namespace DearModdingUI
 			const auto& before = a_recovery.before;
 			const auto& after = a_recovery.after;
 			REX::ERROR(
-				"DearModdingUI: {} callback {} required ImGui recovery "
+				"DearModdingUI: {} callback {} [id \"{}\" (\"{}\"), "
+				"client \"{}\" (\"{}\")] required ImGui recovery "
 				"(windows {}->{}, tables {}->{}, IDs {}->{}, trees {}->{}, "
 				"colors {}->{}, style vars {}->{}, fonts {}->{}, focus scopes {}->{}, "
 				"groups {}->{}, item flags {}->{}, popups {}->{}, disabled {}->{})"sv,
-				a_kind,
-				a_handle,
+				a_identity.kind,
+				a_identity.handle,
+				a_identity.id,
+				a_identity.displayName,
+				a_identity.clientId,
+				a_identity.clientDisplayName,
 				before.windows,
 				after.windows,
 				before.tables,
@@ -1155,8 +1170,7 @@ namespace DearModdingUI
 
 		template <class InvokeCallback, class DisableCallback>
 		[[nodiscard]] bool InvokeClientCallback(
-			const char* a_kind,
-			uint64_t a_handle,
+			const ClientCallbackIdentity& a_identity,
 			InvokeCallback&& a_invoke,
 			DisableCallback&& a_disable) noexcept
 		{
@@ -1166,25 +1180,35 @@ namespace DearModdingUI
 				s_clientFontPushes.clear();
 				a_disable();
 				REX::ERROR(
-					"DearModdingUI: {} callback {} could not be isolated and was disabled"sv,
-					a_kind,
-					a_handle);
+					"DearModdingUI: {} callback {} [id \"{}\" (\"{}\"), "
+					"client \"{}\" (\"{}\")] could not be isolated and was disabled"sv,
+					a_identity.kind,
+					a_identity.handle,
+					a_identity.id,
+					a_identity.displayName,
+					a_identity.clientId,
+					a_identity.clientDisplayName);
 				return false;
 			}
 			const auto result = a_invoke();
 			if (result == DMUI_RESULT_CALLBACK_FAILED)
 			{
 				const auto recovered = recovery->RecoverFailure();
-				LogImGuiRecovery(a_kind, a_handle, recovered);
+				LogImGuiRecovery(a_identity, recovered);
 				s_clientFontPushes.clear();
 				REX::ERROR(
-					"DearModdingUI: {} callback {} failed and was disabled"sv,
-					a_kind,
-					a_handle);
+					"DearModdingUI: {} callback {} [id \"{}\" (\"{}\"), "
+					"client \"{}\" (\"{}\")] failed and was disabled"sv,
+					a_identity.kind,
+					a_identity.handle,
+					a_identity.id,
+					a_identity.displayName,
+					a_identity.clientId,
+					a_identity.clientDisplayName);
 				return false;
 			}
 			const auto recovered = recovery->RecoverAfterCallback();
-			LogImGuiRecovery(a_kind, a_handle, recovered);
+			LogImGuiRecovery(a_identity, recovered);
 			s_clientFontPushes.clear();
 			return result == DMUI_RESULT_OK;
 		}
@@ -1192,17 +1216,21 @@ namespace DearModdingUI
 		// Frame observers run after Present, outside the frame, where there is nothing to isolate.
 		template <class InvokeCallback>
 		[[nodiscard]] bool InvokeNonDrawingClientCallback(
-			const char* a_kind,
-			uint64_t a_handle,
+			const ClientCallbackIdentity& a_identity,
 			InvokeCallback&& a_invoke) noexcept
 		{
 			const auto result = a_invoke();
 			if (result == DMUI_RESULT_CALLBACK_FAILED)
 			{
 				REX::ERROR(
-					"DearModdingUI: {} callback {} failed and was disabled"sv,
-					a_kind,
-					a_handle);
+					"DearModdingUI: {} callback {} [id \"{}\" (\"{}\"), "
+					"client \"{}\" (\"{}\")] failed and was disabled"sv,
+					a_identity.kind,
+					a_identity.handle,
+					a_identity.id,
+					a_identity.displayName,
+					a_identity.clientId,
+					a_identity.clientDisplayName);
 				return false;
 			}
 			return result == DMUI_RESULT_OK;
@@ -1407,9 +1435,18 @@ namespace DearModdingUI
 				page->client :
 				DMUI_INVALID_CLIENT_HANDLE
 		};
+		const auto identity = page != pages.end() ?
+			ClientCallbackIdentity{
+				"page",
+				a_page,
+				page->id,
+				page->displayName,
+				page->clientId,
+				page->clientDisplayName
+			} :
+			ClientCallbackIdentity{ "page", a_page };
 		return InvokeClientCallback(
-			"page",
-			a_page,
+			identity,
 			[&]() noexcept {
 				return service.registry.InvokePage(a_page);
 			},
@@ -1427,9 +1464,23 @@ namespace DearModdingUI
 	{
 		Hotkeys::BindRenderThread();
 		auto& service = GetService();
-		return InvokeClientCallback(
-			"action",
+		const auto& actions = service.registry.OrderedActions();
+		const auto action = std::ranges::find(
+			actions,
 			a_action,
+			&RegisteredAction::handle);
+		const auto identity = action != actions.end() ?
+			ClientCallbackIdentity{
+				"action",
+				a_action,
+				action->id,
+				action->displayLabel,
+				action->clientId,
+				action->clientDisplayName
+			} :
+			ClientCallbackIdentity{ "action", a_action };
+		return InvokeClientCallback(
+			identity,
 			[&]() noexcept {
 				return service.registry.InvokeAction(a_action);
 			},
@@ -1457,9 +1508,24 @@ namespace DearModdingUI
 		{
 			if (observer.callbackFailed)
 				continue;
+			const auto* client = registry.Navigation().FindClient(observer.client);
+			const auto identity = client ?
+				ClientCallbackIdentity{
+					"frame observer",
+					observer.handle,
+					"<unnamed>",
+					"Frame observer",
+					client->id,
+					client->displayName
+				} :
+				ClientCallbackIdentity{
+					"frame observer",
+					observer.handle,
+					"<unnamed>",
+					"Frame observer"
+				};
 			(void)InvokeNonDrawingClientCallback(
-				"frame observer",
-				observer.handle,
+				identity,
 				[&]() noexcept {
 					return registry.InvokeFrameObserver(observer.handle);
 				});
