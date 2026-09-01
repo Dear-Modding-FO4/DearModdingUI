@@ -26,12 +26,12 @@ namespace DearModdingUI
 
 	inline constexpr HostAccentColor kDefaultHostAccentColor{};
 	inline constexpr HostPaletteColor kDefaultPaletteBackgroundColor{
-		0x08, 0x08, 0x08
+		0x05, 0x05, 0x05
 	};
 	inline constexpr float kDefaultWindowBackgroundOpacity{ 0.55f };
 	inline constexpr float kMinWindowBackgroundOpacity{ 0.20f };
 	inline constexpr float kMaxWindowBackgroundOpacity{ 1.0f };
-	inline constexpr float kDefaultPaletteBackgroundOpacity{ 0.55f };
+	inline constexpr float kDefaultPaletteBackgroundOpacity{ 0.75f };
 	inline constexpr float kMinPaletteBackgroundOpacity{ 0.20f };
 	inline constexpr float kMaxPaletteBackgroundOpacity{ 1.0f };
 	inline constexpr float kDefaultBackgroundBlurStrength{ 0.30f };
@@ -79,7 +79,7 @@ namespace DearModdingUI
 		bool monochromeIcons{ false };
 		std::string accentColor{ "#42FA60" };
 		float windowBackgroundOpacity{ kDefaultWindowBackgroundOpacity };
-		std::string paletteBackgroundColor{ "#080808" };
+		std::string paletteBackgroundColor{ "#050505" };
 		float paletteBackgroundOpacity{ kDefaultPaletteBackgroundOpacity };
 		bool backgroundBlur{ true };
 		float backgroundBlurStrength{ kDefaultBackgroundBlurStrength };

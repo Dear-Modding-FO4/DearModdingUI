@@ -1021,23 +1021,6 @@ namespace DearModdingUI
 			}
 			a_state.paletteVisible = true;
 
-			const auto palettePosition = ImGui::GetWindowPos();
-			const auto paletteSize = ImGui::GetWindowSize();
-			const auto framebufferScale =
-				ImGui::GetIO().DisplayFramebufferScale;
-			const auto* viewport = ImGui::GetMainViewport();
-			const auto* paletteWindow = ImGui::GetCurrentWindowRead();
-			BackgroundBlur::AddWindowBackdrop(
-				paletteWindow ? paletteWindow->DrawList : nullptr,
-				(palettePosition.x - viewport->Pos.x) * framebufferScale.x,
-				(palettePosition.y - viewport->Pos.y) * framebufferScale.y,
-				(palettePosition.x + paletteSize.x - viewport->Pos.x) *
-					framebufferScale.x,
-				(palettePosition.y + paletteSize.y - viewport->Pos.y) *
-					framebufferScale.y,
-				(paletteWindow ? paletteWindow->WindowRounding : 0.0f) *
-					(std::max)(framebufferScale.x, framebufferScale.y));
-
 			if (a_state.paletteFocusRequested)
 			{
 				ImGui::SetKeyboardFocusHere();

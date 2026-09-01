@@ -2337,8 +2337,19 @@ namespace vmm_tests
 				"editing the draft changed committed settings");
 		});
 
-		runner.test("command palette late composite restores blur visibility", [] {
+		runner.test("command palette elevated surface defaults are pinned", [] {
 			const auto settings = DefaultHostInterfaceSettings();
+			const PersistedHostInterfaceSettings persisted;
+			const HostPaletteColor expectedBackground{ 0x05, 0x05, 0x05 };
+			require(
+				kDefaultPaletteBackgroundColor == expectedBackground,
+				"command palette background default changed");
+			require(kDefaultPaletteBackgroundOpacity == 0.75f,
+				"command palette opacity default changed");
+			require(
+				persisted.paletteBackgroundColor == "#050505" &&
+					persisted.paletteBackgroundOpacity == 0.75f,
+				"persisted command palette defaults diverged");
 			auto popupBackground =
 				HostAccentToImVec4(settings.paletteBackgroundColor);
 			popupBackground.w = settings.paletteBackgroundOpacity;
@@ -2351,16 +2362,51 @@ namespace vmm_tests
 					palette[ImGuiCol_PopupBg],
 					popupBackground),
 				"palette opacity did not reach the popup background");
+		});
+
+		runner.test("command palette surface composites dark and translucent", [] {
+			const auto settings = DefaultHostInterfaceSettings();
+			auto popupBackground =
+				HostAccentToImVec4(settings.paletteBackgroundColor);
+			popupBackground.w = settings.paletteBackgroundOpacity;
+			const auto palette = Theme::MakeHostPalette(
+				HostAccentToImVec4(settings.accentColor),
+				settings.windowBackgroundOpacity,
+				popupBackground);
+			const auto composite = [](
+				float a_foreground,
+				float a_opacity,
+				float a_background) noexcept {
+				return a_foreground * a_opacity +
+					a_background * (1.0f - a_opacity);
+			};
+			for (const auto gameLevel : std::array{ 0.0f, 0.5f, 1.0f })
+			{
+				const auto hostSurface = composite(
+					palette[ImGuiCol_WindowBg].x,
+					palette[ImGuiCol_WindowBg].w,
+					gameLevel);
+				const auto dimmedHost = composite(
+					palette[ImGuiCol_ModalWindowDimBg].x,
+					palette[ImGuiCol_ModalWindowDimBg].w,
+					hostSurface);
+				const auto elevatedSurface = composite(
+					popupBackground.x,
+					popupBackground.w,
+					dimmedHost);
+				require(elevatedSurface < dimmedHost * 0.5f,
+					"command palette was not clearly darker than the visible host");
+			}
 			const auto hostTransmission =
 				1.0f - settings.windowBackgroundOpacity;
 			const auto stackedTransmission =
 				hostTransmission *
 				(1.0f - palette[ImGuiCol_ModalWindowDimBg].w) *
 				(1.0f - popupBackground.w);
-			require(stackedTransmission < hostTransmission * 0.5f,
-				"stacked fills did not explain the hidden palette blur");
-			require(1.0f - popupBackground.w == hostTransmission,
-				"late palette composite did not match host blur visibility");
+			require(
+				stackedTransmission > 0.05f &&
+					stackedTransmission < 0.10f,
+				"command palette did not preserve a faint view of the host");
 		});
 
 		runner.test("host settings preview excludes typography", [] {

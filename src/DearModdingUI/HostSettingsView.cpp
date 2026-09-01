@@ -294,7 +294,7 @@ namespace DearModdingUI
 			if (DrawSettingsRow(
 					"PaletteBackgroundColor",
 					"Command palette background",
-					"Sets the neutral background color used by the command palette.",
+					"Sets the elevated surface color used by the command palette.",
 					true,
 					[&]() noexcept {
 						auto paletteBackground =
@@ -326,7 +326,7 @@ namespace DearModdingUI
 			if (DrawSettingsRow(
 					"PaletteBackgroundOpacity",
 					"Command palette opacity",
-					"Controls how much of the blurred game remains visible through the palette.",
+					"Controls how faintly the dimmed host panel shows through the palette.",
 					true,
 					[&]() noexcept {
 						auto paletteOpacityPercent =
@@ -358,7 +358,7 @@ namespace DearModdingUI
 			if (DrawSettingsRow(
 					"BackgroundBlur",
 					"Background blur",
-					"Blurs the game behind the host window and command palette; disabling it avoids the blur passes.",
+					"Blurs the game behind the host window; disabling it avoids the blur passes.",
 					true,
 					[&]() noexcept {
 						changed |= ImGui::Checkbox(
