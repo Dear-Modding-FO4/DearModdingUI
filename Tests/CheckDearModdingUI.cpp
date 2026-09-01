@@ -2042,6 +2042,27 @@ namespace vmm_tests
 				"editing the draft changed committed settings");
 		});
 
+		runner.test("command palette defaults preserve blur visibility", [] {
+			const auto settings = DefaultHostInterfaceSettings();
+			require(
+				settings.paletteBackgroundOpacity ==
+					settings.windowBackgroundOpacity,
+				"palette default obscured more blur than the host window");
+
+			auto popupBackground =
+				HostAccentToImVec4(settings.paletteBackgroundColor);
+			popupBackground.w = settings.paletteBackgroundOpacity;
+			const auto palette = Theme::MakeHostPalette(
+				HostAccentToImVec4(settings.accentColor),
+				settings.windowBackgroundOpacity,
+				popupBackground);
+			require(
+				SameColor(
+					palette[ImGuiCol_PopupBg],
+					popupBackground),
+				"palette opacity did not reach the popup background");
+		});
+
 		runner.test("host settings preview excludes typography", [] {
 			const auto committed = DefaultHostInterfaceSettings();
 			auto draft = committed;

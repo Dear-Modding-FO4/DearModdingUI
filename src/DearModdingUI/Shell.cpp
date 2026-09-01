@@ -770,7 +770,7 @@ namespace DearModdingUI
 					bounds.Min.x + ImGui::GetStyle().FramePadding.x,
 					bounds.Min.y
 				},
-				rowHeight,
+				bounds.GetHeight(),
 				glyph,
 				a_client.displayName.c_str(),
 				ImGui::GetColorU32(ImGuiCol_Text),
@@ -1103,11 +1103,17 @@ namespace DearModdingUI
 					Theme::FontRole::kSubheading
 				};
 				const auto rowHeight = ImGui::GetTextLineHeight();
-				if (ImGui::Selectable(
-						label.c_str(),
-						selected,
-						ImGuiSelectableFlags_None,
-						{ 0.0f, rowHeight }))
+				// Match the fill to the separator without changing vertical row packing.
+				ImGui::PushStyleVar(
+					ImGuiStyleVar_ItemSpacing,
+					ImVec2{ 0.0f, style.ItemSpacing.y });
+				const auto activated = ImGui::Selectable(
+					label.c_str(),
+					selected,
+					ImGuiSelectableFlags_None,
+					{ 0.0f, rowHeight });
+				ImGui::PopStyleVar();
+				if (activated)
 					activatedIndex = index;
 				const auto bounds = ImRect{
 					ImGui::GetItemRectMin(),
@@ -1124,7 +1130,7 @@ namespace DearModdingUI
 						bounds.Min.x + ImGui::GetStyle().FramePadding.x,
 						bounds.Min.y
 					},
-					rowHeight,
+					bounds.GetHeight(),
 					PaletteEntryGlyph(results[index]),
 					text.c_str(),
 					ImGui::GetColorU32(ImGuiCol_Text),
