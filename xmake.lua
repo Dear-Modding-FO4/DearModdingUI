@@ -88,6 +88,7 @@ target("dmui-tests", function()
         "src/DearModdingUI/Hotkeys.cpp",
         "src/DearModdingUI/Navigation.cpp",
         "src/DearModdingUI/Registry.cpp",
+        "src/DearModdingUI/SettingsTable.cpp",
         "src/DearModdingUI/Status.cpp"
     )
     add_includedirs(

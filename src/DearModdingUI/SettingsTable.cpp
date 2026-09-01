@@ -24,6 +24,7 @@ namespace DearModdingUI::SettingsTable
 			ImGuiWindow* window{ nullptr };
 			int tableIdDepth{ 0 };
 			int rowIdDepth{ 0 };
+			int controlsIdDepth{ 0 };
 			float labelHeight{ 0.0f };
 			float buttonExtent{ 0.0f };
 			float resetWidth{ 0.0f };
@@ -36,6 +37,8 @@ namespace DearModdingUI::SettingsTable
 			DMUI_INVALID_CLIENT_HANDLE
 		};
 		thread_local uint32_t s_callbackDepth{ 0 };
+		thread_local ImGuiErrorRecoveryState s_callbackRecovery;
+		thread_local bool s_hasCallbackRecovery{ false };
 
 		[[nodiscard]] bool HasDrawingContext() noexcept
 		{
@@ -121,11 +124,45 @@ namespace DearModdingUI::SettingsTable
 		{
 			s_state.controls = nullptr;
 			s_state.rowIdDepth = 0;
+			s_state.controlsIdDepth = 0;
 			s_state.labelHeight = 0.0f;
 			s_state.buttonExtent = 0.0f;
 			s_state.resetWidth = 0.0f;
 			s_state.label.clear();
 			s_state.description.clear();
+		}
+
+		void ClearTableState() noexcept
+		{
+			s_state.table = nullptr;
+			s_state.window = nullptr;
+			s_state.tableIdDepth = 0;
+		}
+
+		void RecoverOpenBrackets() noexcept
+		{
+			const auto owner = s_state.bracket.Owner();
+			if (s_state.bracket.CurrentPhase() == Phase::kRow &&
+				HasExpectedTable(
+					s_state.controls,
+					s_state.controlsIdDepth))
+			{
+				ImGui::EndTable();
+				if (HasExpectedTable(s_state.table, s_state.rowIdDepth))
+				{
+					ImGui::PopID();
+					ClearRowState();
+					(void)s_state.bracket.EndRow(owner);
+				}
+			}
+
+			if (s_state.bracket.CurrentPhase() == Phase::kTable &&
+				HasExpectedTable(s_state.table, s_state.tableIdDepth))
+			{
+				ImGui::EndTable();
+				ClearTableState();
+				(void)s_state.bracket.EndTable(owner);
+			}
 		}
 	}
 
@@ -136,6 +173,9 @@ namespace DearModdingUI::SettingsTable
 		{
 			ResetBracketState();
 			s_callbackClient = a_client;
+			s_hasCallbackRecovery = HasDrawingContext();
+			if (s_hasCallbackRecovery)
+				ImGui::ErrorRecoveryStoreState(&s_callbackRecovery);
 		}
 		++s_callbackDepth;
 	}
@@ -147,8 +187,12 @@ namespace DearModdingUI::SettingsTable
 		--s_callbackDepth;
 		if (s_callbackDepth == 0)
 		{
+			RecoverOpenBrackets();
+			if (s_hasCallbackRecovery && HasDrawingContext())
+				ImGui::ErrorRecoveryTryToRecoverState(&s_callbackRecovery);
 			ResetBracketState();
 			s_callbackClient = DMUI_INVALID_CLIENT_HANDLE;
+			s_hasCallbackRecovery = false;
 		}
 	}
 
@@ -260,6 +304,7 @@ namespace DearModdingUI::SettingsTable
 			ClearRowState();
 			return { DMUI_RESULT_OK, false };
 		}
+		s_state.controlsIdDepth = s_state.window->IDStack.Size;
 
 		ImGui::TableSetupColumn(
 			"##Value",
@@ -285,7 +330,9 @@ namespace DearModdingUI::SettingsTable
 		a_resetPressed = false;
 		if (s_state.bracket.CurrentPhase() != Phase::kRow ||
 			s_state.bracket.Owner() != a_owner ||
-			!HasExpectedTable(s_state.controls, s_state.rowIdDepth))
+			!HasExpectedTable(
+				s_state.controls,
+				s_state.controlsIdDepth))
 			return DMUI_RESULT_UNBALANCED_BRACKET;
 		(void)ImGui::TableSetColumnIndex(1);
 		const auto resetCellOrigin = ImGui::GetCursorScreenPos();
@@ -343,19 +390,14 @@ namespace DearModdingUI::SettingsTable
 			return DMUI_RESULT_UNBALANCED_BRACKET;
 
 		ImGui::EndTable();
-		s_state.table = nullptr;
-		s_state.window = nullptr;
-		s_state.tableIdDepth = 0;
+		ClearTableState();
 		return s_state.bracket.EndTable(a_owner);
 	}
 
 	void ResetBracketState() noexcept
 	{
 		s_state.bracket.Reset();
-		s_state.table = nullptr;
-		s_state.controls = nullptr;
-		s_state.window = nullptr;
-		s_state.tableIdDepth = 0;
 		ClearRowState();
+		ClearTableState();
 	}
 }

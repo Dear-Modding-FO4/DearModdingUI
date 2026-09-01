@@ -2337,13 +2337,8 @@ namespace vmm_tests
 				"editing the draft changed committed settings");
 		});
 
-		runner.test("command palette defaults preserve blur visibility", [] {
+		runner.test("command palette late composite restores blur visibility", [] {
 			const auto settings = DefaultHostInterfaceSettings();
-			require(
-				settings.paletteBackgroundOpacity ==
-					settings.windowBackgroundOpacity,
-				"palette default obscured more blur than the host window");
-
 			auto popupBackground =
 				HostAccentToImVec4(settings.paletteBackgroundColor);
 			popupBackground.w = settings.paletteBackgroundOpacity;
@@ -2356,6 +2351,16 @@ namespace vmm_tests
 					palette[ImGuiCol_PopupBg],
 					popupBackground),
 				"palette opacity did not reach the popup background");
+			const auto hostTransmission =
+				1.0f - settings.windowBackgroundOpacity;
+			const auto stackedTransmission =
+				hostTransmission *
+				(1.0f - palette[ImGuiCol_ModalWindowDimBg].w) *
+				(1.0f - popupBackground.w);
+			require(stackedTransmission < hostTransmission * 0.5f,
+				"stacked fills did not explain the hidden palette blur");
+			require(1.0f - popupBackground.w == hostTransmission,
+				"late palette composite did not match host blur visibility");
 		});
 
 		runner.test("host settings preview excludes typography", [] {

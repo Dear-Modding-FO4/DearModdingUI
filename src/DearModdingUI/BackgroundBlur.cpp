@@ -11,6 +11,8 @@
 #include <d3dcompiler.h>
 #include <wrl/client.h>
 
+#include <imgui/imgui.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -88,6 +90,8 @@ namespace DearModdingUI::BackgroundBlur
 			UINT downsampledHeight{ 0 };
 			DXGI_FORMAT resourceFormat{ DXGI_FORMAT_UNKNOWN };
 			DXGI_FORMAT viewFormat{ DXGI_FORMAT_UNKNOWN };
+			ID3D11DeviceContext* frameContext{ nullptr };
+			ID3D11RenderTargetView* frameTarget{ nullptr };
 			bool frameFailureLogged{ false };
 		};
 
@@ -95,7 +99,7 @@ namespace DearModdingUI::BackgroundBlur
 		size_t g_regionCount{ 0 };
 		Resources g_resources;
 
-		void AppendRegion(
+		[[nodiscard]] const Region* AppendRegion(
 			float a_minX,
 			float a_minY,
 			float a_maxX,
@@ -105,14 +109,16 @@ namespace DearModdingUI::BackgroundBlur
 			if (g_regionCount >= g_regions.size() ||
 				a_maxX <= a_minX ||
 				a_maxY <= a_minY)
-				return;
-			g_regions[g_regionCount++] = {
+				return nullptr;
+			auto& region = g_regions[g_regionCount++];
+			region = {
 				a_minX,
 				a_minY,
 				a_maxX,
 				a_maxY,
 				(std::max)(0.0f, a_rounding)
 			};
+			return &region;
 		}
 
 		[[nodiscard]] std::filesystem::path ShaderPath(std::wstring_view a_file)
@@ -326,6 +332,8 @@ namespace DearModdingUI::BackgroundBlur
 			resources.downsampledHeight = 0;
 			resources.resourceFormat = DXGI_FORMAT_UNKNOWN;
 			resources.viewFormat = DXGI_FORMAT_UNKNOWN;
+			resources.frameContext = nullptr;
+			resources.frameTarget = nullptr;
 		}
 
 		[[nodiscard]] bool CreateTextureSet(
@@ -627,14 +635,9 @@ namespace DearModdingUI::BackgroundBlur
 			a_context->PSSetShaderResources(0, 1, &nullResource);
 		}
 
-		void PerformBlur(
-			ID3D11DeviceContext* a_context,
-			const D3D11_TEXTURE2D_DESC& a_description,
-			ID3D11RenderTargetView* a_target,
-			float a_strength) noexcept
+		void SetFullscreenPipeline(ID3D11DeviceContext* a_context) noexcept
 		{
 			auto& resources = g_resources;
-			const PipelineStateScope previousState{ a_context };
 			const std::array<float, 4> blendFactor{};
 			auto* sampler = resources.sampler.Get();
 			auto* blurBuffer = resources.blurConstants.Get();
@@ -649,6 +652,127 @@ namespace DearModdingUI::BackgroundBlur
 			a_context->RSSetState(resources.rasterizer.Get());
 			a_context->PSSetSamplers(0, 1, &sampler);
 			a_context->PSSetConstantBuffers(0, 1, &blurBuffer);
+		}
+
+		void CompositeBlur(
+			ID3D11DeviceContext* a_context,
+			ID3D11RenderTargetView* a_target,
+			UINT a_width,
+			UINT a_height,
+			const Region* a_regions,
+			size_t a_regionCount) noexcept
+		{
+			if (!a_context ||
+				!a_target ||
+				!a_width ||
+				!a_height ||
+				!a_regions ||
+				a_regionCount == 0)
+				return;
+
+			const PipelineStateScope previousState{ a_context };
+			SetFullscreenPipeline(a_context);
+			const D3D11_VIEWPORT targetViewport{
+				0.0f,
+				0.0f,
+				static_cast<float>(a_width),
+				static_cast<float>(a_height),
+				0.0f,
+				1.0f
+			};
+			a_context->RSSetViewports(1, &targetViewport);
+
+			WindowConstants windowConstants{};
+			auto scissorMinX = static_cast<float>(a_width);
+			auto scissorMinY = static_cast<float>(a_height);
+			auto scissorMaxX = 0.0f;
+			auto scissorMaxY = 0.0f;
+			size_t validRegionCount = 0;
+			for (size_t index = 0;
+				index < a_regionCount &&
+				validRegionCount < kRegionCapacity;
+				++index)
+			{
+				auto region = a_regions[index];
+				region.minX = std::clamp(
+					region.minX, 0.0f, static_cast<float>(a_width));
+				region.minY = std::clamp(
+					region.minY, 0.0f, static_cast<float>(a_height));
+				region.maxX = std::clamp(
+					region.maxX, 0.0f, static_cast<float>(a_width));
+				region.maxY = std::clamp(
+					region.maxY, 0.0f, static_cast<float>(a_height));
+				if (region.maxX <= region.minX ||
+					region.maxY <= region.minY)
+					continue;
+
+				scissorMinX = (std::min)(scissorMinX, region.minX);
+				scissorMinY = (std::min)(scissorMinY, region.minY);
+				scissorMaxX = (std::max)(scissorMaxX, region.maxX);
+				scissorMaxY = (std::max)(scissorMaxY, region.maxY);
+				auto& rect = windowConstants.windowRects[validRegionCount];
+				rect[0] = region.minX;
+				rect[1] = region.minY;
+				rect[2] = region.maxX;
+				rect[3] = region.maxY;
+				auto& parameters =
+					windowConstants.windowParameters[validRegionCount];
+				parameters[0] = region.rounding;
+				parameters[1] = 1.0f;
+				++validRegionCount;
+			}
+			if (validRegionCount == 0)
+				return;
+
+			const D3D11_RECT targetScissor{
+				static_cast<LONG>((std::max)(
+					0.0f,
+					scissorMinX - kScissorPadding)),
+				static_cast<LONG>((std::max)(
+					0.0f,
+					scissorMinY - kScissorPadding)),
+				static_cast<LONG>((std::min)(
+					static_cast<float>(a_width),
+					scissorMaxX + kScissorPadding)),
+				static_cast<LONG>((std::min)(
+					static_cast<float>(a_height),
+					scissorMaxY + kScissorPadding))
+			};
+			a_context->RSSetScissorRects(1, &targetScissor);
+
+			windowConstants.screenParameters[0] =
+				static_cast<float>(a_width);
+			windowConstants.screenParameters[1] =
+				static_cast<float>(a_height);
+			auto& resources = g_resources;
+			a_context->UpdateSubresource(
+				resources.windowConstants.Get(),
+				0,
+				nullptr,
+				&windowConstants,
+				0,
+				0);
+			auto* windowBuffer = resources.windowConstants.Get();
+			a_context->PSSetConstantBuffers(1, 1, &windowBuffer);
+			a_context->OMSetBlendState(
+				resources.blend.Get(),
+				nullptr,
+				0xFFFFFFFF);
+			DrawFullscreen(
+				a_context,
+				a_target,
+				resources.compositeShader.Get(),
+				resources.blurViews[1].Get());
+		}
+
+		void PerformBlur(
+			ID3D11DeviceContext* a_context,
+			const D3D11_TEXTURE2D_DESC& a_description,
+			float a_strength) noexcept
+		{
+			auto& resources = g_resources;
+			const PipelineStateScope previousState{ a_context };
+			SetFullscreenPipeline(a_context);
 
 			const D3D11_VIEWPORT blurViewport{
 				0.0f,
@@ -711,70 +835,45 @@ namespace DearModdingUI::BackgroundBlur
 				resources.blurTargets[1].Get(),
 				resources.verticalShader.Get(),
 				resources.blurViews[0].Get());
+		}
 
-			const D3D11_VIEWPORT targetViewport{
-				0.0f,
-				0.0f,
-				static_cast<float>(a_description.Width),
-				static_cast<float>(a_description.Height),
-				0.0f,
-				1.0f
-			};
-			a_context->RSSetViewports(1, &targetViewport);
-			auto scissorMinX = static_cast<float>(a_description.Width);
-			auto scissorMinY = static_cast<float>(a_description.Height);
-			auto scissorMaxX = 0.0f;
-			auto scissorMaxY = 0.0f;
-			for (size_t index = 0; index < g_regionCount; ++index)
-			{
-				const auto& region = g_regions[index];
-				scissorMinX = (std::min)(scissorMinX, region.minX);
-				scissorMinY = (std::min)(scissorMinY, region.minY);
-				scissorMaxX = (std::max)(scissorMaxX, region.maxX);
-				scissorMaxY = (std::max)(scissorMaxY, region.maxY);
-			}
-			const D3D11_RECT targetScissor{
-				static_cast<LONG>((std::max)(0.0f, scissorMinX - kScissorPadding)),
-				static_cast<LONG>((std::max)(0.0f, scissorMinY - kScissorPadding)),
-				static_cast<LONG>((std::min)(
-					static_cast<float>(a_description.Width),
-					scissorMaxX + kScissorPadding)),
-				static_cast<LONG>((std::min)(
-					static_cast<float>(a_description.Height),
-					scissorMaxY + kScissorPadding))
-			};
-			a_context->RSSetScissorRects(1, &targetScissor);
+		void CompositeWindowCallback(
+			const ImDrawList*,
+			const ImDrawCmd* a_command) noexcept
+		{
+			const auto* region =
+				static_cast<const Region*>(a_command->UserCallbackData);
+			const auto& resources = g_resources;
+			if (!region ||
+				!resources.frameContext ||
+				!resources.frameTarget ||
+				!resources.blurViews[1])
+				return;
+			CompositeBlur(
+				resources.frameContext,
+				resources.frameTarget,
+				resources.width,
+				resources.height,
+				region,
+				1);
+		}
 
-			WindowConstants windowConstants{};
-			for (size_t index = 0; index < g_regionCount; ++index)
-			{
-				const auto& region = g_regions[index];
-				windowConstants.windowRects[index][0] = region.minX;
-				windowConstants.windowRects[index][1] = region.minY;
-				windowConstants.windowRects[index][2] = region.maxX;
-				windowConstants.windowRects[index][3] = region.maxY;
-				windowConstants.windowParameters[index][0] = region.rounding;
-				windowConstants.windowParameters[index][1] = 1.0f;
-			}
-			windowConstants.screenParameters[0] =
-				static_cast<float>(a_description.Width);
-			windowConstants.screenParameters[1] =
-				static_cast<float>(a_description.Height);
-			a_context->UpdateSubresource(
-				resources.windowConstants.Get(),
-				0,
-				nullptr,
-				&windowConstants,
-				0,
-				0);
-			auto* windowBuffer = resources.windowConstants.Get();
-			a_context->PSSetConstantBuffers(1, 1, &windowBuffer);
-			a_context->OMSetBlendState(resources.blend.Get(), nullptr, 0xFFFFFFFF);
-			DrawFullscreen(
-				a_context,
-				a_target,
-				resources.compositeShader.Get(),
-				resources.blurViews[1].Get());
+		void PrependWindowComposite(
+			ImDrawList* a_drawList,
+			const Region& a_region) noexcept
+		{
+			if (!a_drawList)
+				return;
+			a_drawList->AddCallback(
+				&CompositeWindowCallback,
+				const_cast<Region*>(&a_region),
+				sizeof(a_region));
+			const auto callbackIndex = a_drawList->CmdBuffer.Size - 2;
+			const auto callback = a_drawList->CmdBuffer[callbackIndex];
+			a_drawList->CmdBuffer.erase(
+				a_drawList->CmdBuffer.begin() + callbackIndex);
+			// Re-composite after lower windows but before the popup fill.
+			a_drawList->CmdBuffer.push_front(callback);
 		}
 	}
 
@@ -782,6 +881,8 @@ namespace DearModdingUI::BackgroundBlur
 	{
 		g_regions = {};
 		g_regionCount = 0;
+		g_resources.frameContext = nullptr;
+		g_resources.frameTarget = nullptr;
 	}
 
 	void SetHostWindow(
@@ -793,17 +894,20 @@ namespace DearModdingUI::BackgroundBlur
 	{
 		g_regions = {};
 		g_regionCount = 0;
-		AppendRegion(a_minX, a_minY, a_maxX, a_maxY, a_rounding);
+		(void)AppendRegion(a_minX, a_minY, a_maxX, a_maxY, a_rounding);
 	}
 
-	void AddWindow(
+	void AddWindowBackdrop(
+		ImDrawList* a_drawList,
 		float a_minX,
 		float a_minY,
 		float a_maxX,
 		float a_maxY,
 		float a_rounding) noexcept
 	{
-		AppendRegion(a_minX, a_minY, a_maxX, a_maxY, a_rounding);
+		if (const auto* region =
+				AppendRegion(a_minX, a_minY, a_maxX, a_maxY, a_rounding))
+			PrependWindowComposite(a_drawList, *region);
 	}
 
 	void InvalidateBackBuffer() noexcept
@@ -824,6 +928,8 @@ namespace DearModdingUI::BackgroundBlur
 		ID3D11Texture2D* a_backBuffer,
 		ID3D11RenderTargetView* a_backBufferView) noexcept
 	{
+		g_resources.frameContext = nullptr;
+		g_resources.frameTarget = nullptr;
 		const auto settings = HostSettings::EffectivePreview();
 		if (!settings.backgroundBlur ||
 			g_regionCount == 0 ||
@@ -882,7 +988,15 @@ namespace DearModdingUI::BackgroundBlur
 		PerformBlur(
 			a_context,
 			description,
-			a_backBufferView,
 			settings.backgroundBlurStrength);
+		CompositeBlur(
+			a_context,
+			a_backBufferView,
+			description.Width,
+			description.Height,
+			g_regions.data(),
+			g_regionCount);
+		g_resources.frameContext = a_context;
+		g_resources.frameTarget = a_backBufferView;
 	}
 }

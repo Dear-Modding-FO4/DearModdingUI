@@ -66,5 +66,6 @@ namespace vmm_tests
 
 	void run_imgui_platform_checks(Runner& runner);
 	void run_dear_modding_ui_checks(Runner& runner);
+	void run_settings_table_checks(Runner& runner);
 	void run_hotkey_checks(Runner& runner);
 }

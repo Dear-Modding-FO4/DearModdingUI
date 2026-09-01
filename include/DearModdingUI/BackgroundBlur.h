@@ -6,12 +6,19 @@ struct ID3D11Device;
 struct ID3D11DeviceContext;
 struct ID3D11RenderTargetView;
 struct ID3D11Texture2D;
+struct ImDrawList;
 
 namespace DearModdingUI::BackgroundBlur
 {
 	void BeginFrame() noexcept;
 	void SetHostWindow(float a_minX, float a_minY, float a_maxX, float a_maxY, float a_rounding) noexcept;
-	void AddWindow(float a_minX, float a_minY, float a_maxX, float a_maxY, float a_rounding) noexcept;
+	void AddWindowBackdrop(
+		ImDrawList* a_drawList,
+		float a_minX,
+		float a_minY,
+		float a_maxX,
+		float a_maxY,
+		float a_rounding) noexcept;
 	void InvalidateBackBuffer() noexcept;
 	void ResetDeviceResources() noexcept;
 	void Render(

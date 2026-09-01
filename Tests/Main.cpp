@@ -10,6 +10,7 @@ int main()
 	Runner runner;
 	run_imgui_platform_checks(runner);
 	run_dear_modding_ui_checks(runner);
+	run_settings_table_checks(runner);
 	run_hotkey_checks(runner);
 
 	std::cout << '\n' << runner.tests() - runner.failures() << '/' << runner.tests() << " checks passed\n";

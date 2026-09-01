@@ -845,7 +845,7 @@ namespace DearModdingUI
 				for (const auto& client : a_model.clients)
 				{
 					auto expansion =
-						a_state.modExpansion.try_emplace(client.id, true).first;
+						a_state.modExpansion.try_emplace(client.id, false).first;
 					const auto* status =
 						FindClientStatus(statuses, client.handle);
 					auto selected = client.handle == a_state.activeClient;
@@ -1027,7 +1027,8 @@ namespace DearModdingUI
 				ImGui::GetIO().DisplayFramebufferScale;
 			const auto* viewport = ImGui::GetMainViewport();
 			const auto* paletteWindow = ImGui::GetCurrentWindowRead();
-			BackgroundBlur::AddWindow(
+			BackgroundBlur::AddWindowBackdrop(
+				paletteWindow ? paletteWindow->DrawList : nullptr,
 				(palettePosition.x - viewport->Pos.x) * framebufferScale.x,
 				(palettePosition.y - viewport->Pos.y) * framebufferScale.y,
 				(palettePosition.x + paletteSize.x - viewport->Pos.x) *
