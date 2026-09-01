@@ -2222,6 +2222,24 @@ namespace vmm_tests
 			}
 		});
 
+		runner.test("title rows preserve their explicit button extent policy", [] {
+			const auto fontSize = Theme::ResolveFontSize(
+				static_cast<uint32_t>(Theme::kDefaultScreenHeight));
+			const auto padding = Theme::kStyleDefaults.framePadding.y;
+			require(
+				ResolveTitleRowButtonExtent(
+					TitleRowButtonExtentPolicy::kTitleBar,
+					fontSize,
+					padding) == TitleBarButtonExtent(fontSize, padding),
+				"title-bar policy changed page or settings button size");
+			require(
+				ResolveTitleRowButtonExtent(
+					TitleRowButtonExtentPolicy::kHostChrome,
+					fontSize,
+					padding) == HostChromeButtonExtent(fontSize, padding),
+				"host-chrome policy lost the larger header button size");
+		});
+
 		runner.test("page action row reserves space only for registered actions", [] {
 			const auto empty = ResolvePageActionRowLayout(
 				100.0f, 900.0f, 0.0f, 0, 8.0f);

@@ -349,6 +349,22 @@ namespace DearModdingUI
 			a_buttonPadding);
 	}
 
+	enum class TitleRowButtonExtentPolicy : uint32_t
+	{
+		kTitleBar,
+		kHostChrome
+	};
+
+	[[nodiscard]] constexpr float ResolveTitleRowButtonExtent(
+		TitleRowButtonExtentPolicy a_policy,
+		float a_fontSize,
+		float a_buttonPadding) noexcept
+	{
+		return a_policy == TitleRowButtonExtentPolicy::kHostChrome ?
+			HostChromeButtonExtent(a_fontSize, a_buttonPadding) :
+			TitleBarButtonExtent(a_fontSize, a_buttonPadding);
+	}
+
 	[[nodiscard]] constexpr float RightTitleBarButtonOriginX(
 		float a_windowMaxX,
 		float a_windowBorder,

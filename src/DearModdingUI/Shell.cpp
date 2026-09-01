@@ -22,6 +22,7 @@
 #include <map>
 #include <numbers>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -193,7 +194,7 @@ namespace DearModdingUI
 			return metrics;
 		}
 
-		void DrawIconText(
+		[[nodiscard]] float DrawIconText(
 			const ImVec2& a_position,
 			float a_height,
 			char32_t a_glyph,
@@ -212,16 +213,34 @@ namespace DearModdingUI
 				a_height,
 				{ layout.contentHeight },
 				RowContentMetric::kBox);
+			const auto textOffsetY = RowContentOffsetY(
+				layout.contentHeight,
+				{ textSize.y },
+				RowContentMetric::kBox);
+			const auto textMetrics = CurrentFontRowContentMetrics(
+				ImGui::GetFontSize(),
+				a_text);
+			const auto textCenterOffsetY =
+				textMetrics.opticalMaxY > textMetrics.opticalMinY &&
+						textMetrics.opticalScale > 0.0f ?
+					(textMetrics.opticalMinY + textMetrics.opticalMaxY) *
+						textMetrics.opticalScale * 0.5f :
+					textSize.y * 0.5f;
+			const auto textCenterY =
+				contentY + textOffsetY + textCenterOffsetY;
 			if (layout.drawIcon)
 			{
 				DrawCenteredIcon(
 					ImGui::GetWindowDrawList(),
 					a_glyph,
 					ImRect{
-						{ a_position.x, contentY },
+						{
+							a_position.x,
+							textCenterY - layout.iconSize * 0.5f
+						},
 						{
 							a_position.x + layout.iconSize,
-							contentY + layout.contentHeight
+							textCenterY + layout.iconSize * 0.5f
 						}
 					},
 					layout.iconSize,
@@ -233,16 +252,14 @@ namespace DearModdingUI
 				ImGui::GetFontSize(),
 				{
 					a_position.x + layout.textOffset,
-					contentY + RowContentOffsetY(
-						layout.contentHeight,
-						{ textSize.y },
-						RowContentMetric::kBox)
+					contentY + textOffsetY
 				},
 				a_color,
 				a_text,
 				nullptr,
 				0.0f,
 				a_clip);
+			return textCenterY;
 		}
 
 		[[nodiscard]] float GetPillRounding(
@@ -775,6 +792,184 @@ namespace DearModdingUI
 			float width;
 		};
 
+		struct TitleRowButton
+		{
+			const char* id;
+			float width;
+			char32_t glyph;
+			const char* fallbackLabel;
+			const char* tooltip;
+			bool enabled{ true };
+			bool active{ false };
+		};
+
+		struct TitleRowOptions
+		{
+			const char* title;
+			Theme::FontRole titleFont{ Theme::FontRole::kTitle };
+			float titleScale{ 1.0f };
+			float titleInsetX{};
+			std::span<const TitleRowButton> buttons;
+			TitleRowButtonExtentPolicy buttonExtentPolicy{
+				TitleRowButtonExtentPolicy::kTitleBar
+			};
+			bool drawSeparator{ true };
+			const char* summary{};
+		};
+
+		template<class Draw>
+		[[nodiscard]] bool DrawEnabledControl(
+			bool a_enabled,
+			Draw a_draw) noexcept
+		{
+			// Disabled controls render normally but never report a press.
+			ImGui::BeginDisabled(!a_enabled);
+			const auto pressed = a_draw();
+			ImGui::EndDisabled();
+			return pressed && a_enabled;
+		}
+
+		[[nodiscard]] std::optional<size_t> DrawTitleRow(
+			const TitleRowOptions& a_options) noexcept
+		{
+			const auto start = ImGui::GetCursorScreenPos();
+			const auto contentMaxX =
+				start.x + ImGui::GetContentRegionAvail().x;
+			const auto bodyFontSize = ImGui::GetFontSize();
+			const auto buttonExtent = ResolveTitleRowButtonExtent(
+				a_options.buttonExtentPolicy,
+				bodyFontSize,
+				kTitleBarButtonPadding);
+			const auto buttonGlyphSize =
+				a_options.buttonExtentPolicy ==
+						TitleRowButtonExtentPolicy::kHostChrome ?
+					HostChromeIconSize(bodyFontSize) :
+					bodyFontSize;
+			float buttonWidthSum{};
+			for (const auto& button : a_options.buttons)
+				buttonWidthSum += (std::max)(button.width, 0.0f);
+			const auto layout = ResolvePageActionRowLayout(
+				start.x,
+				contentMaxX,
+				buttonWidthSum,
+				a_options.buttons.size(),
+				ImGui::GetStyle().ItemSpacing.x);
+			const auto titleMinX =
+				start.x + (std::max)(a_options.titleInsetX, 0.0f);
+			ImVec2 titleSize{};
+			float rowHeight{};
+			{
+				const Theme::FontGuard font{
+					a_options.titleFont,
+					a_options.titleScale
+				};
+				titleSize = ImGui::CalcTextSize(a_options.title);
+				const auto titleMetrics = CurrentFontRowContentMetrics(
+					ImGui::GetFontSize(),
+					a_options.title);
+				rowHeight = (std::max)(
+					titleSize.y,
+					a_options.buttons.empty() ? 0.0f : buttonExtent);
+				// Grow when centered ink would otherwise need a negative origin.
+				if (titleMetrics.opticalMaxY > titleMetrics.opticalMinY &&
+					titleMetrics.opticalScale > 0.0f)
+				{
+					rowHeight = (std::max)(
+						rowHeight,
+						(titleMetrics.opticalMinY +
+							titleMetrics.opticalMaxY) *
+							titleMetrics.opticalScale);
+				}
+				const ImVec2 titlePosition{
+					titleMinX,
+					start.y + RowContentOffsetY(
+						rowHeight,
+						titleMetrics,
+						RowContentMetric::kOptical)
+				};
+				if (layout.titleMaxX > titleMinX)
+				{
+					ImGui::RenderTextEllipsis(
+						ImGui::GetWindowDrawList(),
+						titlePosition,
+						{ layout.titleMaxX, start.y + rowHeight },
+						layout.titleMaxX,
+						a_options.title,
+						nullptr,
+						&titleSize);
+				}
+				ImGui::Dummy({
+					contentMaxX - start.x,
+					rowHeight
+				});
+			}
+
+			std::optional<size_t> pressedIndex;
+			auto positionX = layout.actionsMinX;
+			for (size_t index = 0;
+				index < a_options.buttons.size();
+				++index)
+			{
+				const auto& button = a_options.buttons[index];
+				ImGui::PushID(button.id);
+				const auto pressed = DrawEnabledControl(
+					button.enabled,
+					[&]() noexcept {
+						return DrawCompactChromeButton(
+							"##DearModdingUI.TitleRowButton",
+							{
+								positionX,
+								start.y + RowContentOffsetY(
+									rowHeight,
+									{ buttonExtent },
+									RowContentMetric::kBox)
+							},
+							{ button.width, buttonExtent },
+							button.glyph,
+							button.glyph ? nullptr : button.fallbackLabel,
+							button.tooltip,
+							button.glyph ?
+								IconColor(ImGui::GetColorU32(ImGuiCol_Text)) :
+								ImGui::GetColorU32(ImGuiCol_Text),
+							button.active,
+							buttonGlyphSize);
+					});
+				ImGui::PopID();
+				if (pressed)
+					pressedIndex = index;
+				positionX +=
+					button.width + ImGui::GetStyle().ItemSpacing.x;
+			}
+
+			auto contentBottomY = start.y + rowHeight;
+			if (a_options.summary && *a_options.summary)
+			{
+				ImGui::SetCursorScreenPos({
+					start.x,
+					contentBottomY + ImGui::GetStyle().ItemInnerSpacing.y
+				});
+				auto color = Theme::kFullPalette[ImGuiCol_Text];
+				color.w *= Theme::kVersionTextOpacity;
+				const Theme::FontGuard font{ Theme::FontRole::kSubtext };
+				ImGui::PushStyleColor(ImGuiCol_Text, color);
+				ImGui::TextWrapped("%s", a_options.summary);
+				ImGui::PopStyleColor();
+				contentBottomY = ImGui::GetItemRectMax().y;
+			}
+			if (a_options.drawSeparator)
+			{
+				ImGui::SetCursorScreenPos({
+					start.x,
+					contentBottomY + ImGui::GetStyle().ItemSpacing.y
+				});
+				ImGui::SeparatorEx(
+					ImGuiSeparatorFlags_Horizontal,
+					Theme::kSeparatorThickness);
+				ImGui::Spacing();
+			}
+			return pressedIndex;
+		}
+
 		[[nodiscard]] bool DrawHeader(
 			const NavigationModel& a_model,
 			const ShellState& a_state,
@@ -789,12 +984,12 @@ namespace DearModdingUI
 							std::string_view{ client->displayName } :
 							std::string_view{}));
 			const auto textScale = Theme::kHeaderFallbackTextScale;
-			const auto start = ImGui::GetCursorScreenPos();
-			const auto contentMaxX =
-				start.x + ImGui::GetContentRegionAvail().x;
-			const auto iconSize = HostChromeIconSize(ImGui::GetFontSize());
-			const auto buttonExtent = HostChromeButtonExtent(
-				ImGui::GetFontSize(), kTitleBarButtonPadding);
+			constexpr auto extentPolicy =
+				TitleRowButtonExtentPolicy::kHostChrome;
+			const auto buttonExtent = ResolveTitleRowButtonExtent(
+				extentPolicy,
+				ImGui::GetFontSize(),
+				kTitleBarButtonPadding);
 			const auto hasCloseGlyph = HasIconGlyph(PhosphorGlyph::kX);
 			constexpr const char* closeLabel{ "Close" };
 			const auto buttonWidth = ActionButtonWidth(
@@ -802,83 +997,26 @@ namespace DearModdingUI
 				ImGui::CalcTextSize(closeLabel).x,
 				buttonExtent,
 				ImGui::GetStyle().FramePadding.x);
-			const auto buttonLayout = ResolveTrailingControlLayout(
-				start.x,
-				contentMaxX,
-				a_drawClose ? buttonWidth : 0.0f,
-				a_drawClose ? ImGui::GetStyle().ItemSpacing.x : 0.0f);
-			const auto titleMaxX = a_drawClose ?
-				buttonLayout.adjacentMaxX :
-				contentMaxX;
-			const auto titleMinX = start.x + BulletRunContentInset(
-				ImGui::GetStyle().FramePadding.x,
-				ImGui::GetFontSize());
-			ImVec2 textSize{};
-			float rowHeight{ 0.0f };
-			{
-				const Theme::FontGuard font{
-					Theme::FontRole::kTitle,
-					textScale
-				};
-				textSize = ImGui::CalcTextSize(breadcrumb.c_str());
-				rowHeight = (std::max)(
-					textSize.y,
-					a_drawClose ? buttonExtent : 0.0f);
-				const ImVec2 titlePosition{
-					titleMinX,
-					start.y + RowContentOffsetY(
-						rowHeight,
-						{ textSize.y },
-						RowContentMetric::kBox)
-				};
-				if (titleMaxX > titleMinX)
-				{
-					ImGui::RenderTextEllipsis(
-						ImGui::GetWindowDrawList(),
-						titlePosition,
-						{ titleMaxX, start.y + rowHeight },
-						titleMaxX,
-						breadcrumb.c_str(),
-						nullptr,
-						&textSize);
-				}
-				ImGui::Dummy({
-					contentMaxX - start.x,
-					rowHeight
-				});
-			}
-			auto closePressed = false;
-			if (a_drawClose)
-			{
-				closePressed = DrawCompactChromeButton(
-					"##DearModdingUI.HostCloseButton",
-					{
-						buttonLayout.controlMinX,
-						start.y + RowContentOffsetY(
-							rowHeight,
-							{ buttonExtent },
-							RowContentMetric::kBox)
-					},
-					{ buttonWidth, buttonExtent },
-					hasCloseGlyph ? PhosphorGlyph::kX : char32_t{},
-					hasCloseGlyph ? nullptr : closeLabel,
-					"Close menu",
-					hasCloseGlyph ?
-						IconColor(ImGui::GetColorU32(ImGuiCol_Text)) :
-						ImGui::GetColorU32(ImGuiCol_Text),
-					false,
-					iconSize);
-			}
-
-			ImGui::SetCursorScreenPos({
-				start.x,
-				start.y + rowHeight + ImGui::GetStyle().ItemSpacing.y
-			});
-			ImGui::SeparatorEx(
-				ImGuiSeparatorFlags_Horizontal,
-				Theme::kSeparatorThickness);
-			ImGui::Spacing();
-			return closePressed;
+			const TitleRowButton closeButton{
+				"##DearModdingUI.HostCloseButton",
+				buttonWidth,
+				hasCloseGlyph ? PhosphorGlyph::kX : char32_t{},
+				closeLabel,
+				"Close menu"
+			};
+			const std::span<const TitleRowButton> buttons{
+				&closeButton,
+				a_drawClose ? size_t{ 1 } : size_t{}
+			};
+			return DrawTitleRow({
+				.title = breadcrumb.c_str(),
+				.titleScale = textScale,
+				.titleInsetX = BulletRunContentInset(
+					ImGui::GetStyle().FramePadding.x,
+					ImGui::GetFontSize()),
+				.buttons = buttons,
+				.buttonExtentPolicy = extentPolicy
+			}).has_value();
 		}
 
 		void DrawCategoryHeader(
@@ -1014,9 +1152,9 @@ namespace DearModdingUI
 
 		[[nodiscard]] std::string CategoryKey(
 			const NavigationClient& a_client,
-			const NavigationCategory& a_category)
+			std::string_view a_category)
 		{
-			return a_client.id + "/" + a_category.displayName;
+			return a_client.id + "/" + std::string{ a_category };
 		}
 
 		void ExpandPageAncestors(
@@ -1031,8 +1169,7 @@ namespace DearModdingUI
 			if (!page || !client)
 				return;
 			a_state.modExpansion[client->id] = true;
-			a_state.categoryExpansion[
-				client->id + "/" + page->category] = true;
+			a_state.categoryExpansion[CategoryKey(*client, page->category)] = true;
 		}
 
 		void ApplyPreviewExpandedClients(
@@ -1156,7 +1293,7 @@ namespace DearModdingUI
 				ImGui::GetFontSize() + ImGui::GetStyle().ItemInnerSpacing.x;
 			for (const auto& category : a_client.categories)
 			{
-				const auto key = CategoryKey(a_client, category);
+				const auto key = CategoryKey(a_client, category.displayName);
 				auto state =
 					a_state.categoryExpansion.try_emplace(key, true).first;
 				{
@@ -1659,15 +1796,16 @@ namespace DearModdingUI
 				ImGui::GetStyle().FramePadding.x);
 		}
 
-		void DrawClientActions(
-			const NavigationPage& a_page,
-			const PageActionRowLayout& a_layout,
-			float a_rowTop,
-			float a_rowHeight,
-			float a_buttonExtent) noexcept
+		void DrawPageHeader(const NavigationPage& a_page) noexcept
 		{
-			auto positionX = a_layout.actionsMinX;
-			const auto spacing = ImGui::GetStyle().ItemSpacing.x;
+			constexpr auto extentPolicy =
+				TitleRowButtonExtentPolicy::kTitleBar;
+			const auto buttonExtent = ResolveTitleRowButtonExtent(
+				extentPolicy,
+				ImGui::GetFontSize(),
+				kTitleBarButtonPadding);
+			std::vector<TitleRowButton> buttons;
+			std::vector<DMUI_ActionHandle> actions;
 			for (const auto& action : OrderedActions())
 			{
 				if (action.client != a_page.client)
@@ -1676,119 +1814,32 @@ namespace DearModdingUI
 				char32_t glyph{};
 				if (!ActionHasGlyph(action, glyph))
 					glyph = {};
-				const auto width = ActionButtonWidthFor(action, a_buttonExtent);
 				const auto failed = ActionFailed(action.handle);
-				ImGui::PushID(&action);
-				ImGui::BeginDisabled(failed);
-				const auto pressed = DrawCompactChromeButton(
-					"##ClientAction",
-					{
-						positionX,
-						a_rowTop + RowContentOffsetY(
-							a_rowHeight,
-							{ a_buttonExtent },
-							RowContentMetric::kBox)
-					},
-					{ width, a_buttonExtent },
+				buttons.push_back({
+					action.id.c_str(),
+					ActionButtonWidthFor(action, buttonExtent),
 					glyph,
-					glyph ? nullptr : action.displayLabel.c_str(),
+					action.displayLabel.c_str(),
 					failed ?
 						"Action disabled after its callback failed." :
 						(action.tooltip.empty() ?
 								action.displayLabel.c_str() :
 								action.tooltip.c_str()),
-					glyph ?
-						IconColor(ImGui::GetColorU32(ImGuiCol_Text)) :
-						ImGui::GetColorU32(ImGuiCol_Text));
-				ImGui::EndDisabled();
-				if (pressed && !failed)
-					(void)InvokeAction(action.handle);
-				ImGui::PopID();
-				positionX += width + spacing;
-			}
-		}
-
-		void DrawPageHeader(const NavigationPage& a_page) noexcept
-		{
-			const auto start = ImGui::GetCursorScreenPos();
-			const auto contentMaxX =
-				start.x + ImGui::GetContentRegionAvail().x;
-			const auto actionButtonExtent = TitleBarButtonExtent(
-				ImGui::GetFontSize(), kTitleBarButtonPadding);
-			size_t actionCount = 0;
-			float actionButtonWidthSum = 0.0f;
-			for (const auto& action : OrderedActions())
-			{
-				if (action.client != a_page.client)
-					continue;
-				++actionCount;
-				actionButtonWidthSum +=
-					ActionButtonWidthFor(action, actionButtonExtent);
-			}
-			const auto actionLayout = ResolvePageActionRowLayout(
-				start.x,
-				contentMaxX,
-				actionButtonWidthSum,
-				actionCount,
-				ImGui::GetStyle().ItemSpacing.x);
-			ImVec2 titleSize{};
-			{
-				const Theme::FontGuard font{
-					Theme::FontRole::kTitle,
-					Theme::kFeatureTitleScale
-				};
-				titleSize = ImGui::CalcTextSize(a_page.displayName.c_str());
-				const auto rowHeight =
-					(std::max)(
-						titleSize.y,
-						actionCount > 0 ? actionButtonExtent : 0.0f);
-				if (actionLayout.titleMaxX > start.x)
-				{
-					ImGui::RenderTextEllipsis(
-						ImGui::GetWindowDrawList(),
-						start,
-						{ actionLayout.titleMaxX, start.y + rowHeight },
-						actionLayout.titleMaxX,
-						a_page.displayName.c_str(),
-						nullptr,
-						&titleSize);
-				}
-				ImGui::Dummy({
-					contentMaxX - start.x,
-					rowHeight
+					!failed
 				});
+				actions.push_back(action.handle);
 			}
-			const auto titleHeight =
-				(std::max)(
-					titleSize.y,
-					actionCount > 0 ? actionButtonExtent : 0.0f);
-			DrawClientActions(
-				a_page,
-				actionLayout,
-				start.y,
-				titleHeight,
-				actionButtonExtent);
-
-			if (!a_page.summary.empty())
-			{
-				ImGui::SetCursorScreenPos({
-					start.x,
-					start.y +
-						titleHeight +
-						ImGui::GetStyle().ItemSpacing.y * 0.25f
-				});
-				auto color = Theme::kFullPalette[ImGuiCol_Text];
-				color.w *= Theme::kVersionTextOpacity;
-				const Theme::FontGuard font{ Theme::FontRole::kSubtext };
-				ImGui::PushStyleColor(ImGuiCol_Text, color);
-				ImGui::TextWrapped("%s", a_page.summary.c_str());
-				ImGui::PopStyleColor();
-			}
-			ImGui::Spacing();
-			ImGui::SeparatorEx(
-				ImGuiSeparatorFlags_Horizontal,
-				Theme::kSeparatorThickness);
-			ImGui::Spacing();
+			const auto pressed = DrawTitleRow({
+				.title = a_page.displayName.c_str(),
+				.titleScale = Theme::kFeatureTitleScale,
+				.buttons = buttons,
+				.buttonExtentPolicy = extentPolicy,
+				.summary = a_page.summary.empty() ?
+					nullptr :
+					a_page.summary.c_str()
+			});
+			if (pressed)
+				(void)InvokeAction(actions[*pressed]);
 		}
 
 		void DrawContent(
@@ -1807,11 +1858,12 @@ namespace DearModdingUI
 
 			if (HostSettings::IsPanelOpen())
 			{
-				const auto start = ImGui::GetCursorScreenPos();
-				const auto contentMaxX =
-					start.x + ImGui::GetContentRegionAvail().x;
-				const auto buttonExtent = TitleBarButtonExtent(
-					ImGui::GetFontSize(), kTitleBarButtonPadding);
+				constexpr auto extentPolicy =
+					TitleRowButtonExtentPolicy::kTitleBar;
+				const auto buttonExtent = ResolveTitleRowButtonExtent(
+					extentPolicy,
+					ImGui::GetFontSize(),
+					kTitleBarButtonPadding);
 				const auto hasCloseGlyph = HasIconGlyph(PhosphorGlyph::kX);
 				constexpr const char* fallbackLabel{ "Back" };
 				const auto closeButtonWidth = ActionButtonWidth(
@@ -1854,95 +1906,51 @@ namespace DearModdingUI
 				};
 				const auto dirty =
 					HostSettingsTitleActionEnabled(SettingsAction::kApply);
-				const std::array actionWidths{
-					actions[0].width,
-					actions[1].width,
-					actions[2].width
-				};
-				const auto actionButtonWidthSum =
-					ResolveSettingsActionButtonWidthSum(
-						actionWidths,
-						dirty,
-						dirty ? 1u : 0u);
-				const auto spacing = ImGui::GetStyle().ItemSpacing.x;
-				const auto layout = ResolveHostSettingsTitleRowLayout(
-					start.x,
-					contentMaxX,
-					actionButtonWidthSum,
-					actions.size(),
-					closeButtonWidth,
-					spacing);
-				ImVec2 titleSize{};
+				std::array<TitleRowButton, actions.size() + 1> titleButtons{};
+				for (size_t index = 0; index < actions.size(); ++index)
 				{
-					const Theme::FontGuard font{
-						Theme::FontRole::kTitle,
-						Theme::kFeatureTitleScale
-					};
-					titleSize = ImGui::CalcTextSize("Interface Settings");
-					const auto rowHeight =
-						(std::max)(titleSize.y, buttonExtent);
-					if (layout.titleMaxX > start.x)
-					{
-						ImGui::RenderTextEllipsis(
-							ImGui::GetWindowDrawList(),
-							start,
-							{ layout.titleMaxX, start.y + rowHeight },
-							layout.titleMaxX,
-							"Interface Settings",
-							nullptr,
-							&titleSize);
-					}
-					ImGui::Dummy({
-						contentMaxX - start.x,
-						rowHeight
-					});
-				}
-				const auto rowHeight =
-					(std::max)(titleSize.y, buttonExtent);
-				auto actionX = layout.actionsMinX;
-				for (const auto& action : actions)
-				{
+					const auto& action = actions[index];
+					const auto presentation =
+						ResolveSettingsActionButtonPresentation(
+							action.action,
+							HasIconGlyph(SettingsActionGlyph(action.action)));
 					const auto enabled =
 						SettingsActionEnabled(action.action, dirty);
-					const auto pressed = DrawSettingsActionButton(
+					titleButtons[index] = {
 						action.id,
-						{
-							actionX,
-							start.y + RowContentOffsetY(
-								rowHeight,
-								{ buttonExtent },
-								RowContentMetric::kBox)
-						},
-						{ action.width, buttonExtent },
-						action.action,
+						action.width,
+						presentation.glyph,
 						action.label,
 						action.tooltip,
-						enabled);
-					if (pressed)
-						InvokeHostSettingsTitleAction(action.action);
-					actionX += action.width + spacing;
+						enabled
+					};
 				}
-				const auto dismiss = DrawCompactChromeButton(
+				titleButtons.back() = {
 					"##DearModdingUI.HostSettingsBackButton",
-					{
-						layout.closeMinX,
-						start.y + RowContentOffsetY(
-							rowHeight,
-							{ buttonExtent },
-							RowContentMetric::kBox)
-					},
-					{ closeButtonWidth, buttonExtent },
+					closeButtonWidth,
 					hasCloseGlyph ? PhosphorGlyph::kX : char32_t{},
-					hasCloseGlyph ? nullptr : fallbackLabel,
-					"Back to the current mod page",
-					hasCloseGlyph ?
-						IconColor(ImGui::GetColorU32(ImGuiCol_Text)) :
-						ImGui::GetColorU32(ImGuiCol_Text));
-				ImGui::Spacing();
-				ImGui::SeparatorEx(
-					ImGuiSeparatorFlags_Horizontal,
-					Theme::kSeparatorThickness);
-				ImGui::Spacing();
+					fallbackLabel,
+					"Back to the current mod page"
+				};
+				const auto pressed = DrawTitleRow({
+					.title = "Interface Settings",
+					.titleScale = Theme::kFeatureTitleScale,
+					.buttons = titleButtons,
+					.buttonExtentPolicy = extentPolicy
+				});
+				auto dismiss = false;
+				if (pressed)
+				{
+					if (*pressed < actions.size())
+					{
+						InvokeHostSettingsTitleAction(
+							actions[*pressed].action);
+					}
+					else
+					{
+						dismiss = true;
+					}
+				}
 				DrawHostSettingsControls();
 				if (dismiss)
 					HostSettings::DismissPanel();
@@ -2216,6 +2224,101 @@ namespace DearModdingUI
 			ImGui::Dummy({ contentMaxX - start.x, layout.rowHeight });
 		}
 
+		struct RuledHeadingOptions
+		{
+			const char* key;
+			const char* text;
+			char32_t glyph;
+			std::optional<size_t> count;
+			bool* expanded;
+		};
+
+		void DrawRuledHeading(const RuledHeadingOptions& a_options) noexcept
+		{
+			char countedText[256]{};
+			const auto* text = a_options.text ? a_options.text : "";
+			if (a_options.count)
+			{
+				std::snprintf(
+					countedText,
+					sizeof(countedText),
+					"%s (%zu)",
+					text,
+					*a_options.count);
+				text = countedText;
+			}
+
+			auto* drawList = ImGui::GetWindowDrawList();
+			const auto position = ImGui::GetCursorScreenPos();
+			const auto availableWidth = ImGui::GetContentRegionAvail().x;
+			const auto textSize = ImGui::CalcTextSize(text);
+			const auto layout = DecideInlineIconLayout(
+				HasIconGlyph(a_options.glyph),
+				textSize.x,
+				textSize.y,
+				ImGui::GetFontSize(),
+				ImGui::GetStyle().ItemSpacing.x);
+			const auto contentGap = ImGui::GetStyle().ItemSpacing.x;
+			const auto lineLength = (std::max)(
+				(availableWidth - layout.contentWidth - contentGap * 2.0f) *
+					0.5f,
+				0.0f);
+
+			auto clicked = false;
+			auto hovered = false;
+			if (a_options.expanded)
+			{
+				ImGui::PushID(a_options.key);
+				ImGui::SetCursorScreenPos(position);
+				clicked = ImGui::InvisibleButton(
+					"##DearModdingUI.RuledHeading",
+					{ availableWidth, layout.contentHeight });
+				hovered = ImGui::IsItemHovered();
+			}
+			else
+			{
+				ImGui::SetCursorScreenPos(position);
+				ImGui::Dummy({ availableWidth, layout.contentHeight });
+			}
+
+			auto color = hovered ?
+				Theme::kFeatureHeadingDefaults.colorHovered :
+				Theme::kFeatureHeadingDefaults.colorDefault;
+			if (a_options.expanded && !*a_options.expanded)
+				color.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
+			const auto packed = ImGui::GetColorU32(color);
+			const auto contentMinX =
+				position.x + lineLength + contentGap;
+			const auto lineY = DrawIconText(
+				{ contentMinX, position.y },
+				layout.contentHeight,
+				a_options.glyph,
+				text,
+				packed);
+			if (lineLength > 0.0f)
+			{
+				drawList->AddLine(
+					{ position.x, lineY },
+					{ position.x + lineLength, lineY },
+					packed);
+			}
+			const auto rightLineStart =
+				contentMinX + layout.contentWidth + contentGap;
+			if (rightLineStart < position.x + availableWidth)
+			{
+				drawList->AddLine(
+					{ rightLineStart, lineY },
+					{ position.x + availableWidth, lineY },
+					packed);
+			}
+			if (a_options.expanded)
+			{
+				if (clicked)
+					*a_options.expanded = !*a_options.expanded;
+				ImGui::PopID();
+			}
+		}
+
 		void SaveLayout() noexcept
 		{
 			const auto& io = ImGui::GetIO();
@@ -2340,19 +2443,20 @@ namespace DearModdingUI
 		const auto presentation = ResolveSettingsActionButtonPresentation(
 			a_action,
 			HasIconGlyph(SettingsActionGlyph(a_action)));
-		ImGui::BeginDisabled(!a_enabled);
-		const auto pressed = DrawCompactChromeButton(
-			a_id,
-			a_origin,
-			a_size,
-			presentation.glyph,
-			presentation.useTextFallback ? a_fallbackLabel : nullptr,
-			a_tooltip,
-			presentation.useTextFallback ?
-				ImGui::GetColorU32(ImGuiCol_Text) :
-				IconColor(ImGui::GetColorU32(ImGuiCol_Text)));
-		ImGui::EndDisabled();
-		return pressed && a_enabled;
+		return DrawEnabledControl(
+			a_enabled,
+			[&]() noexcept {
+				return DrawCompactChromeButton(
+					a_id,
+					a_origin,
+					a_size,
+					presentation.glyph,
+					presentation.useTextFallback ? a_fallbackLabel : nullptr,
+					a_tooltip,
+					presentation.useTextFallback ?
+						ImGui::GetColorU32(ImGuiCol_Text) :
+						IconColor(ImGui::GetColorU32(ImGuiCol_Text)));
+			});
 	}
 
 	void DrawCollapsingSectionHeader(
@@ -2362,62 +2466,13 @@ namespace DearModdingUI
 		bool& a_expanded,
 		size_t a_count) noexcept
 	{
-		char text[256]{};
-		std::snprintf(text, sizeof(text), "%s (%zu)", a_text, a_count);
-		auto* drawList = ImGui::GetWindowDrawList();
-		const auto position = ImGui::GetCursorScreenPos();
-		const auto availableWidth = ImGui::GetContentRegionAvail().x;
-		const auto textSize = ImGui::CalcTextSize(text);
-		const auto layout = DecideInlineIconLayout(
-			HasIconGlyph(a_glyph),
-			textSize.x,
-			textSize.y,
-			ImGui::GetFontSize(),
-			ImGui::GetStyle().ItemSpacing.x);
-		const auto lineY = position.y + textSize.y * 0.5f;
-		const auto lineLength =
-			(availableWidth - layout.contentWidth - 20.0f) * 0.5f;
-
-		ImGui::PushID(a_key);
-		ImGui::SetCursorScreenPos(position);
-		const auto clicked = ImGui::InvisibleButton(
-			"##CollapsingSectionHeader",
-			{ availableWidth, layout.contentHeight + 4.0f });
-		const auto hovered = ImGui::IsItemHovered();
-
-		auto color = Theme::kFullPalette[ImGuiCol_Text];
-		if (!a_expanded)
-			color.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
-		if (hovered)
-			color.w *= 0.8f;
-		const auto packed = ImGui::GetColorU32(color);
-
-		if (lineLength > 0.0f)
-		{
-			drawList->AddLine(
-				{ position.x, lineY },
-				{ position.x + lineLength, lineY },
-				packed);
-		}
-		const auto rightLineStart =
-			position.x + lineLength + 10.0f + layout.contentWidth + 10.0f;
-		if (rightLineStart < position.x + availableWidth)
-		{
-			drawList->AddLine(
-				{ rightLineStart, lineY },
-				{ position.x + availableWidth, lineY },
-				packed);
-		}
-		DrawIconText(
-			{ position.x + lineLength + 10.0f, position.y + 2.0f },
-			layout.contentHeight,
-			a_glyph,
-			text,
-			packed);
-		if (clicked)
-			a_expanded = !a_expanded;
-		// The InvisibleButton above already sized and advanced this row.
-		ImGui::PopID();
+		DrawRuledHeading({
+			.key = a_key,
+			.text = a_text,
+			.glyph = a_glyph,
+			.count = a_count,
+			.expanded = &a_expanded
+		});
 	}
 
 	void DrawBulletText(const char* a_text) noexcept
@@ -2430,47 +2485,10 @@ namespace DearModdingUI
 
 	void DrawSectionHeader(const char* a_text, char32_t a_glyph) noexcept
 	{
-		auto* drawList = ImGui::GetWindowDrawList();
-		const auto position = ImGui::GetCursorScreenPos();
-		const auto availableWidth = ImGui::GetContentRegionAvail().x;
-		const auto textSize = ImGui::CalcTextSize(a_text);
-		const auto layout = DecideInlineIconLayout(
-			HasIconGlyph(a_glyph),
-			textSize.x,
-			textSize.y,
-			ImGui::GetFontSize(),
-			ImGui::GetStyle().ItemSpacing.x);
-		const auto lineY = position.y + layout.contentHeight * 0.5f;
-		const auto lineLength =
-			(availableWidth - layout.contentWidth - 20.0f) * 0.5f;
-		const auto color = ImGui::GetColorU32(
-			Theme::kFullPalette[ImGuiCol_Text]);
-
-		if (lineLength > 0.0f)
-		{
-			drawList->AddLine(
-				{ position.x, lineY },
-				{ position.x + lineLength, lineY },
-				color);
-		}
-		const auto rightLineStart =
-			position.x + lineLength + 10.0f + layout.contentWidth + 10.0f;
-		if (rightLineStart < position.x + availableWidth)
-		{
-			drawList->AddLine(
-				{ rightLineStart, lineY },
-				{ position.x + availableWidth, lineY },
-				color);
-		}
-		DrawIconText(
-			{ position.x + lineLength + 10.0f, position.y + 2.0f },
-			layout.contentHeight,
-			a_glyph,
-			a_text,
-			color);
-		// Dummy must carry the real height; a zero-height one re-adds the stale line height.
-		ImGui::SetCursorScreenPos(position);
-		ImGui::Dummy({ availableWidth, layout.contentHeight });
+		DrawRuledHeading({
+			.text = a_text,
+			.glyph = a_glyph
+		});
 	}
 
 	void DrawShell() noexcept
