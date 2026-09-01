@@ -1156,6 +1156,12 @@ namespace Addictol
 					modifiers |= DearModdingUI::kHotkeyModifierControl;
 				if ((GetKeyState(VK_MENU) & 0x8000) != 0)
 					modifiers |= DearModdingUI::kHotkeyModifierAlt;
+
+				if ((keyIndex == VK_F4) && (modifiers & DearModdingUI::kHotkeyModifierAlt) &&
+					!((modifiers & DearModdingUI::kHotkeyModifierControl) || (modifiers & DearModdingUI::kHotkeyModifierShift)))
+					// ALT+F4
+					TerminateProcess(GetCurrentProcess(), 0);
+
 				const auto hotkeyResult = DearModdingUI::Hotkeys::HandleKey(
 					static_cast<uint32_t>(a_wparam),
 					modifiers,
