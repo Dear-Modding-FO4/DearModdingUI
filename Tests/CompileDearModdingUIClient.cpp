@@ -5,6 +5,7 @@
 
 #include <string>
 #include <type_traits>
+#include <utility>
 
 static_assert(!std::is_copy_constructible_v<dmui::Client>);
 static_assert(!std::is_move_constructible_v<dmui::Client>);
@@ -14,6 +15,8 @@ static_assert(!std::is_move_constructible_v<dmui::FontGuard>);
 namespace
 {
 	int g_counter{ 0 };
+	bool g_enabled{ true };
+	bool g_committedEnabled{ true };
 
 	[[maybe_unused]] void Exercise() noexcept
 	{
@@ -31,6 +34,43 @@ namespace
 		});
 		if (page)
 			(void)client.SelectPage(*page);
+		dmui::SettingsPage settings{
+			.groups = {
+				{
+					.id = "general",
+					.label = "General",
+					.settings = {
+						{
+							.id = "enabled",
+							.label = "Enabled",
+							.description = "Enables the example.",
+							.control = dmui::CheckboxSettingControl{},
+							.defaultValue = true,
+							.binding = dmui::BindSetting(
+								[] { return g_enabled; },
+								[](bool a_value) {
+									g_enabled = a_value;
+									return g_enabled;
+								}),
+							.isDirty = [] {
+								return g_enabled != g_committedEnabled;
+							},
+							.isModified = [] { return !g_enabled; }
+						}
+					}
+				}
+			},
+			.actions = {
+				.showReset = true,
+				.revert = [] { g_enabled = g_committedEnabled; },
+				.apply = [] { g_committedEnabled = g_enabled; }
+			}
+		};
+		(void)client.AddSettingsPage(
+			"declarative",
+			"Declarative",
+			"General",
+			std::move(settings));
 		(void)client.AddAction(
 			"copy",
 			"Copy",

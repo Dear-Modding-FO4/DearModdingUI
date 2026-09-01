@@ -16,6 +16,7 @@
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 
+#include <DearModdingUI/Client.h>
 #include <DearModdingUI/ImGuiFingerprint.h>
 
 #include <array>
@@ -297,6 +298,220 @@ namespace vmm_tests
 			require(SettingsTable::ValidateRowOptions(&options) ==
 					DMUI_RESULT_OK,
 				"extended row options were rejected");
+		});
+
+		runner.test("declarative setting filters match metadata without reading values", [] {
+			const dmui::SettingDescriptor setting{
+				.id = "bHighResolution",
+				.label = "High Resolution",
+				.description = "Increases texture detail for distant objects.",
+				.control = dmui::CheckboxSettingControl{},
+				.defaultValue = false
+			};
+			require(
+				dmui::MatchesSettingFilter(
+					setting,
+					"High Resolution",
+					false,
+					{ "HIGH RES", false }) &&
+					dmui::MatchesSettingFilter(
+						setting,
+						"High Resolution",
+						false,
+						{ "bhigh", false }) &&
+					dmui::MatchesSettingFilter(
+						setting,
+						"High Resolution",
+						false,
+						{ "DISTANT OBJECTS", false }),
+				"case-insensitive metadata filtering lost a match");
+			require(
+				!dmui::MatchesSettingFilter(
+					setting,
+					"High Resolution",
+					false,
+					{ "shadows", false }) &&
+					!dmui::MatchesSettingFilter(
+						setting,
+						"High Resolution",
+						false,
+						{ "", true }) &&
+					dmui::MatchesSettingFilter(
+						setting,
+						"High Resolution",
+						true,
+						{ "", true }),
+				"modified-only or negative filtering changed");
+		});
+
+		runner.test("declarative pending count uses dirty state without value getters", [] {
+			auto firstDirty = false;
+			auto secondDirty = true;
+			auto getterCalls = 0u;
+			dmui::SettingsPage page{
+				.groups = {
+					{
+						.id = "general",
+						.label = "General",
+						.settings = {
+							{
+								.id = "first",
+								.label = "First",
+								.control = dmui::CheckboxSettingControl{},
+								.defaultValue = false,
+								.binding = {
+									.get = [&] {
+										++getterCalls;
+										return dmui::SettingValue{ false };
+									}
+								},
+								.isDirty = [&] { return firstDirty; }
+							},
+							{
+								.id = "second",
+								.label = "Second",
+								.control = dmui::CheckboxSettingControl{},
+								.defaultValue = false,
+								.binding = {
+									.get = [&] {
+										++getterCalls;
+										return dmui::SettingValue{ false };
+									}
+								},
+								.isDirty = [&] { return secondDirty; }
+							}
+						}
+					}
+				}
+			};
+			require(
+				page.PendingCount() == 1 &&
+					page.IsDirty() &&
+					getterCalls == 0,
+				"pending count read a bound value or lost dirty state");
+			firstDirty = true;
+			secondDirty = false;
+			require(page.PendingCount() == 1 && getterCalls == 0,
+				"pending count did not follow dynamic dirty state");
+		});
+
+		runner.test("declarative numeric controls select widgets and normalize values", [] {
+			const dmui::DoubleSettingControl input;
+			const dmui::DoubleSettingControl drag{
+				.range = dmui::NumericSettingRange<double>{
+					.minimum = 0.0
+				}
+			};
+			const dmui::DoubleSettingControl slider{
+				.range = dmui::NumericSettingRange<double>{
+					.minimum = 0.0,
+					.maximum = 1.0
+				},
+				.format = "%.2f"
+			};
+			require(
+				dmui::ResolveNumericSettingWidget(input) ==
+						dmui::NumericSettingWidget::kInput &&
+					dmui::ResolveNumericSettingWidget(drag) ==
+						dmui::NumericSettingWidget::kDrag &&
+					dmui::ResolveNumericSettingWidget(slider) ==
+						dmui::NumericSettingWidget::kSlider,
+				"numeric range shape selected the wrong widget");
+			require(
+				dmui::ClampSettingNumber(
+					std::numeric_limits<double>::quiet_NaN(),
+					0.25,
+					slider.range) == 0.25 &&
+					dmui::ClampSettingNumber(2.0, 0.25, slider.range) == 1.0,
+				"double recovery or clamping changed");
+			require(
+				dmui::ClampSettingNumber(
+					int64_t{ -50 },
+					int64_t{ 5 },
+					std::optional{
+						dmui::NumericSettingRange<int64_t>{
+							.minimum = int64_t{ -10 },
+							.maximum = int64_t{ 10 } } }) == -10 &&
+					dmui::ClampSettingNumber(
+						uint64_t{ 500 },
+						uint64_t{ 5 },
+						std::optional{
+							dmui::NumericSettingRange<uint64_t>{
+								.minimum = uint64_t{ 100 },
+								.maximum = uint64_t{ 20 } } }) == 100,
+				"signed, unsigned, or inverted bounds were not normalized");
+		});
+
+		runner.test("declarative defaults reset through accepted value bindings", [] {
+			int64_t draft = 18;
+			auto setting = dmui::SettingDescriptor{
+				.id = "threads",
+				.label = "Worker threads",
+				.control = dmui::SignedSettingControl{},
+				.defaultValue = int64_t{ 8 },
+				.binding = dmui::BindSetting(
+					[&]() -> int64_t { return draft; },
+					[&](int64_t a_value) -> int64_t {
+						draft = (std::min)(a_value, int64_t{ 16 });
+						return draft;
+					})
+			};
+			static_assert(!std::is_nothrow_invocable_v<
+				decltype(setting.binding.get)&>);
+			static_assert(!std::is_nothrow_invocable_v<
+				decltype(setting.binding.set)&,
+				dmui::SettingValue>);
+			require(
+				!dmui::IsSettingDefault(
+					setting,
+					dmui::SettingValue{ draft }),
+				"modified value was treated as its default");
+			const auto reset = dmui::ResetSettingToDefault(setting);
+			require(
+				reset &&
+					std::get<int64_t>(*reset) == 8 &&
+					draft == 8 &&
+					dmui::IsSettingDefault(
+						setting,
+						dmui::SettingValue{ draft }),
+				"per-control reset did not use the declared default");
+			const auto accepted =
+				setting.binding.set(dmui::SettingValue{ int64_t{ 99 } });
+			require(
+				std::get<int64_t>(accepted) == 16 && draft == 16,
+				"setter did not return the accepted clamped value");
+		});
+
+		runner.test("unknown declarative controls resolve to a disabled fallback", [] {
+			auto setterCalls = 0u;
+			const dmui::SettingDescriptor setting{
+				.id = "future",
+				.label = "Future control",
+				.control = dmui::UnsupportedSettingControl{ 0xFFFFu },
+				.defaultValue = false,
+				.binding = {
+					.set = [&](dmui::SettingValue a_value) {
+						++setterCalls;
+						return a_value;
+					}
+				}
+			};
+			const auto presentation =
+				dmui::ResolveSettingControlPresentation(setting.control);
+			require(
+				presentation.kind ==
+						dmui::SettingControlKind::kUnsupported &&
+					!presentation.supported &&
+					!presentation.editable &&
+					!presentation.resetVisible &&
+					!dmui::SettingValueMatchesControl(
+						setting.control,
+						setting.defaultValue),
+				"unknown kind did not select the noninteractive fallback");
+			require(
+				!dmui::ResetSettingToDefault(setting) &&
+					setterCalls == 0,
+				"unknown kind invoked an editable binding");
 		});
 
 		runner.test("status severity controls expiry and persistence", [] {
