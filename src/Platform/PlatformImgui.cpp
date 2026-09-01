@@ -1160,7 +1160,7 @@ namespace Addictol
 				if ((keyIndex == VK_F4) && (modifiers & DearModdingUI::kHotkeyModifierAlt) &&
 					!((modifiers & DearModdingUI::kHotkeyModifierControl) || (modifiers & DearModdingUI::kHotkeyModifierShift)))
 					// ALT+F4
-					TerminateProcess(GetCurrentProcess(), 0);
+					CallPreviousWindowProc(a_window, a_message, a_wparam, a_lparam);
 
 				const auto hotkeyResult = DearModdingUI::Hotkeys::HandleKey(
 					static_cast<uint32_t>(a_wparam),
