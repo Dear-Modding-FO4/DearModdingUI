@@ -3,13 +3,16 @@
 #include <DearModdingUI/API.h>
 
 #include <cstdint>
+#include <cstddef>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace DearModdingUI
 {
 	struct RegisteredClient;
 	struct RegisteredPage;
+	struct RegisteredAction;
 
 	struct NavigationPage
 	{
@@ -47,11 +50,52 @@ namespace DearModdingUI
 		[[nodiscard]] DMUI_PageHandle FirstPage() const noexcept;
 	};
 
+	enum class NavigationItemKind : uint32_t
+	{
+		kPage,
+		kAction
+	};
+
+	enum class NavigationMatchQuality : uint32_t
+	{
+		kSummary = 1,
+		kId,
+		kCategory,
+		kClientDisplayName,
+		kDisplayNameSubstring,
+		kDisplayNamePrefix,
+		kDisplayNameExact
+	};
+
+	struct NavigationSearchEntry
+	{
+		NavigationItemKind kind{ NavigationItemKind::kPage };
+		DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
+		DMUI_PageHandle page{ DMUI_INVALID_PAGE_HANDLE };
+		DMUI_ActionHandle action{ DMUI_INVALID_ACTION_HANDLE };
+		std::string clientId;
+		std::string clientDisplayName;
+		std::string id;
+		std::string displayName;
+		std::string category;
+		std::string summary;
+		int32_t sortKey{ 0 };
+	};
+
+	struct NavigationSearchHit
+	{
+		NavigationSearchEntry entry;
+		NavigationMatchQuality match{ NavigationMatchQuality::kSummary };
+	};
+
+	inline constexpr size_t kRecentPageCapacity{ 8 };
+
 	struct ClientSelectionState
 	{
 		DMUI_ClientHandle activeClient{ DMUI_INVALID_CLIENT_HANDLE };
 		DMUI_PageHandle activePage{ DMUI_INVALID_PAGE_HANDLE };
 		std::string search;
+		std::vector<DMUI_PageHandle> recentPages;
 	};
 
 	enum class PagePresentation : uint32_t
@@ -64,6 +108,13 @@ namespace DearModdingUI
 	[[nodiscard]] NavigationModel BuildNavigationModel(
 		const std::vector<RegisteredClient>& a_clients,
 		const std::vector<RegisteredPage>& a_pages);
+	[[nodiscard]] std::vector<NavigationSearchEntry> BuildNavigationSearchIndex(
+		const NavigationModel& a_model,
+		const std::vector<RegisteredAction>& a_actions);
+	[[nodiscard]] std::vector<NavigationSearchHit> SearchNavigation(
+		const NavigationModel& a_model,
+		const std::vector<RegisteredAction>& a_actions,
+		std::string_view a_query);
 	[[nodiscard]] DMUI_PageHandle ResolvePageSelection(
 		const NavigationModel& a_model,
 		DMUI_PageHandle a_requested,
@@ -72,6 +123,16 @@ namespace DearModdingUI
 		const NavigationModel& a_model,
 		DMUI_ClientHandle a_client,
 		ClientSelectionState& a_state) noexcept;
+	void RecordRecentPage(
+		const NavigationModel& a_model,
+		DMUI_PageHandle a_page,
+		ClientSelectionState& a_state,
+		size_t a_capacity = kRecentPageCapacity);
+	void PruneRecentPages(
+		const NavigationModel& a_model,
+		ClientSelectionState& a_state);
+	[[nodiscard]] DMUI_PageHandle ResolveLandingPage(
+		const NavigationClient& a_client) noexcept;
 	[[nodiscard]] PagePresentation DecidePagePresentation(
 		const NavigationPage* a_page,
 		bool a_callbackFailed) noexcept;

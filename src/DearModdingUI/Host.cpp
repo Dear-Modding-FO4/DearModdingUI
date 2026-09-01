@@ -420,8 +420,8 @@ namespace DearModdingUI
 				a_message);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
-			return service.status.Set(
-				StatusOwnerKind::kClient,
+			return service.status.SetClient(
+				a_client,
 				owner,
 				a_severity,
 				a_message);
@@ -1311,6 +1311,11 @@ namespace DearModdingUI
 	std::optional<StatusMessage> CurrentStatus() noexcept
 	{
 		return GetService().status.Snapshot();
+	}
+
+	std::vector<ClientStatus> CurrentClientStatuses() noexcept
+	{
+		return GetService().status.SnapshotClientStatuses();
 	}
 
 	bool DismissStatus(uint64_t a_generation) noexcept

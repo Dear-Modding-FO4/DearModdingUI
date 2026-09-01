@@ -40,5 +40,6 @@ namespace DearModdingUI
 		DMUI_StatusSeverity a_severity,
 		std::string_view a_message) noexcept;
 	[[nodiscard]] std::optional<StatusMessage> CurrentStatus() noexcept;
+	[[nodiscard]] std::vector<ClientStatus> CurrentClientStatuses() noexcept;
 	[[nodiscard]] bool DismissStatus(uint64_t a_generation) noexcept;
 }

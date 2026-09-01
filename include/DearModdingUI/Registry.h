@@ -50,6 +50,8 @@ namespace DearModdingUI
 	{
 		DMUI_ActionHandle handle{ DMUI_INVALID_ACTION_HANDLE };
 		DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
+		std::string clientId;
+		std::string clientDisplayName;
 		std::string id;
 		std::string displayLabel;
 		std::string iconName;

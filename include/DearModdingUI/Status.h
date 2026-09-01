@@ -8,9 +8,11 @@
 #include <cstdint>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace DearModdingUI
 {
@@ -34,6 +36,15 @@ namespace DearModdingUI
 		StatusClock::time_point createdAt{};
 		bool persistent{ false };
 	};
+
+	struct ClientStatus
+	{
+		DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
+		DMUI_StatusSeverity severity{ DMUI_STATUS_SEVERITY_INFO };
+	};
+
+	[[nodiscard]] std::vector<ClientStatus> RollupClientStatuses(
+		std::span<const ClientStatus> a_statuses);
 
 	struct StatusTextPresentation
 	{
@@ -127,13 +138,30 @@ namespace DearModdingUI
 			DMUI_StatusSeverity a_severity,
 			std::string_view a_message,
 			StatusClock::time_point a_now = StatusClock::now()) noexcept;
+		[[nodiscard]] DMUI_Result SetClient(
+			DMUI_ClientHandle a_client,
+			std::string_view a_owner,
+			DMUI_StatusSeverity a_severity,
+			std::string_view a_message,
+			StatusClock::time_point a_now = StatusClock::now()) noexcept;
 		[[nodiscard]] std::optional<StatusMessage> Snapshot(
+			StatusClock::time_point a_now = StatusClock::now()) noexcept;
+		[[nodiscard]] std::vector<ClientStatus> SnapshotClientStatuses(
 			StatusClock::time_point a_now = StatusClock::now()) noexcept;
 		[[nodiscard]] bool Dismiss(uint64_t a_generation) noexcept;
 
 	private:
+		[[nodiscard]] DMUI_Result SetImpl(
+			StatusOwnerKind a_ownerKind,
+			DMUI_ClientHandle a_client,
+			std::string_view a_owner,
+			DMUI_StatusSeverity a_severity,
+			std::string_view a_message,
+			StatusClock::time_point a_now) noexcept;
+
 		mutable std::mutex m_mutex;
 		std::optional<StatusMessage> m_current;
+		std::vector<std::pair<DMUI_ClientHandle, StatusMessage>> m_clientStatuses;
 		uint64_t m_generation{ 0 };
 	};
 }

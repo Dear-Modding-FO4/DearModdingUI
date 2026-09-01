@@ -340,7 +340,8 @@ namespace DearModdingUI
 			const std::scoped_lock lock{ m_mutex };
 			if (!m_open)
 				return DMUI_RESULT_REGISTRATION_CLOSED;
-			if (!FindClient(a_client))
+			const auto* client = FindClient(a_client);
+			if (!client)
 				return DMUI_RESULT_CLIENT_NOT_FOUND;
 			if (std::ranges::any_of(m_actions, [&](const auto& a_existing) {
 					return a_existing.client == a_client &&
@@ -351,6 +352,8 @@ namespace DearModdingUI
 				return DMUI_RESULT_RESOURCE_EXHAUSTED;
 
 			action.handle = m_nextAction++;
+			action.clientId = client->id;
+			action.clientDisplayName = client->displayName;
 			m_actions.push_back(std::move(action));
 			*a_action = m_actions.back().handle;
 			return DMUI_RESULT_OK;

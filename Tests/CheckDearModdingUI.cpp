@@ -1232,6 +1232,288 @@ namespace vmm_tests
 				"invalid selection did not fall back to the first page");
 		});
 
+		runner.test("navigation search finds every page owned by a matching mod", [] {
+			NavigationModel model;
+			model.clients.push_back({
+				1,
+				"dear-modding.community-shaders",
+				"Community Shaders",
+				DMUI_MAKE_VERSION(1, 0),
+				{
+					{ "Lighting", {
+						{ 10, 1, "light-limit-fix", "Light Limit Fix", "Lighting", {}, 10 },
+						{ 11, 1, "screen-space-shadows", "Screen Space Shadows", "Lighting", {}, 20 }
+					} },
+					{ "Post Process", {
+						{ 12, 1, "film-grain", "Film Grain", "Post Process", {}, 30 }
+					} }
+				}
+			});
+
+			const auto hits = SearchNavigation(model, {}, "SHADERS");
+			require(hits.size() == 3,
+				"mod-name search did not return every owned page");
+			require(std::ranges::all_of(hits, [](const auto& a_hit) {
+					return a_hit.entry.kind == NavigationItemKind::kPage &&
+						a_hit.entry.clientDisplayName == "Community Shaders" &&
+						a_hit.match == NavigationMatchQuality::kClientDisplayName;
+				}),
+				"mod-name search returned an unrelated or weak match");
+		});
+
+		runner.test("navigation search exposes pages and actions with row metadata", [] {
+			NavigationModel model;
+			model.clients.push_back({
+				1,
+				"dear-modding.addictol",
+				"Addictol",
+				DMUI_MAKE_VERSION(1, 0),
+				{ { "Telemetry", {
+					{ 10, 1, "frame-records", "Frame Records", "Telemetry",
+						"Inspect captured frame events.", 10 }
+				} } }
+			});
+			std::vector<RegisteredAction> actions{
+				{
+					20,
+					1,
+					"dear-modding.addictol",
+					"Addictol",
+					"copy-records",
+					"Copy Records",
+					"clipboard-text",
+					"Copy captured frame records.",
+					20,
+					nullptr,
+					nullptr,
+					false
+				},
+				{
+					21,
+					2,
+					"toolbox.mod",
+					"Toolbox",
+					"open-toolbox",
+					"Open Toolbox",
+					"toolbox",
+					"Open the toolbox.",
+					0,
+					nullptr,
+					nullptr,
+					false
+				}
+			};
+
+			const auto index = BuildNavigationSearchIndex(model, actions);
+			require(index.size() == 3,
+				"search index did not include both item kinds");
+			const auto hits = SearchNavigation(model, actions, "records");
+			require(hits.size() == 2,
+				"page and action did not both match the query");
+			require(
+					hits[0].entry.kind == NavigationItemKind::kPage &&
+						hits[0].entry.page == 10 &&
+						hits[0].entry.category == "Telemetry" &&
+						hits[1].entry.kind == NavigationItemKind::kAction &&
+						hits[1].entry.action == 20 &&
+						hits[1].entry.category.empty(),
+					"search hits did not retain actionable row metadata");
+			const auto actionOnly = SearchNavigation(model, actions, "toolbox");
+			require(
+					actionOnly.size() == 1 &&
+						actionOnly[0].entry.action == 21 &&
+						actionOnly[0].entry.clientDisplayName == "Toolbox",
+					"action-only client was omitted from global search");
+		});
+
+		runner.test("navigation search ranks named matches above summaries case insensitively", [] {
+			NavigationModel model;
+			model.clients.push_back({
+				1,
+				"ranking.mod",
+				"Ranking",
+				DMUI_MAKE_VERSION(1, 0),
+				{ { "General", {
+					{ 10, 1, "named", "Frame Records", "General", {}, 20 },
+					{ 11, 1, "summary", "Diagnostics", "General",
+						"Includes frame records and timings.", 0 }
+				} } }
+			});
+
+			const auto hits = SearchNavigation(model, {}, "fRaMe ReCoRdS");
+			require(hits.size() == 2,
+				"case-insensitive search lost a matching page");
+			require(
+					hits[0].entry.page == 10 &&
+						hits[0].match ==
+							NavigationMatchQuality::kDisplayNameExact &&
+						hits[1].entry.page == 11 &&
+						hits[1].match == NavigationMatchQuality::kSummary,
+					"title match did not outrank a summary match");
+		});
+
+		runner.test("navigation search ties use sort key then stable ID", [] {
+			NavigationModel model;
+			model.clients.push_back({
+				1,
+				"stable.mod",
+				"Stable",
+				DMUI_MAKE_VERSION(1, 0),
+				{ { "General", {
+					{ 10, 1, "zulu", "Zulu", "General", "shared token", 10 },
+					{ 11, 1, "bravo", "Bravo", "General", "shared token", -10 },
+					{ 12, 1, "alpha", "Alpha", "General", "shared token", 10 }
+				} } }
+			});
+
+			const auto first = SearchNavigation(model, {}, "token");
+			const auto second = SearchNavigation(model, {}, "TOKEN");
+			require(first.size() == 3 && second.size() == 3,
+				"equal-quality search did not return every hit");
+			require(
+					first[0].entry.id == "bravo" &&
+						first[1].entry.id == "alpha" &&
+						first[2].entry.id == "zulu",
+					"equal-quality hits ignored sort key or stable ID");
+			require(std::ranges::equal(
+						first,
+						second,
+						{},
+						[](const auto& a_hit) { return a_hit.entry.id; },
+						[](const auto& a_hit) { return a_hit.entry.id; }),
+				"equal-quality search reordered between equivalent queries");
+		});
+
+		runner.test("recent pages stay bounded unique and prune stale handles", [] {
+			NavigationModel model;
+			model.clients.push_back({
+				1,
+				"recent.mod",
+				"Recent",
+				DMUI_MAKE_VERSION(1, 0),
+				{ { "General", {
+					{ 10, 1, "one", "One", "General", {}, 0 },
+					{ 11, 1, "two", "Two", "General", {}, 10 },
+					{ 12, 1, "three", "Three", "General", {}, 20 }
+				} } }
+			});
+			ClientSelectionState state;
+			RecordRecentPage(model, 10, state, 2);
+			RecordRecentPage(model, 11, state, 2);
+			RecordRecentPage(model, 10, state, 2);
+			require(state.recentPages == std::vector<DMUI_PageHandle>{ 10, 11 },
+				"recent pages did not move duplicates to the front");
+			RecordRecentPage(model, 12, state, 2);
+			require(state.recentPages == std::vector<DMUI_PageHandle>{ 12, 10 },
+				"recent pages did not evict the oldest handle");
+			RecordRecentPage(model, 9999, state, 2);
+			require(state.recentPages == std::vector<DMUI_PageHandle>{ 12, 10 },
+				"unknown page entered the recent list");
+
+			NavigationModel rebuilt;
+			rebuilt.clients.push_back({
+				1,
+				"recent.mod",
+				"Recent",
+				DMUI_MAKE_VERSION(1, 0),
+				{ { "General", {
+					{ 10, 1, "one", "One", "General", {}, 0 }
+				} } }
+			});
+			PruneRecentPages(rebuilt, state);
+			require(state.recentPages == std::vector<DMUI_PageHandle>{ 10 },
+				"stale recent-page handle survived a model rebuild");
+		});
+
+		runner.test("client status rollup keeps each mod's most severe status", [] {
+			const std::array statuses{
+				ClientStatus{ 2, DMUI_STATUS_SEVERITY_WARNING },
+				ClientStatus{ 1, DMUI_STATUS_SEVERITY_SUCCESS },
+				ClientStatus{ 2, DMUI_STATUS_SEVERITY_INFO },
+				ClientStatus{ 1, DMUI_STATUS_SEVERITY_ERROR },
+				ClientStatus{ DMUI_INVALID_CLIENT_HANDLE,
+					DMUI_STATUS_SEVERITY_ERROR }
+			};
+			const auto rollups = RollupClientStatuses(statuses);
+			require(rollups.size() == 2,
+				"status rollup retained an invalid client");
+			require(
+					rollups[0].client == 1 &&
+						rollups[0].severity == DMUI_STATUS_SEVERITY_ERROR &&
+						rollups[1].client == 2 &&
+						rollups[1].severity == DMUI_STATUS_SEVERITY_WARNING,
+					"status rollup did not retain the most severe status");
+		});
+
+		runner.test("client status snapshots remain independent and expire", [] {
+			const auto start = StatusClock::time_point{};
+			StatusModel model;
+			require(model.SetClient(
+						2,
+						"Second",
+						DMUI_STATUS_SEVERITY_WARNING,
+						"Warning",
+						start) == DMUI_RESULT_OK,
+				"client warning status was rejected");
+			require(model.SetClient(
+						1,
+						"First",
+						DMUI_STATUS_SEVERITY_INFO,
+						"Working",
+						start) == DMUI_RESULT_OK,
+				"client info status was rejected");
+			auto statuses = model.SnapshotClientStatuses(start);
+			require(
+					statuses.size() == 2 &&
+						statuses[0].client == 1 &&
+						statuses[0].severity == DMUI_STATUS_SEVERITY_INFO &&
+						statuses[1].client == 2 &&
+						statuses[1].severity == DMUI_STATUS_SEVERITY_WARNING,
+					"client statuses superseded another mod");
+
+			require(model.SetClient(
+						2,
+						"Second",
+						DMUI_STATUS_SEVERITY_SUCCESS,
+						"Recovered",
+						start) == DMUI_RESULT_OK,
+				"client recovery status was rejected");
+			statuses = model.SnapshotClientStatuses(
+				start + kTransientStatusLifetime);
+			require(statuses.empty(),
+				"transient client statuses did not expire independently");
+			require(model.SetClient(
+						DMUI_INVALID_CLIENT_HANDLE,
+						"Invalid",
+						DMUI_STATUS_SEVERITY_ERROR,
+						"Error",
+						start) == DMUI_RESULT_INVALID_ARGUMENT,
+				"invalid client status handle was accepted");
+		});
+
+		runner.test("client landing page uses sort key then stable ID", [] {
+			const NavigationClient client{
+				1,
+				"landing.mod",
+				"Landing",
+				DMUI_MAKE_VERSION(1, 0),
+				{
+					{ "First", {
+						{ 10, 1, "zulu", "Zulu", "First", {}, -10 },
+						{ 11, 1, "late", "Late", "First", {}, 20 }
+					} },
+					{ "Second", {
+						{ 12, 1, "alpha", "Alpha", "Second", {}, -10 }
+					} }
+				}
+			};
+			require(ResolveLandingPage(client) == 12,
+				"landing page did not break a sort-key tie by stable ID");
+			require(ResolveLandingPage(NavigationClient{}) ==
+					DMUI_INVALID_PAGE_HANDLE,
+				"empty client resolved a landing page");
+		});
+
 		runner.test("icon names resolve to deterministic Phosphor glyphs", [] {
 			require(PhosphorGlyph::kGear == 0xE270,
 				"host settings gear glyph changed");
