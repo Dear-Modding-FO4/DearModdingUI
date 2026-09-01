@@ -6,6 +6,7 @@
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
+#include <DearModdingUI/SidebarComparison.h>
 #include <Support/Runtime.h>
 
 #include <Windows.h>
@@ -63,6 +64,8 @@ namespace DearModdingUIPreview
 			uint32_t frames{ kDefaultFrames };
 			std::optional<std::filesystem::path> screenshot;
 			std::optional<std::string> page;
+			std::optional<std::vector<std::string>> expandedMods;
+			PreviewSidebarLayout sidebar{ PreviewSidebarLayout::kTree };
 			bool help{};
 		};
 
@@ -144,6 +147,9 @@ namespace DearModdingUIPreview
 				<< L"  --width <n>              Backbuffer width (default 3840)\n"
 				<< L"  --height <n>             Backbuffer height (default 2160)\n"
 				<< L"  --page <client-id/page-id>  Open a registered settings page\n"
+				<< L"  --sidebar <tree|twopane> Select the sidebar comparison layout\n"
+				<< L"  --expand <client-id>      Set an expanded tree mod (repeatable)\n"
+				<< L"  --collapse-all            Start with every tree mod collapsed\n"
 				<< L"  --help                    Show this help\n";
 		}
 
@@ -159,6 +165,11 @@ namespace DearModdingUIPreview
 				if (argument == L"--help")
 				{
 					a_options.help = true;
+					continue;
+				}
+				if (argument == L"--collapse-all")
+				{
+					a_options.expandedMods.emplace();
 					continue;
 				}
 				if (index + 1 >= a_argumentCount)
@@ -217,6 +228,30 @@ namespace DearModdingUIPreview
 						return false;
 					}
 					a_options.page = *page;
+				}
+				else if (argument == L"--sidebar")
+				{
+					if (value == L"tree")
+						a_options.sidebar = PreviewSidebarLayout::kTree;
+					else if (value == L"twopane")
+						a_options.sidebar = PreviewSidebarLayout::kTwoPane;
+					else
+					{
+						a_error = L"Sidebar layout must be tree or twopane.";
+						return false;
+					}
+				}
+				else if (argument == L"--expand")
+				{
+					const auto client = WideToUtf8(value);
+					if (!client || client->empty())
+					{
+						a_error = L"Expanded mod ID is not valid UTF-8.";
+						return false;
+					}
+					if (!a_options.expandedMods)
+						a_options.expandedMods.emplace();
+					a_options.expandedMods->push_back(*client);
 				}
 				else
 				{
@@ -840,7 +875,33 @@ namespace DearModdingUIPreview
 					return false;
 				}
 				CompleteBackendInitialization(m_context);
-				return SelectInitialPage(a_error);
+				if (!SelectInitialPage(a_error))
+					return false;
+				return ConfigureSidebar(a_error);
+			}
+
+			[[nodiscard]] bool ConfigureSidebar(std::wstring& a_error)
+			{
+				if (m_options.expandedMods)
+				{
+					const auto& clients = Navigation().clients;
+					for (const auto& id : *m_options.expandedMods)
+					{
+						if (std::ranges::find(clients, id, &NavigationClient::id) ==
+							clients.end())
+						{
+							a_error = L"Expanded mod ID was not registered.";
+							return false;
+						}
+					}
+				}
+				ConfigurePreviewSidebarComparison(
+					m_options.sidebar,
+					m_options.expandedMods.has_value(),
+					m_options.expandedMods ?
+						std::span<const std::string>{ *m_options.expandedMods } :
+						std::span<const std::string>{});
+				return true;
 			}
 
 			[[nodiscard]] bool ConfigureIni(

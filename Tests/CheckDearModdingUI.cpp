@@ -11,6 +11,7 @@
 #include <DearModdingUI/Theme.h>
 #include <DearModdingUI/ThemeDefaults.h>
 #include <DearModdingUI/VisualDecisions.h>
+#include <DearModdingUI/SidebarComparison.h>
 #include "Harness.h"
 
 #include <imgui/imgui.h>
@@ -898,10 +899,50 @@ namespace vmm_tests
 
 		runner.test("row content centers vertically without negative offset", [] {
 			require(
-					CenterOffsetY(40.0f, 20.0f) == 10.0f &&
-						CenterOffsetY(20.0f, 40.0f) == 0.0f &&
-						CenterOffsetY(-10.0f, 20.0f) == 0.0f,
+					RowContentOffsetY(
+						40.0f,
+						{ 20.0f },
+						RowContentMetric::kBox) == 10.0f &&
+						RowContentOffsetY(
+							20.0f,
+							{ 40.0f },
+							RowContentMetric::kBox) == 0.0f &&
+						RowContentOffsetY(
+							-10.0f,
+							{ 20.0f },
+							RowContentMetric::kBox) == 0.0f,
 					"row content did not center vertically");
+		});
+
+		runner.test("two-pane sidebar preserves a measured page region", [] {
+			require(
+					ResolveSidebarPaneHeights(
+						1000.0f,
+						60.0f,
+						2,
+						240.0f) == SidebarPaneHeights{ 120.0f, 880.0f },
+					"two mods consumed a proportional half of the sidebar");
+			require(
+					ResolveSidebarPaneHeights(
+						1000.0f,
+						60.0f,
+						10,
+						240.0f) == SidebarPaneHeights{ 600.0f, 400.0f },
+					"ten mods did not retain their measured list height");
+			require(
+					ResolveSidebarPaneHeights(
+						1000.0f,
+						60.0f,
+						20,
+						240.0f) == SidebarPaneHeights{ 760.0f, 240.0f },
+					"overflowing mods displaced the minimum page region");
+			require(
+					ResolveSidebarPaneHeights(
+						-100.0f,
+						60.0f,
+						10,
+						240.0f) == SidebarPaneHeights{},
+					"negative space produced pane height");
 		});
 
 		runner.test("capital ink provides stable optical text offset", [] {
@@ -912,21 +953,24 @@ namespace vmm_tests
 			constexpr float ascent{ 16.0f };
 			constexpr float referenceMinY{ 2.0f };
 			constexpr float referenceMaxY{ 16.0f };
-			const auto versionOffset =
-				OpticalTextOffsetY(
-					rowHeight,
-					fontSize,
-					referenceMinY,
-					referenceMaxY,
-					1.0f);
-			const auto modOffset =
-				OpticalTextOffsetY(
-					rowHeight,
-					fontSize,
-					referenceMinY,
-					referenceMaxY,
-					1.0f);
-			const auto boxOffset = CenterOffsetY(rowHeight, fontSize);
+			const RowContentMetrics metrics{
+				fontSize,
+				referenceMinY,
+				referenceMaxY,
+				1.0f
+			};
+			const auto versionOffset = RowContentOffsetY(
+				rowHeight,
+				metrics,
+				RowContentMetric::kOptical);
+			const auto modOffset = RowContentOffsetY(
+				rowHeight,
+				metrics,
+				RowContentMetric::kOptical);
+			const auto boxOffset = RowContentOffsetY(
+				rowHeight,
+				{ fontSize },
+				RowContentMetric::kBox);
 			const auto ascentBoxOffset =
 				rowHeight * 0.5f - ascent * 0.5f;
 			require(
@@ -937,19 +981,81 @@ namespace vmm_tests
 						versionOffset < ascentBoxOffset,
 					"capital ink did not center between box heuristics");
 			require(
-					OpticalTextOffsetY(
+					RowContentOffsetY(
 						rowHeight,
-						fontSize,
-						0.0f,
-						0.0f,
-						1.0f) == boxOffset &&
-						OpticalTextOffsetY(
+						{ fontSize },
+						RowContentMetric::kOptical) == boxOffset &&
+						RowContentOffsetY(
 							rowHeight,
-							fontSize,
-							referenceMinY,
-							referenceMaxY,
-							0.0f) == boxOffset,
+							{
+								fontSize,
+								referenceMinY,
+								referenceMaxY,
+								0.0f
+							},
+							RowContentMetric::kOptical) == boxOffset,
 					"missing reference font data did not use box centering");
+		});
+
+		runner.test("optical row content clamps negative offset", [] {
+			require(
+					RowContentOffsetY(
+						10.0f,
+						{ 20.0f, 12.0f, 20.0f, 1.0f },
+						RowContentMetric::kOptical) == 0.0f,
+					"optical row content produced a negative offset");
+		});
+
+		runner.test("row content layout reserves explicit slots and trailing space", [] {
+			require(
+					ResolveRowContentLayout(
+						100.0f,
+						300.0f,
+						8.0f,
+						20.0f,
+						4.0f,
+						6.0f,
+						true,
+						true,
+						30.0f) ==
+						RowContentLayout{ 108.0f, 132.0f, 158.0f, 270.0f },
+					"row slots did not advance content predictably");
+			require(
+					ResolveRowContentLayout(
+						100.0f,
+						120.0f,
+						-8.0f,
+						-20.0f,
+						-4.0f,
+						-6.0f,
+						false,
+						true,
+						40.0f) ==
+						RowContentLayout{ 100.0f, 100.0f, 100.0f, 100.0f },
+					"row layout accepted negative metrics or inverted its clip");
+		});
+
+		runner.test("row content providers preserve container geometry", [] {
+			constexpr RowContentRect container{ 10.0f, 20.0f, 110.0f, 80.0f };
+			require(
+					ResolveRowContentRect(
+						RowContentRectKind::kSelectable,
+						container,
+						7.0f) == container,
+					"selectable provider discarded the inflated item rectangle");
+			require(
+					ResolveRowContentRect(
+						RowContentRectKind::kTable,
+						container,
+						7.0f) ==
+						RowContentRect{ 10.0f, 27.0f, 110.0f, 73.0f },
+					"table provider did not remove row cell padding");
+			require(
+					ResolveRowContentRect(
+						RowContentRectKind::kTable,
+						container,
+						40.0f).GetHeight() == 0.0f,
+					"table provider produced an inverted content rectangle");
 		});
 
 		runner.test("footer band keeps symmetric row padding", [] {
@@ -1759,9 +1865,9 @@ namespace vmm_tests
 
 			const auto firstLabel = PageRowLabel(firstClient, firstPage);
 			const auto secondLabel = PageRowLabel(secondClient, secondPage);
-			require(firstLabel == " Settings ###DearModdingPage/first.mod/settings",
-				"page row label changed visible padding or ID format");
-			require(secondLabel == " Settings ###DearModdingPage/second.mod/settings",
+			require(firstLabel == "###DearModdingPage/first.mod/settings",
+				"page row label retained visible padding or changed ID format");
+			require(secondLabel == "###DearModdingPage/second.mod/settings",
 				"page row label omitted the owning mod ID");
 			require(firstLabel != secondLabel,
 				"duplicate page IDs in different mods produced colliding row labels");

@@ -44,6 +44,8 @@ Headless capture defaults to 3840x2160 and waits three frames before writing the
 
 `--width`, `--height`, and `--frames` override the capture defaults. The build copies the theme, fonts, and shaders to `.Build/Preview/Data/F4SE/Plugins/`.
 
+Use `--sidebar tree|twopane` to render either sidebar comparison without rebuilding. For deterministic tree captures, `--collapse-all` starts with every mod closed and repeatable `--expand <client-id>` arguments define the exact expanded set.
+
 ## Generating the client ImGui header
 
 The forwarding surface is curated in `Tools/imgui_forward_allowlist.json`. Generate the API repository header and validate every referenced symbol against the built host with:

@@ -93,6 +93,7 @@ target("dmui-tests", function()
     )
     add_includedirs(
         "Tests",
+        "src",
         "include",
         "Depends",
         "Depends/commonlibf4/include",
@@ -146,6 +147,7 @@ target("dmui-preview", function()
     add_includedirs(
         "Preview/include",
         "Preview",
+        "src",
         "include",
         "Depends",
         "Depends/toml11/single_include",

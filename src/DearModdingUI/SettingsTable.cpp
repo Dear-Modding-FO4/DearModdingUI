@@ -89,18 +89,47 @@ namespace DearModdingUI::SettingsTable
 				descriptionHeight;
 		}
 
-		void DrawLabel(
-			const ImVec2& a_origin,
-			float a_width,
-			float a_rowContentHeight) noexcept
+		[[nodiscard]] ImRect TableRowContentRect(
+			const ImGuiTable* a_table,
+			int a_column) noexcept
+		{
+			if (!a_table)
+				return {};
+			const auto origin = ImGui::GetCursorScreenPos();
+			const auto width = (std::max)(
+				ImGui::GetContentRegionAvail().x,
+				0.0f);
+			const auto cell = ImGui::TableGetCellBgRect(a_table, a_column);
+			// Table rows follow ItemSize, so remove cell padding rather than Selectable spacing.
+			const auto content = ResolveRowContentRect(
+				RowContentRectKind::kTable,
+				{
+					origin.x,
+					cell.Min.y,
+					origin.x + width,
+					cell.Max.y
+				},
+				a_table->RowCellPaddingY);
+			return {
+				{ content.minX, content.minY },
+				{ content.maxX, content.maxY }
+			};
+		}
+
+		void DrawLabel(const ImRect& a_contentRect) noexcept
 		{
 			ImGui::SetCursorScreenPos({
-				a_origin.x,
-				a_origin.y + CenterOffsetY(
-					a_rowContentHeight,
-					s_state.labelHeight)
+				a_contentRect.Min.x,
+				a_contentRect.Min.y + RowContentOffsetY(
+					a_contentRect.GetHeight(),
+					{ s_state.labelHeight },
+					RowContentMetric::kBox)
 			});
-			ImGui::PushTextWrapPos(a_origin.x + a_width);
+			ImGui::PushTextWrapPos(
+				a_contentRect.Min.x +
+					(std::max)(
+						a_contentRect.GetWidth(),
+						ImGui::GetFontSize()));
 			{
 				const Theme::FontGuard font{ Theme::FontRole::kSubheading };
 				ImGui::TextUnformatted(s_state.label.c_str());
@@ -337,23 +366,17 @@ namespace DearModdingUI::SettingsTable
 			return DMUI_RESULT_UNBALANCED_BRACKET;
 		const auto* controls = ImGui::GetCurrentTable();
 		(void)ImGui::TableSetColumnIndex(1);
-		const auto resetCellOrigin = ImGui::GetCursorScreenPos();
-		const auto resetRow = ImGui::TableGetCellBgRect(
-			controls,
-			1);
-		const auto resetContentHeight = (std::max)(
-			resetRow.GetHeight() -
-				controls->RowCellPaddingY * 2.0f,
-			0.0f);
+		const auto resetContentRect = TableRowContentRect(controls, 1);
 		if (a_options.resetVisible)
 		{
 			a_resetPressed = DrawSettingsActionButton(
 				"##DearModdingUI.SettingsRowReset",
 				{
-					resetCellOrigin.x,
-					resetCellOrigin.y + CenterOffsetY(
-						resetContentHeight,
-						s_state.buttonExtent)
+					resetContentRect.Min.x,
+					resetContentRect.Min.y + RowContentOffsetY(
+						resetContentRect.GetHeight(),
+						{ s_state.buttonExtent },
+						RowContentMetric::kBox)
 				},
 				{ s_state.resetWidth, s_state.buttonExtent },
 				SettingsAction::kReset,
@@ -369,17 +392,7 @@ namespace DearModdingUI::SettingsTable
 			return DMUI_RESULT_UNBALANCED_BRACKET;
 		const auto* table = ImGui::GetCurrentTable();
 		(void)ImGui::TableSetColumnIndex(0);
-		const auto labelOrigin = ImGui::GetCursorScreenPos();
-		const auto labelWidth = (std::max)(
-			ImGui::GetContentRegionAvail().x,
-			ImGui::GetFontSize());
-		// Table row geometry follows ItemSize, unlike Selectable's inflated item rectangle.
-		const auto labelRow = ImGui::TableGetCellBgRect(table, 0);
-		const auto labelContentHeight = (std::max)(
-			labelRow.GetHeight() -
-				table->RowCellPaddingY * 2.0f,
-			0.0f);
-		DrawLabel(labelOrigin, labelWidth, labelContentHeight);
+		DrawLabel(TableRowContentRect(table, 0));
 		ImGui::PopID();
 		ClearRowState();
 		return s_state.bracket.EndRow(a_owner);

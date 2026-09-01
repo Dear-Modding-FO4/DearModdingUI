@@ -7,6 +7,7 @@
 #include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Theme.h>
 #include <DearModdingUI/VisualDecisions.h>
+#include "SidebarComparison.h"
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -20,8 +21,10 @@
 #include <cstdint>
 #include <map>
 #include <numbers>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace DearModdingUI
 {
@@ -29,13 +32,17 @@ namespace DearModdingUI
 	{
 		inline constexpr char kCommandPalettePopupId[] =
 			"Search mods, pages, and actions###DearModdingPalette";
+		inline constexpr float kSidebarModFontScale{ 0.8f };
+		inline constexpr size_t kMinimumVisiblePageRows{ 3 };
 
 		struct ShellState : ClientSelectionState
 		{
 			std::map<std::string, bool> categoryExpansion;
 			std::map<std::string, bool> modExpansion;
+			std::optional<std::vector<std::string>> previewExpandedClients;
 			std::string paletteQuery;
 			size_t paletteSelection{ 0 };
+			PreviewSidebarLayout sidebarLayout{ PreviewSidebarLayout::kTree };
 			bool paletteOpenRequested{ false };
 			bool paletteFocusRequested{ false };
 			bool paletteVisible{ false };
@@ -126,29 +133,64 @@ namespace DearModdingUI
 				a_clip);
 		}
 
-		[[nodiscard]] float CurrentFontOpticalTextOffsetY(
-			float a_rowHeight,
-			float a_fontSize) noexcept
+		[[nodiscard]] RowContentMetrics CurrentFontRowContentMetrics(
+			float a_fontSize,
+			const char* a_text = nullptr,
+			const char* a_textEnd = nullptr) noexcept
 		{
+			RowContentMetrics metrics{ a_fontSize };
 			auto* font = ImGui::GetFont();
 			if (!font || a_fontSize <= 0.0f)
-				return CenterOffsetY(a_rowHeight, a_fontSize);
+				return metrics;
 			if (auto* baked = font->GetFontBaked(a_fontSize);
 				baked && baked->Size > 0.0f)
 			{
-				if (const auto* reference =
-						baked->FindGlyphNoFallback(
-							static_cast<ImWchar>('H')))
+				const ImFontGlyph* reference = nullptr;
+				if (a_text)
 				{
-					return OpticalTextOffsetY(
-						a_rowHeight,
-						a_fontSize,
-						reference->Y0,
-						reference->Y1,
-						a_fontSize / baked->Size);
+					const auto* textEnd = a_textEnd ?
+						a_textEnd :
+						a_text + std::strlen(a_text);
+					auto minY = FLT_MAX;
+					auto maxY = -FLT_MAX;
+					for (auto* cursor = a_text;
+						cursor < textEnd && *cursor;)
+					{
+						unsigned int character{};
+						const auto length = ImTextCharFromUtf8(
+							&character,
+							cursor,
+							textEnd);
+						if (length <= 0)
+							break;
+						cursor += length;
+						const auto* glyph = baked->FindGlyphNoFallback(
+							static_cast<ImWchar>(character));
+						if (!glyph || !glyph->Visible)
+							continue;
+						minY = (std::min)(minY, glyph->Y0);
+						maxY = (std::max)(maxY, glyph->Y1);
+					}
+					if (maxY > minY)
+					{
+						metrics.opticalMinY = minY;
+						metrics.opticalMaxY = maxY;
+					}
 				}
+				else
+				{
+					reference = baked->FindGlyphNoFallback(
+						static_cast<ImWchar>('H'));
+				}
+				if (reference)
+				{
+					metrics.opticalMinY = reference->Y0;
+					metrics.opticalMaxY = reference->Y1;
+				}
+				if (metrics.opticalMaxY > metrics.opticalMinY)
+					metrics.opticalScale = a_fontSize / baked->Size;
 			}
-			return CenterOffsetY(a_rowHeight, a_fontSize);
+			return metrics;
 		}
 
 		void DrawIconText(
@@ -166,9 +208,10 @@ namespace DearModdingUI
 				textSize.y,
 				ImGui::GetFontSize(),
 				ImGui::GetStyle().ItemSpacing.x);
-			const auto contentY =
-				a_position.y + ((std::max)(a_height, layout.contentHeight) -
-					layout.contentHeight) * 0.5f;
+			const auto contentY = a_position.y + RowContentOffsetY(
+				a_height,
+				{ layout.contentHeight },
+				RowContentMetric::kBox);
 			if (layout.drawIcon)
 			{
 				DrawCenteredIcon(
@@ -190,7 +233,10 @@ namespace DearModdingUI
 				ImGui::GetFontSize(),
 				{
 					a_position.x + layout.textOffset,
-					contentY + (layout.contentHeight - textSize.y) * 0.5f
+					contentY + RowContentOffsetY(
+						layout.contentHeight,
+						{ textSize.y },
+						RowContentMetric::kBox)
 				},
 				a_color,
 				a_text,
@@ -225,6 +271,292 @@ namespace DearModdingUI
 					a_active ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered),
 				rounding);
 			return true;
+		}
+
+		enum class RowLeadingAffordance : uint32_t
+		{
+			kNone,
+			kArrow,
+			kIcon
+		};
+
+		enum class RowHighlightStyle : uint32_t
+		{
+			kSelectable,
+			kRoundedFill
+		};
+
+		enum class RowClickBehavior : uint32_t
+		{
+			kSelect,
+			kToggle
+		};
+
+		struct RowOptions
+		{
+			const char* id{ nullptr };
+			const char* label{ nullptr };
+			bool selected{ false };
+			float height{ 0.0f };
+			RowLeadingAffordance leadingAffordance{
+				RowLeadingAffordance::kNone
+			};
+			bool* expanded{ nullptr };
+			char32_t glyph{ 0 };
+			ImU32 textColor{ 0 };
+			ImU32 hoveredTextColor{ 0 };
+			std::optional<ImU32> disabledColor;
+			float trailingWidth{ 0.0f };
+			bool flushHorizontalHighlight{ false };
+			RowHighlightStyle highlightStyle{
+				RowHighlightStyle::kSelectable
+			};
+			RowClickBehavior clickBehavior{ RowClickBehavior::kSelect };
+		};
+
+		struct RowResult
+		{
+			bool pressed{ false };
+			ImRect rect;
+		};
+
+		struct RowInteraction
+		{
+			bool pressed{ false };
+			bool hovered{ false };
+			bool arrowPressed{ false };
+			bool expanded{ false };
+			bool splitArrow{ false };
+			ImRect arrowRect;
+		};
+
+		[[nodiscard]] ImRect SelectableRowContentRect() noexcept
+		{
+			const auto min = ImGui::GetItemRectMin();
+			const auto max = ImGui::GetItemRectMax();
+			const auto content = ResolveRowContentRect(
+				RowContentRectKind::kSelectable,
+				{ min.x, min.y, max.x, max.y });
+			return {
+				{ content.minX, content.minY },
+				{ content.maxX, content.maxY }
+			};
+		}
+
+		[[nodiscard]] RowResult DrawRow(
+			const RowOptions& a_options,
+			const ImRect& a_contentRect,
+			const RowInteraction& a_interaction) noexcept
+		{
+			auto* drawList = ImGui::GetWindowDrawList();
+			if (a_options.highlightStyle == RowHighlightStyle::kRoundedFill &&
+				(a_interaction.hovered || a_options.selected))
+			{
+				drawList->AddRectFilled(
+					a_contentRect.Min,
+					a_contentRect.Max,
+					ImGui::GetColorU32(
+						a_interaction.hovered ?
+							ImGuiCol_HeaderHovered :
+							ImGuiCol_Header),
+					ImGui::GetStyle().FrameRounding);
+			}
+
+			const auto textColor = a_options.disabledColor.value_or(
+				a_interaction.hovered ?
+					a_options.hoveredTextColor :
+					a_options.textColor);
+			const auto fontSize = ImGui::GetFontSize();
+			const auto hasGlyph = HasIconGlyph(a_options.glyph);
+			const auto hasLeadingSlot =
+				a_options.leadingAffordance == RowLeadingAffordance::kArrow &&
+				!a_interaction.splitArrow;
+			const auto hasIconSlot =
+				hasGlyph ||
+				(a_options.leadingAffordance == RowLeadingAffordance::kIcon &&
+					!a_options.glyph);
+			const auto content = ResolveRowContentLayout(
+				a_contentRect.Min.x,
+				a_contentRect.Max.x,
+				ImGui::GetStyle().FramePadding.x,
+				fontSize,
+				ImGui::GetStyle().ItemInnerSpacing.x,
+				ImGui::GetStyle().ItemSpacing.x,
+				hasLeadingSlot,
+				hasIconSlot,
+				a_options.trailingWidth);
+			const ImVec4 clip{
+				a_contentRect.Min.x,
+				a_contentRect.Min.y,
+				content.clipMaxX,
+				a_contentRect.Max.y
+			};
+
+			if (a_interaction.splitArrow)
+			{
+				ImGui::RenderArrow(
+					drawList,
+					{
+						a_interaction.arrowRect.Min.x + (std::max)(
+							(a_interaction.arrowRect.GetWidth() - fontSize) *
+								0.5f,
+							0.0f),
+						a_contentRect.Min.y + RowContentOffsetY(
+							a_contentRect.GetHeight(),
+							{ fontSize },
+							RowContentMetric::kBox)
+					},
+					textColor,
+					a_interaction.expanded ?
+						ImGuiDir_Down :
+						ImGuiDir_Right);
+			}
+			else if (hasLeadingSlot)
+			{
+				ImGui::RenderArrow(
+					drawList,
+					{
+						content.leadingMinX,
+						a_contentRect.Min.y + RowContentOffsetY(
+							a_contentRect.GetHeight(),
+							{ fontSize },
+							RowContentMetric::kBox)
+					},
+					textColor,
+					a_interaction.expanded ?
+						ImGuiDir_Down :
+						ImGuiDir_Right);
+			}
+
+			if (hasGlyph)
+			{
+				DrawCenteredIcon(
+					drawList,
+					a_options.glyph,
+					{
+						{ content.iconMinX, a_contentRect.Min.y },
+						{
+							content.iconMinX + fontSize,
+							a_contentRect.Max.y
+						}
+					},
+					fontSize,
+					IconColor(textColor),
+					&clip);
+			}
+
+			const auto* labelEnd = ImGui::FindRenderedTextEnd(a_options.label);
+			if (content.textMinX < content.clipMaxX)
+			{
+				drawList->AddText(
+					ImGui::GetFont(),
+					fontSize,
+					{
+						content.textMinX,
+						a_contentRect.Min.y + RowContentOffsetY(
+							a_contentRect.GetHeight(),
+							CurrentFontRowContentMetrics(
+								fontSize,
+								a_options.label,
+								labelEnd),
+							RowContentMetric::kOptical)
+					},
+					textColor,
+					a_options.label,
+					labelEnd,
+					0.0f,
+					&clip);
+			}
+
+			if (a_options.expanded &&
+				(a_interaction.arrowPressed ||
+					(a_interaction.pressed &&
+						a_options.clickBehavior == RowClickBehavior::kToggle)))
+				*a_options.expanded = !*a_options.expanded;
+			return { a_interaction.pressed, a_contentRect };
+		}
+
+		[[nodiscard]] RowResult DrawSelectableRow(
+			const RowOptions& a_options) noexcept
+		{
+			auto* window = ImGui::GetCurrentWindow();
+			if (!window || window->SkipItems || !a_options.id || !a_options.label)
+				return {};
+
+			const auto height = a_options.height > 0.0f ?
+				a_options.height :
+				ImGui::GetFrameHeight();
+			const auto expanded = a_options.expanded && *a_options.expanded;
+			const auto splitArrow =
+				a_options.leadingAffordance == RowLeadingAffordance::kArrow &&
+				a_options.clickBehavior == RowClickBehavior::kSelect;
+			auto arrowPressed = false;
+			ImRect arrowRect;
+
+			ImGui::PushID(a_options.id);
+			if (splitArrow)
+			{
+				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4());
+				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4());
+				ImGui::PushStyleColor(
+					ImGuiCol_ButtonHovered,
+					Theme::kFullPalette[ImGuiCol_HeaderHovered]);
+				ImGui::PushStyleColor(
+					ImGuiCol_ButtonActive,
+					Theme::kFullPalette[ImGuiCol_HeaderActive]);
+				arrowPressed = ImGui::ArrowButtonEx(
+					"##LeadingAffordance",
+					expanded ? ImGuiDir_Down : ImGuiDir_Right,
+					{ height, height },
+					ImGuiButtonFlags_None);
+				ImGui::PopStyleColor(4);
+				arrowRect = {
+					ImGui::GetItemRectMin(),
+					ImGui::GetItemRectMax()
+				};
+				ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+			}
+
+			const ImVec2 size{
+				(std::max)(ImGui::GetContentRegionAvail().x, 0.0f),
+				height
+			};
+			if (a_options.flushHorizontalHighlight)
+			{
+				ImGui::PushStyleVar(
+					ImGuiStyleVar_ItemSpacing,
+					{ 0.0f, ImGui::GetStyle().ItemSpacing.y });
+			}
+			auto pressed = false;
+			if (a_options.highlightStyle == RowHighlightStyle::kSelectable)
+			{
+				pressed = ImGui::Selectable(
+					"##Row",
+					a_options.selected,
+					ImGuiSelectableFlags_None,
+					size);
+			}
+			else
+			{
+				pressed = ImGui::InvisibleButton("##Row", size);
+			}
+			const auto hovered = ImGui::IsItemHovered();
+			const auto contentRect = SelectableRowContentRect();
+			if (a_options.flushHorizontalHighlight)
+				ImGui::PopStyleVar();
+			const auto result = DrawRow(
+				a_options,
+				contentRect,
+				{
+					.pressed = pressed,
+					.hovered = hovered,
+					.arrowPressed = arrowPressed,
+					.expanded = expanded,
+					.splitArrow = splitArrow,
+					.arrowRect = arrowRect
+				});
+			ImGui::PopID();
+			return result;
 		}
 
 		inline constexpr float kTitleBarButtonPadding{ 2.0f };
@@ -410,9 +742,10 @@ namespace DearModdingUI
 				const auto textSize = ImGui::CalcTextSize(a_text);
 				const ImVec2 textOrigin{
 					bounds.Min.x,
-					bounds.Min.y + CurrentFontOpticalTextOffsetY(
+					bounds.Min.y + RowContentOffsetY(
 						a_size.y,
-						ImGui::GetFontSize())
+						CurrentFontRowContentMetrics(ImGui::GetFontSize()),
+						RowContentMetric::kOptical)
 				};
 				ImGui::PushStyleColor(ImGuiCol_Text, a_color);
 				ImGui::RenderTextClipped(
@@ -491,12 +824,12 @@ namespace DearModdingUI
 				rowHeight = (std::max)(
 					textSize.y,
 					a_drawClose ? buttonExtent : 0.0f);
-				const auto titleFontSize = ImGui::GetFontSize();
 				const ImVec2 titlePosition{
 					titleMinX,
-					start.y + CurrentFontOpticalTextOffsetY(
+					start.y + RowContentOffsetY(
 						rowHeight,
-						titleFontSize)
+						{ textSize.y },
+						RowContentMetric::kBox)
 				};
 				if (titleMaxX > titleMinX)
 				{
@@ -521,7 +854,10 @@ namespace DearModdingUI
 					"##DearModdingUI.HostCloseButton",
 					{
 						buttonLayout.controlMinX,
-						start.y + CenterOffsetY(rowHeight, buttonExtent)
+						start.y + RowContentOffsetY(
+							rowHeight,
+							{ buttonExtent },
+							RowContentMetric::kBox)
 					},
 					{ buttonWidth, buttonExtent },
 					hasCloseGlyph ? PhosphorGlyph::kX : char32_t{},
@@ -552,16 +888,32 @@ namespace DearModdingUI
 			bool& a_expanded,
 			size_t a_count) noexcept
 		{
+			char text[256]{};
+			std::snprintf(text, sizeof(text), "%s (%zu)", a_name, a_count);
 			const auto glyph = ResolveCategoryIconGlyph(
 				a_name,
 				a_client.displayName,
 				a_client.id);
-			DrawCollapsingSectionHeader(
-				a_key,
-				a_name,
-				glyph,
-				a_expanded,
-				a_count);
+			auto color = Theme::kFeatureHeadingDefaults.colorDefault;
+			auto hoveredColor =
+				Theme::kFeatureHeadingDefaults.colorHovered;
+			if (!a_expanded)
+			{
+				color.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
+				hoveredColor.w *=
+					Theme::kFeatureHeadingDefaults.minimizedFactor;
+			}
+			(void)DrawSelectableRow({
+				.id = a_key,
+				.label = text,
+				.leadingAffordance = RowLeadingAffordance::kArrow,
+				.expanded = &a_expanded,
+				.glyph = glyph,
+				.textColor = ImGui::GetColorU32(color),
+				.hoveredTextColor = ImGui::GetColorU32(hoveredColor),
+				.highlightStyle = RowHighlightStyle::kRoundedFill,
+				.clickBehavior = RowClickBehavior::kToggle
+			});
 		}
 
 		void DrawSearchIcon(
@@ -626,7 +978,10 @@ namespace DearModdingUI
 			const auto iconSize = Theme::kSearchIconSize * scale;
 			const auto iconPosition = ImVec2{
 				position.x + ImGui::GetStyle().FramePadding.x,
-				position.y + (size.y - iconSize) * 0.5f
+				position.y + RowContentOffsetY(
+					size.y,
+					{ iconSize },
+					RowContentMetric::kBox)
 			};
 			DrawSearchIcon(
 				iconPosition,
@@ -637,7 +992,10 @@ namespace DearModdingUI
 			const auto textSize = ImGui::CalcTextSize(hint);
 			const auto textPosition = ImVec2{
 				iconPosition.x + iconSize + ImGui::GetStyle().ItemInnerSpacing.x,
-				position.y + CenterOffsetY(size.y, textSize.y)
+				position.y + RowContentOffsetY(
+					size.y,
+					{ textSize.y },
+					RowContentMetric::kBox)
 			};
 			ImGui::RenderTextEllipsis(
 				ImGui::GetWindowDrawList(),
@@ -675,6 +1033,22 @@ namespace DearModdingUI
 			a_state.modExpansion[client->id] = true;
 			a_state.categoryExpansion[
 				client->id + "/" + page->category] = true;
+		}
+
+		void ApplyPreviewExpandedClients(
+			const NavigationModel& a_model,
+			ShellState& a_state)
+		{
+			if (!a_state.previewExpandedClients)
+				return;
+			for (const auto& client : a_model.clients)
+			{
+				a_state.modExpansion[client.id] =
+					std::ranges::find(
+						*a_state.previewExpandedClients,
+						client.id) != a_state.previewExpandedClients->end();
+			}
+			a_state.previewExpandedClients.reset();
 		}
 
 		void NavigateToPage(
@@ -724,61 +1098,43 @@ namespace DearModdingUI
 				ImGui::GetColorU32(color));
 		}
 
-		[[nodiscard]] bool DrawClientRow(
-			const NavigationClient& a_client,
-			const ClientStatus* a_status,
-			bool a_selected,
-			bool& a_expanded) noexcept
+		[[nodiscard]] float ClientStatusTrailingWidth(
+			const ClientStatus* a_status) noexcept
 		{
-			ImGui::PushID(a_client.id.c_str());
-			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4());
-			ImGui::PushStyleColor(
-				ImGuiCol_ButtonHovered,
-				Theme::kFullPalette[ImGuiCol_HeaderHovered]);
-			ImGui::PushStyleColor(
-				ImGuiCol_ButtonActive,
-				Theme::kFullPalette[ImGuiCol_HeaderActive]);
-			if (ImGui::ArrowButton(
-					"##ModExpansion",
-					a_expanded ? ImGuiDir_Down : ImGuiDir_Right))
-				a_expanded = !a_expanded;
-			ImGui::PopStyleColor(3);
-			ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
-
-			const auto rowHeight = ImGui::GetFrameHeight();
-			const auto pressed = ImGui::Selectable(
-				"##ModName",
-				a_selected,
-				ImGuiSelectableFlags_None,
-				{ ImGui::GetContentRegionAvail().x, rowHeight });
-			const auto bounds = ImRect{
-				ImGui::GetItemRectMin(),
-				ImGui::GetItemRectMax()
-			};
-			const auto glyph = ResolveIconGlyph(IconKind::kClient, a_client.id);
-			const auto dotInset = IsPersistentStatus(
+			return IsPersistentStatus(
 				a_status ? a_status->severity : DMUI_STATUS_SEVERITY_INFO) ?
 				ImGui::GetFontSize() :
 				0.0f;
-			const ImVec4 clip{
-				bounds.Min.x,
-				bounds.Min.y,
-				bounds.Max.x - dotInset,
-				bounds.Max.y
-			};
-			DrawIconText(
-				{
-					bounds.Min.x + ImGui::GetStyle().FramePadding.x,
-					bounds.Min.y
-				},
-				bounds.GetHeight(),
-				glyph,
-				a_client.displayName.c_str(),
-				ImGui::GetColorU32(ImGuiCol_Text),
-				&clip);
-			DrawClientStatusDot(bounds, a_status);
-			ImGui::PopID();
-			return pressed;
+		}
+
+		void DrawPageRows(
+			const NavigationModel& a_model,
+			const NavigationClient& a_client,
+			const NavigationCategory& a_category,
+			ShellState& a_state) noexcept
+		{
+			const Theme::FontGuard font{ Theme::FontRole::kSubtext };
+			for (const auto& page : a_category.pages)
+			{
+				const auto failed = PageFailed(page.handle);
+				const auto selected = page.handle == a_state.activePage;
+				const auto id = PageRowLabel(a_client, page);
+				const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
+				const auto row = DrawSelectableRow({
+					.id = id.c_str(),
+					.label = page.displayName.c_str(),
+					.selected = selected,
+					.leadingAffordance = RowLeadingAffordance::kIcon,
+					.textColor = textColor,
+					.hoveredTextColor = textColor,
+					.disabledColor = failed ?
+						std::optional<ImU32>{ ImGui::GetColorU32(
+							Theme::kStatusPaletteDefaults.error) } :
+						std::nullopt
+				});
+				if (row.pressed)
+					NavigateToPage(a_model, page.handle, a_state);
+			}
 		}
 
 		void DrawPageList(
@@ -786,6 +1142,18 @@ namespace DearModdingUI
 			const NavigationClient& a_client,
 			ShellState& a_state) noexcept
 		{
+			if (a_client.categories.size() == 1)
+			{
+				DrawPageRows(
+					a_model,
+					a_client,
+					a_client.categories.front(),
+					a_state);
+				return;
+			}
+
+			const auto pageIndent =
+				ImGui::GetFontSize() + ImGui::GetStyle().ItemInnerSpacing.x;
 			for (const auto& category : a_client.categories)
 			{
 				const auto key = CategoryKey(a_client, category);
@@ -803,27 +1171,183 @@ namespace DearModdingUI
 				if (!state->second)
 					continue;
 
-				for (const auto& page : category.pages)
-				{
-					const auto failed = PageFailed(page.handle);
-					const auto selected = page.handle == a_state.activePage;
-					const auto label = PageRowLabel(a_client, page);
-					const Theme::FontGuard font{ Theme::FontRole::kSubheading };
-					if (failed)
-					{
-						ImGui::PushStyleColor(
-							ImGuiCol_Text,
-							Theme::kStatusPaletteDefaults.error);
-					}
-					if (ImGui::Selectable(
-							label.c_str(),
-							selected,
-							ImGuiSelectableFlags_SpanAllColumns))
-						NavigateToPage(a_model, page.handle, a_state);
-					if (failed)
-						ImGui::PopStyleColor();
-				}
+				ImGui::Indent(pageIndent);
+				DrawPageRows(a_model, a_client, category, a_state);
+				ImGui::Unindent(pageIndent);
 			}
+		}
+
+		void DrawExpandedClientPages(
+			const NavigationModel& a_model,
+			const NavigationClient& a_client,
+			ShellState& a_state) noexcept
+		{
+			const auto start = ImGui::GetCursorScreenPos();
+			const auto& style = ImGui::GetStyle();
+			const auto contentIndent =
+				ImGui::GetFrameHeight() + style.ItemInnerSpacing.x;
+			ImGui::Indent(contentIndent);
+			DrawPageList(a_model, a_client, a_state);
+			ImGui::Unindent(contentIndent);
+			const auto end = ImGui::GetCursorScreenPos();
+			const auto railBottom = end.y - style.ItemSpacing.y;
+			const auto railThickness = style.WindowBorderSize * 0.5f;
+			if (railBottom > start.y && railThickness > 0.0f)
+			{
+				auto railColor = style.Colors[ImGuiCol_Border];
+				railColor.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
+				ImGui::GetWindowDrawList()->AddLine(
+					{
+						start.x + style.FramePadding.x,
+						start.y
+					},
+					{
+						start.x + style.FramePadding.x,
+						railBottom
+					},
+					ImGui::GetColorU32(railColor),
+					railThickness);
+			}
+		}
+
+		void DrawTreeNavigation(
+			const NavigationModel& a_model,
+			const std::vector<ClientStatus>& a_statuses,
+			ShellState& a_state) noexcept
+		{
+			for (const auto& client : a_model.clients)
+			{
+				auto expansion =
+					a_state.modExpansion.try_emplace(client.id, false).first;
+				const auto* status =
+					FindClientStatus(a_statuses, client.handle);
+				const auto selected = client.handle == a_state.activeClient;
+				{
+					const Theme::FontGuard font{
+						Theme::FontRole::kTitle,
+						kSidebarModFontScale
+					};
+					const auto textColor =
+						ImGui::GetColorU32(ImGuiCol_Text);
+					const auto row = DrawSelectableRow({
+						.id = client.id.c_str(),
+						.label = client.displayName.c_str(),
+						.selected = selected,
+						.leadingAffordance = RowLeadingAffordance::kArrow,
+						.expanded = &expansion->second,
+						.glyph = ResolveIconGlyph(
+							IconKind::kClient,
+							client.id),
+						.textColor = textColor,
+						.hoveredTextColor = textColor,
+						.trailingWidth =
+							ClientStatusTrailingWidth(status)
+					});
+					DrawClientStatusDot(row.rect, status);
+					if (row.pressed)
+					{
+						expansion->second = true;
+						NavigateToPage(
+							a_model,
+							ResolveLandingPage(client),
+							a_state);
+					}
+				}
+				if (expansion->second)
+					DrawExpandedClientPages(a_model, client, a_state);
+			}
+		}
+
+		void DrawTwoPaneNavigation(
+			const NavigationModel& a_model,
+			const std::vector<ClientStatus>& a_statuses,
+			ShellState& a_state) noexcept
+		{
+			const auto& style = ImGui::GetStyle();
+			const auto compactSpacing = style.ItemSpacing.y * 0.5f;
+			float rowStride{};
+			{
+				const Theme::FontGuard font{
+					Theme::FontRole::kTitle,
+					kSidebarModFontScale
+				};
+				rowStride = ImGui::GetFrameHeight() + compactSpacing;
+			}
+			const auto dividerReserve =
+				style.ItemSpacing.y + style.WindowBorderSize;
+			const auto availableHeight = (std::max)(
+				ImGui::GetContentRegionAvail().y - dividerReserve,
+				0.0f);
+			const auto minimumPagesHeight =
+				ImGui::GetTextLineHeightWithSpacing() +
+				ImGui::GetFrameHeightWithSpacing() *
+					static_cast<float>(kMinimumVisiblePageRows);
+			const auto panes = ResolveSidebarPaneHeights(
+				availableHeight,
+				rowStride,
+				a_model.clients.size(),
+				minimumPagesHeight);
+
+			if (panes.mods > 0.0f)
+			{
+				if (ImGui::BeginChild(
+						"##DearModdingModsPane",
+						{ 0.0f, panes.mods }))
+				{
+					ImGui::PushStyleVar(
+						ImGuiStyleVar_ItemSpacing,
+						{ style.ItemSpacing.x, compactSpacing });
+					for (const auto& client : a_model.clients)
+					{
+						const auto* status =
+							FindClientStatus(a_statuses, client.handle);
+						const Theme::FontGuard font{
+							Theme::FontRole::kTitle,
+							kSidebarModFontScale
+						};
+						const auto textColor =
+							ImGui::GetColorU32(ImGuiCol_Text);
+						const auto row = DrawSelectableRow({
+							.id = client.id.c_str(),
+							.label = client.displayName.c_str(),
+							.selected =
+								client.handle == a_state.activeClient,
+							.leadingAffordance =
+								RowLeadingAffordance::kIcon,
+							.glyph = ResolveIconGlyph(
+								IconKind::kClient,
+								client.id),
+							.textColor = textColor,
+							.hoveredTextColor = textColor,
+							.trailingWidth =
+								ClientStatusTrailingWidth(status)
+						});
+						DrawClientStatusDot(row.rect, status);
+						if (row.pressed)
+						{
+							NavigateToPage(
+								a_model,
+								ResolveLandingPage(client),
+								a_state);
+						}
+					}
+					ImGui::PopStyleVar();
+				}
+				ImGui::EndChild();
+			}
+
+			ImGui::Separator();
+			if (ImGui::BeginChild(
+					"##DearModdingPagesPane",
+					{ 0.0f, -FLT_MIN }))
+			{
+				DrawSectionHeader("Pages", PhosphorGlyph::kFiles);
+				ImGui::Spacing();
+				if (const auto* client =
+						a_model.FindClient(a_state.activeClient))
+					DrawPageList(a_model, *client, a_state);
+			}
+			ImGui::EndChild();
 		}
 
 		void DrawNavigation(
@@ -842,36 +1366,10 @@ namespace DearModdingUI
 				ImGui::Spacing();
 				const auto statusSnapshot = CurrentClientStatuses();
 				const auto statuses = RollupClientStatuses(statusSnapshot);
-				for (const auto& client : a_model.clients)
-				{
-					auto expansion =
-						a_state.modExpansion.try_emplace(client.id, false).first;
-					const auto* status =
-						FindClientStatus(statuses, client.handle);
-					auto selected = client.handle == a_state.activeClient;
-					{
-						const Theme::FontGuard font{
-							Theme::FontRole::kSubheading
-						};
-						if (DrawClientRow(
-								client,
-								status,
-								selected,
-								expansion->second))
-						{
-							expansion->second = true;
-							NavigateToPage(
-								a_model,
-								ResolveLandingPage(client),
-								a_state);
-						}
-					}
-					if (!expansion->second)
-						continue;
-					ImGui::Indent();
-					DrawPageList(a_model, client, a_state);
-					ImGui::Unindent();
-				}
+				if (a_state.sidebarLayout == PreviewSidebarLayout::kTwoPane)
+					DrawTwoPaneNavigation(a_model, statuses, a_state);
+				else
+					DrawTreeNavigation(a_model, statuses, a_state);
 				ImGui::EndListBox();
 			}
 			ImGui::PopStyleVar();
@@ -1089,37 +1587,21 @@ namespace DearModdingUI
 				};
 				const auto rowHeight = ImGui::GetTextLineHeight();
 				// Match the fill to the separator without changing vertical row packing.
-				ImGui::PushStyleVar(
-					ImGuiStyleVar_ItemSpacing,
-					ImVec2{ 0.0f, style.ItemSpacing.y });
-				const auto activated = ImGui::Selectable(
-					label.c_str(),
-					selected,
-					ImGuiSelectableFlags_None,
-					{ 0.0f, rowHeight });
-				ImGui::PopStyleVar();
-				if (activated)
+				const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
+				const auto row = DrawSelectableRow({
+					.id = label.c_str(),
+					.label = text.c_str(),
+					.selected = selected,
+					.height = rowHeight,
+					.leadingAffordance = RowLeadingAffordance::kIcon,
+					.glyph = PaletteEntryGlyph(results[index]),
+					.textColor = textColor,
+					.hoveredTextColor = textColor,
+					.trailingWidth = ImGui::GetStyle().FramePadding.x,
+					.flushHorizontalHighlight = true
+				});
+				if (row.pressed)
 					activatedIndex = index;
-				const auto bounds = ImRect{
-					ImGui::GetItemRectMin(),
-					ImGui::GetItemRectMax()
-				};
-				const ImVec4 clip{
-					bounds.Min.x,
-					bounds.Min.y,
-					bounds.Max.x - ImGui::GetStyle().FramePadding.x,
-					bounds.Max.y
-				};
-				DrawIconText(
-					{
-						bounds.Min.x + ImGui::GetStyle().FramePadding.x,
-						bounds.Min.y
-					},
-					bounds.GetHeight(),
-					PaletteEntryGlyph(results[index]),
-					text.c_str(),
-					ImGui::GetColorU32(ImGuiCol_Text),
-					&clip);
 				if (selected && keyboardMoved)
 					ImGui::SetScrollHereY();
 			}
@@ -1202,7 +1684,10 @@ namespace DearModdingUI
 					"##ClientAction",
 					{
 						positionX,
-						a_rowTop + (a_rowHeight - a_buttonExtent) * 0.5f
+						a_rowTop + RowContentOffsetY(
+							a_rowHeight,
+							{ a_buttonExtent },
+							RowContentMetric::kBox)
 					},
 					{ width, a_buttonExtent },
 					glyph,
@@ -1423,7 +1908,10 @@ namespace DearModdingUI
 						action.id,
 						{
 							actionX,
-							start.y + (rowHeight - buttonExtent) * 0.5f
+							start.y + RowContentOffsetY(
+								rowHeight,
+								{ buttonExtent },
+								RowContentMetric::kBox)
 						},
 						{ action.width, buttonExtent },
 						action.action,
@@ -1438,7 +1926,10 @@ namespace DearModdingUI
 					"##DearModdingUI.HostSettingsBackButton",
 					{
 						layout.closeMinX,
-						start.y + (rowHeight - buttonExtent) * 0.5f
+						start.y + RowContentOffsetY(
+							rowHeight,
+							{ buttonExtent },
+							RowContentMetric::kBox)
 					},
 					{ closeButtonWidth, buttonExtent },
 					hasCloseGlyph ? PhosphorGlyph::kX : char32_t{},
@@ -1545,9 +2036,10 @@ namespace DearModdingUI
 				true);
 			ImGui::SetCursorScreenPos({
 				start.x,
-				start.y + CurrentFontOpticalTextOffsetY(
+				start.y + RowContentOffsetY(
 					rowHeight,
-					ImGui::GetFontSize())
+					CurrentFontRowContentMetrics(ImGui::GetFontSize()),
+					RowContentMetric::kOptical)
 			});
 			DrawBulletText("Host: Evil Modding");
 			auto metadataRight = ImGui::GetItemRectMax().x;
@@ -1648,9 +2140,11 @@ namespace DearModdingUI
 						ImGui::GetFontSize(),
 						{
 							layout.statusMinX,
-							start.y + CurrentFontOpticalTextOffsetY(
+							start.y + RowContentOffsetY(
 								layout.rowHeight,
-								ImGui::GetFontSize())
+								CurrentFontRowContentMetrics(
+									ImGui::GetFontSize()),
+								RowContentMetric::kOptical)
 						},
 						ImGui::ColorConvertFloat4ToU32(
 							status->severity ==
@@ -1682,9 +2176,10 @@ namespace DearModdingUI
 						"##DearModdingUI.StatusDismissButton",
 						{
 							layout.dismissMinX,
-							start.y + CenterOffsetY(
+							start.y + RowContentOffsetY(
 								layout.rowHeight,
-								dismissButtonExtent)
+								{ dismissButtonExtent },
+								RowContentMetric::kBox)
 						},
 						{ actualDismissWidth, dismissButtonExtent },
 						hasDismissGlyph ? PhosphorGlyph::kX : char32_t{},
@@ -1700,9 +2195,10 @@ namespace DearModdingUI
 					"##DearModdingUI.HostSettingsButton",
 					{
 						layout.settingsMinX,
-						start.y + CenterOffsetY(
+						start.y + RowContentOffsetY(
 							layout.rowHeight,
-							settingsButtonExtent)
+							{ settingsButtonExtent },
+							RowContentMetric::kBox)
 					},
 					{ buttonWidth, settingsButtonExtent },
 					hasGearGlyph ? PhosphorGlyph::kGear : char32_t{},
@@ -1726,6 +2222,23 @@ namespace DearModdingUI
 			if (io.IniFilename)
 				ImGui::SaveIniSettingsToDisk(io.IniFilename);
 		}
+	}
+
+	void ConfigurePreviewSidebarComparison(
+		PreviewSidebarLayout a_layout,
+		bool a_overrideExpandedClients,
+		std::span<const std::string> a_expandedClients)
+	{
+		auto& state = State();
+		state.sidebarLayout = a_layout;
+		if (a_overrideExpandedClients)
+		{
+			state.previewExpandedClients.emplace(
+				a_expandedClients.begin(),
+				a_expandedClients.end());
+		}
+		else
+			state.previewExpandedClients.reset();
 	}
 
 	float SettingsActionButtonExtent() noexcept
@@ -1778,7 +2291,10 @@ namespace DearModdingUI
 		DrawSearchIcon(
 			{
 				cursor.x + Theme::kSearchIconOffsetX * scale,
-				cursor.y + (frameHeight - iconSize) * 0.5f
+				cursor.y + RowContentOffsetY(
+					frameHeight,
+					{ iconSize },
+					RowContentMetric::kBox)
 			},
 			iconSize,
 			Theme::kSearchIconAlpha);
@@ -1982,6 +2498,7 @@ namespace DearModdingUI
 		if (const auto* client =
 				model.FindClientForPage(state.activePage))
 			state.activeClient = client->handle;
+		ApplyPreviewExpandedClients(model, state);
 
 		const auto* viewport = ImGui::GetMainViewport();
 		ImGui::DockSpaceOverViewport(

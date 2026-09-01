@@ -126,7 +126,7 @@ namespace DearModdingUI
 		const NavigationClient& a_client,
 		const NavigationPage& a_page)
 	{
-		return " " + a_page.displayName + " ###DearModdingPage/" +
+		return "###DearModdingPage/" +
 			a_client.id + "/" + a_page.id;
 	}
 
