@@ -65,7 +65,7 @@ namespace DearModdingUIPreview
 			std::optional<std::filesystem::path> screenshot;
 			std::optional<std::string> page;
 			std::optional<std::vector<std::string>> expandedMods;
-			PreviewSidebarLayout sidebar{ PreviewSidebarLayout::kTree };
+			SidebarLayoutKind sidebar{ DEFAULT_SIDEBAR_LAYOUT };
 			bool help{};
 		};
 
@@ -147,9 +147,9 @@ namespace DearModdingUIPreview
 				<< L"  --width <n>              Backbuffer width (default 3840)\n"
 				<< L"  --height <n>             Backbuffer height (default 2160)\n"
 				<< L"  --page <client-id/page-id>  Open a registered settings page\n"
-				<< L"  --sidebar <tree|twopane> Select the sidebar comparison layout\n"
-				<< L"  --expand <client-id>      Set an expanded tree mod (repeatable)\n"
-				<< L"  --collapse-all            Start with every tree mod collapsed\n"
+				<< L"  --sidebar <tree|twopane|drilldown|iconrail>  Select the sidebar layout\n"
+				<< L"  --expand <client-id>      Expand a tree mod or enter a drill-down mod\n"
+				<< L"  --collapse-all            Collapse the tree or show the drill-down root\n"
 				<< L"  --help                    Show this help\n";
 		}
 
@@ -231,15 +231,17 @@ namespace DearModdingUIPreview
 				}
 				else if (argument == L"--sidebar")
 				{
-					if (value == L"tree")
-						a_options.sidebar = PreviewSidebarLayout::kTree;
-					else if (value == L"twopane")
-						a_options.sidebar = PreviewSidebarLayout::kTwoPane;
-					else
+					const auto name = WideToUtf8(value);
+					const auto layout = name ?
+						ParseSidebarLayout(*name) :
+						std::nullopt;
+					if (!layout)
 					{
-						a_error = L"Sidebar layout must be tree or twopane.";
+						a_error =
+							L"Sidebar layout must be tree, twopane, drilldown, or iconrail.";
 						return false;
 					}
+					a_options.sidebar = *layout;
 				}
 				else if (argument == L"--expand")
 				{

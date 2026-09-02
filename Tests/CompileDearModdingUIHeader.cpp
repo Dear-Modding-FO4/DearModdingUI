@@ -182,7 +182,7 @@ static_assert(DMUI_HOTKEY_BINDING_UNBOUND_INVALID_OVERRIDE == 5u);
 #if UINTPTR_MAX == UINT64_MAX
 static_assert(sizeof(DMUI_ImGuiFingerprint) == 216);
 static_assert(sizeof(DMUI_HostReadyInfo) == 40);
-static_assert(sizeof(DMUI_ClientDescriptor) == 72);
+static_assert(sizeof(DMUI_ClientDescriptor) == 80);
 static_assert(sizeof(DMUI_PageDescriptor) == 64);
 static_assert(sizeof(DMUI_ActionDescriptor) == 64);
 static_assert(sizeof(DMUI_FrameObserverDescriptor) == 24);
@@ -199,6 +199,12 @@ static_assert(offsetof(DMUI_Vec4, x) == 0);
 static_assert(offsetof(DMUI_Vec4, y) == 4);
 static_assert(offsetof(DMUI_Vec4, z) == 8);
 static_assert(offsetof(DMUI_Vec4, w) == 12);
+static_assert(offsetof(DMUI_ClientDescriptor, structSize) == 0);
+static_assert(offsetof(DMUI_ClientDescriptor, capabilities) == 64);
+static_assert(offsetof(DMUI_ClientDescriptor, iconName) == 72);
+static_assert(DMUI_CLIENT_DESCRIPTOR_1_0_SIZE == 68);
+static_assert(DMUI_CLIENT_DESCRIPTOR_ICON_NAME_SIZE ==
+	sizeof(DMUI_ClientDescriptor));
 static_assert(offsetof(DMUI_ThemeColors, structSize) == 0);
 static_assert(offsetof(DMUI_ThemeColors, success) == 4);
 static_assert(offsetof(DMUI_ThemeColors, warning) == 20);

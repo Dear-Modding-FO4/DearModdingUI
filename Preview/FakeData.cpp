@@ -33,6 +33,7 @@ namespace DearModdingUIPreview
 			const char* id;
 			const char* displayName;
 			dmui::Version version;
+			const char* iconName;
 			PageSpec page;
 		};
 
@@ -283,12 +284,14 @@ namespace DearModdingUIPreview
 			std::string_view a_id,
 			std::string_view a_displayName,
 			dmui::Version a_version,
+			std::string_view a_iconName,
 			std::string& a_error)
 		{
 			auto client = std::make_unique<dmui::Client>(
 				a_id,
 				a_displayName,
-				a_version);
+				a_version,
+				a_iconName);
 			if (!client->Connect())
 			{
 				a_error = "Could not connect fake client " +
@@ -372,48 +375,56 @@ namespace DearModdingUIPreview
 					"buffout4",
 					"Buffout 4",
 					{ 1, 28 },
+					"terminal-window",
 					{ "diagnostics", "Crash Diagnostics", "Diagnostics", "Crash logging and runtime checks." }
 				},
 				ClientSpec{
 					"highfpsphysicsfix",
 					"High FPS Physics Fix",
 					{ 0, 8 },
+					"gauge",
 					{ "timing", "Frame Timing", "Performance", "Physics timing and loading controls." }
 				},
 				ClientSpec{
 					"xcell",
 					"X-Cell",
 					{ 1, 5 },
+					"squares-four",
 					{ "memory", "Memory", "Performance", "Memory allocation and reclamation." }
 				},
 				ClientSpec{
 					"prp",
 					"Previsibines Repair Pack",
 					{ 74, 0 },
+					"files",
 					{ "coverage", "Coverage", "Compatibility", "Loaded previs and precombine coverage." }
 				},
 				ClientSpec{
 					"nacx",
 					"NAC X",
 					{ 1, 0 },
+					"palette",
 					{ "weather", "Weather", "Visuals", "Weather and post-process configuration." }
 				},
 				ClientSpec{
 					"longloadingtimesfix",
 					"Long Loading Times Fix",
 					{ 1, 0 },
+					"arrow-counter-clockwise",
 					{ "loading", "Loading", "Performance", "Loading-screen timing and diagnostics." }
 				},
 				ClientSpec{
 					"weapondebriscrashfix",
 					"Weapon Debris Crash Fix",
 					{ 1, 2 },
+					"shield-check",
 					{ "status", "Status", "Stability", "Debris patch status and compatibility." }
 				},
 				ClientSpec{
 					"fallui",
 					"FallUI",
 					{ 2, 3 },
+					"monitor",
 					{ "interface", "Interface", "Interface", "HUD and inventory interface settings." }
 				}
 			};
@@ -422,6 +433,7 @@ namespace DearModdingUIPreview
 				"dearmodding.addictol",
 				"Addictol",
 				{ 1, 4 },
+				"puzzle-piece",
 				a_error);
 			if (!addictol || !AddPages(*addictol, addictolPages, a_error))
 				return false;
@@ -466,6 +478,7 @@ namespace DearModdingUIPreview
 				"dearmodding.communityshaders",
 				"Community Shaders",
 				{ 1, 3 },
+				"sun",
 				a_error);
 			if (!communityShaders ||
 				!AddPages(*communityShaders, communityShadersPages, a_error))
@@ -488,6 +501,7 @@ namespace DearModdingUIPreview
 					clientSpec.id,
 					clientSpec.displayName,
 					clientSpec.version,
+					clientSpec.iconName,
 					a_error);
 				if (!client ||
 					!AddPages(

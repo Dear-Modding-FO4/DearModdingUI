@@ -38,6 +38,7 @@ namespace DearModdingUI
 		std::string displayName;
 		uint32_t version{ 0 };
 		std::vector<NavigationCategory> categories;
+		std::string iconName;
 	};
 
 	struct NavigationModel

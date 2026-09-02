@@ -23,7 +23,8 @@ namespace
 		static dmui::Client client{
 			"example.author.mod",
 			"Example Mod",
-			dmui::Version{ 1, 0 }
+			dmui::Version{ 1, 0 },
+			"puzzle-piece"
 		};
 		if (!client.Connect())
 			return;

@@ -181,7 +181,7 @@ namespace DearModdingUI
 		if (!a_descriptor || !a_client)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_client = DMUI_INVALID_CLIENT_HANDLE;
-		if (a_descriptor->structSize < sizeof(DMUI_ClientDescriptor))
+		if (a_descriptor->structSize < DMUI_CLIENT_DESCRIPTOR_1_0_SIZE)
 			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!SupportsVersion(a_descriptor->apiVersion))
 			return DMUI_RESULT_UNSUPPORTED_ABI;
@@ -209,8 +209,16 @@ namespace DearModdingUI
 			client.userData = a_descriptor->userData;
 			if (!ReadString(a_descriptor->id, kIdCapacity, false, client.id) ||
 				!ReadString(a_descriptor->displayName, kDisplayNameCapacity, false, client.displayName) ||
+				(a_descriptor->structSize >=
+						DMUI_CLIENT_DESCRIPTOR_ICON_NAME_SIZE &&
+					!ReadString(
+						a_descriptor->iconName,
+						kIconNameCapacity,
+						true,
+						client.iconName)) ||
 				!ValidId(client.id) ||
-				!ValidText(client.displayName, false))
+				!ValidText(client.displayName, false) ||
+				!ValidText(client.iconName, true))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 
 			const std::scoped_lock lock{ m_mutex };

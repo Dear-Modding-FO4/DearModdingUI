@@ -158,7 +158,8 @@ namespace DearModdingUI
 				client->id,
 				client->displayName,
 				client->version,
-				{}
+				{},
+				client->iconName
 			};
 
 			std::vector<const RegisteredPage*> orderedPages;
@@ -217,7 +218,7 @@ namespace DearModdingUI
 				client.displayName,
 				client.id,
 				client.displayName,
-				{},
+				client.iconName,
 				{},
 				{},
 				0

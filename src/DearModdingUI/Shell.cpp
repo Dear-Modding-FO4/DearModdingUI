@@ -25,6 +25,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace DearModdingUI
@@ -43,7 +44,9 @@ namespace DearModdingUI
 			std::optional<std::vector<std::string>> previewExpandedClients;
 			std::string paletteQuery;
 			size_t paletteSelection{ 0 };
-			PreviewSidebarLayout sidebarLayout{ PreviewSidebarLayout::kTree };
+			SidebarLayoutKind sidebarLayout{ DEFAULT_SIDEBAR_LAYOUT };
+			DrillDownState drillDown;
+			bool drillDownInitialized{ false };
 			bool paletteOpenRequested{ false };
 			bool paletteFocusRequested{ false };
 			bool paletteVisible{ false };
@@ -297,6 +300,7 @@ namespace DearModdingUI
 		{
 			kNone,
 			kArrow,
+			kBack,
 			kIcon
 		};
 
@@ -332,6 +336,7 @@ namespace DearModdingUI
 				RowHighlightStyle::kSelectable
 			};
 			RowClickBehavior clickBehavior{ RowClickBehavior::kSelect };
+			bool centerGlyph{ false };
 		};
 
 		struct RowResult
@@ -389,8 +394,9 @@ namespace DearModdingUI
 			const auto fontSize = ImGui::GetFontSize();
 			const auto hasGlyph = HasIconGlyph(a_options.glyph);
 			const auto hasLeadingSlot =
-				a_options.leadingAffordance == RowLeadingAffordance::kArrow &&
-				!a_interaction.splitArrow;
+				(a_options.leadingAffordance == RowLeadingAffordance::kArrow &&
+					!a_interaction.splitArrow) ||
+				a_options.leadingAffordance == RowLeadingAffordance::kBack;
 			const auto hasIconSlot =
 				hasGlyph ||
 				(a_options.leadingAffordance == RowLeadingAffordance::kIcon &&
@@ -443,9 +449,11 @@ namespace DearModdingUI
 							RowContentMetric::kBox)
 					},
 					textColor,
-					a_interaction.expanded ?
-						ImGuiDir_Down :
-						ImGuiDir_Right);
+					a_options.leadingAffordance == RowLeadingAffordance::kBack ?
+						ImGuiDir_Left :
+						(a_interaction.expanded ?
+							ImGuiDir_Down :
+							ImGuiDir_Right));
 			}
 
 			if (hasGlyph)
@@ -453,20 +461,23 @@ namespace DearModdingUI
 				DrawCenteredIcon(
 					drawList,
 					a_options.glyph,
-					{
-						{ content.iconMinX, a_contentRect.Min.y },
-						{
-							content.iconMinX + fontSize,
-							a_contentRect.Max.y
-						}
-					},
+					a_options.centerGlyph ?
+						a_contentRect :
+						ImRect{
+							{ content.iconMinX, a_contentRect.Min.y },
+							{
+								content.iconMinX + fontSize,
+								a_contentRect.Max.y
+							}
+						},
 					fontSize,
 					IconColor(textColor),
 					&clip);
 			}
 
 			const auto* labelEnd = ImGui::FindRenderedTextEnd(a_options.label);
-			if (content.textMinX < content.clipMaxX)
+			if (!a_options.centerGlyph &&
+				content.textMinX < content.clipMaxX)
 			{
 				drawList->AddText(
 					ImGui::GetFont(),
@@ -1047,7 +1058,8 @@ namespace DearModdingUI
 			const auto glyph = ResolveCategoryIconGlyph(
 				a_name,
 				a_client.displayName,
-				a_client.id);
+				a_client.id,
+				a_client.iconName);
 			auto color = Theme::kFeatureHeadingDefaults.colorDefault;
 			auto hoveredColor =
 				Theme::kFeatureHeadingDefaults.colorHovered;
@@ -1164,6 +1176,11 @@ namespace DearModdingUI
 			a_state.categoryExpansion[CategoryKey(*client, page->category)] = true;
 		}
 
+		void NavigateToPage(
+			const NavigationModel& a_model,
+			DMUI_PageHandle a_page,
+			ShellState& a_state) noexcept;
+
 		void ApplyPreviewExpandedClients(
 			const NavigationModel& a_model,
 			ShellState& a_state)
@@ -1176,6 +1193,34 @@ namespace DearModdingUI
 					std::ranges::find(
 						*a_state.previewExpandedClients,
 						client.id) != a_state.previewExpandedClients->end();
+			}
+			if (a_state.sidebarLayout == SidebarLayoutKind::DrillDown)
+			{
+				a_state.drillDownInitialized = true;
+				if (a_state.previewExpandedClients->empty())
+				{
+					a_state.drillDown = TransitionDrillDown(
+						a_state.drillDown,
+						DrillDownEvent::Back);
+				}
+				else
+				{
+					const auto client = std::ranges::find(
+						a_model.clients,
+						a_state.previewExpandedClients->front(),
+						&NavigationClient::id);
+					if (client != a_model.clients.end())
+					{
+						a_state.drillDown = TransitionDrillDown(
+							a_state.drillDown,
+							DrillDownEvent::SelectClient,
+							client->handle);
+						NavigateToPage(
+							a_model,
+							ResolveLandingPage(*client),
+							a_state);
+					}
+				}
 			}
 			a_state.previewExpandedClients.reset();
 		}
@@ -1193,6 +1238,14 @@ namespace DearModdingUI
 			a_state.activePage = page->handle;
 			RecordRecentPage(a_model, page->handle, a_state);
 			ExpandPageAncestors(a_model, page->handle, a_state);
+			if (a_state.sidebarLayout == SidebarLayoutKind::DrillDown &&
+				a_state.drillDownInitialized)
+			{
+				a_state.drillDown = TransitionDrillDown(
+					a_state.drillDown,
+					DrillDownEvent::SelectClient,
+					page->client);
+			}
 		}
 
 		[[nodiscard]] const ClientStatus* FindClientStatus(
@@ -1208,7 +1261,8 @@ namespace DearModdingUI
 
 		void DrawClientStatusDot(
 			const ImRect& a_bounds,
-			const ClientStatus* a_status) noexcept
+			const ClientStatus* a_status,
+			bool a_corner = false) noexcept
 		{
 			if (!a_status || !IsPersistentStatus(a_status->severity))
 				return;
@@ -1218,11 +1272,17 @@ namespace DearModdingUI
 					Theme::kStatusPaletteDefaults.error;
 			const auto radius = ImGui::GetFontSize() *
 				Theme::kSearchIconStrokeRatio;
+			const auto& padding = ImGui::GetStyle().FramePadding;
 			ImGui::GetWindowDrawList()->AddCircleFilled(
-				{
-					a_bounds.Max.x - ImGui::GetStyle().FramePadding.x - radius,
-					a_bounds.GetCenter().y
-				},
+				a_corner ?
+					ImVec2{
+						a_bounds.Max.x - (std::max)(padding.x * 0.5f, radius),
+						a_bounds.Min.y + (std::max)(padding.y * 0.5f, radius)
+					} :
+					ImVec2{
+						a_bounds.Max.x - padding.x - radius,
+						a_bounds.GetCenter().y
+					},
 				radius,
 				ImGui::GetColorU32(color));
 		}
@@ -1234,6 +1294,59 @@ namespace DearModdingUI
 				a_status ? a_status->severity : DMUI_STATUS_SEVERITY_INFO) ?
 				ImGui::GetFontSize() :
 				0.0f;
+		}
+
+		enum class ClientRowKind : uint32_t
+		{
+			Tree,
+			List,
+			Rail
+		};
+
+		[[nodiscard]] RowResult DrawClientNavigationRow(
+			const NavigationClient& a_client,
+			const ClientStatus* a_status,
+			ShellState& a_state,
+			ClientRowKind a_kind,
+			bool* a_expanded = nullptr) noexcept
+		{
+			const Theme::FontGuard font{
+				Theme::FontRole::kTitle,
+				kSidebarModFontScale
+			};
+			const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
+			const auto row = DrawSelectableRow({
+				.id = a_client.id.c_str(),
+				.label = a_client.displayName.c_str(),
+				.selected = a_client.handle == a_state.activeClient,
+				.leadingAffordance =
+					a_kind == ClientRowKind::Tree ?
+						RowLeadingAffordance::kArrow :
+						RowLeadingAffordance::kIcon,
+				.expanded =
+					a_kind == ClientRowKind::Tree ? a_expanded : nullptr,
+				.glyph = ResolveIconGlyph(
+					IconKind::kClient,
+					a_client.iconName,
+					a_client.id),
+				.textColor = textColor,
+				.hoveredTextColor = textColor,
+				.trailingWidth =
+					a_kind == ClientRowKind::Rail ?
+						0.0f :
+						ClientStatusTrailingWidth(a_status),
+				.flushHorizontalHighlight =
+					a_kind == ClientRowKind::Rail,
+				.centerGlyph = a_kind == ClientRowKind::Rail
+			});
+			DrawClientStatusDot(
+				row.rect,
+				a_status,
+				a_kind == ClientRowKind::Rail);
+			if (a_kind == ClientRowKind::Rail &&
+				ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
+				ImGui::SetTooltip("%s", a_client.displayName.c_str());
+			return row;
 		}
 
 		void DrawPageRows(
@@ -1350,37 +1463,19 @@ namespace DearModdingUI
 					a_state.modExpansion.try_emplace(client.id, false).first;
 				const auto* status =
 					FindClientStatus(a_statuses, client.handle);
-				const auto selected = client.handle == a_state.activeClient;
+				const auto row = DrawClientNavigationRow(
+					client,
+					status,
+					a_state,
+					ClientRowKind::Tree,
+					&expansion->second);
+				if (row.pressed)
 				{
-					const Theme::FontGuard font{
-						Theme::FontRole::kTitle,
-						kSidebarModFontScale
-					};
-					const auto textColor =
-						ImGui::GetColorU32(ImGuiCol_Text);
-					const auto row = DrawSelectableRow({
-						.id = client.id.c_str(),
-						.label = client.displayName.c_str(),
-						.selected = selected,
-						.leadingAffordance = RowLeadingAffordance::kArrow,
-						.expanded = &expansion->second,
-						.glyph = ResolveIconGlyph(
-							IconKind::kClient,
-							client.id),
-						.textColor = textColor,
-						.hoveredTextColor = textColor,
-						.trailingWidth =
-							ClientStatusTrailingWidth(status)
-					});
-					DrawClientStatusDot(row.rect, status);
-					if (row.pressed)
-					{
-						expansion->second = true;
-						NavigateToPage(
-							a_model,
-							ResolveLandingPage(client),
-							a_state);
-					}
+					expansion->second = true;
+					NavigateToPage(
+						a_model,
+						ResolveLandingPage(client),
+						a_state);
 				}
 				if (expansion->second)
 					DrawExpandedClientPages(a_model, client, a_state);
@@ -1430,28 +1525,11 @@ namespace DearModdingUI
 					{
 						const auto* status =
 							FindClientStatus(a_statuses, client.handle);
-						const Theme::FontGuard font{
-							Theme::FontRole::kTitle,
-							kSidebarModFontScale
-						};
-						const auto textColor =
-							ImGui::GetColorU32(ImGuiCol_Text);
-						const auto row = DrawSelectableRow({
-							.id = client.id.c_str(),
-							.label = client.displayName.c_str(),
-							.selected =
-								client.handle == a_state.activeClient,
-							.leadingAffordance =
-								RowLeadingAffordance::kIcon,
-							.glyph = ResolveIconGlyph(
-								IconKind::kClient,
-								client.id),
-							.textColor = textColor,
-							.hoveredTextColor = textColor,
-							.trailingWidth =
-								ClientStatusTrailingWidth(status)
-						});
-						DrawClientStatusDot(row.rect, status);
+						const auto row = DrawClientNavigationRow(
+							client,
+							status,
+							a_state,
+							ClientRowKind::List);
 						if (row.pressed)
 						{
 							NavigateToPage(
@@ -1479,6 +1557,223 @@ namespace DearModdingUI
 			ImGui::EndChild();
 		}
 
+		void DrawDrillDownNavigation(
+			const NavigationModel& a_model,
+			const std::vector<ClientStatus>& a_statuses,
+			ShellState& a_state) noexcept
+		{
+			const auto* selectedClient =
+				a_state.drillDown.level == DrillDownLevel::Pages ?
+					a_model.FindClient(a_state.drillDown.client) :
+					nullptr;
+			if (!selectedClient)
+			{
+				a_state.drillDown = TransitionDrillDown(
+					a_state.drillDown,
+					DrillDownEvent::Back);
+				for (const auto& client : a_model.clients)
+				{
+					const auto* status =
+						FindClientStatus(a_statuses, client.handle);
+					const auto row = DrawClientNavigationRow(
+						client,
+						status,
+						a_state,
+						ClientRowKind::List);
+					if (row.pressed)
+					{
+						a_state.drillDown = TransitionDrillDown(
+							a_state.drillDown,
+							DrillDownEvent::SelectClient,
+							client.handle);
+						NavigateToPage(
+							a_model,
+							ResolveLandingPage(client),
+							a_state);
+					}
+				}
+				return;
+			}
+
+			{
+				const Theme::FontGuard font{
+					Theme::FontRole::kTitle,
+					kSidebarModFontScale
+				};
+				const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
+				const auto row = DrawSelectableRow({
+					.id = "##DearModdingDrillDownBack",
+					.label = "All Mods",
+					.leadingAffordance = RowLeadingAffordance::kBack,
+					.textColor = textColor,
+					.hoveredTextColor = textColor
+				});
+				if (row.pressed)
+				{
+					a_state.drillDown = TransitionDrillDown(
+						a_state.drillDown,
+						DrillDownEvent::Back);
+					return;
+				}
+			}
+			ImGui::Spacing();
+			DrawSectionHeader(
+				selectedClient->displayName.c_str(),
+				ResolveIconGlyph(
+					IconKind::kClient,
+					selectedClient->iconName,
+					selectedClient->id));
+			ImGui::Spacing();
+			DrawPageList(a_model, *selectedClient, a_state);
+		}
+
+		void DrawIconRailNavigation(
+			const NavigationModel& a_model,
+			const std::vector<ClientStatus>& a_statuses,
+			ShellState& a_state) noexcept
+		{
+			const auto& style = ImGui::GetStyle();
+			float iconFontSize{};
+			{
+				const Theme::FontGuard font{
+					Theme::FontRole::kTitle,
+					kSidebarModFontScale
+				};
+				iconFontSize = ImGui::GetFontSize();
+			}
+			const auto geometry = ResolveIconRailGeometry(
+				ImGui::GetContentRegionAvail().x,
+				iconFontSize,
+				style.FramePadding.x,
+				style.ItemSpacing.x);
+			if (geometry.railWidth > 0.0f)
+			{
+				if (ImGui::BeginChild(
+						"##DearModdingIconRail",
+						{ geometry.railWidth, -FLT_MIN }))
+				{
+					for (const auto& client : a_model.clients)
+					{
+						const auto* status =
+							FindClientStatus(a_statuses, client.handle);
+						const auto row = DrawClientNavigationRow(
+							client,
+							status,
+							a_state,
+							ClientRowKind::Rail);
+						if (row.pressed)
+						{
+							NavigateToPage(
+								a_model,
+								ResolveLandingPage(client),
+								a_state);
+						}
+					}
+				}
+				ImGui::EndChild();
+			}
+
+			if (geometry.panelWidth <= 0.0f)
+				return;
+			ImGui::SameLine(0.0f, geometry.gap);
+			if (ImGui::BeginChild(
+					"##DearModdingIconRailPages",
+					{ geometry.panelWidth, -FLT_MIN }))
+			{
+				if (const auto* client =
+						a_model.FindClient(a_state.activeClient))
+				{
+					DrawSectionHeader(
+						client->displayName.c_str(),
+						ResolveIconGlyph(
+							IconKind::kClient,
+							client->iconName,
+							client->id));
+					ImGui::Spacing();
+					DrawPageList(a_model, *client, a_state);
+				}
+			}
+			ImGui::EndChild();
+		}
+
+		struct SidebarLayoutContext
+		{
+			const NavigationModel& model;
+			const std::vector<ClientStatus>& statuses;
+			ShellState& state;
+		};
+
+		struct TreeSidebarLayout
+		{
+			inline static constexpr auto kind = SidebarLayoutKind::Tree;
+
+			static void Draw(const SidebarLayoutContext& a_context) noexcept
+			{
+				DrawTreeNavigation(
+					a_context.model,
+					a_context.statuses,
+					a_context.state);
+			}
+		};
+
+		struct TwoPaneSidebarLayout
+		{
+			inline static constexpr auto kind = SidebarLayoutKind::TwoPane;
+
+			static void Draw(const SidebarLayoutContext& a_context) noexcept
+			{
+				DrawTwoPaneNavigation(
+					a_context.model,
+					a_context.statuses,
+					a_context.state);
+			}
+		};
+
+		struct DrillDownSidebarLayout
+		{
+			inline static constexpr auto kind = SidebarLayoutKind::DrillDown;
+
+			static void Draw(const SidebarLayoutContext& a_context) noexcept
+			{
+				DrawDrillDownNavigation(
+					a_context.model,
+					a_context.statuses,
+					a_context.state);
+			}
+		};
+
+		struct IconRailSidebarLayout
+		{
+			inline static constexpr auto kind = SidebarLayoutKind::IconRail;
+
+			static void Draw(const SidebarLayoutContext& a_context) noexcept
+			{
+				DrawIconRailNavigation(
+					a_context.model,
+					a_context.statuses,
+					a_context.state);
+			}
+		};
+
+		template<class F>
+		decltype(auto) VisitSidebarLayout(
+			SidebarLayoutKind a_kind,
+			F&& a_fn)
+		{
+			auto fn = std::forward<F>(a_fn);
+			switch (a_kind)
+			{
+			case SidebarLayoutKind::TwoPane:
+				return fn.template operator()<TwoPaneSidebarLayout>();
+			case SidebarLayoutKind::DrillDown:
+				return fn.template operator()<DrillDownSidebarLayout>();
+			case SidebarLayoutKind::IconRail:
+				return fn.template operator()<IconRailSidebarLayout>();
+			default:
+				return fn.template operator()<TreeSidebarLayout>();
+			}
+		}
+
 		void DrawNavigation(
 			const NavigationModel& a_model,
 			ShellState& a_state) noexcept
@@ -1495,10 +1790,11 @@ namespace DearModdingUI
 				ImGui::Spacing();
 				const auto statusSnapshot = CurrentClientStatuses();
 				const auto statuses = RollupClientStatuses(statusSnapshot);
-				if (a_state.sidebarLayout == PreviewSidebarLayout::kTwoPane)
-					DrawTwoPaneNavigation(a_model, statuses, a_state);
-				else
-					DrawTreeNavigation(a_model, statuses, a_state);
+				VisitSidebarLayout(
+					a_state.sidebarLayout,
+					[&]<class Layout>() noexcept {
+						Layout::Draw({ a_model, statuses, a_state });
+					});
 				ImGui::EndListBox();
 			}
 			ImGui::PopStyleVar();
@@ -1584,7 +1880,10 @@ namespace DearModdingUI
 			switch (a_entry.kind)
 			{
 			case NavigationItemKind::kClient:
-				return ResolveIconGlyph(IconKind::kClient, a_entry.clientId);
+				return ResolveIconGlyph(
+					IconKind::kClient,
+					a_entry.iconName,
+					a_entry.clientId);
 			case NavigationItemKind::kAction:
 				if (const auto glyph = ResolveActionIconGlyph(a_entry.iconName))
 					return glyph;
@@ -2320,12 +2619,14 @@ namespace DearModdingUI
 	}
 
 	void ConfigurePreviewSidebarComparison(
-		PreviewSidebarLayout a_layout,
+		SidebarLayoutKind a_layout,
 		bool a_overrideExpandedClients,
 		std::span<const std::string> a_expandedClients)
 	{
 		auto& state = State();
 		state.sidebarLayout = a_layout;
+		state.drillDown = {};
+		state.drillDownInitialized = false;
 		if (a_overrideExpandedClients)
 		{
 			state.previewExpandedClients.emplace(
@@ -2520,6 +2821,24 @@ namespace DearModdingUI
 		if (const auto* client =
 				model.FindClientForPage(state.activePage))
 			state.activeClient = client->handle;
+		if (state.sidebarLayout == SidebarLayoutKind::DrillDown)
+		{
+			if (!state.drillDownInitialized)
+			{
+				state.drillDown = TransitionDrillDown(
+					state.drillDown,
+					DrillDownEvent::Open,
+					state.activeClient);
+				state.drillDownInitialized = true;
+			}
+			else if (requested != DMUI_INVALID_PAGE_HANDLE)
+			{
+				state.drillDown = TransitionDrillDown(
+					state.drillDown,
+					DrillDownEvent::SelectClient,
+					state.activeClient);
+			}
+		}
 		ApplyPreviewExpandedClients(model, state);
 
 		const auto* viewport = ImGui::GetMainViewport();

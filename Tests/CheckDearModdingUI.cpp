@@ -110,7 +110,8 @@ namespace vmm_tests
 				&Ready,
 				&Unavailable,
 				&a_state,
-				DMUI_CLIENT_CAPABILITY_NONE
+				DMUI_CLIENT_CAPABILITY_NONE,
+				nullptr
 			};
 		}
 
@@ -945,6 +946,62 @@ namespace vmm_tests
 					"negative space produced pane height");
 		});
 
+		runner.test("sidebar layout names parse and round trip", [] {
+			for (const auto& layout : SIDEBAR_LAYOUT_NAMES)
+			{
+				require(
+					ParseSidebarLayout(layout.name) == layout.kind &&
+						SidebarLayoutKindName(layout.kind) == layout.name,
+					"sidebar layout name did not round trip");
+			}
+			require(
+				!ParseSidebarLayout("columns") &&
+					SidebarLayoutKindName(
+						static_cast<SidebarLayoutKind>(99)) == "unknown" &&
+					DEFAULT_SIDEBAR_LAYOUT == SidebarLayoutKind::Tree,
+				"unknown or default sidebar layout handling changed");
+		});
+
+		runner.test("drill-down navigation moves one level at a time", [] {
+			const DrillDownState root;
+			const auto opened = TransitionDrillDown(
+				root,
+				DrillDownEvent::Open,
+				42);
+			require(
+				opened == DrillDownState{ DrillDownLevel::Pages, 42 },
+				"an active page did not open at its mod");
+			require(
+				TransitionDrillDown(opened, DrillDownEvent::Back) == root,
+				"back did not return to the mod list");
+			require(
+				TransitionDrillDown(
+					root,
+					DrillDownEvent::SelectClient,
+					7) == DrillDownState{ DrillDownLevel::Pages, 7 },
+				"selecting a mod did not replace the root level");
+			require(
+				TransitionDrillDown(opened, DrillDownEvent::Open) == root,
+				"opening without an active client did not show the root");
+		});
+
+		runner.test("icon rail geometry scales from live font metrics", [] {
+			require(
+				ResolveIconRailGeometry(1000.0f, 32.0f, 8.0f, 12.0f) ==
+					IconRailGeometry{ 48.0f, 940.0f, 12.0f },
+				"baseline rail geometry did not fill the sidebar");
+			require(
+				ResolveIconRailGeometry(2000.0f, 64.0f, 16.0f, 24.0f) ==
+					IconRailGeometry{ 96.0f, 1880.0f, 24.0f },
+				"rail geometry did not scale with the font and style");
+			require(
+				ResolveIconRailGeometry(40.0f, 32.0f, 8.0f, 12.0f) ==
+						IconRailGeometry{ 40.0f, 0.0f, 0.0f } &&
+					ResolveIconRailGeometry(-1.0f, -2.0f, -3.0f, -4.0f) ==
+						IconRailGeometry{},
+				"constrained rail geometry overflowed its container");
+		});
+
 		runner.test("capital ink provides stable optical text offset", [] {
 			constexpr std::string_view versionLabel{ "Version: 1.6" };
 			constexpr std::string_view modLabel{ "Mod: Addictol" };
@@ -1096,7 +1153,7 @@ namespace vmm_tests
 			require(registry.RegisterClient(&client, nullptr) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"null output was accepted");
-			client.structSize = sizeof(client) - 1;
+			client.structSize = DMUI_CLIENT_DESCRIPTOR_1_0_SIZE - 1;
 			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_STRUCT_TOO_SMALL,
 				"short client descriptor was accepted");
@@ -1140,6 +1197,46 @@ namespace vmm_tests
 			require(registry.RegisterPage(handle, &page, &pageHandle) ==
 					DMUI_RESULT_INVALID_DESCRIPTOR,
 				"null page callback was accepted");
+		});
+
+		runner.test("client icons extend the descriptor without rejecting older clients", [] {
+			const auto fingerprint = Fingerprint();
+			CallbackState state;
+
+			Registry legacyRegistry{ fingerprint };
+			auto legacy = Client("legacy.mod", "Legacy", fingerprint, state);
+			legacy.structSize =
+				static_cast<uint32_t>(offsetof(DMUI_ClientDescriptor, iconName));
+			legacy.iconName = reinterpret_cast<const char*>(uintptr_t{ 1 });
+			DMUI_ClientHandle legacyHandle{};
+			require(
+				legacyRegistry.RegisterClient(&legacy, &legacyHandle) ==
+						DMUI_RESULT_OK &&
+					legacyHandle != DMUI_INVALID_CLIENT_HANDLE,
+				"the 1.0 client descriptor size was rejected");
+
+			Registry registry{ fingerprint };
+			char iconName[]{ "gauge" };
+			auto client = Client("owned.mod", "Owned", fingerprint, state);
+			client.iconName = iconName;
+			DMUI_ClientHandle handle{};
+			require(registry.RegisterClient(&client, &handle) == DMUI_RESULT_OK,
+				"client icon registration failed");
+			iconName[0] = 'x';
+			(void)AddPage(
+				registry,
+				handle,
+				"settings",
+				"Settings",
+				"General",
+				0,
+				DMUI_PAGE_KIND_SETTINGS,
+				state);
+			require(registry.Freeze(), "registry with a client icon did not freeze");
+			require(
+				registry.Navigation().clients.size() == 1 &&
+					registry.Navigation().clients.front().iconName == "gauge",
+				"the client icon name was not deep-copied");
 		});
 
 		runner.test("forwarding clients register without a fingerprint", [] {
@@ -2029,6 +2126,58 @@ namespace vmm_tests
 						"dear-modding.community-shaders") ==
 					PhosphorGlyph::kSun,
 				"known clients changed glyphs");
+			require(
+				ResolveIconGlyph(
+					IconKind::kClient,
+					"gauge",
+					"dear-modding.addictol") == PhosphorGlyph::kGauge &&
+					ResolveIconGlyph(
+						IconKind::kClient,
+						"unknown",
+						"dear-modding.addictol") ==
+						PhosphorGlyph::kPuzzlePiece &&
+					ResolveIconGlyph(
+						IconKind::kClient,
+						{},
+						"dear-modding.community-shaders") ==
+						PhosphorGlyph::kSun &&
+					ResolveIconGlyph(
+						IconKind::kClient,
+						"unknown",
+						"unknown") == PhosphorGlyph::kQuestion,
+				"client icon preference or fallback order changed");
+			constexpr std::array fakeClientIcons{
+				std::string_view{ "puzzle-piece" },
+				std::string_view{ "sun" },
+				std::string_view{ "terminal-window" },
+				std::string_view{ "gauge" },
+				std::string_view{ "squares-four" },
+				std::string_view{ "files" },
+				std::string_view{ "palette" },
+				std::string_view{ "arrow-counter-clockwise" },
+				std::string_view{ "shield-check" },
+				std::string_view{ "monitor" }
+			};
+			for (size_t left = 0; left < fakeClientIcons.size(); ++left)
+			{
+				const auto leftGlyph = ResolveIconGlyph(
+					IconKind::kClient,
+					fakeClientIcons[left],
+					{});
+				require(leftGlyph != PhosphorGlyph::kQuestion,
+					"a fake client icon did not resolve");
+				for (size_t right = left + 1;
+					right < fakeClientIcons.size();
+					++right)
+				{
+					require(
+						leftGlyph != ResolveIconGlyph(
+							IconKind::kClient,
+							fakeClientIcons[right],
+							{}),
+						"fake client icons were not distinct");
+				}
+			}
 			require(ResolveCategoryIconGlyph(
 						"Community Shaders",
 						"Community Shaders",

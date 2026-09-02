@@ -44,7 +44,10 @@ Headless capture defaults to 3840x2160 and waits three frames before writing the
 
 `--width`, `--height`, and `--frames` override the capture defaults. The build copies the theme, fonts, and shaders to `.Build/Preview/Data/F4SE/Plugins/`.
 
-Use `--sidebar tree|twopane` to render either sidebar comparison without rebuilding. For deterministic tree captures, `--collapse-all` starts with every mod closed and repeatable `--expand <client-id>` arguments define the exact expanded set.
+Use `--sidebar tree|twopane|drilldown|iconrail` to render any sidebar layout without rebuilding.
+For deterministic tree captures, `--collapse-all` starts with every mod closed and repeatable
+`--expand <client-id>` arguments define the exact expanded set. In drill-down, `--collapse-all`
+shows the mod root and `--expand <client-id>` opens that mod.
 
 ## Generating the client ImGui header
 

@@ -17,6 +17,7 @@ namespace DearModdingUI
 		DMUI_ClientHandle handle{ DMUI_INVALID_CLIENT_HANDLE };
 		std::string id;
 		std::string displayName;
+		std::string iconName;
 		uint32_t version{ 0 };
 		DMUI_ClientCapabilities capabilities{ DMUI_CLIENT_CAPABILITY_NONE };
 		DMUI_HostReadyCallback onHostReady{ nullptr };

@@ -21,7 +21,9 @@ Client, page, action, hotkey-action, and frame-observer registration closes when
 `Present` begins host initialization. Register them immediately after the client. All descriptor strings are copied;
 callback and userdata pointers must remain valid for the process lifetime. IDs use ASCII letters,
 digits, `.`, `_`, and `-`. Client IDs are process-wide; page and action IDs are unique within their client.
-Set only documented `DMUI_ClientDescriptor::capabilities`; unknown bits reject the descriptor.
+The optional client `iconName` is a Phosphor slug copied at registration; an unknown or null value
+falls back to the known-client icon and then the question glyph. Set only documented
+`DMUI_ClientDescriptor::capabilities`; unknown bits reject the descriptor.
 
 Settings pages draw only inside the common modal menu. Overlay pages draw without input capture while
 their reference-counted frame demand is nonzero. Balance every successful `requestFrame` with
@@ -296,7 +298,8 @@ DMUI_ClientDescriptor client{
 	&Ready,
 	&Unavailable,
 	nullptr,
-	DMUI_CLIENT_CAPABILITY_NONE
+	DMUI_CLIENT_CAPABILITY_NONE,
+	"puzzle-piece"
 };
 DMUI_ClientHandle clientHandle{};
 if (api->registerClient(&client, &clientHandle) != DMUI_RESULT_OK)
