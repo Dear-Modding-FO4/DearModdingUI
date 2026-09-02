@@ -718,170 +718,115 @@ namespace vmm_tests
 					"unknown status severity was not rejected");
 		});
 
-		runner.test("wide footer places measured status after metadata", [] {
-			const auto layout = ResolveFooterStatusLayout(
+		runner.test("footer bullet run reserves the settings control", [] {
+			const auto layout = ResolveFooterControlsLayout(
 				20.0f,
 				1200.0f,
 				32.0f,
-				300.0f,
-				180.0f,
-				28.0f,
-				8.0f,
-				36.0f,
-				8.0f,
-				8.0f,
-				1.0f,
-				true,
-				false);
+				0.0f,
+				8.0f);
 			require(
-					layout.statusMinX == 308.0f &&
-						layout.statusMaxX == 488.0f,
-					"status text did not follow the metadata");
-			require(
-					layout.metadataMinX == 20.0f &&
-						layout.metadataMaxX == 1160.0f &&
+					layout.runMaxX == 1160.0f &&
+						layout.dismissMinX == 1160.0f &&
+						layout.dismissMaxX == 1160.0f &&
 						layout.settingsMinX == 1168.0f &&
-						layout.footerHeight == 61.0f,
-					"wide footer regions were not separated");
+						layout.settingsMaxX == 1200.0f,
+					"footer run did not stop before settings");
 		});
 
-		runner.test("narrow footer clamps status without overlap", [] {
-			const auto layout = ResolveFooterStatusLayout(
+		runner.test("persistent footer reserves its dismiss control", [] {
+			const auto layout = ResolveFooterControlsLayout(
 				20.0f,
-				320.0f,
-				40.0f,
-				180.0f,
-				300.0f,
+				1200.0f,
+				32.0f,
 				28.0f,
-				8.0f,
-				40.0f,
-				8.0f,
-				8.0f,
-				1.0f,
-				true,
-				true);
+				8.0f);
 			require(
-					layout.metadataMaxX == 272.0f &&
-						layout.statusMinX == 188.0f &&
-						layout.statusMaxX == 236.0f &&
-						layout.dismissMinX == 244.0f &&
-						layout.dismissMaxX == 272.0f,
-					"narrow status did not fill its clamped span");
+					layout.runMaxX == 1124.0f &&
+						layout.dismissMinX == 1132.0f &&
+						layout.dismissMaxX == 1160.0f &&
+						layout.settingsMinX == 1168.0f &&
+						layout.settingsMaxX == 1200.0f,
+					"persistent footer controls changed");
 			require(
-					layout.statusMaxX + 8.0f == layout.dismissMinX &&
-						layout.dismissMaxX < layout.settingsMinX,
-					"narrow status overlapped footer controls");
+					layout.runMaxX + 8.0f == layout.dismissMinX &&
+						layout.dismissMaxX + 8.0f ==
+							layout.settingsMinX,
+					"persistent footer controls overlapped the bullet run");
 		});
 
-		runner.test("persistent footer status reserves dismiss control", [] {
-			const auto layout = ResolveFooterStatusLayout(
+		runner.test("narrow footer controls clamp without overlap", [] {
+			const auto layout = ResolveFooterControlsLayout(
+				20.0f,
+				100.0f,
+				60.0f,
+				50.0f,
+				8.0f);
+			require(
+					layout.runMaxX == 20.0f &&
+						layout.dismissMinX == 20.0f &&
+						layout.dismissMaxX == 32.0f &&
+						layout.settingsMinX == 40.0f &&
+						layout.settingsMaxX == 100.0f,
+					"narrow footer controls escaped their bounds");
+			require(
+					layout.dismissMaxX + 8.0f ==
+						layout.settingsMinX,
+					"narrow footer controls overlapped");
+		});
+
+		runner.test("footer control layout scales uniformly", [] {
+			const auto base = ResolveFooterControlsLayout(
 				0.0f,
 				600.0f,
 				40.0f,
-				200.0f,
-				160.0f,
 				28.0f,
-				8.0f,
-				40.0f,
-				8.0f,
-				8.0f,
-				1.0f,
-				true,
-				true);
-			require(
-					layout.statusMinX == 208.0f &&
-						layout.statusMaxX == 368.0f &&
-						layout.dismissMinX == 524.0f &&
-						layout.dismissMaxX == 552.0f,
-					"persistent status geometry changed");
-			require(
-					layout.statusMaxX + 8.0f <= layout.dismissMinX &&
-						layout.dismissMaxX + 8.0f == layout.settingsMinX,
-					"persistent footer controls overlapped");
-		});
-
-		runner.test("footer metadata geometry stays fixed while idle", [] {
-			const auto idle = ResolveFooterStatusLayout(
-				20.0f,
-				1200.0f,
-				32.0f,
-				300.0f,
+				8.0f);
+			const auto scaled = ResolveFooterControlsLayout(
 				0.0f,
-				28.0f,
-				8.0f,
-				36.0f,
-				8.0f,
-				8.0f,
-				1.0f,
-				false,
-				false);
-			const auto active = ResolveFooterStatusLayout(
-				20.0f,
 				1200.0f,
-				32.0f,
-				300.0f,
-				180.0f,
-				28.0f,
-				8.0f,
-				36.0f,
-				8.0f,
-				8.0f,
-				1.0f,
-				true,
-				false);
+				80.0f,
+				56.0f,
+				16.0f);
 			require(
-					idle.metadataMaxX == active.metadataMaxX &&
-						idle.metadataMinX == active.metadataMinX &&
-						idle.statusMinX == active.statusMinX,
-					"status presence changed reserved footer geometry");
-			require(
-					idle.metadataMinX == 20.0f &&
-						idle.metadataMaxX == 1160.0f &&
-						idle.statusMinX == 308.0f,
-					"idle footer changed metadata geometry");
+					scaled ==
+						FooterControlsLayout{
+							base.runMaxX * 2.0f,
+							base.dismissMinX * 2.0f,
+							base.dismissMaxX * 2.0f,
+							base.settingsMinX * 2.0f,
+							base.settingsMaxX * 2.0f
+						},
+					"footer controls did not follow the style scale");
 		});
 
-		runner.test("footer metadata geometry ignores status length", [] {
-			const auto shortStatus = ResolveFooterStatusLayout(
-				20.0f,
-				1200.0f,
-				32.0f,
-				300.0f,
-				80.0f,
-				28.0f,
-				8.0f,
-				36.0f,
-				8.0f,
-				8.0f,
-				1.0f,
-				true,
-				false);
-			const auto longStatus = ResolveFooterStatusLayout(
-				20.0f,
-				1200.0f,
-				32.0f,
-				300.0f,
-				800.0f,
-				28.0f,
-				8.0f,
-				36.0f,
-				8.0f,
-				8.0f,
-				1.0f,
-				true,
-				false);
+		runner.test("status truncation preserves UTF-8 boundaries", [] {
+			const auto measure = [](std::string_view a_text) {
+				return static_cast<float>(a_text.size());
+			};
+			const std::string full{
+				"Buffout \xF0\x9F\xA7\xAA status"
+			};
+			const auto presentation = FitStatusText(full, 11.0f, measure);
 			require(
-					shortStatus.metadataMaxX == longStatus.metadataMaxX &&
-						shortStatus.metadataMinX ==
-							longStatus.metadataMinX &&
-						shortStatus.statusMinX == longStatus.statusMinX,
-					"status message length changed reserved footer geometry");
+					presentation.truncated &&
+						presentation.visible ==
+							"Buffout \xE2\x80\xA6" &&
+						presentation.full == full,
+					"status truncation split a UTF-8 character");
+		});
+
+		runner.test("status truncation handles a fully clipped run", [] {
+			const auto measure = [](std::string_view a_text) {
+				return static_cast<float>(a_text.size());
+			};
+			const auto presentation =
+				FitStatusText("Buffout 4: Error", 0.0f, measure);
 			require(
-					shortStatus.statusMinX == 308.0f &&
-						shortStatus.statusMaxX == 388.0f &&
-						longStatus.statusMinX == 308.0f &&
-						longStatus.statusMaxX == 1108.0f,
-					"status text did not fit after the metadata");
+					presentation.truncated &&
+						presentation.visible == "\xE2\x80\xA6" &&
+						presentation.full == "Buffout 4: Error",
+					"clipped status lost its overflow presentation");
 		});
 
 		runner.test("header title aligns with the footer bullet run", [] {

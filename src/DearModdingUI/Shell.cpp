@@ -5,6 +5,7 @@
 #include <DearModdingUI/HostSettingsView.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/SettingsTable.h>
+#include <DearModdingUI/Status.h>
 #include <DearModdingUI/Theme.h>
 #include <DearModdingUI/VisualDecisions.h>
 #include <DearModdingUI/SidebarComparison.h>
@@ -2282,6 +2283,93 @@ namespace DearModdingUI
 			ImGui::EndChild();
 		}
 
+		struct BulletTextOptions
+		{
+			std::optional<ImVec4> color;
+			std::optional<float> ellipsisMaxX;
+			bool overflowTooltip{ false };
+		};
+
+		void DrawBulletTextEntry(
+			const char* a_text,
+			const BulletTextOptions& a_options = {}) noexcept
+		{
+			a_text = a_text ? a_text : "";
+			if (a_options.color)
+				ImGui::PushStyleColor(ImGuiCol_Text, *a_options.color);
+			ImGui::Bullet();
+			if (a_options.ellipsisMaxX)
+			{
+				try
+				{
+					const auto availableWidth = (std::max)(
+						*a_options.ellipsisMaxX -
+							ImGui::GetCursorScreenPos().x,
+						0.0f);
+					const auto presentation = FitStatusText(
+						a_text,
+						availableWidth,
+						[](std::string_view a_value) {
+							return ImGui::CalcTextSize(
+								a_value.data(),
+								a_value.data() + a_value.size()).x;
+						});
+					ImGui::TextUnformatted(
+						presentation.visible.data(),
+						presentation.visible.data() +
+							presentation.visible.size());
+					if (a_options.overflowTooltip &&
+						presentation.truncated &&
+						ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
+					{
+						ImGui::SetTooltip(
+							"%s",
+							presentation.full.c_str());
+					}
+				}
+				catch (...)
+				{
+					ImGui::TextUnformatted("");
+				}
+			}
+			else
+			{
+				// Bullet positions the wrapped text with scaled frame padding.
+				ImGui::TextWrapped("%s", a_text);
+			}
+			if (a_options.color)
+				ImGui::PopStyleColor();
+		}
+
+		[[nodiscard]] const ImVec4& StatusTextColor(
+			DMUI_StatusSeverity a_severity) noexcept
+		{
+			switch (a_severity)
+			{
+			case DMUI_STATUS_SEVERITY_SUCCESS:
+				return Theme::kStatusPaletteDefaults.success;
+			case DMUI_STATUS_SEVERITY_WARNING:
+				return Theme::kStatusPaletteDefaults.warning;
+			case DMUI_STATUS_SEVERITY_ERROR:
+				return Theme::kStatusPaletteDefaults.error;
+			default:
+				return Theme::kStatusPaletteDefaults.info;
+			}
+		}
+
+		void DrawFooterStatus(
+			const StatusMessage& a_status,
+			float a_runMaxX) noexcept
+		{
+			DrawBulletTextEntry(
+				a_status.attributedText.c_str(),
+				{
+					.color = StatusTextColor(a_status.severity),
+					.ellipsisMaxX = a_runMaxX,
+					.overflowTooltip = true
+				});
+		}
+
 		void DrawFooter(
 			const NavigationModel& a_model,
 			const ShellState& a_state) noexcept
@@ -2313,26 +2401,15 @@ namespace DearModdingUI
 				ImGui::CalcTextSize(dismissLabel).x,
 				dismissButtonExtent,
 				ImGui::GetStyle().FramePadding.x);
-			const auto statusTextSize = status ?
-				ImGui::CalcTextSize(status->attributedText.c_str()) :
-				ImVec2{};
-			const auto metadataLayout = ResolveFooterStatusLayout(
+			const auto controls = ResolveFooterControlsLayout(
 				start.x,
 				contentMaxX,
 				buttonWidth,
-				start.x,
-				statusTextSize.x,
-				dismissWidth,
-				ImGui::GetStyle().ItemSpacing.x,
-				rowHeight,
-				ImGui::GetStyle().ItemSpacing.y,
-				ImGui::GetStyle().WindowPadding.y,
-				SeparatorThickness(),
-				status.has_value(),
-				persistent);
+				persistent ? dismissWidth : 0.0f,
+				ImGui::GetStyle().ItemSpacing.x);
 			ImGui::PushClipRect(
 				start,
-				{ metadataLayout.metadataMaxX, start.y + rowHeight },
+				{ controls.runMaxX, start.y + rowHeight },
 				true);
 			ImGui::SetCursorScreenPos({
 				start.x,
@@ -2342,7 +2419,6 @@ namespace DearModdingUI
 					RowContentMetric::kOptical)
 			});
 			DrawBulletText("Host: Evil Modding");
-			auto metadataRight = ImGui::GetItemRectMax().x;
 			if (const auto* client =
 					a_model.FindClient(a_state.activeClient))
 			{
@@ -2363,121 +2439,23 @@ namespace DearModdingUI
 					client->version & 0xFFFFu);
 				ImGui::SameLine();
 				DrawBulletText(versionText);
-				metadataRight = ImGui::GetItemRectMax().x;
+			}
+			if (status)
+			{
+				ImGui::SameLine();
+				DrawFooterStatus(*status, controls.runMaxX);
 			}
 			ImGui::PopClipRect();
-			auto layout = ResolveFooterStatusLayout(
-				start.x,
-				contentMaxX,
-				buttonWidth,
-				metadataRight,
-				statusTextSize.x,
-				dismissWidth,
-				ImGui::GetStyle().ItemSpacing.x,
-				rowHeight,
-				ImGui::GetStyle().ItemSpacing.y,
-				ImGui::GetStyle().WindowPadding.y,
-				SeparatorThickness(),
-				status.has_value(),
-				persistent);
-			std::optional<StatusTextPresentation> presentation;
-			auto visibleTextSize = statusTextSize;
-			const auto preliminaryStatusWidth =
-				layout.statusMaxX - layout.statusMinX;
-			if (status && preliminaryStatusWidth > 0.0f)
-			{
-				try
-				{
-					presentation = FitStatusText(
-						status->attributedText,
-						preliminaryStatusWidth,
-						[](std::string_view a_text) {
-							return ImGui::CalcTextSize(
-								a_text.data(),
-								a_text.data() + a_text.size()).x;
-						});
-					visibleTextSize = ImGui::CalcTextSize(
-						presentation->visible.data(),
-						presentation->visible.data() +
-							presentation->visible.size());
-					layout = ResolveFooterStatusLayout(
-						start.x,
-						contentMaxX,
-						buttonWidth,
-						metadataRight,
-						visibleTextSize.x,
-						dismissWidth,
-						ImGui::GetStyle().ItemSpacing.x,
-						rowHeight,
-						ImGui::GetStyle().ItemSpacing.y,
-						ImGui::GetStyle().WindowPadding.y,
-						SeparatorThickness(),
-						true,
-						persistent);
-				}
-				catch (...)
-				{}
-			}
-			const auto statusWidth = layout.statusMaxX - layout.statusMinX;
-			if (statusWidth > 0.0f)
-			{
-				ImGui::SetCursorScreenPos({ layout.statusMinX, start.y });
-				ImGui::InvisibleButton(
-					"##DearModdingUI.StatusArea",
-					{ statusWidth, layout.rowHeight });
-				const auto hovered = ImGui::IsItemHovered(
-					ImGuiHoveredFlags_DelayNormal);
-				if (status && presentation)
-				{
-					const ImVec4 clip{
-						layout.statusMinX,
-						start.y,
-						layout.statusMaxX,
-						start.y + layout.rowHeight
-					};
-					ImGui::GetWindowDrawList()->AddText(
-						ImGui::GetFont(),
-						ImGui::GetFontSize(),
-						{
-							layout.statusMinX,
-							start.y + RowContentOffsetY(
-								layout.rowHeight,
-								CurrentFontRowContentMetrics(
-									ImGui::GetFontSize()),
-								RowContentMetric::kOptical)
-						},
-						ImGui::ColorConvertFloat4ToU32(
-							status->severity ==
-									DMUI_STATUS_SEVERITY_SUCCESS ?
-								Theme::kStatusPaletteDefaults.success :
-								status->severity ==
-										DMUI_STATUS_SEVERITY_WARNING ?
-									Theme::kStatusPaletteDefaults.warning :
-									status->severity ==
-											DMUI_STATUS_SEVERITY_ERROR ?
-										Theme::kStatusPaletteDefaults.error :
-										Theme::kStatusPaletteDefaults.info),
-						presentation->visible.data(),
-						presentation->visible.data() +
-							presentation->visible.size(),
-						0.0f,
-						&clip);
-					if (hovered && presentation->truncated)
-						ImGui::SetTooltip(
-							"%s",
-							presentation->full.c_str());
-				}
-			}
 
 			const auto actualDismissWidth =
-				layout.dismissMaxX - layout.dismissMinX;
+				controls.dismissMaxX - controls.dismissMinX;
 			if (persistent && actualDismissWidth > 0.0f &&
 				DrawCompactChromeButton(
 						"##DearModdingUI.StatusDismissButton",
 						{
-							layout.dismissMinX,
+							controls.dismissMinX,
 							start.y + RowContentOffsetY(
-								layout.rowHeight,
+								rowHeight,
 								{ dismissButtonExtent },
 								RowContentMetric::kBox)
 						},
@@ -2494,9 +2472,9 @@ namespace DearModdingUI
 			if (DrawCompactChromeButton(
 					"##DearModdingUI.HostSettingsButton",
 					{
-						layout.settingsMinX,
+						controls.settingsMinX,
 						start.y + RowContentOffsetY(
-							layout.rowHeight,
+						rowHeight,
 							{ settingsButtonExtent },
 							RowContentMetric::kBox)
 					},
@@ -2513,7 +2491,7 @@ namespace DearModdingUI
 				HostSettings::TogglePanel(true);
 			}
 			ImGui::SetCursorScreenPos(start);
-			ImGui::Dummy({ contentMaxX - start.x, layout.rowHeight });
+			ImGui::Dummy({ contentMaxX - start.x, rowHeight });
 		}
 
 		struct RuledHeadingOptions
@@ -2783,10 +2761,7 @@ namespace DearModdingUI
 
 	void DrawBulletText(const char* a_text) noexcept
 	{
-		a_text = a_text ? a_text : "";
-		ImGui::Bullet();
-		// Bullet positions the wrapped text with scaled frame padding.
-		ImGui::TextWrapped("%s", a_text);
+		DrawBulletTextEntry(a_text);
 	}
 
 	void DrawSectionHeader(const char* a_text, char32_t a_glyph) noexcept
