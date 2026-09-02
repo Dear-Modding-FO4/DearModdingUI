@@ -12,13 +12,14 @@
 #include <array>
 #include <cstdio>
 #include <cstdint>
+#include <span>
 #include <string_view>
 
 namespace DearModdingUI
 {
 	namespace
 	{
-		struct AccentPreset
+		struct ColorPreset
 		{
 			const char* name;
 			const char* description;
@@ -26,32 +27,32 @@ namespace DearModdingUI
 		};
 
 		inline constexpr std::array kAccentPresets{
-			AccentPreset{
+			ColorPreset{
 				"Default green",
 				"Default green",
 				{ 0x42, 0xFA, 0x60 }
 			},
-			AccentPreset{
+			ColorPreset{
 				"Accessible blue",
 				"Okabe-Ito blue, distinguishable across common color-vision deficiencies",
 				{ 0x00, 0x72, 0xB2 }
 			},
-			AccentPreset{
+			ColorPreset{
 				"Accessible orange",
 				"Okabe-Ito orange, distinguishable across common color-vision deficiencies",
 				{ 0xE6, 0x9F, 0x00 }
 			},
-			AccentPreset{
+			ColorPreset{
 				"Accessible sky blue",
 				"Okabe-Ito sky blue, distinguishable across common color-vision deficiencies",
 				{ 0x56, 0xB4, 0xE9 }
 			},
-			AccentPreset{
+			ColorPreset{
 				"Accessible vermillion",
 				"Okabe-Ito vermillion, distinguishable across common color-vision deficiencies",
 				{ 0xD5, 0x5E, 0x00 }
 			},
-			AccentPreset{
+			ColorPreset{
 				"Accessible purple",
 				"Okabe-Ito purple, distinguishable across common color-vision deficiencies",
 				{ 0xCC, 0x79, 0xA7 }
@@ -157,15 +158,31 @@ namespace DearModdingUI
 			PreviewDraft();
 		}
 
-		void DrawAccentPresets(
-			HostInterfaceSettings& a_settings,
+		void DrawColorPresets(
+			HostAccentColor& a_color,
+			std::span<const ColorPreset> a_presets,
 			bool& a_changed) noexcept
 		{
-			ImGui::TextUnformatted("Color-vision-friendly presets");
+			if (a_presets.empty())
+				return;
+			constexpr const char* label{ "Color-vision-friendly presets" };
 			const auto swatchSize = ImGui::GetFrameHeight();
-			for (size_t index = 0; index < kAccentPresets.size(); ++index)
+			const auto& style = ImGui::GetStyle();
+			const auto labelWidth = ImGui::CalcTextSize(label).x;
+			const auto swatchesWidth =
+				swatchSize * static_cast<float>(a_presets.size()) +
+				style.ItemSpacing.x *
+					static_cast<float>(a_presets.size() - 1);
+			const auto presetsFitInline =
+				labelWidth + style.ItemSpacing.x + swatchesWidth <=
+				ImGui::GetContentRegionAvail().x;
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextUnformatted(label);
+			if (presetsFitInline)
+				ImGui::SameLine();
+			for (size_t index = 0; index < a_presets.size(); ++index)
 			{
-				const auto& preset = kAccentPresets[index];
+				const auto& preset = a_presets[index];
 				ImGui::PushID(static_cast<int>(index));
 				if (index > 0)
 					ImGui::SameLine();
@@ -175,13 +192,54 @@ namespace DearModdingUI
 						ImGuiColorEditFlags_NoAlpha,
 						{ swatchSize, swatchSize }))
 				{
-					a_settings.accentColor = preset.color;
+					a_color = preset.color;
 					a_changed = true;
 				}
 				if (ImGui::IsItemHovered())
 					ImGui::SetTooltip("%s", preset.description);
 				ImGui::PopID();
 			}
+		}
+
+		[[nodiscard]] bool DrawColorSettingRow(
+			const char* a_id,
+			const char* a_label,
+			const char* a_description,
+			HostAccentColor& a_color,
+			HostAccentColor a_defaultColor,
+			std::span<const ColorPreset> a_presets = {}) noexcept
+		{
+			auto changed = false;
+			if (DrawSettingsRow(
+					a_id,
+					a_label,
+					a_description,
+					true,
+					[&]() noexcept {
+						auto color = HostAccentToImVec4(a_color);
+						ImGui::SetNextItemWidth(ControlWidth());
+						if (ImGui::ColorEdit3(
+								"##Value",
+								&color.x,
+								ImGuiColorEditFlags_NoAlpha |
+									ImGuiColorEditFlags_DisplayRGB |
+									ImGuiColorEditFlags_InputRGB |
+									ImGuiColorEditFlags_PickerHueBar))
+						{
+							a_color = HostAccentFromImVec4(color);
+							changed = true;
+						}
+						if (!a_presets.empty())
+							DrawColorPresets(a_color, a_presets, changed);
+					},
+					[&]() noexcept {
+						return a_color != a_defaultColor;
+					}))
+			{
+				a_color = a_defaultColor;
+				changed = true;
+			}
+			return changed;
 		}
 
 		void DrawAppearance() noexcept
@@ -243,34 +301,13 @@ namespace DearModdingUI
 				changed = true;
 			}
 
-			if (DrawSettingsRow(
-					"AccentColor",
-					"Accent color",
-					"Retints selections, controls, links, and every Phosphor menu icon in colored mode.",
-					true,
-					[&]() noexcept {
-						auto accent = HostAccentToImVec4(settings.accentColor);
-						ImGui::SetNextItemWidth(ControlWidth());
-						if (ImGui::ColorPicker3(
-								"##Value",
-								&accent.x,
-								ImGuiColorEditFlags_NoAlpha |
-									ImGuiColorEditFlags_DisplayRGB |
-									ImGuiColorEditFlags_InputRGB |
-									ImGuiColorEditFlags_PickerHueBar))
-						{
-							settings.accentColor = HostAccentFromImVec4(accent);
-							changed = true;
-						}
-						DrawAccentPresets(settings, changed);
-					},
-					[&]() noexcept {
-						return settings.accentColor != defaults.accentColor;
-					}))
-			{
-				settings.accentColor = defaults.accentColor;
-				changed = true;
-			}
+			changed |= DrawColorSettingRow(
+				"AccentColor",
+				"Accent color",
+				"Retints selections, controls, links, and every Phosphor menu icon in colored mode.",
+				settings.accentColor,
+				defaults.accentColor,
+				kAccentPresets);
 
 			if (DrawSettingsRow(
 					"IconColorMode",
@@ -340,37 +377,12 @@ namespace DearModdingUI
 				changed = true;
 			}
 
-			if (DrawSettingsRow(
-					"PaletteBackgroundColor",
-					"Command palette background",
-					"Sets the elevated surface color used by the command palette.",
-					true,
-					[&]() noexcept {
-						auto paletteBackground =
-							HostAccentToImVec4(settings.paletteBackgroundColor);
-						ImGui::SetNextItemWidth(ControlWidth());
-						if (ImGui::ColorEdit3(
-								"##Value",
-								&paletteBackground.x,
-								ImGuiColorEditFlags_NoAlpha |
-									ImGuiColorEditFlags_DisplayRGB |
-									ImGuiColorEditFlags_InputRGB |
-									ImGuiColorEditFlags_PickerHueBar))
-						{
-							settings.paletteBackgroundColor =
-								HostAccentFromImVec4(paletteBackground);
-							changed = true;
-						}
-					},
-					[&]() noexcept {
-						return settings.paletteBackgroundColor !=
-							defaults.paletteBackgroundColor;
-					}))
-			{
-				settings.paletteBackgroundColor =
-					defaults.paletteBackgroundColor;
-				changed = true;
-			}
+			changed |= DrawColorSettingRow(
+				"PaletteBackgroundColor",
+				"Command palette background",
+				"Sets the elevated surface color used by the command palette.",
+				settings.paletteBackgroundColor,
+				defaults.paletteBackgroundColor);
 
 			if (DrawSettingsRow(
 					"PaletteBackgroundOpacity",

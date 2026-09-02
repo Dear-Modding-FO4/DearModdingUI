@@ -2358,6 +2358,21 @@ namespace vmm_tests
 				"accent color did not preserve icon tint bytes");
 		});
 
+		runner.test("host color editor conversion preserves stored bytes", [] {
+			constexpr std::array colors{
+				HostAccentColor{ 0x00, 0x00, 0x00 },
+				HostAccentColor{ 0x42, 0xFA, 0x60 },
+				HostAccentColor{ 0x56, 0xB4, 0xE9 },
+				HostAccentColor{ 0xFF, 0xFF, 0xFF }
+			};
+			for (const auto color : colors)
+			{
+				require(
+					HostAccentFromImVec4(HostAccentToImVec4(color)) == color,
+					"color editor conversion changed a stored component");
+			}
+		});
+
 		runner.test("host breadcrumb identifies zero or one selected client", [] {
 			require(BuildHostBreadcrumb("Evil Modding", "") == "Evil Modding",
 				"empty selection changed the host-only breadcrumb");
