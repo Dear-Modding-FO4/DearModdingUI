@@ -672,5 +672,30 @@ namespace vmm_tests
 						}),
 				"hidden control was emitted");
 		});
+
+		runner.test("MCM deeply nested conditions are diagnosed not fatal", [] {
+			std::string json =
+				R"({"minMcmVersion":2,"modName":"Deep","displayName":"Deep",)"
+				R"("content":[{"id":"target","type":"switch",)"
+				R"("valueOptions":{"sourceType":"ModSettingBool"},)"
+				R"("groupCondition":)";
+			constexpr size_t depth = 5000;
+			for (size_t index = 0; index < depth; ++index)
+				json += R"({"AND":[)";
+			json += "1";
+			for (size_t index = 0; index < depth; ++index)
+				json += "]}";
+			json += "}]}";
+
+			const auto result = ParseConfig(json, "deep-config.json");
+			require(result.configuration.has_value(),
+				"deeply nested condition prevented parsing");
+			require(HasDiagnostic(result, "condition nesting exceeds"),
+				"excessive condition nesting was not diagnosed");
+			const auto& control =
+				result.configuration->pages.front().controls.front();
+			require(control.groupCondition.has_value(),
+				"deep condition produced no partial result");
+		});
 	}
 }

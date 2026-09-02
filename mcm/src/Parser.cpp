@@ -17,6 +17,8 @@ namespace DearModdingUI::MCM
 	{
 		using Json = nlohmann::json;
 
+		constexpr size_t kMaxConditionDepth = 64;
+
 		[[nodiscard]] std::string Lower(std::string_view a_value)
 		{
 			std::string result;
@@ -293,7 +295,8 @@ namespace DearModdingUI::MCM
 
 			[[nodiscard]] std::optional<GroupCondition> ReadCondition(
 				const Json& a_value,
-				const std::string& a_location)
+				const std::string& a_location,
+				size_t a_depth = 0)
 			{
 				if (a_value.is_number_unsigned())
 				{
@@ -355,12 +358,23 @@ namespace DearModdingUI::MCM
 						"condition operands must be an array");
 					return result;
 				}
+				if (a_depth >= kMaxConditionDepth)
+				{
+					Diagnose(
+						DiagnosticSeverity::kWarning,
+						a_location + "." + result.rawOperator,
+						"condition nesting exceeds " +
+							std::to_string(kMaxConditionDepth) +
+							" levels and was truncated");
+					return result;
+				}
 				for (size_t index = 0; index < operation->size(); ++index)
 				{
 					if (auto operand = ReadCondition(
 							(*operation)[index],
 							a_location + "." + result.rawOperator +
-								"[" + std::to_string(index) + "]"))
+								"[" + std::to_string(index) + "]",
+							a_depth + 1))
 						result.operands.push_back(std::move(*operand));
 				}
 				return result;
