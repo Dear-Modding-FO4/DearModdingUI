@@ -12,6 +12,10 @@ cimgui is copyright 2015-2026 Stefano D'Ambro and is distributed under the MIT L
 
 The Dear Modding FO4 CommonLibF4 fork and toml11 are distributed under their respective MIT licenses. Their complete license texts are retained in their submodules.
 
+## JSON for Modern C++
+
+JSON for Modern C++ is copyright 2013-2025 Niels Lohmann and is distributed under the MIT License. Version 3.12.0 is retained as the `Depends/nlohmann-json` submodule, including its complete license as `LICENSE.MIT`.
+
 ## Community Shaders UI work
 
 The DearModdingUI shell, theme, font roles, cursor behavior, and blur were ported from Fallout 4 Community Shaders under GPL-3.0. The Gaussian blur credits Unrimp by Christian Ofenberg under the MIT License.
@@ -21,3 +25,7 @@ The DearModdingUI shell, theme, font roles, cursor behavior, and blur were porte
 Jost and Atkinson Hyperlegible are distributed under the SIL Open Font License 1.1. Their license texts are retained beside the font files as `OFL.txt`; Atkinson Hyperlegible also includes an `UPSTREAM.md` provenance record.
 
 The Phosphor icon font is distributed under the MIT License. Its license and pinned upstream provenance are retained beside the font as `LICENSE` and `UPSTREAM.md`.
+
+## MCM test fixtures
+
+The LootMan and MCM Demonstration fixtures are distributed under the MIT License. The Portable Junk Recycler Mk 2 fixtures are distributed under GPL-3.0. Source paths, exact Git blob hashes, and retained licenses are recorded in `Tests/Fixtures/MCM/README.md`.

@@ -71,6 +71,37 @@ target("imgui", function()
     )
 end)
 
+target("dmui-mcm", function()
+    set_kind("static")
+    set_arch("x64")
+    set_languages("c++23")
+    set_optimize("fastest")
+    set_runtimes("MT")
+    set_exceptions("cxx")
+    set_targetdir(project_dir(".Lib/xmake"))
+    set_objectdir(project_dir(".LinkConf/xmake/dmui-mcm"))
+    set_dependir(project_dir(".LinkConf/xmake/dmui-mcm/deps"))
+
+    add_files("mcm/src/**.cpp")
+    add_headerfiles("mcm/include/**.h")
+    add_includedirs(
+        "mcm/include",
+        "Depends/commonlibf4/lib/dearmoddingui-api/include",
+        { public = true }
+    )
+    add_includedirs("Depends/nlohmann-json/single_include")
+    add_defines(
+        "NDEBUG",
+        "NOMINMAX",
+        "WIN32_LEAN_AND_MEAN"
+    )
+    add_cxxflags(
+        "/permissive-",
+        "/Zc:preprocessor",
+        { public = true }
+    )
+end)
+
 target("dmui-tests", function()
     set_kind("binary")
     set_arch("x64")
@@ -81,7 +112,7 @@ target("dmui-tests", function()
     set_objectdir(project_dir(".LinkConf/xmake/dmui-tests"))
     set_dependir(project_dir(".LinkConf/xmake/dmui-tests/deps"))
 
-    add_deps("imgui")
+    add_deps("imgui", "dmui-mcm")
     add_files(
         "Tests/**.cpp",
         "src/DearModdingUI/FontCatalog.cpp",

@@ -11,3 +11,6 @@
 [submodule "Depends/toml11"]
 	path = Depends/toml11
 	url = https://github.com/ToruNiina/toml11.git
+[submodule "Depends/nlohmann-json"]
+	path = Depends/nlohmann-json
+	url = https://github.com/nlohmann/json.git
