@@ -9,6 +9,7 @@
 #include <DearModdingUI/Theme.h>
 #include <DearModdingUI/VisualDecisions.h>
 #include <DearModdingUI/SidebarComparison.h>
+#include "ShellGeometry.h"
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -346,6 +347,33 @@ namespace DearModdingUI
 			bool pressed{ false };
 			ImRect rect;
 		};
+
+		enum class RuledHeadingLayout : uint32_t
+		{
+			kCentered,
+			kLeadingRow
+		};
+
+		enum class RuledHeadingRuleStyle : uint32_t
+		{
+			kSection,
+			kSubordinate
+		};
+
+		struct RuledHeadingOptions
+		{
+			const char* key{ nullptr };
+			const char* text{ nullptr };
+			char32_t glyph{ 0 };
+			std::optional<size_t> count;
+			bool* expanded{ nullptr };
+			RuledHeadingLayout layout{ RuledHeadingLayout::kCentered };
+			RuledHeadingRuleStyle ruleStyle{
+				RuledHeadingRuleStyle::kSection
+			};
+		};
+
+		void DrawRuledHeading(const RuledHeadingOptions& a_options) noexcept;
 
 		struct RowInteraction
 		{
@@ -1057,32 +1085,19 @@ namespace DearModdingUI
 			bool& a_expanded,
 			size_t a_count) noexcept
 		{
-			char text[256]{};
-			std::snprintf(text, sizeof(text), "%s (%zu)", a_name, a_count);
 			const auto glyph = ResolveCategoryIconGlyph(
 				a_name,
 				a_client.displayName,
 				a_client.id,
 				a_client.iconName);
-			auto color = Theme::kFeatureHeadingDefaults.colorDefault;
-			auto hoveredColor =
-				Theme::kFeatureHeadingDefaults.colorHovered;
-			if (!a_expanded)
-			{
-				color.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
-				hoveredColor.w *=
-					Theme::kFeatureHeadingDefaults.minimizedFactor;
-			}
-			(void)DrawSelectableRow({
-				.id = a_key,
-				.label = text,
-				.leadingAffordance = RowLeadingAffordance::kArrow,
-				.expanded = &a_expanded,
+			DrawRuledHeading({
+				.key = a_key,
+				.text = a_name,
 				.glyph = glyph,
-				.textColor = ImGui::GetColorU32(color),
-				.hoveredTextColor = ImGui::GetColorU32(hoveredColor),
-				.highlightStyle = RowHighlightStyle::kRoundedFill,
-				.clickBehavior = RowClickBehavior::kToggle
+				.count = a_count,
+				.expanded = &a_expanded,
+				.layout = RuledHeadingLayout::kLeadingRow,
+				.ruleStyle = RuledHeadingRuleStyle::kSubordinate
 			});
 		}
 
@@ -2727,14 +2742,41 @@ namespace DearModdingUI
 			ImGui::Dummy({ contentMaxX - start.x, rowHeight });
 		}
 
-		struct RuledHeadingOptions
+		void DrawRuledHeadingRules(
+			ImDrawList* a_drawList,
+			const RuledHeadingRuleExtents& a_extents,
+			float a_y,
+			ImVec4 a_color,
+			RuledHeadingRuleStyle a_style) noexcept
 		{
-			const char* key;
-			const char* text;
-			char32_t glyph;
-			std::optional<size_t> count;
-			bool* expanded;
-		};
+			std::optional<float> thickness;
+			if (a_style == RuledHeadingRuleStyle::kSubordinate)
+			{
+				a_color.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
+				thickness =
+				SeparatorThickness() *
+				(1.0f -
+					Theme::kFeatureHeadingDefaults.minimizedFactor);
+			}
+			const auto packed = ImGui::GetColorU32(a_color);
+			const auto draw = [&](const HorizontalRuleSegment& a_segment) {
+				if (a_segment.maxX <= a_segment.minX)
+				return;
+				if (thickness)
+				a_drawList->AddLine(
+				{ a_segment.minX, a_y },
+				{ a_segment.maxX, a_y },
+				packed,
+				*thickness);
+				else
+				a_drawList->AddLine(
+				{ a_segment.minX, a_y },
+				{ a_segment.maxX, a_y },
+				packed);
+			};
+			draw(a_extents.left);
+			draw(a_extents.right);
+		}
 
 		void DrawRuledHeading(const RuledHeadingOptions& a_options) noexcept
 		{
@@ -2752,6 +2794,60 @@ namespace DearModdingUI
 			}
 
 			auto* drawList = ImGui::GetWindowDrawList();
+			auto color = Theme::kFeatureHeadingDefaults.colorDefault;
+			auto hoveredColor =
+				Theme::kFeatureHeadingDefaults.colorHovered;
+			if (a_options.expanded && !*a_options.expanded)
+			{
+				color.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
+				hoveredColor.w *=
+					Theme::kFeatureHeadingDefaults.minimizedFactor;
+			}
+			if (a_options.layout == RuledHeadingLayout::kLeadingRow)
+			{
+				const auto row = DrawSelectableRow({
+					.id = a_options.key,
+					.label = text,
+					.leadingAffordance = RowLeadingAffordance::kArrow,
+					.expanded = a_options.expanded,
+					.glyph = a_options.glyph,
+					.textColor = ImGui::GetColorU32(color),
+					.hoveredTextColor = ImGui::GetColorU32(hoveredColor),
+					.highlightStyle = RowHighlightStyle::kRoundedFill,
+					.clickBehavior = RowClickBehavior::kToggle
+				});
+				const auto& style = ImGui::GetStyle();
+				const auto fontSize = ImGui::GetFontSize();
+				const auto content = ResolveRowContentLayout(
+					row.rect.Min.x,
+					row.rect.Max.x,
+					style.FramePadding.x,
+					fontSize,
+					style.ItemInnerSpacing.x,
+					style.ItemSpacing.x,
+					true,
+					HasIconGlyph(a_options.glyph),
+					0.0f);
+				const auto textMaxX = (std::min)(
+					content.textMinX + ImGui::CalcTextSize(text).x,
+					content.clipMaxX);
+				const auto extents = ResolveRuledHeadingRuleExtents(
+					row.rect.Min.x,
+					row.rect.Max.x,
+					content.leadingMinX,
+					textMaxX,
+					style.ItemSpacing.x);
+				const auto ruleColor =
+					ImGui::IsItemHovered() ? hoveredColor : color;
+				DrawRuledHeadingRules(
+					drawList,
+					extents,
+					row.rect.GetCenter().y,
+					ruleColor,
+					a_options.ruleStyle);
+				return;
+			}
+
 			const auto position = ImGui::GetCursorScreenPos();
 			const auto availableWidth = ImGui::GetContentRegionAvail().x;
 			const auto textSize = ImGui::CalcTextSize(text);
@@ -2784,11 +2880,7 @@ namespace DearModdingUI
 				ImGui::Dummy({ availableWidth, layout.contentHeight });
 			}
 
-			auto color = hovered ?
-				Theme::kFeatureHeadingDefaults.colorHovered :
-				Theme::kFeatureHeadingDefaults.colorDefault;
-			if (a_options.expanded && !*a_options.expanded)
-				color.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
+			color = hovered ? hoveredColor : color;
 			const auto packed = ImGui::GetColorU32(color);
 			const auto contentMinX =
 				position.x + lineLength + contentGap;
@@ -2798,22 +2890,18 @@ namespace DearModdingUI
 				a_options.glyph,
 				text,
 				packed);
-			if (lineLength > 0.0f)
-			{
-				drawList->AddLine(
-					{ position.x, lineY },
-					{ position.x + lineLength, lineY },
-					packed);
-			}
-			const auto rightLineStart =
-				contentMinX + layout.contentWidth + contentGap;
-			if (rightLineStart < position.x + availableWidth)
-			{
-				drawList->AddLine(
-					{ rightLineStart, lineY },
-					{ position.x + availableWidth, lineY },
-					packed);
-			}
+			const auto extents = ResolveRuledHeadingRuleExtents(
+				position.x,
+				position.x + availableWidth,
+				contentMinX,
+				contentMinX + layout.contentWidth,
+				contentGap);
+			DrawRuledHeadingRules(
+				drawList,
+				extents,
+				lineY,
+				color,
+				a_options.ruleStyle);
 			if (a_options.expanded)
 			{
 				if (clicked)

@@ -8,6 +8,7 @@
 #include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/SettingsActions.h>
 #include <DearModdingUI/Status.h>
+#include <DearModdingUI/ShellGeometry.h>
 #include <DearModdingUI/Theme.h>
 #include <DearModdingUI/ThemeDefaults.h>
 #include <DearModdingUI/VisualDecisions.h>
@@ -889,6 +890,44 @@ namespace vmm_tests
 						10,
 						240.0f) == SidebarPaneHeights{},
 					"negative space produced pane height");
+		});
+
+		runner.test("ruled headings preserve their live content column", [] {
+			require(
+				ResolveRuledHeadingRuleExtents(
+					100.0f,
+					500.0f,
+					180.0f,
+					300.0f,
+					20.0f) ==
+					RuledHeadingRuleExtents{
+						{ 100.0f, 160.0f },
+						{ 320.0f, 500.0f }
+					},
+				"heading rule did not respect its inset content column");
+			require(
+				ResolveRuledHeadingRuleExtents(
+					200.0f,
+					1000.0f,
+					360.0f,
+					600.0f,
+					40.0f) ==
+					RuledHeadingRuleExtents{
+						{ 200.0f, 320.0f },
+						{ 640.0f, 1000.0f }
+					},
+				"heading rule extents did not scale with live geometry");
+			require(
+				ResolveRuledHeadingRuleExtents(
+					100.0f,
+					80.0f,
+					90.0f,
+					120.0f,
+					-5.0f) == RuledHeadingRuleExtents{
+						{ 100.0f, 100.0f },
+						{ 100.0f, 100.0f }
+					},
+				"constrained heading rule escaped its content column");
 		});
 
 		runner.test("sidebar layout names parse and round trip", [] {
