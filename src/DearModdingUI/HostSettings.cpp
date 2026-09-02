@@ -284,6 +284,40 @@ namespace DearModdingUI::HostSettings
 		return true;
 	}
 
+	bool SetSidebarLayout(SidebarLayoutKind a_layout) noexcept
+	{
+		EnsureLoaded();
+		const auto layout = NormalizeUserSidebarLayout(a_layout);
+		const auto persistedLayout = std::string{ SidebarLayoutKindName(layout) };
+		std::string error;
+		auto saved = true;
+		{
+			const std::scoped_lock lock{ s_settingsMutex };
+			if (s_settings.sidebarLayout != persistedLayout)
+			{
+				auto updated = s_settings;
+				updated.sidebarLayout = persistedLayout;
+				if (SaveSettings(updated, error))
+					s_settings = std::move(updated);
+				else
+					saved = false;
+			}
+		}
+		if (!saved)
+		{
+			REX::WARN(
+				"DearModdingUI: sidebar layout could not be persisted: {}"sv,
+				error);
+			(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, error);
+			return false;
+		}
+
+		const std::scoped_lock lock{ s_previewMutex };
+		if (s_preview)
+			s_preview->sidebarLayout = layout;
+		return true;
+	}
+
 	void SetPreview(
 		HostInterfacePreviewSettings a_settings,
 		uint64_t a_panelRevision) noexcept

@@ -491,6 +491,11 @@ namespace DearModdingUI
 		});
 	}
 
+	const std::vector<RegisteredClient>& Registry::RegisteredClients() const noexcept
+	{
+		return m_clients;
+	}
+
 	const std::vector<RegisteredPage>& Registry::OrderedPages() const noexcept
 	{
 		return m_pages;

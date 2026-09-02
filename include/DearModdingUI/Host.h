@@ -10,6 +10,7 @@
 namespace DearModdingUI
 {
 	inline constexpr std::string_view kHostDisplayName{ "Evil Modding" };
+	inline constexpr std::string_view kHostVersion{ "1.0.0" };
 
 	[[nodiscard]] const DMUI_ImGuiFingerprint& HostFingerprint() noexcept;
 	[[nodiscard]] const DMUI_HostAPI& HostAPI() noexcept;
@@ -33,6 +34,7 @@ namespace DearModdingUI
 	[[nodiscard]] bool ActionFailed(DMUI_ActionHandle a_action) noexcept;
 	void ObserveFrame() noexcept;
 	void DrawDemandedOverlays() noexcept;
+	[[nodiscard]] const std::vector<RegisteredClient>& RegisteredClients() noexcept;
 	[[nodiscard]] const std::vector<RegisteredPage>& OrderedPages() noexcept;
 	[[nodiscard]] const std::vector<RegisteredAction>& OrderedActions() noexcept;
 	[[nodiscard]] const NavigationModel& Navigation() noexcept;

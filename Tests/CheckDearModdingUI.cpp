@@ -2633,6 +2633,38 @@ namespace vmm_tests
 				"editing the draft changed committed settings");
 		});
 
+		runner.test("sidebar layout commits outside the discardable settings preview", [] {
+			auto state = BeginHostSettingsDraft(
+				DefaultHostInterfaceSettings());
+			state.draft.accentColor = { 0x00, 0x72, 0xB2 };
+			CommitHostSettingsSidebarLayout(
+				state,
+				SidebarLayoutKind::DrillDown);
+			require(
+				state.committed.sidebarLayout == SidebarLayoutKind::DrillDown &&
+					state.draft.sidebarLayout == SidebarLayoutKind::DrillDown,
+				"immediate layout commit did not update both settings baselines");
+			LeaveHostSettingsDraft(state);
+			require(
+				!state.active &&
+					state.draft.sidebarLayout == SidebarLayoutKind::DrillDown &&
+					state.draft.accentColor ==
+						DefaultHostInterfaceSettings().accentColor &&
+					!HostSettingsDraftDiffers(state),
+				"discarding cosmetic previews also discarded the saved layout");
+
+			state = BeginHostSettingsDraft(state.committed);
+			ResetHostSettingsDraft(state);
+			CommitHostSettingsSidebarLayout(
+				state,
+				state.draft.sidebarLayout);
+			RevertHostSettingsDraft(state);
+			require(
+				state.committed.sidebarLayout == DEFAULT_SIDEBAR_LAYOUT &&
+					state.draft == state.committed,
+				"reset and revert disagreed with the immediately saved layout");
+		});
+
 		runner.test("command palette elevated surface defaults are pinned", [] {
 			const auto settings = DefaultHostInterfaceSettings();
 			const PersistedHostInterfaceSettings persisted;
@@ -3034,6 +3066,58 @@ namespace vmm_tests
 					selection.activePage == zuluPage &&
 					selection.search.empty(),
 				"selection change did not reset page and search");
+		});
+
+		runner.test("host Home owns launch selection while client pages remain in session", [] {
+			NavigationModel model;
+			model.clients.push_back({
+				1,
+				"example.mod",
+				"Example",
+				DMUI_MAKE_VERSION(1, 0),
+				{ NavigationCategory{
+					"General",
+					{ NavigationPage{
+						10,
+						1,
+						"settings",
+						"Settings",
+						"General",
+						{},
+						0 } } } }
+			});
+			ClientSelectionState selection;
+			require(
+				selection.activeHostPage == HostPageKind::kHome &&
+					ResolvePageSelection(
+						model,
+						DMUI_INVALID_PAGE_HANDLE,
+						selection.activePage,
+						selection.activeHostPage.has_value()) ==
+						DMUI_INVALID_PAGE_HANDLE,
+				"fresh navigation did not land on the host Home page");
+
+			selection.activePage = ResolvePageSelection(
+				model,
+				10,
+				selection.activePage,
+				selection.activeHostPage.has_value());
+			selection.activeHostPage.reset();
+			require(
+				selection.activePage == 10 &&
+					ResolvePageSelection(
+						model,
+						DMUI_INVALID_PAGE_HANDLE,
+						selection.activePage,
+						selection.activeHostPage.has_value()) == 10,
+				"client page selection was not retained within the session");
+
+			SelectHostPage(HostPageKind::kHome, selection);
+			require(
+				selection.activeHostPage == HostPageKind::kHome &&
+					selection.activeClient == DMUI_INVALID_CLIENT_HANDLE &&
+					selection.activePage == DMUI_INVALID_PAGE_HANDLE,
+				"returning Home retained a client owner");
 		});
 
 		runner.test("one-page navigation and failed-page presentation remain stable", [] {

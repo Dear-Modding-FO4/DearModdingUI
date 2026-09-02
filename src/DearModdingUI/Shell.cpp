@@ -1009,7 +1009,9 @@ namespace DearModdingUI
 				"Evil Modding",
 				HostSettings::IsPanelOpen() ?
 					std::string_view{ "Interface Settings" } :
-					(client ?
+					(a_state.activeHostPage == HostPageKind::kHome ?
+							kHostHomePage.displayName :
+						client ?
 							std::string_view{ client->displayName } :
 							std::string_view{}));
 			const auto textScale = Theme::kHeaderFallbackTextScale;
@@ -1238,6 +1240,7 @@ namespace DearModdingUI
 			HostSettings::NotifyModSelected();
 			a_state.activeClient = page->client;
 			a_state.activePage = page->handle;
+			a_state.activeHostPage.reset();
 			RecordRecentPage(a_model, page->handle, a_state);
 			ExpandPageAncestors(a_model, page->handle, a_state);
 			if (a_state.sidebarLayout == SidebarLayoutKind::DrillDown &&
@@ -1247,6 +1250,21 @@ namespace DearModdingUI
 					a_state.drillDown,
 					DrillDownEvent::SelectClient,
 					page->client);
+			}
+		}
+
+		void NavigateToHostPage(
+			HostPageKind a_page,
+			ShellState& a_state) noexcept
+		{
+			HostSettings::NotifyModSelected();
+			SelectHostPage(a_page, a_state);
+			if (a_state.sidebarLayout == SidebarLayoutKind::DrillDown &&
+				a_state.drillDownInitialized)
+			{
+				a_state.drillDown = TransitionDrillDown(
+					a_state.drillDown,
+					DrillDownEvent::Back);
 			}
 		}
 
@@ -1349,6 +1367,26 @@ namespace DearModdingUI
 				ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
 				ImGui::SetTooltip("%s", a_client.displayName.c_str());
 			return row;
+		}
+
+		void DrawHostNavigationRow(ShellState& a_state) noexcept
+		{
+			const Theme::FontGuard font{
+				Theme::FontRole::kTitle,
+				kSidebarModFontScale
+			};
+			const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
+			const auto row = DrawSelectableRow({
+				.id = "##DearModdingHostHome",
+				.label = kHostHomePage.displayName.data(),
+				.selected = a_state.activeHostPage == HostPageKind::kHome,
+				.leadingAffordance = RowLeadingAffordance::kIcon,
+				.glyph = PhosphorGlyph::kAppWindow,
+				.textColor = textColor,
+				.hoveredTextColor = textColor
+			});
+			if (row.pressed)
+				NavigateToHostPage(HostPageKind::kHome, a_state);
 		}
 
 		void DrawPageRows(
@@ -1555,6 +1593,8 @@ namespace DearModdingUI
 				if (const auto* client =
 						a_model.FindClient(a_state.activeClient))
 					DrawPageList(a_model, *client, a_state);
+				else
+					ImGui::TextDisabled("Select a mod to browse its pages.");
 			}
 			ImGui::EndChild();
 		}
@@ -1694,6 +1734,8 @@ namespace DearModdingUI
 					ImGui::Spacing();
 					DrawPageList(a_model, *client, a_state);
 				}
+				else
+					ImGui::TextDisabled("Select a mod to browse its pages.");
 			}
 			ImGui::EndChild();
 		}
@@ -1787,6 +1829,9 @@ namespace DearModdingUI
 					"##DearModdingMenusList",
 					{ -FLT_MIN, -FLT_MIN }))
 			{
+				DrawSectionHeader("Host", PhosphorGlyph::kAppWindow);
+				DrawHostNavigationRow(a_state);
+				ImGui::Spacing();
 				DrawSectionHeader("Mods", PhosphorGlyph::kSquaresFour);
 				DrawPaletteAffordance(a_state);
 				ImGui::Spacing();
@@ -2135,6 +2180,186 @@ namespace DearModdingUI
 				(void)InvokeAction(actions[*pressed]);
 		}
 
+		template <class DrawValue>
+		void DrawHostHomeRow(
+			const char* a_id,
+			const char* a_label,
+			const char* a_description,
+			DrawValue&& a_drawValue) noexcept
+		{
+			const auto result = SettingsTable::BeginRow(
+				DMUI_INVALID_CLIENT_HANDLE,
+				a_id,
+				a_label,
+				a_description);
+			if (result.result != DMUI_RESULT_OK || !result.visible)
+				return;
+			a_drawValue();
+			bool resetPressed{};
+			(void)SettingsTable::EndRow(
+				DMUI_INVALID_CLIENT_HANDLE,
+				{ false, false },
+				resetPressed);
+		}
+
+		[[nodiscard]] const char* ClientStatusLabel(
+			const RegisteredClient& a_client,
+			const ClientStatus* a_status) noexcept
+		{
+			if (a_client.callbackFailed)
+				return "Unavailable";
+			if (!a_status)
+				return "Ready";
+			switch (a_status->severity)
+			{
+			case DMUI_STATUS_SEVERITY_INFO:
+				return "Info";
+			case DMUI_STATUS_SEVERITY_SUCCESS:
+				return "Success";
+			case DMUI_STATUS_SEVERITY_WARNING:
+				return "Warning";
+			case DMUI_STATUS_SEVERITY_ERROR:
+				return "Error";
+			default:
+				return "Unknown";
+			}
+		}
+
+		[[nodiscard]] DMUI_StatusSeverity ClientStatusSeverity(
+			const RegisteredClient& a_client,
+			const ClientStatus* a_status) noexcept
+		{
+			if (a_client.callbackFailed)
+				return DMUI_STATUS_SEVERITY_ERROR;
+			return a_status ?
+				a_status->severity :
+				DMUI_STATUS_SEVERITY_SUCCESS;
+		}
+
+		[[nodiscard]] const ImVec4& StatusTextColor(
+			DMUI_StatusSeverity a_severity) noexcept;
+
+		void DrawHostHome() noexcept
+		{
+			(void)DrawTitleRow({
+				.title = kHostHomePage.displayName.data(),
+				.titleScale = Theme::kFeatureTitleScale,
+				.summary = kHostHomePage.summary.data()
+			});
+
+			const auto& clients = RegisteredClients();
+			const auto& pages = OrderedPages();
+			const auto& actions = OrderedActions();
+			const auto statusSnapshot = CurrentClientStatuses();
+			const auto statuses = RollupClientStatuses(statusSnapshot);
+
+			DrawSectionHeader("Host overview", PhosphorGlyph::kAppWindow);
+			if (const auto table = SettingsTable::Begin(
+					DMUI_INVALID_CLIENT_HANDLE,
+					"##DearModdingUI.HostHomeOverview");
+				table.result == DMUI_RESULT_OK && table.visible)
+			{
+				DrawHostHomeRow(
+					"Host",
+					"Host",
+					"Shared menu owner and plugin version.",
+					[]() noexcept {
+						ImGui::Text(
+							"%.*s %.*s",
+							static_cast<int>(kHostDisplayName.size()),
+							kHostDisplayName.data(),
+							static_cast<int>(kHostVersion.size()),
+							kHostVersion.data());
+					});
+				char registrySummary[128]{};
+				std::snprintf(
+					registrySummary,
+					sizeof(registrySummary),
+					"%zu mods | %zu pages | %zu actions",
+					clients.size(),
+					pages.size(),
+					actions.size());
+				DrawHostHomeRow(
+					"Registry",
+					"Client registry",
+					"Live registrations available during this game session.",
+					[&]() noexcept {
+						ImGui::TextUnformatted(registrySummary);
+					});
+				(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
+			}
+
+			ImGui::Spacing();
+			DrawSectionHeader("Registered mods", PhosphorGlyph::kPuzzlePiece);
+			if (clients.empty())
+			{
+				DrawBulletText("No client mods registered this session.");
+				return;
+			}
+
+			std::vector<const RegisteredClient*> sortedClients;
+			sortedClients.reserve(clients.size());
+			for (const auto& client : clients)
+				sortedClients.push_back(&client);
+			std::ranges::sort(
+				sortedClients,
+				[](const auto* a_left, const auto* a_right) {
+					if (a_left->displayName != a_right->displayName)
+						return a_left->displayName < a_right->displayName;
+					return a_left->id < a_right->id;
+				});
+
+			const auto table = SettingsTable::Begin(
+				DMUI_INVALID_CLIENT_HANDLE,
+				"##DearModdingUI.HostHomeClients");
+			if (table.result != DMUI_RESULT_OK || !table.visible)
+				return;
+			for (const auto* client : sortedClients)
+			{
+				const auto pageCount = std::ranges::count(
+					pages,
+					client->handle,
+					&RegisteredPage::client);
+				const auto actionCount = std::ranges::count(
+					actions,
+					client->handle,
+					&RegisteredAction::client);
+				char description[256]{};
+				std::snprintf(
+					description,
+					sizeof(description),
+					"%s | %td pages | %td actions",
+					client->id.c_str(),
+					pageCount,
+					actionCount);
+				char version[64]{};
+				std::snprintf(
+					version,
+					sizeof(version),
+					"Version %u.%u",
+					client->version >> 16,
+					client->version & 0xFFFFu);
+				const auto* status =
+					FindClientStatus(statuses, client->handle);
+				const auto severity = ClientStatusSeverity(*client, status);
+				std::string rowId{ "Client/" };
+				rowId.append(client->id);
+				DrawHostHomeRow(
+					rowId.c_str(),
+					client->displayName.c_str(),
+					description,
+					[&]() noexcept {
+						ImGui::TextUnformatted(version);
+						ImGui::SameLine();
+						ImGui::TextColored(
+							StatusTextColor(severity),
+							"Status: %s",
+							ClientStatusLabel(*client, status));
+					});
+			}
+			(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
+		}
+
 		void DrawContent(
 			const NavigationModel& a_model,
 			ShellState& a_state) noexcept
@@ -2169,8 +2394,9 @@ namespace DearModdingUI
 						SettingsAction::kReset,
 						"##DearModdingUI.HostSettingsResetButton",
 						"Reset",
-						"Reset loads shipped interface defaults into the draft. "
-						"Use Apply to save them.",
+						"Reset saves the default sidebar layout immediately and "
+						"loads other shipped interface defaults into the draft. "
+						"Use Apply to save those.",
 						SettingsActionButtonWidth(
 							SettingsAction::kReset,
 							"Reset",
@@ -2180,7 +2406,7 @@ namespace DearModdingUI
 						"##DearModdingUI.HostSettingsRevertButton",
 						"Revert",
 						"Revert discards pending interface edits and restores "
-						"saved settings.",
+						"saved settings. Sidebar layout changes are already saved.",
 						SettingsActionButtonWidth(
 							SettingsAction::kRevert,
 							"Revert",
@@ -2190,8 +2416,8 @@ namespace DearModdingUI
 						"##DearModdingUI.HostSettingsApplyButton",
 						"Apply",
 						"Apply saves host settings to DearModdingUI.toml. "
-						"Appearance previews update immediately; typography "
-						"rebuilds once if needed.",
+						"Sidebar layout changes save immediately; appearance "
+						"previews update live, and typography rebuilds once if needed.",
 						SettingsActionButtonWidth(
 							SettingsAction::kApply,
 							"Apply",
@@ -2247,6 +2473,13 @@ namespace DearModdingUI
 				DrawHostSettingsControls();
 				if (dismiss)
 					HostSettings::DismissPanel();
+				ImGui::EndChild();
+				return;
+			}
+
+			if (a_state.activeHostPage == HostPageKind::kHome)
+			{
+				DrawHostHome();
 				ImGui::EndChild();
 				return;
 			}
@@ -2795,7 +3028,14 @@ namespace DearModdingUI
 		const auto requested = SelectedPage();
 		const auto previousPage = state.activePage;
 		state.activePage =
-			ResolvePageSelection(model, requested, state.activePage);
+			ResolvePageSelection(
+				model,
+				requested,
+				state.activePage,
+				state.activeHostPage.has_value());
+		if (requested != DMUI_INVALID_PAGE_HANDLE &&
+			state.activePage == requested)
+			state.activeHostPage.reset();
 		if (state.activePage != previousPage)
 		{
 			RecordRecentPage(model, state.activePage, state);
@@ -2806,6 +3046,8 @@ namespace DearModdingUI
 		if (const auto* client =
 				model.FindClientForPage(state.activePage))
 			state.activeClient = client->handle;
+		else if (state.activeHostPage)
+			state.activeClient = DMUI_INVALID_CLIENT_HANDLE;
 		if (state.sidebarLayout == SidebarLayoutKind::DrillDown)
 		{
 			if (!state.drillDownInitialized)
@@ -2836,7 +3078,7 @@ namespace DearModdingUI
 			ImGuiCond_FirstUseEver,
 			{ 0.5f, 0.5f });
 		ImGui::SetNextWindowSize(
-			{ viewport->Size.x * 0.85f, viewport->Size.y * 0.85f },
+			{ viewport->Size.x * 0.90f, viewport->Size.y * 0.90f },
 			ImGuiCond_FirstUseEver);
 
 		ImGuiWindowClass windowClass{};
@@ -2902,11 +3144,11 @@ namespace DearModdingUI
 				ImGui::TableSetupColumn(
 					"##DearModdingList",
 					ImGuiTableColumnFlags_None,
-					3.0f);
+					3.5f);
 				ImGui::TableSetupColumn(
 					"##DearModdingPage",
 					ImGuiTableColumnFlags_None,
-					7.0f);
+					6.5f);
 				DrawNavigation(model, state);
 				DrawContent(model, state);
 				ImGui::EndTable();

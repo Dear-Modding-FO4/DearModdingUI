@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -93,13 +94,44 @@ namespace DearModdingUI
 
 	inline constexpr size_t kRecentPageCapacity{ 8 };
 
+	enum class HostPageKind : uint32_t
+	{
+		kHome
+	};
+
+	struct HostNavigationPage
+	{
+		HostPageKind kind{ HostPageKind::kHome };
+		std::string_view id;
+		std::string_view displayName;
+		std::string_view summary;
+	};
+
+	inline constexpr HostNavigationPage kHostHomePage{
+		HostPageKind::kHome,
+		"home",
+		"Home",
+		"Session overview for the shared menu host and its registered mods."
+	};
+
 	struct ClientSelectionState
 	{
 		DMUI_ClientHandle activeClient{ DMUI_INVALID_CLIENT_HANDLE };
 		DMUI_PageHandle activePage{ DMUI_INVALID_PAGE_HANDLE };
 		std::string search;
 		std::vector<DMUI_PageHandle> recentPages;
+		std::optional<HostPageKind> activeHostPage{ HostPageKind::kHome };
 	};
+
+	inline void SelectHostPage(
+		HostPageKind a_page,
+		ClientSelectionState& a_state) noexcept
+	{
+		a_state.activeHostPage = a_page;
+		a_state.activeClient = DMUI_INVALID_CLIENT_HANDLE;
+		a_state.activePage = DMUI_INVALID_PAGE_HANDLE;
+		a_state.search.clear();
+	}
 
 	[[nodiscard]] constexpr size_t ResolvePaletteSelectionIndex(
 		size_t a_index,
@@ -131,7 +163,8 @@ namespace DearModdingUI
 	[[nodiscard]] DMUI_PageHandle ResolvePageSelection(
 		const NavigationModel& a_model,
 		DMUI_PageHandle a_requested,
-		DMUI_PageHandle a_current) noexcept;
+		DMUI_PageHandle a_current,
+		bool a_hostPageActive = false) noexcept;
 	[[nodiscard]] bool SelectClient(
 		const NavigationModel& a_model,
 		DMUI_ClientHandle a_client,

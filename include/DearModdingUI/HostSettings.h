@@ -403,6 +403,7 @@ namespace DearModdingUI
 		[[nodiscard]] HostInterfaceSettings Current() noexcept;
 		[[nodiscard]] HostInterfacePreviewSettings EffectivePreview() noexcept;
 		[[nodiscard]] bool Apply(HostInterfaceSettings a_settings) noexcept;
+		[[nodiscard]] bool SetSidebarLayout(SidebarLayoutKind a_layout) noexcept;
 		void SetPreview(
 			HostInterfacePreviewSettings a_settings,
 			uint64_t a_panelRevision) noexcept;

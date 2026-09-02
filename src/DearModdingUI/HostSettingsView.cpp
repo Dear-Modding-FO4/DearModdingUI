@@ -158,6 +158,15 @@ namespace DearModdingUI
 			PreviewDraft();
 		}
 
+		[[nodiscard]] bool CommitSidebarLayout(
+			SidebarLayoutKind a_layout) noexcept
+		{
+			if (!HostSettings::SetSidebarLayout(a_layout))
+				return false;
+			CommitHostSettingsSidebarLayout(g_settingsDraft, a_layout);
+			return true;
+		}
+
 		void DrawColorPresets(
 			HostAccentColor& a_color,
 			std::span<const ColorPreset> a_presets,
@@ -258,7 +267,7 @@ namespace DearModdingUI
 				selectedLayout = FindUserSidebarLayout(DEFAULT_SIDEBAR_LAYOUT);
 			if (DrawSettingsRow(
 					"SidebarLayout",
-					"Sidebar layout",
+					"Sidebar layout (saved immediately)",
 					selectedLayout->description.data(),
 					true,
 					[&]() noexcept {
@@ -275,8 +284,7 @@ namespace DearModdingUI
 										layout.label.data(),
 										selected))
 								{
-									settings.sidebarLayout = layout.kind;
-									changed = true;
+									changed |= CommitSidebarLayout(layout.kind);
 								}
 								if (ImGui::IsItemHovered())
 								{
@@ -297,8 +305,7 @@ namespace DearModdingUI
 							defaults.sidebarLayout;
 					}))
 			{
-				settings.sidebarLayout = defaults.sidebarLayout;
-				changed = true;
+				changed |= CommitSidebarLayout(defaults.sidebarLayout);
 			}
 
 			changed |= DrawColorSettingRow(
@@ -769,9 +776,15 @@ namespace DearModdingUI
 			PreviewDraft();
 			break;
 		case SettingsAction::kReset:
+		{
+			const auto committedLayout =
+				g_settingsDraft.committed.sidebarLayout;
 			ResetHostSettingsDraft(g_settingsDraft);
+			if (!CommitSidebarLayout(g_settingsDraft.draft.sidebarLayout))
+				g_settingsDraft.draft.sidebarLayout = committedLayout;
 			PreviewDraft();
 			break;
+		}
 		}
 	}
 

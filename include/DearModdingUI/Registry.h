@@ -99,6 +99,7 @@ namespace DearModdingUI
 		[[nodiscard]] size_t PageCount() const noexcept;
 		[[nodiscard]] size_t DemandedOverlayCount() const noexcept;
 		[[nodiscard]] bool HasSettingsPages() const noexcept;
+		[[nodiscard]] const std::vector<RegisteredClient>& RegisteredClients() const noexcept;
 		[[nodiscard]] const std::vector<RegisteredPage>& OrderedPages() const noexcept;
 		[[nodiscard]] const std::vector<RegisteredAction>& OrderedActions() const noexcept;
 		[[nodiscard]] const std::vector<RegisteredFrameObserver>&

@@ -292,10 +292,13 @@ namespace DearModdingUI
 	DMUI_PageHandle ResolvePageSelection(
 		const NavigationModel& a_model,
 		DMUI_PageHandle a_requested,
-		DMUI_PageHandle a_current) noexcept
+		DMUI_PageHandle a_current,
+		bool a_hostPageActive) noexcept
 	{
 		if (a_model.FindPage(a_requested))
 			return a_requested;
+		if (a_hostPageActive)
+			return DMUI_INVALID_PAGE_HANDLE;
 		if (a_model.FindPage(a_current))
 			return a_current;
 		return a_model.FirstPage();
@@ -312,6 +315,7 @@ namespace DearModdingUI
 
 		a_state.activeClient = a_client;
 		a_state.activePage = DMUI_INVALID_PAGE_HANDLE;
+		a_state.activeHostPage.reset();
 		for (const auto& category : client->categories)
 		{
 			if (!category.pages.empty())

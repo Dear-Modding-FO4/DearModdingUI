@@ -2,7 +2,9 @@
 
 DearModdingUI is a standalone F4SE plugin that hosts one shared Dear ImGui menu for Fallout 4 mods. Client plugins discover `DearModdingUI.dll` at runtime and register settings or overlay pages through a versioned C ABI, so clients do not link against the host binary.
 
-The host owns the ImGui context, D3D11 and Win32 backends, common shell, navigation, fonts, theme, cursor, background blur, menu toggle key, and host appearance settings. Window layout is stored in `Data/F4SE/Plugins/DearModdingUI/imgui.ini`; host settings, including the `tree`, `twopane`, or `drilldown` sidebar selected by `[Additional] sMenuSidebarLayout`, are stored in `Data/F4SE/Plugins/DearModdingUI.toml`.
+The host owns the ImGui context, D3D11 and Win32 backends, common shell, navigation, fonts, theme, cursor, background blur, menu toggle key, and host appearance settings. Window layout is stored in `Data/F4SE/Plugins/DearModdingUI/imgui.ini`; host settings are stored in `Data/F4SE/Plugins/DearModdingUI.toml`. The `tree`, `twopane`, or `drilldown` sidebar selected by `[Additional] sMenuSidebarLayout` saves immediately, while cosmetic changes remain previews until Apply.
+
+The host-owned Home page is the landing page for each game launch and summarizes the live client registry. Closing and reopening the menu within that launch returns to the last selected host or client page; active-page selection is not persisted across launches.
 
 ## Client registration
 

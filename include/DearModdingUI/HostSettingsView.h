@@ -49,6 +49,17 @@ namespace DearModdingUI
 		return { a_state.committed };
 	}
 
+	inline void CommitHostSettingsSidebarLayout(
+		HostSettingsDraftState& a_state,
+		SidebarLayoutKind a_layout) noexcept
+	{
+		if (!a_state.active)
+			return;
+		const auto layout = NormalizeUserSidebarLayout(a_layout);
+		a_state.committed.sidebarLayout = layout;
+		a_state.draft.sidebarLayout = layout;
+	}
+
 	inline void RevertHostSettingsDraft(
 		HostSettingsDraftState& a_state)
 	{
