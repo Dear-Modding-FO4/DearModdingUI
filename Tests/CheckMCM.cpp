@@ -4,9 +4,12 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <string>
+#include <system_error>
 #include <unordered_set>
 #include <vector>
 
@@ -16,15 +19,122 @@ namespace vmm_tests
 	{
 		using namespace DearModdingUI::MCM;
 
-		[[nodiscard]] std::filesystem::path FixturePath(
+		constexpr std::string_view kSyntheticConfig = R"json({
+			"minMcmVersion": 3,
+			"modName": "ExampleMod",
+			"displayName": "$EXAMPLE_MENU",
+			"pluginRequirements": ["ExampleCore.esm", "SampleWorld.esp"],
+			"content": [
+				{"id":"introduction","type":"section","text":"$EXAMPLE_ROOT_SECTION"},
+				{"id":"WelcomeMessage","type":"text","text":"$EXAMPLE_WELCOME",
+				 "help":"$EXAMPLE_WELCOME_HELP"},
+				{"id":"introduction","type":"section","text":"$EXAMPLE_ROOT_SECTION"},
+				{"id":"OpenGuide","type":"button","text":"Open sample guide"}
+			],
+			"pages": [
+				{
+					"id": "controls",
+					"pageDisplayName": "$EXAMPLE_CONTROLS",
+					"content": [
+						{"id":"basics","type":"section","text":"$EXAMPLE_BASICS"},
+						{"id":"EnableFeature","type":"switcher",
+						 "text":"$EXAMPLE_ENABLE","help":"$EXAMPLE_ENABLE_HELP",
+						 "valueOptions":{
+							"sourceType":"PropertyValueInt",
+							"sourceForm":"ExampleCore.esm|100",
+							"scriptName":"ExampleMod:Settings",
+							"propertyName":"EnableFeature",
+							"default":1
+						 }},
+						{"id":"DisplayMode","type":"dropdown",
+						 "text":"$EXAMPLE_MODE","help":"$EXAMPLE_MODE_HELP",
+						 "groupCondition":{"AND":[1,2]},
+						 "valueOptions":{
+							"sourceType":"PropertyValueInt",
+							"sourceForm":"ExampleCore.esm|101",
+							"scriptName":"ExampleMod:Settings",
+							"propertyName":"DisplayMode",
+							"default":0,
+							"options":[
+								"$EXAMPLE_MODE_CALM",
+								"$EXAMPLE_MODE_BRIGHT",
+								"$EXAMPLE_MODE_FOCUSED"
+							]
+						 }},
+						{"id":"fSensitivity:SampleTweaks","type":"slider",
+						 "text":"$EXAMPLE_SENSITIVITY","help":"$EXAMPLE_SENSITIVITY_HELP",
+						 "valueOptions":{
+							"sourceType":"ModSettingFloat",
+							"default":1.0,
+							"min":0.25,
+							"max":2.5,
+							"step":0.05
+						 }},
+						{"id":"iRetryCount:SampleTweaks","type":"slider",
+						 "text":"Retry count","help":"Number of attempts",
+						 "valueOptions":{
+							"sourceType":"ModSettingInt",
+							"default":3,
+							"min":1,
+							"max":8,
+							"step":1
+						 }},
+						{"id":"extras","type":"section","text":"Extra controls"},
+						{"id":"BindKey","type":"keymap","text":"Choose shortcut"},
+						{"id":"AccentColor","type":"color","text":"Choose accent"},
+						{"id":"PreviewImage","type":"image","text":"Sample preview"},
+						{"id":"RunAction","type":"button","text":"Run sample action"}
+					]
+				},
+				{
+					"id": "sources",
+					"displayName": "$EXAMPLE_SOURCES",
+					"content": [
+						{"id":"global-values","type":"section","text":"Global values"},
+						{"id":"WorldScale","type":"slider",
+						 "text":"World scale","help":"Scales the sample world",
+						 "valueOptions":{
+							"sourceType":"GlobalValue",
+							"sourceForm":"SampleWorld.esp|200",
+							"default":1.0,
+							"min":0.0,
+							"max":4.0,
+							"step":0.1
+						 }},
+						{"id":"internal-values","type":"section","text":"Internal values"},
+						{"id":"InternalState","type":"hidden",
+						 "valueOptions":{
+							"sourceType":"PropertyValueBool",
+							"sourceForm":"ExampleCore.esm|102",
+							"scriptName":"ExampleMod:State",
+							"propertyName":"InternalState"
+						 }}
+					]
+				}
+			]
+		})json";
+
+		[[nodiscard]] std::filesystem::path TemporaryConfigPath(
 			std::string_view a_name)
 		{
-			return std::filesystem::path{ __FILE__ }.parent_path() /
-				"Fixtures" /
-				"MCM" /
-				a_name /
-				"config.json";
+			const auto nonce = std::chrono::steady_clock::now()
+				.time_since_epoch()
+				.count();
+			return std::filesystem::temp_directory_path() /
+				("dmui-mcm-" + std::string{ a_name } + "-" +
+					std::to_string(nonce) + ".json");
 		}
+
+		struct TemporaryFileCleanup
+		{
+			std::filesystem::path path;
+
+			~TemporaryFileCleanup()
+			{
+				std::error_code error;
+				std::filesystem::remove(path, error);
+			}
+		};
 
 		[[nodiscard]] const MappedPage& PageNamed(
 			const LoadResult& a_result,
@@ -150,262 +260,207 @@ namespace vmm_tests
 		void RequireNear(double a_actual, double a_expected)
 		{
 			require(std::abs(a_actual - a_expected) < 0.000001,
-				"numeric value did not match the fixture");
+				"numeric value did not match");
 		}
 	}
 
 	void run_mcm_checks(Runner& runner)
 	{
-		runner.test("MCM LootMan fixture preserves page and group structure", [] {
-			const auto result = LoadConfig(FixturePath("lootman"));
+		runner.test("MCM synthetic config preserves page and group structure", [] {
+			const auto result = ParseConfig(
+				kSyntheticConfig,
+				"synthetic-config.json");
 			require(result.configuration.has_value(),
-				"LootMan configuration did not parse");
+				"synthetic configuration did not parse");
 			require(ErrorCount(result) == 0,
-				"LootMan produced parse errors");
-			require(result.configuration->modName == "LootMan",
-				"LootMan modName changed");
-			require(result.configuration->minimumMcmVersion ==
-						std::optional<int64_t>{ 2 } &&
-					result.configuration->displayName == "LootMan" &&
-					result.configuration->pluginRequirements ==
-						std::vector<std::string>{ "LootMan.esp" },
-				"LootMan top-level metadata changed");
-			require(result.pages.size() == 6,
-				"LootMan page count changed");
-
-			const std::array<size_t, 6> groups{ 1, 2, 6, 4, 3, 2 };
-			const std::array<size_t, 6> settings{ 1, 15, 56, 13, 11, 7 };
-			for (size_t index = 0; index < result.pages.size(); ++index)
-			{
-				require(result.pages[index].settings.groups.size() == groups[index],
-					"LootMan group shape changed");
-				require(DescriptorCount(result.pages[index]) == settings[index],
-					"LootMan descriptor shape changed");
-			}
-			require(
-				result.pages.front().settings.groups.front().label ==
-					"$PAGE_MAIN_ABOUT_SECTION",
-				"LootMan root section label changed");
-		});
-
-		runner.test("MCM LootMan fixture maps aliases and property metadata", [] {
-			const auto result = LoadConfig(FixturePath("lootman"));
-			const auto& page = PageNamed(result, "$PAGE_GENERAL_SETTINGS");
-
-			const auto& enabled = SettingNamed(page, "EnableLootMan");
-			require(std::holds_alternative<dmui::CheckboxSettingControl>(
-						enabled.control),
-				"switcher did not map to checkbox");
-			require(enabled.label ==
-					"$PAGE_GENERAL_SETTINGS_ENABLE_LOOTMAN" &&
-					enabled.description ==
-						"$PAGE_GENERAL_SETTINGS_ENABLE_LOOTMAN_HELP",
-				"switcher text or help changed");
-
-			const auto& logLevel = SettingNamed(page, "LogLevel");
-			const auto* choice =
-				std::get_if<dmui::ChoiceSettingControl>(&logLevel.control);
-			require(choice && choice->options.size() == 7,
-				"dropdown did not map all ordered choices");
-			require(choice->options.front().value == "0" &&
-					choice->options.front().label ==
-						"$PAGE_GENERAL_SETTINGS_LOG_LEVEL_TRACE",
-				"dropdown option order changed");
-
-			const auto& range = SettingNamed(page, "LootingRange");
-			const auto* numeric =
-				std::get_if<dmui::DoubleSettingControl>(&range.control);
-			require(numeric && numeric->range &&
-					numeric->range->minimum &&
-					numeric->range->maximum,
-				"float slider range was not mapped");
-			RequireNear(*numeric->range->minimum, 1.0);
-			RequireNear(*numeric->range->maximum, 256.0);
-			RequireNear(numeric->dragSpeed, 0.5);
-
-			const auto& declared = DeclaredPageNamed(
-				*result.configuration,
-				"$PAGE_GENERAL_SETTINGS");
-			const auto& source = ControlNamed(declared, "LogLevel");
-			require(source.valueOptions &&
-					source.valueOptions->sourceType ==
-						std::optional<std::string>{ "PropertyValueInt" } &&
-					source.valueOptions->sourceForm ==
-						std::optional<std::string>{ "LootMan.esp|F9B" } &&
-					source.valueOptions->propertyName ==
-						std::optional<std::string>{ "LogLevel" },
-				"property source metadata did not survive");
-			require(source.groupCondition &&
-					source.groupCondition->type == ConditionType::kAll &&
-					source.groupCondition->operands.size() == 2,
-				"compound group condition did not survive");
-			require(ControlKindCount(
-						result,
-						dmui::SettingControlKind::kUnsupported) == 14,
-				"LootMan unsupported control count changed");
-		});
-
-		runner.test("MCM Portable Junk Recycler fixture maps its full shape", [] {
-			const auto result = LoadConfig(
-				FixturePath("portable-junk-recycler"));
-			require(result.configuration.has_value(),
-				"Portable Junk Recycler configuration did not parse");
-			require(ErrorCount(result) == 0,
-				"Portable Junk Recycler produced parse errors: " +
+				"synthetic configuration produced parse errors: " +
 					ErrorMessages(result));
-			require(result.pages.size() == 5,
-				"Portable Junk Recycler page count changed");
+			require(result.configuration->modName == "ExampleMod" &&
+					result.configuration->minimumMcmVersion ==
+						std::optional<int64_t>{ 3 } &&
+					result.configuration->displayName == "$EXAMPLE_MENU" &&
+					result.configuration->pluginRequirements ==
+						std::vector<std::string>{
+							"ExampleCore.esm",
+							"SampleWorld.esp" },
+				"synthetic top-level metadata changed");
+			require(result.pages.size() == 3 &&
+					result.configuration->pages.front().root &&
+					result.configuration->pages.front().id == "main",
+				"synthetic root or page structure changed");
 
-			const std::array<size_t, 5> groups{ 3, 2, 3, 48, 4 };
-			const std::array<size_t, 5> settings{ 6, 10, 21, 80, 12 };
+			const std::array<size_t, 3> groups{ 2, 2, 2 };
+			const std::array<size_t, 3> settings{ 2, 8, 1 };
 			for (size_t index = 0; index < result.pages.size(); ++index)
 			{
 				require(result.pages[index].settings.groups.size() == groups[index],
-					"Portable Junk Recycler group shape changed");
+					"synthetic group shape changed");
 				require(DescriptorCount(result.pages[index]) == settings[index],
-					"Portable Junk Recycler descriptor shape changed");
+					"synthetic descriptor shape changed");
 				std::unordered_set<std::string> ids;
 				for (const auto& group : result.pages[index].settings.groups)
 					require(ids.insert(group.id).second,
 						"duplicate group id survived mapping");
 			}
-			require(ControlKindCount(
-						result,
-						dmui::SettingControlKind::kDouble) == 82 &&
-					ControlKindCount(
-						result,
-						dmui::SettingControlKind::kSigned) == 2,
-				"Portable Junk Recycler numeric kinds changed");
+			require(
+				result.pages.front().settings.groups.front().label ==
+					"$EXAMPLE_ROOT_SECTION",
+				"synthetic root section label changed");
+			require(result.pages.front().settings.groups[0].id ==
+						"introduction" &&
+					result.pages.front().settings.groups[1].id ==
+						"introduction-2",
+				"duplicate synthetic group ids were not uniqued");
 		});
 
-		runner.test("MCM Portable Junk Recycler keeps ranges and value sources", [] {
-			const auto result = LoadConfig(
-				FixturePath("portable-junk-recycler"));
-			const auto& settings = PageNamed(result, "$Settings");
-			const auto& multiplier =
-				SettingNamed(settings, "fMultBase:GeneralOptions");
+		runner.test("MCM synthetic config maps controls ranges and labels", [] {
+			const auto result = ParseConfig(
+				kSyntheticConfig,
+				"synthetic-config.json");
+			const auto& page = PageNamed(result, "$EXAMPLE_CONTROLS");
+
+			const auto& enabled = SettingNamed(page, "EnableFeature");
+			require(std::holds_alternative<dmui::CheckboxSettingControl>(
+						enabled.control),
+				"switcher did not map to checkbox");
+			require(enabled.label == "$EXAMPLE_ENABLE" &&
+					enabled.description == "$EXAMPLE_ENABLE_HELP",
+				"switcher text or help changed");
+
+			const auto& mode = SettingNamed(page, "DisplayMode");
+			const auto* choice =
+				std::get_if<dmui::ChoiceSettingControl>(&mode.control);
+			require(choice && choice->options.size() == 3,
+				"dropdown did not map all ordered choices");
+			require(choice->options.front().value == "0" &&
+					choice->options.front().label == "$EXAMPLE_MODE_CALM",
+				"dropdown option order changed");
+
+			const auto& sensitivity =
+				SettingNamed(page, "fSensitivity:SampleTweaks");
 			const auto* numeric =
-				std::get_if<dmui::DoubleSettingControl>(&multiplier.control);
+				std::get_if<dmui::DoubleSettingControl>(&sensitivity.control);
 			require(numeric && numeric->range &&
 					numeric->range->minimum &&
 					numeric->range->maximum,
-				"multiplier slider range was not mapped");
-			RequireNear(*numeric->range->minimum, 0.0);
-			RequireNear(*numeric->range->maximum, 2.0);
-			RequireNear(numeric->dragSpeed, 0.01);
-			require(multiplier.label == "$MultBaseText" &&
-					multiplier.description == "$MultBaseHelp",
-				"multiplier label or help changed");
+				"float slider range was not mapped");
+			RequireNear(*numeric->range->minimum, 0.25);
+			RequireNear(*numeric->range->maximum, 2.5);
+			RequireNear(numeric->dragSpeed, 0.05);
+			require(sensitivity.label == "$EXAMPLE_SENSITIVITY" &&
+					sensitivity.description == "$EXAMPLE_SENSITIVITY_HELP",
+				"slider text or help changed");
 
-			const auto& fractional = SettingNamed(
-				settings,
-				"iFractionalComponentHandling:GeneralOptions");
-			const auto* choice =
-				std::get_if<dmui::ChoiceSettingControl>(&fractional.control);
-			require(choice && choice->options.size() == 3 &&
-					choice->options[2].label == "$RoundDown",
-				"fractional handling choices changed");
-
-			const auto& advanced = PageNamed(result, "$Advanced");
-			const auto& threads = SettingNamed(
-				advanced,
-				"iThreadLimit:Advanced");
+			const auto& retries =
+				SettingNamed(page, "iRetryCount:SampleTweaks");
 			const auto* integer =
-				std::get_if<dmui::SignedSettingControl>(&threads.control);
+				std::get_if<dmui::SignedSettingControl>(&retries.control);
 			require(integer && integer->range &&
 					integer->range->minimum == std::optional<int64_t>{ 1 } &&
-					integer->range->maximum == std::optional<int64_t>{ 32 },
+					integer->range->maximum == std::optional<int64_t>{ 8 },
 				"integer slider did not retain its range");
-
-			const auto& declared = DeclaredPageNamed(
-				*result.configuration,
-				"$Settings");
-			const auto& source = ControlNamed(
-				declared,
-				"fMultBase:GeneralOptions");
-			require(source.valueOptions &&
-					source.valueOptions->sourceType ==
-						std::optional<std::string>{ "ModSettingFloat" } &&
-					source.valueOptions->modSettingId ==
-						std::optional<std::string>{
-							"fMultBase:GeneralOptions" },
-				"ModSetting id did not survive");
-
-			const auto& adjustments = DeclaredPageNamed(
-				*result.configuration,
-				"$MultiplierAdjustments");
-			const auto hidden = std::ranges::find_if(
-				adjustments.controls,
-				[](const Control& a_control) {
-					return a_control.type == ControlType::kHidden &&
-						a_control.valueOptions &&
-						a_control.valueOptions->propertyName ==
-							std::optional<std::string>{
-								"MCM_GeneralMultAdjustSimple" };
-				});
-			require(hidden != adjustments.controls.end() &&
-					hidden->valueOptions->scriptName ==
-						std::optional<std::string>{
-							"PortableJunkRecyclerMk2:PJRM2_SettingManager" } &&
-					hidden->valueOptions->sourceForm ==
-						std::optional<std::string>{
-							"Portable Junk Recycler Mk 2.esp|800" },
-				"hidden property metadata did not survive");
+			require(ControlKindCount(
+						result,
+						dmui::SettingControlKind::kDouble) == 2 &&
+					ControlKindCount(
+						result,
+						dmui::SettingControlKind::kSigned) == 1,
+				"synthetic numeric control kinds changed");
 		});
 
-		runner.test("MCM demonstration fixture maps readable and unsupported controls", [] {
-			const auto result = LoadConfig(
-				FixturePath("mcm-demonstration"));
-			require(result.configuration.has_value(),
-				"MCM demonstration did not parse");
-			require(ErrorCount(result) == 0,
-				"MCM demonstration produced parse errors");
-			require(result.pages.size() == 4,
-				"MCM demonstration page count changed");
-			const std::array<size_t, 4> settings{ 3, 2, 3, 2 };
-			for (size_t index = 0; index < result.pages.size(); ++index)
-				require(DescriptorCount(result.pages[index]) == settings[index],
-					"MCM demonstration descriptor shape changed");
+		runner.test("MCM synthetic config retains source and condition metadata", [] {
+			const auto result = ParseConfig(
+				kSyntheticConfig,
+				"synthetic-config.json");
+			const auto& controls = DeclaredPageNamed(
+				*result.configuration,
+				"$EXAMPLE_CONTROLS");
+			const auto& property = ControlNamed(controls, "DisplayMode");
+			require(property.valueOptions &&
+					property.valueOptions->sourceType ==
+						std::optional<std::string>{ "PropertyValueInt" } &&
+					property.valueOptions->sourceForm ==
+						std::optional<std::string>{ "ExampleCore.esm|101" } &&
+					property.valueOptions->propertyName ==
+						std::optional<std::string>{ "DisplayMode" } &&
+					property.valueOptions->scriptName ==
+						std::optional<std::string>{ "ExampleMod:Settings" },
+				"property source metadata did not survive");
+			require(property.groupCondition &&
+					property.groupCondition->type == ConditionType::kAll &&
+					property.groupCondition->operands.size() == 2,
+				"compound group condition did not survive");
 
-			const auto& root = PageNamed(result, "Scrivener07");
+			const auto& modSetting = ControlNamed(
+				controls,
+				"fSensitivity:SampleTweaks");
+			require(modSetting.valueOptions &&
+					modSetting.valueOptions->sourceType ==
+						std::optional<std::string>{ "ModSettingFloat" } &&
+					modSetting.valueOptions->modSettingId ==
+						std::optional<std::string>{
+							"fSensitivity:SampleTweaks" },
+				"ModSetting source metadata did not survive");
+
+			const auto& sources = DeclaredPageNamed(
+				*result.configuration,
+				"$EXAMPLE_SOURCES");
+			const auto& global = ControlNamed(sources, "WorldScale");
+			require(global.valueOptions &&
+					global.valueOptions->sourceType ==
+						std::optional<std::string>{ "GlobalValue" } &&
+					global.valueOptions->sourceForm ==
+						std::optional<std::string>{ "SampleWorld.esp|200" },
+				"global source metadata did not survive");
+			const auto& hidden = ControlNamed(sources, "InternalState");
+			require(hidden.type == ControlType::kHidden,
+				"hidden control type did not survive");
+			require(hidden.valueOptions.has_value(),
+				"hidden value options did not survive");
+			require(hidden.valueOptions->sourceForm &&
+					*hidden.valueOptions->sourceForm == "ExampleCore.esm|102",
+				"hidden source form did not survive");
+			require(hidden.valueOptions->scriptName ==
+						std::optional<std::string>{ "ExampleMod:State" },
+				"hidden script name did not survive");
+			require(hidden.valueOptions->propertyName ==
+						std::optional<std::string>{ "InternalState" },
+				"hidden property name did not survive");
+		});
+
+		runner.test("MCM synthetic config maps readable and unsupported controls", [] {
+			const auto result = ParseConfig(
+				kSyntheticConfig,
+				"synthetic-config.json");
+			const auto& root = PageNamed(result, "$EXAMPLE_MENU");
 			require(dmui::ResolveSettingControlPresentation(
-						root.settings.groups.front().settings.front().control).kind ==
+						SettingNamed(root, "WelcomeMessage").control).kind ==
 						dmui::SettingControlKind::kReadOnly,
 				"text did not map to read-only");
 			require(ControlKindCount(
 						result,
-						dmui::SettingControlKind::kUnsupported) == 2,
-				"image and button did not map to unsupported");
+						dmui::SettingControlKind::kUnsupported) == 5,
+				"button, keymap, color, and image controls did not map to unsupported");
+		});
 
-			const auto& ini = PageNamed(result, "INI Setting");
-			const auto& opacity = SettingNamed(ini, "fHUDOpacity:INIT");
-			const auto* numeric =
-				std::get_if<dmui::DoubleSettingControl>(&opacity.control);
-			require(numeric && numeric->range &&
-					numeric->range->minimum ==
-						std::optional<double>{ 0.0 } &&
-					numeric->range->maximum ==
-						std::optional<double>{ 1.0 },
-				"opacity slider range changed");
-			require(opacity.description ==
-					"This slider controls the HUD opacity. Range: 0.0-1.0",
-				"opacity help was not preserved");
-			require(std::holds_alternative<dmui::CheckboxSettingControl>(
-						SettingNamed(
-							ini,
-							"bCrosshairEnabled:INIT").control),
-				"demonstration switcher did not map to checkbox");
+		runner.test("MCM LoadConfig reads a synthetic temporary file", [] {
+			const auto path = TemporaryConfigPath("load-success");
+			const TemporaryFileCleanup cleanup{ path };
+			{
+				std::ofstream file(path, std::ios::binary);
+				require(file.is_open(),
+					"temporary MCM configuration could not be created");
+				file << kSyntheticConfig;
+				require(file.good(),
+					"temporary MCM configuration could not be written");
+			}
 
-			const auto& global = DeclaredPageNamed(
-				*result.configuration,
-				"Global Setting");
-			const auto& gameHour = ControlNamed(global, "fGameHour:GLOB");
-			require(gameHour.valueOptions &&
-					gameHour.valueOptions->sourceType ==
-						std::optional<std::string>{ "GlobalValue" } &&
-					gameHour.valueOptions->sourceForm ==
-						std::optional<std::string>{ "Fallout4.esm|38" },
-				"global source metadata did not survive");
+			const auto result = LoadConfig(path);
+			require(result.configuration &&
+					result.configuration->modName == "ExampleMod" &&
+					result.pages.size() == 3 &&
+					ErrorCount(result) == 0,
+				"temporary MCM configuration did not load");
 		});
 
 		runner.test("MCM malformed JSON returns a located diagnostic", [] {
@@ -478,7 +533,7 @@ namespace vmm_tests
 		});
 
 		runner.test("MCM absent files return an empty diagnosed result", [] {
-			const auto path = FixturePath("does-not-exist");
+			const auto path = TemporaryConfigPath("does-not-exist");
 			const auto result = LoadConfig(path);
 			require(!result.configuration && result.pages.empty(),
 				"absent file produced configuration data");

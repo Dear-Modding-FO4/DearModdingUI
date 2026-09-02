@@ -25,7 +25,3 @@ The DearModdingUI shell, theme, font roles, cursor behavior, and blur were porte
 Jost and Atkinson Hyperlegible are distributed under the SIL Open Font License 1.1. Their license texts are retained beside the font files as `OFL.txt`; Atkinson Hyperlegible also includes an `UPSTREAM.md` provenance record.
 
 The Phosphor icon font is distributed under the MIT License. Its license and pinned upstream provenance are retained beside the font as `LICENSE` and `UPSTREAM.md`.
-
-## MCM test fixtures
-
-The LootMan and MCM Demonstration fixtures are distributed under the MIT License. The Portable Junk Recycler Mk 2 fixtures are distributed under GPL-3.0. Source paths, exact Git blob hashes, and retained licenses are recorded in `Tests/Fixtures/MCM/README.md`.
