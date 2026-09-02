@@ -1,5 +1,7 @@
 #include "Mapper.h"
 
+#include "Diagnostics.h"
+
 #include <algorithm>
 #include <charconv>
 #include <cmath>
@@ -42,21 +44,6 @@ namespace DearModdingUI::MCM::detail
 
 	namespace
 	{
-		void Diagnose(
-			std::vector<Diagnostic>& a_diagnostics,
-			std::string_view a_source,
-			DiagnosticSeverity a_severity,
-			std::string_view a_location,
-			std::string a_message)
-		{
-			a_diagnostics.push_back({
-				a_severity,
-				std::string{ a_source },
-				std::string{ a_location },
-				std::move(a_message)
-			});
-		}
-
 		[[nodiscard]] std::string ScalarText(const Scalar& a_value)
 		{
 			return std::visit(
@@ -194,8 +181,7 @@ namespace DearModdingUI::MCM::detail
 		void MapCheckboxDefault(
 			const Control& a_control,
 			dmui::SettingDescriptor& a_descriptor,
-			std::string_view a_source,
-			std::vector<Diagnostic>& a_diagnostics)
+			detail::Diagnostics& a_diag)
 		{
 			auto value = false;
 			if (a_control.valueOptions &&
@@ -214,9 +200,7 @@ namespace DearModdingUI::MCM::detail
 				}
 				else
 				{
-					Diagnose(
-						a_diagnostics,
-						a_source,
+					a_diag.Add(
 						DiagnosticSeverity::kWarning,
 						a_control.location + ".valueOptions.default",
 						"checkbox default is not boolean");
@@ -228,8 +212,7 @@ namespace DearModdingUI::MCM::detail
 		void MapDoubleControl(
 			const Control& a_control,
 			dmui::SettingDescriptor& a_descriptor,
-			std::string_view a_source,
-			std::vector<Diagnostic>& a_diagnostics)
+			detail::Diagnostics& a_diag)
 		{
 			dmui::DoubleSettingControl mapped;
 			if (a_control.valueOptions)
@@ -251,9 +234,7 @@ namespace DearModdingUI::MCM::detail
 						a_descriptor.defaultValue = *value;
 					else
 					{
-						Diagnose(
-							a_diagnostics,
-							a_source,
+						a_diag.Add(
 							DiagnosticSeverity::kWarning,
 							a_control.location + ".valueOptions.default",
 							"numeric default is not a number");
@@ -275,8 +256,7 @@ namespace DearModdingUI::MCM::detail
 		void MapSignedControl(
 			const Control& a_control,
 			dmui::SettingDescriptor& a_descriptor,
-			std::string_view a_source,
-			std::vector<Diagnostic>& a_diagnostics)
+			detail::Diagnostics& a_diag)
 		{
 			dmui::SignedSettingControl mapped;
 			if (a_control.valueOptions)
@@ -293,18 +273,14 @@ namespace DearModdingUI::MCM::detail
 				}
 				if (options.minimum && !minimum)
 				{
-					Diagnose(
-						a_diagnostics,
-						a_source,
+					a_diag.Add(
 						DiagnosticSeverity::kWarning,
 						a_control.location + ".valueOptions.min",
 						"integer setting has a non-integral or out-of-range minimum");
 				}
 				if (options.maximum && !maximum)
 				{
-					Diagnose(
-						a_diagnostics,
-						a_source,
+					a_diag.Add(
 						DiagnosticSeverity::kWarning,
 						a_control.location + ".valueOptions.max",
 						"integer setting has a non-integral or out-of-range maximum");
@@ -318,9 +294,7 @@ namespace DearModdingUI::MCM::detail
 						a_descriptor.defaultValue = *value;
 					else
 					{
-						Diagnose(
-							a_diagnostics,
-							a_source,
+						a_diag.Add(
 							DiagnosticSeverity::kWarning,
 							a_control.location + ".valueOptions.default",
 							"integer default is not an integral 64-bit value");
@@ -384,8 +358,7 @@ namespace DearModdingUI::MCM::detail
 		[[nodiscard]] dmui::SettingDescriptor MapControl(
 			const Control& a_control,
 			std::string a_id,
-			std::string_view a_source,
-			std::vector<Diagnostic>& a_diagnostics)
+			detail::Diagnostics& a_diag)
 		{
 			dmui::SettingDescriptor descriptor;
 			descriptor.id = std::move(a_id);
@@ -403,8 +376,7 @@ namespace DearModdingUI::MCM::detail
 				MapCheckboxDefault(
 					a_control,
 					descriptor,
-					a_source,
-					a_diagnostics);
+					a_diag);
 				break;
 			case ControlType::kSlider:
 				if (UsesSignedNumbers(a_control))
@@ -412,16 +384,14 @@ namespace DearModdingUI::MCM::detail
 					MapSignedControl(
 						a_control,
 						descriptor,
-						a_source,
-						a_diagnostics);
+						a_diag);
 				}
 				else
 				{
 					MapDoubleControl(
 						a_control,
 						descriptor,
-						a_source,
-						a_diagnostics);
+						a_diag);
 				}
 				break;
 			case ControlType::kStepper:
@@ -459,40 +429,13 @@ namespace DearModdingUI::MCM::detail
 			return descriptor;
 		}
 
-		[[nodiscard]] std::string UniqueId(
-			std::string a_candidate,
-			std::unordered_set<std::string>& a_ids,
-			std::string_view a_source,
-			std::string_view a_location,
-			std::string_view a_kind,
-			std::vector<Diagnostic>& a_diagnostics)
-		{
-			if (a_ids.insert(a_candidate).second)
-				return a_candidate;
-			auto suffix = size_t{ 2 };
-			auto unique = a_candidate + "-" + std::to_string(suffix);
-			while (!a_ids.insert(unique).second)
-				unique = a_candidate + "-" + std::to_string(++suffix);
-			Diagnose(
-				a_diagnostics,
-				a_source,
-				DiagnosticSeverity::kWarning,
-				a_location,
-				"duplicate " + std::string{ a_kind } + " id '" +
-					a_candidate + "' was renamed to '" + unique + "'");
-			return unique;
-		}
-
 		void DiagnoseUnsupported(
 			const Control& a_control,
-			std::string_view a_source,
-			std::vector<Diagnostic>& a_diagnostics)
+			detail::Diagnostics& a_diag)
 		{
 			if (a_control.type == ControlType::kUnknown)
 			{
-				Diagnose(
-					a_diagnostics,
-					a_source,
+				a_diag.Add(
 					DiagnosticSeverity::kWarning,
 					a_control.location,
 					a_control.rawType.empty() ?
@@ -507,9 +450,7 @@ namespace DearModdingUI::MCM::detail
 			case ControlType::kKeymap:
 			case ControlType::kColor:
 			case ControlType::kImage:
-				Diagnose(
-					a_diagnostics,
-					a_source,
+				a_diag.Add(
 					DiagnosticSeverity::kWarning,
 					a_control.location,
 					"MCM control type '" + a_control.rawType +
@@ -522,8 +463,7 @@ namespace DearModdingUI::MCM::detail
 
 		[[nodiscard]] MappedPage MapPage(
 			const Page& a_page,
-			std::string_view a_source,
-			std::vector<Diagnostic>& a_diagnostics)
+			detail::Diagnostics& a_diag)
 		{
 			MappedPage mapped;
 			mapped.id = a_page.id;
@@ -538,13 +478,11 @@ namespace DearModdingUI::MCM::detail
 				std::string a_id,
 				std::string a_label,
 				std::string_view a_location) {
-				a_id = UniqueId(
+				a_id = a_diag.UniqueId(
 					std::move(a_id),
 					groupIds,
-					a_source,
-					a_location,
 					"group",
-					a_diagnostics);
+					a_location);
 				mapped.settings.groups.push_back({
 					std::move(a_id),
 					std::move(a_label)
@@ -579,13 +517,11 @@ namespace DearModdingUI::MCM::detail
 				auto id = control.id.empty() ?
 					"control-" + std::to_string(control.sourceIndex + 1) :
 					control.id;
-				id = UniqueId(
+				id = a_diag.UniqueId(
 					std::move(id),
 					descriptorIds,
-					a_source,
-					control.location,
 					"setting",
-					a_diagnostics);
+					control.location);
 				if (control.valueOptions && control.valueOptions->sourceType)
 				{
 					const auto& options = *control.valueOptions;
@@ -601,28 +537,22 @@ namespace DearModdingUI::MCM::detail
 					MapControl(
 						control,
 						std::move(id),
-						a_source,
-						a_diagnostics));
+						a_diag));
 				++descriptorCount;
 
 				DiagnoseUnsupported(
 					control,
-					a_source,
-					a_diagnostics);
+					a_diag);
 				if (control.html.value_or(false))
 				{
-					Diagnose(
-						a_diagnostics,
-						a_source,
+					a_diag.Add(
 						DiagnosticSeverity::kWarning,
 						control.location + ".html",
 						"HTML text presentation is not represented by settings controls");
 				}
 				if (control.alignment)
 				{
-					Diagnose(
-						a_diagnostics,
-						a_source,
+					a_diag.Add(
 						DiagnosticSeverity::kWarning,
 						control.location + ".align",
 						"text alignment is not represented by settings controls");
@@ -631,9 +561,7 @@ namespace DearModdingUI::MCM::detail
 
 			if (descriptorCount == 0)
 			{
-				Diagnose(
-					a_diagnostics,
-					a_source,
+				a_diag.Add(
 					DiagnosticSeverity::kWarning,
 					a_page.location,
 					"page produced no setting descriptors");
@@ -648,13 +576,11 @@ namespace DearModdingUI::MCM::detail
 		std::vector<MappedPage>& a_pages,
 		std::vector<Diagnostic>& a_diagnostics)
 	{
+		detail::Diagnostics diagnostics{ std::string{ a_source }, a_diagnostics };
 		a_pages.reserve(a_pages.size() + a_configuration.pages.size());
 		for (const auto& page : a_configuration.pages)
 		{
-			a_pages.push_back(MapPage(
-				page,
-				a_source,
-				a_diagnostics));
+			a_pages.push_back(MapPage(page, diagnostics));
 		}
 	}
 }

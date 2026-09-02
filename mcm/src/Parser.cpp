@@ -1,11 +1,11 @@
 #include <DearModdingUI/MCM/Compatibility.h>
 
+#include "Diagnostics.h"
 #include "Mapper.h"
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -19,21 +19,9 @@ namespace DearModdingUI::MCM
 
 		constexpr size_t kMaxConditionDepth = 64;
 
-		[[nodiscard]] std::string Lower(std::string_view a_value)
-		{
-			std::string result;
-			result.reserve(a_value.size());
-			for (const auto character : a_value)
-			{
-				result.push_back(static_cast<char>(
-					std::tolower(static_cast<unsigned char>(character))));
-			}
-			return result;
-		}
-
 		[[nodiscard]] ControlType ResolveControlType(std::string_view a_type)
 		{
-			const auto type = Lower(a_type);
+			const auto type = detail::ToLowerAscii(a_type);
 			if (type == "switch" || type == "switcher")
 				return ControlType::kSwitch;
 			if (type == "slider")
@@ -66,7 +54,7 @@ namespace DearModdingUI::MCM
 		[[nodiscard]] SourceType ResolveSourceType(std::string a_raw)
 		{
 			SourceType result;
-			const auto type = Lower(a_raw);
+			const auto type = detail::ToLowerAscii(a_raw);
 			result.raw = std::move(a_raw);
 			if (type.starts_with("globalvalue"))
 				result.family = SourceFamily::kGlobal;
@@ -107,17 +95,8 @@ namespace DearModdingUI::MCM
 			std::string_view a_source,
 			std::string a_message) noexcept
 		{
-			try
-			{
-				a_result.diagnostics.push_back({
-					DiagnosticSeverity::kError,
-					std::string{ a_source },
-					"$",
-					std::move(a_message)
-				});
-			}
-			catch (...)
-			{}
+			detail::Diagnostics{ std::string{ a_source }, a_result.diagnostics }
+				.AddTerminal(std::move(a_message));
 		}
 
 		class ConfigReader
@@ -127,7 +106,8 @@ namespace DearModdingUI::MCM
 				std::string a_source,
 				LoadResult& a_result) :
 				m_source(std::move(a_source)),
-				m_result(a_result)
+				m_result(a_result),
+				m_diagnostics(m_source, a_result.diagnostics)
 			{}
 
 			void Read(const Json& a_document)
@@ -170,12 +150,10 @@ namespace DearModdingUI::MCM
 				std::string a_location,
 				std::string a_message)
 			{
-				m_result.diagnostics.push_back({
+				m_diagnostics.Add(
 					a_severity,
-					m_source,
 					std::move(a_location),
-					std::move(a_message)
-				});
+					std::move(a_message));
 			}
 
 			[[nodiscard]] std::optional<std::string> ReadString(
@@ -345,7 +323,7 @@ namespace DearModdingUI::MCM
 				const auto operation = a_value.begin();
 				GroupCondition result;
 				result.rawOperator = operation.key();
-				const auto normalized = Lower(result.rawOperator);
+				const auto normalized = detail::ToLowerAscii(result.rawOperator);
 				if (normalized == "and")
 					result.type = ConditionType::kAll;
 				else if (normalized == "or")
@@ -757,23 +735,16 @@ namespace DearModdingUI::MCM
 			{
 				if (a_candidate.empty())
 					a_candidate = "page";
-				if (m_pageIds.insert(a_candidate).second)
-					return a_candidate;
-
-				auto suffix = size_t{ 2 };
-				auto unique = a_candidate + "-" + std::to_string(suffix);
-				while (!m_pageIds.insert(unique).second)
-					unique = a_candidate + "-" + std::to_string(++suffix);
-				Diagnose(
-					DiagnosticSeverity::kWarning,
-					std::string{ a_location },
-					"duplicate page id '" + a_candidate +
-						"' was renamed to '" + unique + "'");
-				return unique;
+				return m_diagnostics.UniqueId(
+					std::move(a_candidate),
+					m_pageIds,
+					"page",
+					a_location);
 			}
 
 			std::string m_source;
 			LoadResult& m_result;
+			detail::Diagnostics m_diagnostics;
 			std::unordered_set<std::string> m_pageIds;
 		};
 	}
