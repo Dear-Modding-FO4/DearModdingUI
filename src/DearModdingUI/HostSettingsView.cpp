@@ -194,6 +194,55 @@ namespace DearModdingUI
 			const auto& defaults = DefaultSettings();
 			auto changed = false;
 
+			const auto* selectedLayout =
+				FindUserSidebarLayout(settings.sidebarLayout);
+			if (!selectedLayout)
+				selectedLayout = FindUserSidebarLayout(DEFAULT_SIDEBAR_LAYOUT);
+			if (DrawSettingsRow(
+					"SidebarLayout",
+					"Sidebar layout",
+					selectedLayout->description.data(),
+					true,
+					[&]() noexcept {
+						ImGui::SetNextItemWidth(ControlWidth());
+						if (ImGui::BeginCombo(
+								"##Value",
+								selectedLayout->label.data()))
+						{
+							for (const auto& layout : USER_SIDEBAR_LAYOUTS)
+							{
+								const auto selected =
+									layout.kind == settings.sidebarLayout;
+								if (ImGui::Selectable(
+										layout.label.data(),
+										selected))
+								{
+									settings.sidebarLayout = layout.kind;
+									changed = true;
+								}
+								if (ImGui::IsItemHovered())
+								{
+									ImGui::SetTooltip(
+										"%.*s",
+										static_cast<int>(
+											layout.description.size()),
+										layout.description.data());
+								}
+								if (selected)
+									ImGui::SetItemDefaultFocus();
+							}
+							ImGui::EndCombo();
+						}
+					},
+					[&]() noexcept {
+						return settings.sidebarLayout !=
+							defaults.sidebarLayout;
+					}))
+			{
+				settings.sidebarLayout = defaults.sidebarLayout;
+				changed = true;
+			}
+
 			if (DrawSettingsRow(
 					"AccentColor",
 					"Accent color",

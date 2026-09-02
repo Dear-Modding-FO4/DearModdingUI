@@ -962,6 +962,57 @@ namespace vmm_tests
 				"unknown or default sidebar layout handling changed");
 		});
 
+		runner.test("sidebar settings expose exactly the supported layouts", [] {
+			constexpr std::array expected{
+				SidebarLayoutKind::Tree,
+				SidebarLayoutKind::TwoPane,
+				SidebarLayoutKind::DrillDown
+			};
+			require(
+				USER_SIDEBAR_LAYOUTS.size() == expected.size(),
+				"sidebar settings exposed an unreviewed layout");
+			for (size_t index = 0; index < expected.size(); ++index)
+			{
+				require(
+					USER_SIDEBAR_LAYOUTS[index].kind == expected[index] &&
+						!USER_SIDEBAR_LAYOUTS[index].label.empty() &&
+						!USER_SIDEBAR_LAYOUTS[index].description.empty(),
+					"sidebar settings changed the supported option set");
+			}
+			require(
+				FindUserSidebarLayout(SidebarLayoutKind::IconRail) == nullptr,
+				"icon rail was exposed before client icons became dependable");
+		});
+
+		runner.test("sidebar config rejects unavailable values", [] {
+			PersistedHostInterfaceSettings persisted;
+			for (const auto value : { ""sv, "columns"sv, "iconrail"sv })
+			{
+				persisted.sidebarLayout = value;
+				require(
+					DecodeHostInterfaceSettings(persisted).sidebarLayout ==
+						SidebarLayoutKind::Tree,
+					"unavailable sidebar config did not fall back to tree");
+			}
+			require(
+				!ParseUserSidebarLayout("iconrail"),
+				"icon rail was accepted as a user setting");
+		});
+
+		runner.test("preview sidebar explicitly overrides the saved layout", [] {
+			require(
+				ResolveSidebarLayout(
+					SidebarLayoutKind::TwoPane,
+					std::nullopt) == SidebarLayoutKind::TwoPane,
+				"saved sidebar layout was ignored without an override");
+			require(
+				ResolveSidebarLayout(
+					SidebarLayoutKind::Tree,
+					SidebarLayoutKind::IconRail) ==
+						SidebarLayoutKind::IconRail,
+				"preview sidebar override did not take precedence");
+		});
+
 		runner.test("drill-down navigation moves one level at a time", [] {
 			const DrillDownState root;
 			const auto opened = TransitionDrillDown(
@@ -2715,6 +2766,11 @@ namespace vmm_tests
 			require(PreviewHostInterfaceSettings(draft) !=
 					PreviewHostInterfaceSettings(committed),
 				"palette appearance was omitted from the live preview");
+			draft = committed;
+			draft.sidebarLayout = SidebarLayoutKind::TwoPane;
+			require(PreviewHostInterfaceSettings(draft) !=
+					PreviewHostInterfaceSettings(committed),
+				"sidebar layout was omitted from the live preview");
 		});
 
 		runner.test("host settings draft applies all fields once", [] {
@@ -2726,6 +2782,7 @@ namespace vmm_tests
 
 			const HostInterfaceSettings changed{
 				Theme::IconColorMode::kMonochrome,
+				SidebarLayoutKind::DrillDown,
 				{ 0xD5, 0x5E, 0x00 },
 				0.80f,
 				{ 0x12, 0x12, 0x12 },
@@ -2752,6 +2809,7 @@ namespace vmm_tests
 		runner.test("host settings draft reverts leaves and resets", [] {
 			const HostInterfaceSettings committed{
 				Theme::IconColorMode::kMonochrome,
+				SidebarLayoutKind::TwoPane,
 				{ 0x00, 0x72, 0xB2 },
 				0.80f,
 				{ 0x10, 0x10, 0x10 },
@@ -2811,6 +2869,7 @@ namespace vmm_tests
 				DefaultHostInterfaceSettings(),
 				HostInterfaceSettings{
 					Theme::IconColorMode::kMonochrome,
+					SidebarLayoutKind::TwoPane,
 					{ 0x00, 0x72, 0xB2 },
 					0.80f,
 					{ 0x12, 0x12, 0x12 },
@@ -2822,6 +2881,7 @@ namespace vmm_tests
 				},
 				HostInterfaceSettings{
 					Theme::IconColorMode::kColored,
+					SidebarLayoutKind::DrillDown,
 					{ 0xD5, 0x5E, 0x00 },
 					kMinWindowBackgroundOpacity,
 					{ 0x02, 0x02, 0x02 },

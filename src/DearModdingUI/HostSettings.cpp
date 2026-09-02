@@ -52,6 +52,8 @@ namespace DearModdingUI::HostSettings
 			const auto& section = toml::find(root, "Additional");
 			settings.monochromeIcons = toml::find_or<bool>(
 				section, "bMenuMonochromeIcons", settings.monochromeIcons);
+			settings.sidebarLayout = toml::find_or<std::string>(
+				section, "sMenuSidebarLayout", settings.sidebarLayout);
 			settings.accentColor = toml::find_or<std::string>(
 				section, "sMenuAccentColor", settings.accentColor);
 			settings.windowBackgroundOpacity = toml::find_or<float>(
@@ -84,6 +86,13 @@ namespace DearModdingUI::HostSettings
 				REX::WARN(
 					"DearModdingUI: sMenuToggleKey \"{}\" is not one of F1-F12, Home, End, Insert, or Delete; falling back to F11."sv,
 					settings.menuToggleKey);
+			}
+			if (!ParseUserSidebarLayout(settings.sidebarLayout))
+			{
+				REX::WARN(
+					"DearModdingUI: sMenuSidebarLayout \"{}\" is not an available user layout; falling back to \"{}\"."sv,
+					settings.sidebarLayout,
+					SidebarLayoutKindName(DEFAULT_SIDEBAR_LAYOUT));
 			}
 			return EncodeHostInterfaceSettings(DecodeHostInterfaceSettings(settings));
 		}
@@ -128,6 +137,7 @@ namespace DearModdingUI::HostSettings
 				root["Additional"] = toml::table{};
 				auto& section = root["Additional"];
 				section["bMenuMonochromeIcons"] = a_settings.monochromeIcons;
+				section["sMenuSidebarLayout"] = a_settings.sidebarLayout;
 				section["sMenuAccentColor"] = a_settings.accentColor;
 				section["fMenuWindowOpacity"] = static_cast<double>(
 					a_settings.windowBackgroundOpacity);

@@ -33,6 +33,20 @@ namespace DearModdingUI
 	};
 	inline constexpr auto DEFAULT_SIDEBAR_LAYOUT = SidebarLayoutKind::Tree;
 
+	struct UserSidebarLayout
+	{
+		SidebarLayoutKind kind;
+		std::string_view label;
+		std::string_view description;
+	};
+
+	// Icon rail depends on third-party client icons; missing icons make the layout unusable.
+	inline constexpr std::array USER_SIDEBAR_LAYOUTS{
+		UserSidebarLayout{ SidebarLayoutKind::Tree, "Tree", "Browse every mod and page at once." },
+		UserSidebarLayout{ SidebarLayoutKind::TwoPane, "Two-pane", "Keep a fixed mod list with the selected mod's pages." },
+		UserSidebarLayout{ SidebarLayoutKind::DrillDown, "Drill-down", "Show one level at a time; well suited to many mods." }
+	};
+
 	[[nodiscard]] constexpr std::string_view SidebarLayoutKindName(
 		SidebarLayoutKind a_kind) noexcept
 	{
@@ -53,6 +67,48 @@ namespace DearModdingUI
 				return layout.kind;
 		}
 		return std::nullopt;
+	}
+
+	[[nodiscard]] constexpr const UserSidebarLayout* FindUserSidebarLayout(
+		SidebarLayoutKind a_kind) noexcept
+	{
+		for (const auto& layout : USER_SIDEBAR_LAYOUTS)
+		{
+			if (layout.kind == a_kind)
+				return &layout;
+		}
+		return nullptr;
+	}
+
+	[[nodiscard]] constexpr std::optional<SidebarLayoutKind>
+		ParseUserSidebarLayout(std::string_view a_name) noexcept
+	{
+		const auto kind = ParseSidebarLayout(a_name);
+		return kind && FindUserSidebarLayout(*kind) ?
+			kind :
+			std::nullopt;
+	}
+
+	[[nodiscard]] constexpr SidebarLayoutKind DecodeUserSidebarLayout(
+		std::string_view a_name) noexcept
+	{
+		const auto kind = ParseUserSidebarLayout(a_name);
+		return kind.value_or(DEFAULT_SIDEBAR_LAYOUT);
+	}
+
+	[[nodiscard]] constexpr SidebarLayoutKind NormalizeUserSidebarLayout(
+		SidebarLayoutKind a_kind) noexcept
+	{
+		return FindUserSidebarLayout(a_kind) ?
+			a_kind :
+			DEFAULT_SIDEBAR_LAYOUT;
+	}
+
+	[[nodiscard]] constexpr SidebarLayoutKind ResolveSidebarLayout(
+		SidebarLayoutKind a_setting,
+		std::optional<SidebarLayoutKind> a_previewOverride) noexcept
+	{
+		return a_previewOverride.value_or(a_setting);
 	}
 
 	struct SidebarPaneHeights
@@ -150,7 +206,7 @@ namespace DearModdingUI
 	}
 
 	void ConfigurePreviewSidebarComparison(
-		SidebarLayoutKind a_layout,
+		std::optional<SidebarLayoutKind> a_layoutOverride,
 		bool a_overrideExpandedClients,
 		std::span<const std::string> a_expandedClients);
 }

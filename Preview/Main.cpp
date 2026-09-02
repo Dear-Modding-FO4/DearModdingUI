@@ -65,7 +65,7 @@ namespace DearModdingUIPreview
 			std::optional<std::filesystem::path> screenshot;
 			std::optional<std::string> page;
 			std::optional<std::vector<std::string>> expandedMods;
-			SidebarLayoutKind sidebar{ DEFAULT_SIDEBAR_LAYOUT };
+			std::optional<SidebarLayoutKind> sidebarOverride;
 			bool help{};
 		};
 
@@ -241,7 +241,7 @@ namespace DearModdingUIPreview
 							L"Sidebar layout must be tree, twopane, drilldown, or iconrail.";
 						return false;
 					}
-					a_options.sidebar = *layout;
+					a_options.sidebarOverride = *layout;
 				}
 				else if (argument == L"--expand")
 				{
@@ -898,7 +898,7 @@ namespace DearModdingUIPreview
 					}
 				}
 				ConfigurePreviewSidebarComparison(
-					m_options.sidebar,
+					m_options.sidebarOverride,
 					m_options.expandedMods.has_value(),
 					m_options.expandedMods ?
 						std::span<const std::string>{ *m_options.expandedMods } :

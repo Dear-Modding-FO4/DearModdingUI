@@ -7,7 +7,7 @@
 #include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Theme.h>
 #include <DearModdingUI/VisualDecisions.h>
-#include "SidebarComparison.h"
+#include <DearModdingUI/SidebarComparison.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -42,6 +42,7 @@ namespace DearModdingUI
 			std::map<std::string, bool> categoryExpansion;
 			std::map<std::string, bool> modExpansion;
 			std::optional<std::vector<std::string>> previewExpandedClients;
+			std::optional<SidebarLayoutKind> previewSidebarLayoutOverride;
 			std::string paletteQuery;
 			size_t paletteSelection{ 0 };
 			SidebarLayoutKind sidebarLayout{ DEFAULT_SIDEBAR_LAYOUT };
@@ -2619,12 +2620,12 @@ namespace DearModdingUI
 	}
 
 	void ConfigurePreviewSidebarComparison(
-		SidebarLayoutKind a_layout,
+		std::optional<SidebarLayoutKind> a_layoutOverride,
 		bool a_overrideExpandedClients,
 		std::span<const std::string> a_expandedClients)
 	{
 		auto& state = State();
-		state.sidebarLayout = a_layout;
+		state.previewSidebarLayoutOverride = a_layoutOverride;
 		state.drillDown = {};
 		state.drillDownInitialized = false;
 		if (a_overrideExpandedClients)
@@ -2805,6 +2806,15 @@ namespace DearModdingUI
 			ImGui::IsKeyPressed(ImGuiKey_Escape, false))
 			HostSettings::DismissPanel();
 		Theme::ApplyStyle();
+		const auto sidebarLayout = ResolveSidebarLayout(
+			HostSettings::EffectivePreview().sidebarLayout,
+			state.previewSidebarLayoutOverride);
+		if (state.sidebarLayout != sidebarLayout)
+		{
+			state.sidebarLayout = sidebarLayout;
+			state.drillDown = {};
+			state.drillDownInitialized = false;
+		}
 		const auto& model = Navigation();
 		PruneRecentPages(model, state);
 		const auto requested = SelectedPage();

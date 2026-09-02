@@ -1,5 +1,6 @@
 [Additional]
 bMenuMonochromeIcons = false
+sMenuSidebarLayout = "tree"
 sMenuAccentColor = "#42FA60"
 fMenuWindowOpacity = 0.55
 sMenuPaletteBackgroundColor = "#050505"

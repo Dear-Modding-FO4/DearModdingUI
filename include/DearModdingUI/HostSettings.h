@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/MenuToggleKey.h>
+#include <DearModdingUI/SidebarComparison.h>
 #include <DearModdingUI/ThemeDefaults.h>
 
 #include <algorithm>
@@ -42,6 +43,7 @@ namespace DearModdingUI
 	struct HostInterfaceSettings
 	{
 		Theme::IconColorMode iconColorMode{ Theme::IconColorMode::kColored };
+		SidebarLayoutKind sidebarLayout{ DEFAULT_SIDEBAR_LAYOUT };
 		HostAccentColor accentColor{};
 		float windowBackgroundOpacity{ kDefaultWindowBackgroundOpacity };
 		HostPaletteColor paletteBackgroundColor{
@@ -61,6 +63,7 @@ namespace DearModdingUI
 	struct HostInterfacePreviewSettings
 	{
 		Theme::IconColorMode iconColorMode{ Theme::IconColorMode::kColored };
+		SidebarLayoutKind sidebarLayout{ DEFAULT_SIDEBAR_LAYOUT };
 		HostAccentColor accentColor{};
 		float windowBackgroundOpacity{ kDefaultWindowBackgroundOpacity };
 		HostPaletteColor paletteBackgroundColor{
@@ -77,6 +80,9 @@ namespace DearModdingUI
 	struct PersistedHostInterfaceSettings
 	{
 		bool monochromeIcons{ false };
+		std::string sidebarLayout{
+			SidebarLayoutKindName(DEFAULT_SIDEBAR_LAYOUT)
+		};
 		std::string accentColor{ "#42FA60" };
 		float windowBackgroundOpacity{ kDefaultWindowBackgroundOpacity };
 		std::string paletteBackgroundColor{ "#050505" };
@@ -213,6 +219,7 @@ namespace DearModdingUI
 			a_settings.monochromeIcons ?
 				Theme::IconColorMode::kMonochrome :
 				Theme::IconColorMode::kColored,
+			DecodeUserSidebarLayout(a_settings.sidebarLayout),
 			DecodeHostAccentColor(a_settings.accentColor),
 			ClampHostSetting(
 				a_settings.windowBackgroundOpacity,
@@ -249,6 +256,8 @@ namespace DearModdingUI
 	{
 		return {
 			a_settings.iconColorMode == Theme::IconColorMode::kMonochrome,
+			std::string{ SidebarLayoutKindName(
+				NormalizeUserSidebarLayout(a_settings.sidebarLayout)) },
 			EncodeHostAccentColor(a_settings.accentColor),
 			ClampHostSetting(
 				a_settings.windowBackgroundOpacity,
@@ -289,6 +298,7 @@ namespace DearModdingUI
 	{
 		return {
 			a_settings.iconColorMode,
+			a_settings.sidebarLayout,
 			a_settings.accentColor,
 			a_settings.windowBackgroundOpacity,
 			a_settings.paletteBackgroundColor,
