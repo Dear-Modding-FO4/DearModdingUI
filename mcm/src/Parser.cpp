@@ -30,7 +30,7 @@ namespace DearModdingUI::MCM
 				return ControlType::kStepper;
 			if (type == "menu" || type == "enum" || type == "dropdown")
 				return ControlType::kMenu;
-			if (type == "input")
+			if (type == "input" || type == "textinput")
 				return ControlType::kInput;
 			if (type == "text")
 				return ControlType::kText;
@@ -121,9 +121,10 @@ namespace DearModdingUI::MCM
 				m_result.configuration.emplace();
 				auto& configuration = *m_result.configuration;
 
-				if (const auto value = ReadInteger(
-						a_document, "minMcmVersion", "$", true))
-					configuration.minimumMcmVersion = *value;
+				// Configs write this as a marketing version as often as a version code.
+				if (const auto value = ReadNumber(
+						a_document, "minMcmVersion", "$"))
+					configuration.minimumMcmVersion = static_cast<int64_t>(*value);
 				if (const auto value = ReadString(
 						a_document, "modName", "$", true))
 					configuration.modName = *value;
@@ -188,21 +189,11 @@ namespace DearModdingUI::MCM
 			[[nodiscard]] std::optional<int64_t> ReadInteger(
 				const Json& a_object,
 				std::string_view a_name,
-				std::string_view a_location,
-				bool a_required = false)
+				std::string_view a_location)
 			{
 				const auto member = a_object.find(a_name);
 				if (member == a_object.end())
-				{
-					if (a_required)
-					{
-						Diagnose(
-							DiagnosticSeverity::kError,
-							std::string{ a_location } + "." + std::string{ a_name },
-							"missing required integer");
-					}
 					return std::nullopt;
-				}
 				if (member->is_number_unsigned())
 				{
 					const auto value = member->get<uint64_t>();

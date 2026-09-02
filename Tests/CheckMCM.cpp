@@ -693,6 +693,59 @@ namespace vmm_tests
 				"hidden control was emitted");
 		});
 
+		runner.test("MCM text input spellings both map to text controls", [] {
+			const auto result = ParseConfig(R"({
+				"modName": "Inputs",
+				"displayName": "Inputs",
+				"content": [
+					{"id":"legacy","type":"input","valueOptions":{"sourceType":"ModSettingString"}},
+					{"id":"shipped","type":"textinput","valueOptions":{"sourceType":"ModSettingString"}}
+				]
+			})", "input-config.json");
+			require(result.configuration && result.pages.size() == 1 &&
+					DescriptorCount(result.pages.front()) == 2,
+				"text input controls did not map");
+			require(std::holds_alternative<dmui::TextSettingControl>(
+						SettingNamed(result.pages.front(), "legacy").control) &&
+					std::holds_alternative<dmui::TextSettingControl>(
+						SettingNamed(result.pages.front(), "shipped").control),
+				"a text input spelling degraded to unsupported");
+		});
+
+		runner.test("MCM minimum version tolerates absence and decimals", [] {
+			const auto absent = ParseConfig(R"({
+				"modName": "Absent",
+				"displayName": "Absent",
+				"content": [{"id":"a","type":"switch",
+					"valueOptions":{"sourceType":"ModSettingBool"}}]
+			})", "absent-version.json");
+			require(absent.configuration && ErrorCount(absent) == 0 &&
+					!absent.configuration->minimumMcmVersion,
+				"an omitted minimum version was treated as a failure");
+
+			const auto decimal = ParseConfig(R"({
+				"minMcmVersion": 1.10,
+				"modName": "Decimal",
+				"displayName": "Decimal",
+				"content": [{"id":"a","type":"switch",
+					"valueOptions":{"sourceType":"ModSettingBool"}}]
+			})", "decimal-version.json");
+			require(decimal.configuration && ErrorCount(decimal) == 0 &&
+					decimal.configuration->minimumMcmVersion == 1,
+				"a decimal minimum version was treated as a failure");
+
+			const auto invalid = ParseConfig(R"({
+				"minMcmVersion": "one",
+				"modName": "Invalid",
+				"displayName": "Invalid",
+				"content": [{"id":"a","type":"switch",
+					"valueOptions":{"sourceType":"ModSettingBool"}}]
+			})", "invalid-version.json");
+			require(ErrorCount(invalid) == 1 &&
+					!invalid.configuration->minimumMcmVersion,
+				"a non-numeric minimum version stopped being diagnosed");
+		});
+
 		runner.test("MCM deeply nested conditions are diagnosed not fatal", [] {
 			std::string json =
 				R"({"minMcmVersion":2,"modName":"Deep","displayName":"Deep",)"
