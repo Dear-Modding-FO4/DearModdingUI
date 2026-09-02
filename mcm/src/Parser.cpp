@@ -31,21 +31,6 @@ namespace DearModdingUI::MCM
 			return result;
 		}
 
-		[[nodiscard]] bool StartsWith(
-			std::string_view a_value,
-			std::string_view a_prefix)
-		{
-			return a_value.size() >= a_prefix.size() &&
-				std::equal(
-					a_prefix.begin(),
-					a_prefix.end(),
-					a_value.begin(),
-					[](char a_left, char a_right) {
-						return std::tolower(static_cast<unsigned char>(a_left)) ==
-							std::tolower(static_cast<unsigned char>(a_right));
-					});
-		}
-
 		[[nodiscard]] ControlType ResolveControlType(std::string_view a_type)
 		{
 			const auto type = Lower(a_type);
@@ -76,6 +61,30 @@ namespace DearModdingUI::MCM
 			if (type == "image")
 				return ControlType::kImage;
 			return ControlType::kUnknown;
+		}
+
+		[[nodiscard]] SourceType ResolveSourceType(std::string a_raw)
+		{
+			SourceType result;
+			const auto type = Lower(a_raw);
+			result.raw = std::move(a_raw);
+			if (type.starts_with("globalvalue"))
+				result.family = SourceFamily::kGlobal;
+			else if (type.starts_with("propertyvalue"))
+				result.family = SourceFamily::kProperty;
+			else if (type.starts_with("modsetting"))
+				result.family = SourceFamily::kModSetting;
+			else
+				return result;
+			if (type.ends_with("bool"))
+				result.value = SourceValueKind::kBool;
+			else if (type.ends_with("int"))
+				result.value = SourceValueKind::kInt;
+			else if (type.ends_with("float"))
+				result.value = SourceValueKind::kFloat;
+			else if (type.ends_with("string"))
+				result.value = SourceValueKind::kString;
+			return result;
 		}
 
 		[[nodiscard]] bool NeedsValueOptions(ControlType a_type) noexcept
@@ -616,8 +625,9 @@ namespace DearModdingUI::MCM
 			{
 				const auto location = a_control.location + ".valueOptions";
 				ValueOptions result;
-				result.sourceType =
-					ReadString(a_value, "sourceType", location);
+				if (const auto sourceType =
+						ReadString(a_value, "sourceType", location))
+					result.sourceType = ResolveSourceType(*sourceType);
 				result.sourceForm =
 					ReadString(a_value, "sourceForm", location);
 				result.scriptName =
@@ -682,7 +692,7 @@ namespace DearModdingUI::MCM
 				}
 
 				if (result.sourceType &&
-					StartsWith(*result.sourceType, "ModSetting"))
+					result.sourceType->family == SourceFamily::kModSetting)
 				{
 					if (a_control.id.empty())
 					{

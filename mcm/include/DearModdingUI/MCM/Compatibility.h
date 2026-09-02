@@ -33,6 +33,30 @@ namespace DearModdingUI::MCM
 
 	using Scalar = std::variant<bool, int64_t, uint64_t, double, std::string>;
 
+	enum class SourceFamily : uint8_t
+	{
+		kGlobal,
+		kProperty,
+		kModSetting,
+		kUnknown
+	};
+
+	enum class SourceValueKind : uint8_t
+	{
+		kBool,
+		kInt,
+		kFloat,
+		kString,
+		kNone
+	};
+
+	struct SourceType
+	{
+		SourceFamily family{ SourceFamily::kUnknown };
+		SourceValueKind value{ SourceValueKind::kNone };
+		std::string raw;
+	};
+
 	enum class ConditionType : uint8_t
 	{
 		kControl,
@@ -51,7 +75,7 @@ namespace DearModdingUI::MCM
 
 	struct ValueOptions
 	{
-		std::optional<std::string> sourceType;
+		std::optional<SourceType> sourceType;
 		std::optional<std::string> sourceForm;
 		std::optional<std::string> scriptName;
 		std::optional<std::string> propertyName;

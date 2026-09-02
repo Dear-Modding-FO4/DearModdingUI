@@ -42,27 +42,6 @@ namespace DearModdingUI::MCM::detail
 
 	namespace
 	{
-		[[nodiscard]] bool EndsWith(
-			std::string_view a_value,
-			std::string_view a_suffix) noexcept
-		{
-			if (a_value.size() < a_suffix.size())
-				return false;
-			const auto offset = a_value.size() - a_suffix.size();
-			for (size_t index = 0; index < a_suffix.size(); ++index)
-			{
-				auto left = static_cast<unsigned char>(a_value[offset + index]);
-				auto right = static_cast<unsigned char>(a_suffix[index]);
-				if (left >= 'A' && left <= 'Z')
-					left = static_cast<unsigned char>(left - 'A' + 'a');
-				if (right >= 'A' && right <= 'Z')
-					right = static_cast<unsigned char>(right - 'A' + 'a');
-				if (left != right)
-					return false;
-			}
-			return true;
-		}
-
 		void Diagnose(
 			std::vector<Diagnostic>& a_diagnostics,
 			std::string_view a_source,
@@ -200,14 +179,16 @@ namespace DearModdingUI::MCM::detail
 		{
 			return a_control.valueOptions &&
 				a_control.valueOptions->sourceType &&
-				EndsWith(*a_control.valueOptions->sourceType, "Int");
+				a_control.valueOptions->sourceType->value ==
+					SourceValueKind::kInt;
 		}
 
 		[[nodiscard]] bool UsesStringChoices(const Control& a_control)
 		{
 			return a_control.valueOptions &&
 				a_control.valueOptions->sourceType &&
-				EndsWith(*a_control.valueOptions->sourceType, "String");
+				a_control.valueOptions->sourceType->value ==
+					SourceValueKind::kString;
 		}
 
 		void MapCheckboxDefault(
