@@ -380,9 +380,10 @@ namespace DearModdingUI
 			bool pressed{ false };
 			bool hovered{ false };
 			bool arrowPressed{ false };
+			bool arrowHovered{ false };
+			bool arrowActive{ false };
 			bool expanded{ false };
 			bool splitArrow{ false };
-			ImRect arrowRect;
 		};
 
 		[[nodiscard]] ImRect SelectableRowContentRect() noexcept
@@ -401,6 +402,7 @@ namespace DearModdingUI
 		[[nodiscard]] RowResult DrawRow(
 			const RowOptions& a_options,
 			const ImRect& a_contentRect,
+			const RowContentLayout& a_content,
 			const RowInteraction& a_interaction) noexcept
 		{
 			auto* drawList = ImGui::GetWindowDrawList();
@@ -424,59 +426,40 @@ namespace DearModdingUI
 			const auto fontSize = ImGui::GetFontSize();
 			const auto hasGlyph = HasIconGlyph(a_options.glyph);
 			const auto hasLeadingSlot =
-				(a_options.leadingAffordance == RowLeadingAffordance::kArrow &&
-					!a_interaction.splitArrow) ||
+				a_options.leadingAffordance == RowLeadingAffordance::kArrow ||
 				a_options.leadingAffordance == RowLeadingAffordance::kBack;
-			const auto hasIconSlot =
-				hasGlyph ||
-				(a_options.leadingAffordance == RowLeadingAffordance::kIcon &&
-					!a_options.glyph);
-			const auto content = ResolveRowContentLayout(
-				a_contentRect.Min.x,
-				a_contentRect.Max.x,
-				ImGui::GetStyle().FramePadding.x,
-				fontSize,
-				ImGui::GetStyle().ItemInnerSpacing.x,
-				ImGui::GetStyle().ItemSpacing.x,
-				hasLeadingSlot,
-				hasIconSlot,
-				a_options.trailingWidth);
 			const ImVec4 clip{
 				a_contentRect.Min.x,
 				a_contentRect.Min.y,
-				content.clipMaxX,
+				a_content.clipMaxX,
 				a_contentRect.Max.y
 			};
 
-			if (a_interaction.splitArrow)
+			if (hasLeadingSlot)
 			{
+				const auto leadingRect = ResolveRowLeadingSlotRect(
+					a_content.leadingMinX,
+					a_contentRect.Min.y,
+					a_contentRect.Max.y,
+					fontSize);
+				if (a_interaction.splitArrow &&
+					a_interaction.arrowHovered)
+				{
+					drawList->AddRectFilled(
+						{ leadingRect.minX, leadingRect.minY },
+						{ leadingRect.maxX, leadingRect.maxY },
+						ImGui::GetColorU32(
+							Theme::kFullPalette[
+								a_interaction.arrowActive ?
+									ImGuiCol_HeaderActive :
+									ImGuiCol_HeaderHovered]),
+						ImGui::GetStyle().FrameRounding);
+				}
 				ImGui::RenderArrow(
 					drawList,
 					{
-						a_interaction.arrowRect.Min.x + (std::max)(
-							(a_interaction.arrowRect.GetWidth() - fontSize) *
-								0.5f,
-							0.0f),
-						a_contentRect.Min.y + RowContentOffsetY(
-							a_contentRect.GetHeight(),
-							{ fontSize },
-							RowContentMetric::kBox)
-					},
-					textColor,
-					a_interaction.expanded ?
-						ImGuiDir_Down :
-						ImGuiDir_Right);
-			}
-			else if (hasLeadingSlot)
-			{
-				ImGui::RenderArrow(
-					drawList,
-					{
-						content.leadingMinX,
-						a_contentRect.Min.y + RowContentOffsetY(
-							a_contentRect.GetHeight(),
-							{ fontSize },
-							RowContentMetric::kBox)
+						leadingRect.minX,
+						leadingRect.minY
 					},
 					textColor,
 					a_options.leadingAffordance == RowLeadingAffordance::kBack ?
@@ -494,9 +477,9 @@ namespace DearModdingUI
 					a_options.centerGlyph ?
 						a_contentRect :
 						ImRect{
-							{ content.iconMinX, a_contentRect.Min.y },
+							{ a_content.iconMinX, a_contentRect.Min.y },
 							{
-								content.iconMinX + fontSize,
+								a_content.iconMinX + fontSize,
 								a_contentRect.Max.y
 							}
 						},
@@ -507,13 +490,13 @@ namespace DearModdingUI
 
 			const auto* labelEnd = ImGui::FindRenderedTextEnd(a_options.label);
 			if (!a_options.centerGlyph &&
-				content.textMinX < content.clipMaxX)
+				a_content.textMinX < a_content.clipMaxX)
 			{
 				drawList->AddText(
 					ImGui::GetFont(),
 					fontSize,
 					{
-						content.textMinX,
+						a_content.textMinX,
 						a_contentRect.Min.y + RowContentOffsetY(
 							a_contentRect.GetHeight(),
 							CurrentFontRowContentMetrics(
@@ -552,32 +535,10 @@ namespace DearModdingUI
 				a_options.leadingAffordance == RowLeadingAffordance::kArrow &&
 				a_options.clickBehavior == RowClickBehavior::kSelect;
 			auto arrowPressed = false;
-			ImRect arrowRect;
+			auto arrowHovered = false;
+			auto arrowActive = false;
 
 			ImGui::PushID(a_options.id);
-			if (splitArrow)
-			{
-				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4());
-				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4());
-				ImGui::PushStyleColor(
-					ImGuiCol_ButtonHovered,
-					Theme::kFullPalette[ImGuiCol_HeaderHovered]);
-				ImGui::PushStyleColor(
-					ImGuiCol_ButtonActive,
-					Theme::kFullPalette[ImGuiCol_HeaderActive]);
-				arrowPressed = ImGui::ArrowButtonEx(
-					"##LeadingAffordance",
-					expanded ? ImGuiDir_Down : ImGuiDir_Right,
-					{ height, height },
-					ImGuiButtonFlags_None);
-				ImGui::PopStyleColor(4);
-				arrowRect = {
-					ImGui::GetItemRectMin(),
-					ImGui::GetItemRectMax()
-				};
-				ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
-			}
-
 			const ImVec2 size{
 				(std::max)(ImGui::GetContentRegionAvail().x, 0.0f),
 				height
@@ -591,6 +552,8 @@ namespace DearModdingUI
 			auto pressed = false;
 			if (a_options.highlightStyle == RowHighlightStyle::kSelectable)
 			{
+				if (splitArrow)
+					ImGui::SetNextItemAllowOverlap();
 				pressed = ImGui::Selectable(
 					"##Row",
 					a_options.selected,
@@ -603,18 +566,59 @@ namespace DearModdingUI
 			}
 			const auto hovered = ImGui::IsItemHovered();
 			const auto contentRect = SelectableRowContentRect();
+			const auto fontSize = ImGui::GetFontSize();
+			const auto hasLeadingSlot =
+				a_options.leadingAffordance == RowLeadingAffordance::kArrow ||
+				a_options.leadingAffordance == RowLeadingAffordance::kBack;
+			const auto hasIconSlot =
+				HasIconGlyph(a_options.glyph) ||
+				(a_options.leadingAffordance == RowLeadingAffordance::kIcon &&
+					!a_options.glyph);
+			const auto content = ResolveRowContentLayout(
+				contentRect.Min.x,
+				contentRect.Max.x,
+				ImGui::GetStyle().FramePadding.x,
+				fontSize,
+				ImGui::GetStyle().ItemInnerSpacing.x,
+				ImGui::GetStyle().ItemSpacing.x,
+				hasLeadingSlot,
+				hasIconSlot,
+				a_options.trailingWidth);
+			const auto nextCursor = ImGui::GetCursorScreenPos();
+			if (splitArrow)
+			{
+				const auto leadingRect = ResolveRowLeadingSlotRect(
+					content.leadingMinX,
+					contentRect.Min.y,
+					contentRect.Max.y,
+					fontSize);
+				ImGui::SetCursorScreenPos(
+					{ leadingRect.minX, leadingRect.minY });
+				arrowPressed = ImGui::InvisibleButton(
+					"##LeadingAffordance",
+					{
+						leadingRect.maxX - leadingRect.minX,
+						leadingRect.maxY - leadingRect.minY
+					});
+				arrowHovered = ImGui::IsItemHovered();
+				arrowActive = ImGui::IsItemActive();
+				// Restore without extending ImGui's content bounds.
+				window->DC.CursorPos = nextCursor;
+			}
 			if (a_options.flushHorizontalHighlight)
 				ImGui::PopStyleVar();
 			const auto result = DrawRow(
 				a_options,
 				contentRect,
+				content,
 				{
 					.pressed = pressed,
 					.hovered = hovered,
 					.arrowPressed = arrowPressed,
+					.arrowHovered = arrowHovered,
+					.arrowActive = arrowActive,
 					.expanded = expanded,
-					.splitArrow = splitArrow,
-					.arrowRect = arrowRect
+					.splitArrow = splitArrow
 				});
 			ImGui::PopID();
 			return result;

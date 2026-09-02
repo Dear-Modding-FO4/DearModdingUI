@@ -1,6 +1,6 @@
 #pragma once
 
-#include <algorithm>
+#include <DearModdingUI/VisualDecisions.h>
 
 namespace DearModdingUI
 {
@@ -19,6 +19,41 @@ namespace DearModdingUI
 
 		constexpr bool operator==(const RuledHeadingRuleExtents&) const noexcept = default;
 	};
+
+	struct RowLeadingSlotRect
+	{
+		float minX{ 0.0f };
+		float minY{ 0.0f };
+		float maxX{ 0.0f };
+		float maxY{ 0.0f };
+
+		[[nodiscard]] constexpr float GetCenterY() const noexcept
+		{
+			return (minY + maxY) * 0.5f;
+		}
+
+		constexpr bool operator==(const RowLeadingSlotRect&) const noexcept = default;
+	};
+
+	[[nodiscard]] constexpr RowLeadingSlotRect ResolveRowLeadingSlotRect(
+		float a_leadingMinX,
+		float a_rowMinY,
+		float a_rowMaxY,
+		float a_slotSize) noexcept
+	{
+		const auto rowHeight = (std::max)(a_rowMaxY - a_rowMinY, 0.0f);
+		const auto slotSize = (std::max)(a_slotSize, 0.0f);
+		const auto minY = a_rowMinY + RowContentOffsetY(
+			rowHeight,
+			{ slotSize },
+			RowContentMetric::kBox);
+		return {
+			a_leadingMinX,
+			minY,
+			a_leadingMinX + slotSize,
+			minY + slotSize
+		};
+	}
 
 	[[nodiscard]] constexpr RuledHeadingRuleExtents
 		ResolveRuledHeadingRuleExtents(

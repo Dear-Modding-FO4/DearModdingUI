@@ -1127,6 +1127,29 @@ namespace vmm_tests
 					"row layout accepted negative metrics or inverted its clip");
 		});
 
+		runner.test("row leading slot shares the row vertical center", [] {
+			constexpr float rowMinY{ 581.0f };
+			constexpr float rowMaxY{ 657.0f };
+			constexpr float slotSize{ 32.0f };
+			const auto slot = ResolveRowLeadingSlotRect(
+				240.0f,
+				rowMinY,
+				rowMaxY,
+				slotSize);
+			const auto glyphCenterY =
+				rowMinY +
+				RowContentOffsetY(
+					rowMaxY - rowMinY,
+					{ slotSize },
+					RowContentMetric::kBox) +
+				slotSize * 0.5f;
+			require(
+					slot == RowLeadingSlotRect{ 240.0f, 603.0f, 272.0f, 635.0f } &&
+						slot.GetCenterY() == glyphCenterY &&
+						glyphCenterY == (rowMinY + rowMaxY) * 0.5f,
+					"leading slot diverged from the row and glyph centers");
+		});
+
 		runner.test("row content providers preserve container geometry", [] {
 			constexpr RowContentRect container{ 10.0f, 20.0f, 110.0f, 80.0f };
 			require(
