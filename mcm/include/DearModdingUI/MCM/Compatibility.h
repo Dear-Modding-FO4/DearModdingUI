@@ -122,11 +122,21 @@ namespace DearModdingUI::MCM
 		std::vector<Page> pages;
 	};
 
+	struct MappedBinding
+	{
+		std::string descriptorId;
+		SourceType source;
+		std::optional<std::string> sourceForm;
+		std::optional<std::string> propertyName;
+		std::optional<std::string> modSettingId;
+	};
+
 	struct MappedPage
 	{
 		std::string id;
 		std::string displayName;
 		dmui::SettingsPage settings;
+		std::vector<MappedBinding> bindings;
 	};
 
 	enum class DiagnosticSeverity : uint8_t

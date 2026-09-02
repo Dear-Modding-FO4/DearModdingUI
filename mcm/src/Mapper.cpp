@@ -586,6 +586,17 @@ namespace DearModdingUI::MCM::detail
 					control.location,
 					"setting",
 					a_diagnostics);
+				if (control.valueOptions && control.valueOptions->sourceType)
+				{
+					const auto& options = *control.valueOptions;
+					mapped.bindings.push_back({
+						id,
+						*options.sourceType,
+						options.sourceForm,
+						options.propertyName,
+						options.modSettingId
+					});
+				}
 				mapped.settings.groups[*currentGroup].settings.push_back(
 					MapControl(
 						control,

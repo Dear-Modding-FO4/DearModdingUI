@@ -774,5 +774,61 @@ namespace vmm_tests
 					"source type resolved incorrectly: " + std::string{ id });
 			}
 		});
+
+		runner.test("MCM mapped bindings correlate descriptors to sources", [] {
+			const auto result = ParseConfig(
+				kSyntheticConfig,
+				"synthetic-config.json");
+			require(result.configuration.has_value(),
+				"synthetic configuration did not parse");
+
+			const auto binding = [&](
+				const MappedPage& a_page,
+				std::string_view a_id) -> const MappedBinding& {
+				const auto found = std::ranges::find(
+					a_page.bindings,
+					a_id,
+					&MappedBinding::descriptorId);
+				require(found != a_page.bindings.end(),
+					"binding not found for descriptor: " + std::string{ a_id });
+				return *found;
+			};
+
+			// Every binding descriptorId must resolve to a real descriptor on
+			// the same page, so phase 2 never re-derives uniquified ids.
+			for (const auto& page : result.pages)
+			{
+				for (const auto& mapping : page.bindings)
+				{
+					[[maybe_unused]] const auto& descriptor =
+						SettingNamed(page, mapping.descriptorId);
+				}
+			}
+
+			const auto& controls = PageNamed(result, "$EXAMPLE_CONTROLS");
+			const auto& property = binding(controls, "DisplayMode");
+			require(property.source.family == SourceFamily::kProperty &&
+					property.source.value == SourceValueKind::kInt &&
+					property.propertyName ==
+						std::optional<std::string>{ "DisplayMode" } &&
+					property.sourceForm ==
+						std::optional<std::string>{ "ExampleCore.esm|101" },
+				"property binding lost its resolved source");
+
+			const auto& modSetting =
+				binding(controls, "fSensitivity:SampleTweaks");
+			require(modSetting.source.family == SourceFamily::kModSetting &&
+					modSetting.modSettingId ==
+						std::optional<std::string>{
+							"fSensitivity:SampleTweaks" },
+				"mod setting binding lost its id");
+
+			const auto& sources = PageNamed(result, "$EXAMPLE_SOURCES");
+			const auto& global = binding(sources, "WorldScale");
+			require(global.source.family == SourceFamily::kGlobal &&
+					global.sourceForm ==
+						std::optional<std::string>{ "SampleWorld.esp|200" },
+				"global binding lost its source form");
+		});
 	}
 }
