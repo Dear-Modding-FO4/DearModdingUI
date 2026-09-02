@@ -418,6 +418,11 @@ namespace DearModdingUI::MCM::detail
 				descriptor.defaultValue = a_control.text;
 				descriptor.showReset = false;
 				break;
+			case ControlType::kKeymap:
+				descriptor.control = dmui::ReadOnlySettingControl{};
+				descriptor.defaultValue = std::string{ "Managed by MCM" };
+				descriptor.showReset = false;
+				break;
 			default:
 				descriptor.control = dmui::UnsupportedSettingControl{
 					static_cast<uint32_t>(a_control.type) + 1
@@ -447,7 +452,6 @@ namespace DearModdingUI::MCM::detail
 			switch (a_control.type)
 			{
 			case ControlType::kButton:
-			case ControlType::kKeymap:
 			case ControlType::kColor:
 			case ControlType::kImage:
 				a_diag.Add(

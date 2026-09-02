@@ -454,8 +454,8 @@ namespace vmm_tests
 				"text did not map to read-only");
 			require(ControlKindCount(
 						result,
-						dmui::SettingControlKind::kUnsupported) == 5,
-				"button, keymap, color, and image controls did not map to unsupported");
+						dmui::SettingControlKind::kUnsupported) == 4,
+				"button, color, and image controls did not map to unsupported");
 		});
 
 		runner.test("MCM LoadConfig reads a synthetic temporary file", [] {
@@ -680,10 +680,10 @@ namespace vmm_tests
 						dmui::SettingControlKind::kText) == 1 &&
 					ControlKindCount(
 						result,
-						dmui::SettingControlKind::kReadOnly) == 1 &&
+						dmui::SettingControlKind::kReadOnly) == 2 &&
 					ControlKindCount(
 						result,
-						dmui::SettingControlKind::kUnsupported) == 4,
+						dmui::SettingControlKind::kUnsupported) == 3,
 				"documented control kinds changed");
 			require(!std::ranges::any_of(
 						result.pages.front().settings.groups.front().settings,
@@ -691,6 +691,43 @@ namespace vmm_tests
 							return a_setting.id == "hidden";
 						}),
 				"hidden control was emitted");
+		});
+
+		runner.test("MCM hotkeys map to read-only status rows", [] {
+			const auto result = ParseConfig(R"({
+				"modName": "Hotkeys",
+				"displayName": "Hotkeys",
+				"content": [
+					{"id":"bare","type":"hotkey","text":"Bare","help":"Bare help"},
+					{"id":"modified","type":"keymap","text":"Modified","help":"Modified help",
+					 "valueOptions":{"allowModifierKeys":true}}
+				]
+			})", "hotkey-config.json");
+			require(result.configuration && result.pages.size() == 1 &&
+					DescriptorCount(result.pages.front()) == 2,
+				"hotkey controls did not map");
+			require(ControlKindCount(
+						result,
+						dmui::SettingControlKind::kReadOnly) == 2,
+				"hotkey controls did not map to read-only");
+
+			const auto& bare = SettingNamed(result.pages.front(), "bare");
+			const auto& modified =
+				SettingNamed(result.pages.front(), "modified");
+			require(std::holds_alternative<dmui::ReadOnlySettingControl>(
+						bare.control) &&
+					std::holds_alternative<dmui::ReadOnlySettingControl>(
+						modified.control),
+				"a hotkey control degraded from read-only");
+			require(std::get<std::string>(bare.defaultValue) ==
+						"Managed by MCM" &&
+					std::get<std::string>(modified.defaultValue) ==
+						"Managed by MCM",
+				"hotkey status text changed");
+			require(!bare.showReset && !modified.showReset,
+				"hotkey controls exposed reset actions");
+			require(!HasDiagnostic(result, "unsupported in this phase"),
+				"hotkey controls emitted unsupported diagnostics");
 		});
 
 		runner.test("MCM text input spellings both map to text controls", [] {
