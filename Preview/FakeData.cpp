@@ -4,7 +4,9 @@
 #include <imgui/imgui_internal.h>
 
 #include <DearModdingUI/Client.h>
+#include <DearModdingUI/MCM/ActionExecutor.h>
 #include <DearModdingUI/MCM/GlobalValue.h>
+#include <DearModdingUI/MCM/SettingsIni.h>
 #include <DearModdingUI/MCM/TextRendering.h>
 #include <DearModdingUI/MCM/ValueSource.h>
 
@@ -92,6 +94,11 @@ namespace DearModdingUIPreview
 				 "valueOptions":{"sourceType":"GlobalValue",
 				 "sourceForm":"PreviewMCM.esp|800","default":0,
 				 "options":["59 (Utility) slot","60 (Animation) slot","61 (FX) slot"]}},
+				{"id":"QuantizedScale","type":"slider","text":"Quantized scale",
+				 "help":"Moves in 0.2 increments anchored at 0.1.",
+				 "valueOptions":{"sourceType":"GlobalValue",
+				 "sourceForm":"PreviewMCM.esp|802","default":0.5,
+				 "min":0.1,"max":0.9,"step":0.2,"format":"%.1f"}},
 				{"id":"divider","type":"section","text":""},
 				{"id":"FeatureEnabled","type":"switcher","text":"Enable feature",
 				 "valueOptions":{"sourceType":"GlobalValue",
@@ -99,41 +106,61 @@ namespace DearModdingUIPreview
 			]
 		})json";
 
-		class PreviewGlobalValueSource final :
+		class PreviewValueSource final :
 			public DearModdingUI::MCM::ValueSource
 		{
 		public:
 			[[nodiscard]] bool Supports(
 				DearModdingUI::MCM::SourceFamily a_family) const noexcept override
 			{
-				return a_family == DearModdingUI::MCM::SourceFamily::kGlobal;
+				return a_family != DearModdingUI::MCM::SourceFamily::kUnknown;
 			}
 
-			[[nodiscard]] std::optional<dmui::SettingValue> Read(
+			[[nodiscard]] DearModdingUI::MCM::ValueSnapshot Read(
 				const DearModdingUI::MCM::MappedBinding& a_binding) const override
 			{
+				if (const auto overridden =
+						m_overrides.find(a_binding.descriptorId);
+					overridden != m_overrides.end())
+					return DearModdingUI::MCM::ReadyValue{
+						overridden->second,
+						m_generation
+					};
 				const auto value = m_values.find(a_binding.descriptorId);
 				if (value == m_values.end())
-					return std::nullopt;
-				return DearModdingUI::MCM::GlobalToSettingValue(
+					return DearModdingUI::MCM::ReadyValue{
+						a_binding.target,
+						m_generation
+					};
+				auto converted = DearModdingUI::MCM::GlobalToSettingValue(
 					value->second,
 					a_binding.target);
+				return converted ?
+					DearModdingUI::MCM::ValueSnapshot{
+						DearModdingUI::MCM::ReadyValue{
+							std::move(*converted),
+							m_generation
+						} } :
+					DearModdingUI::MCM::ValueSnapshot{
+						DearModdingUI::MCM::FailedValue{ m_generation } };
 			}
 
-			void Refresh(
+			[[nodiscard]] uint64_t Refresh(
 				const DearModdingUI::MCM::MappedBinding&) override
-			{}
+			{
+				return ++m_generation;
+			}
 
-			[[nodiscard]] bool Write(
+			[[nodiscard]] DearModdingUI::MCM::ValueSnapshot Write(
 				const DearModdingUI::MCM::MappedBinding& a_binding,
 				const dmui::SettingValue& a_value) override
 			{
-				const auto value = DearModdingUI::MCM::SettingValueToGlobal(
-					a_value);
-				if (!value)
-					return false;
-				m_values[a_binding.descriptorId] = *value;
-				return true;
+				m_overrides.insert_or_assign(a_binding.descriptorId, a_value);
+				++m_generation;
+				return DearModdingUI::MCM::ReadyValue{
+					a_value,
+					m_generation
+				};
 			}
 
 			void Seed(std::string a_id, float a_value)
@@ -143,6 +170,37 @@ namespace DearModdingUIPreview
 
 		private:
 			std::unordered_map<std::string, float> m_values;
+			std::unordered_map<std::string, dmui::SettingValue> m_overrides;
+			uint64_t m_generation{};
+		};
+
+		class PreviewActionExecutor final :
+			public DearModdingUI::MCM::ActionExecutor
+		{
+		public:
+			[[nodiscard]] std::optional<std::string> UnsupportedReason(
+				const DearModdingUI::MCM::Action& a_action) const noexcept override
+			{
+				if (std::holds_alternative<
+						DearModdingUI::MCM::CallFunctionAction>(a_action) ||
+					std::holds_alternative<
+						DearModdingUI::MCM::CallGlobalFunctionAction>(a_action))
+					return std::nullopt;
+				if (std::holds_alternative<
+						DearModdingUI::MCM::CallExternalFunctionAction>(a_action))
+					return "This Scaleform action is unavailable in the preview.";
+				return "This action is not supported in the preview.";
+			}
+
+			void Execute(
+				DearModdingUI::MCM::ActionInvocation,
+				DearModdingUI::MCM::ActionCompletion a_completion) override
+			{
+				a_completion({
+					DearModdingUI::MCM::ActionExecutionStatus::kSucceeded,
+					{}
+				});
+			}
 		};
 
 		void DrawFixturePage(
@@ -353,7 +411,8 @@ namespace DearModdingUIPreview
 	struct FakeData::Impl
 	{
 		SettingsState settings;
-		PreviewGlobalValueSource mcmValues;
+		PreviewValueSource mcmValues;
+		PreviewActionExecutor mcmActions;
 		std::vector<std::unique_ptr<dmui::Client>> clients;
 
 		[[nodiscard]] dmui::Client* AddClient(
@@ -518,8 +577,20 @@ namespace DearModdingUIPreview
 				a_error = "Could not parse the MCM preview fixture.";
 				return false;
 			}
+			if (configOverride)
+			{
+				const auto configPath = std::filesystem::path{ configOverride };
+				const auto declarations =
+					DearModdingUI::MCM::LoadSettingsIni(
+						configPath.parent_path() / "settings.ini");
+				for (auto& page : mcm.pages)
+					DearModdingUI::MCM::ApplyDeclarations(page, declarations);
+			}
 			m_impl->mcmValues.Seed("DisplaySlot", 2.0f);
+			m_impl->mcmValues.Seed("QuantizedScale", 0.7f);
 			m_impl->mcmValues.Seed("FeatureEnabled", 1.0f);
+			m_impl->mcmValues.Seed("bDisplayCondition:Misc", 1.0f);
+			m_impl->mcmValues.Seed("bDisplayConditionInvert:Misc", 1.0f);
 			auto* mcmClient = m_impl->AddClient(
 				"dearmodding.mcm-preview",
 				"MCM Bridge Preview",
@@ -534,6 +605,10 @@ namespace DearModdingUIPreview
 			for (auto& mcmPage : mcm.pages)
 			{
 				DearModdingUI::MCM::BindPage(mcmPage, m_impl->mcmValues);
+				DearModdingUI::MCM::BindActions(
+					mcmPage,
+					m_impl->mcmActions,
+					m_impl->mcmValues);
 				DearModdingUI::MCM::AttachTextRendering(mcmPage);
 				if (!mcmClient->AddSettingsPage(
 						mcmPage.id.c_str(),

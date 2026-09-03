@@ -55,6 +55,7 @@ namespace DearModdingUI
 			std::atomic<DMUI_UnavailableReason> deferredUnavailableReason{ DMUI_UNAVAILABLE_NONE };
 			std::atomic<bool> menuVisible{ false };
 			std::atomic<DMUI_PageHandle> selectedPage{ DMUI_INVALID_PAGE_HANDLE };
+			std::atomic<DMUI_PageHandle> activePage{ DMUI_INVALID_PAGE_HANDLE };
 			AllocatorState allocator;
 			StatusModel status;
 		};
@@ -83,9 +84,20 @@ namespace DearModdingUI
 			return service;
 		}
 
+		void SetActivePageState(
+			Service& a_service,
+			DMUI_PageHandle a_page) noexcept
+		{
+			const auto previous =
+				a_service.activePage.exchange(a_page, std::memory_order_acq_rel);
+			a_service.registry.NotifyPageActivity(previous, a_page);
+		}
+
 		void SetMenuVisibleState(Service& a_service, bool a_visible) noexcept
 		{
 			a_service.menuVisible.store(a_visible, std::memory_order_release);
+			if (!a_visible)
+				SetActivePageState(a_service, DMUI_INVALID_PAGE_HANDLE);
 			HostSettings::NotifyMenuVisible(a_visible);
 		}
 
@@ -257,6 +269,29 @@ namespace DearModdingUI
 			if (state != DMUI_HOST_STATE_WAITING_FOR_PRESENT)
 				return StateResult(state);
 			return service.registry.RegisterFrameObserver(
+				a_client,
+				a_descriptor,
+				a_observer);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterPageActivityObserverCpp(
+			DMUI_ClientHandle a_client,
+			const DMUI_PageActivityObserverDescriptor* a_descriptor,
+			DMUI_PageActivityObserverHandle* a_observer) noexcept
+		{
+			if (!a_descriptor ||
+				!a_observer ||
+				a_client == DMUI_INVALID_CLIENT_HANDLE)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_observer = DMUI_INVALID_PAGE_ACTIVITY_OBSERVER_HANDLE;
+			auto& service = GetService();
+			const auto state = service.state.load(std::memory_order_acquire);
+			if (state == DMUI_HOST_STATE_INITIALIZING ||
+				state == DMUI_HOST_STATE_READY)
+				return DMUI_RESULT_REGISTRATION_CLOSED;
+			if (state != DMUI_HOST_STATE_WAITING_FOR_PRESENT)
+				return StateResult(state);
+			return service.registry.RegisterPageActivityObserver(
 				a_client,
 				a_descriptor,
 				a_observer);
@@ -734,6 +769,41 @@ namespace DearModdingUI
 			return result.result;
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiBeginSettingsRowExCpp(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			const char* a_label,
+			const char* a_description,
+			const DMUI_SettingsRowBeginOptions* a_options,
+			uint32_t* a_visible) noexcept
+		{
+			if (!a_visible)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_visible = 0u;
+			const auto optionsValidation =
+				SettingsTable::ValidateRowBeginOptions(a_options);
+			if (optionsValidation != DMUI_RESULT_OK)
+				return optionsValidation;
+			if (!a_id || !a_label)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			if (!SettingsTable::AcceptsClient(a_client))
+				return DMUI_RESULT_WRONG_THREAD;
+
+			const auto result = SettingsTable::BeginRow(
+				a_client,
+				a_id,
+				a_label,
+				a_description,
+				a_options->layout == DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN ?
+					SettingsTable::RowLayout::kFullSpan :
+					SettingsTable::RowLayout::kLabelValue);
+			*a_visible = result.visible ? 1u : 0u;
+			return result.result;
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiEndSettingsRowCpp(
 			DMUI_ClientHandle a_client,
 			const DMUI_SettingsRowOptions* a_options,
@@ -836,6 +906,19 @@ namespace DearModdingUI
 		{
 			return GuardApiCall([&]() noexcept {
 				return ApiRegisterFrameObserverCpp(a_client, a_descriptor, a_observer);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterPageActivityObserver(
+			DMUI_ClientHandle a_client,
+			const DMUI_PageActivityObserverDescriptor* a_descriptor,
+			DMUI_PageActivityObserverHandle* a_observer) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiRegisterPageActivityObserverCpp(
+					a_client,
+					a_descriptor,
+					a_observer);
 			});
 		}
 
@@ -1060,6 +1143,25 @@ namespace DearModdingUI
 			});
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiBeginSettingsRowEx(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			const char* a_label,
+			const char* a_description,
+			const DMUI_SettingsRowBeginOptions* a_options,
+			uint32_t* a_visible) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiBeginSettingsRowExCpp(
+					a_client,
+					a_id,
+					a_label,
+					a_description,
+					a_options,
+					a_visible);
+			});
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiEndSettingsRow(
 			DMUI_ClientHandle a_client,
 			const DMUI_SettingsRowOptions* a_options,
@@ -1277,7 +1379,9 @@ namespace DearModdingUI
 			&ApiBeginSettingsTable,
 			&ApiBeginSettingsRow,
 			&ApiEndSettingsRow,
-			&ApiEndSettingsTable
+			&ApiEndSettingsTable,
+			&ApiBeginSettingsRowEx,
+			&ApiRegisterPageActivityObserver
 		};
 		return api;
 	}
@@ -1418,6 +1522,11 @@ namespace DearModdingUI
 			a_page,
 			DMUI_INVALID_PAGE_HANDLE,
 			std::memory_order_acq_rel);
+	}
+
+	void SetActivePage(DMUI_PageHandle a_page) noexcept
+	{
+		SetActivePageState(GetService(), a_page);
 	}
 
 	bool DrawPage(DMUI_PageHandle a_page) noexcept

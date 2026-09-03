@@ -1,4 +1,11 @@
+#include <DearModdingUI/MCM/Availability.h>
+#include <DearModdingUI/MCM/ExternalEventDispatcher.h>
+#include <DearModdingUI/MCM/F4SETaskScheduler.h>
 #include <DearModdingUI/MCM/GlobalValueSource.h>
+#include <DearModdingUI/MCM/ModSettingValueSource.h>
+#include <DearModdingUI/MCM/PapyrusActionExecutor.h>
+#include <DearModdingUI/MCM/PropertyValueSource.h>
+#include <DearModdingUI/MCM/SettingsIni.h>
 
 #include <DearModdingUI/MCM/Compatibility.h>
 #include <DearModdingUI/MCM/TextRendering.h>
@@ -34,26 +41,31 @@ namespace DearModdingUI::MCM
 
 	namespace
 	{
-		enum class McmAvailability : uint8_t
+		struct RegisteredPage
 		{
-			kUnknown,
-			kPresent,
-			kAbsent
+			std::unique_ptr<MappedPage> page;
+			DMUI_PageHandle handle{ DMUI_INVALID_PAGE_HANDLE };
 		};
 
 		struct RegisteredMod
 		{
 			std::unique_ptr<dmui::Client> client;
-			std::vector<std::unique_ptr<MappedPage>> pages;
+			std::unique_ptr<ModSettingValueSource> modSettings;
+			std::unique_ptr<PropertyValueSource> properties;
+			std::unique_ptr<CompositeValueSource> values;
+			std::unique_ptr<PapyrusActionExecutor> actions;
+			std::vector<RegisteredPage> pages;
 		};
 
 		constexpr auto kAbsentNote =
 			"Mod Configuration Menu is not installed, so these values cannot be changed."sv;
 
-		std::atomic<McmAvailability> s_mcmAvailability{
-			McmAvailability::kUnknown
+		std::atomic<AvailabilityState> s_mcmAvailability{
+			AvailabilityState::kUnknown
 		};
-		GlobalValueSource s_valueSource;
+		GlobalValueSource s_globalValues;
+		F4SETaskScheduler s_scheduler;
+		ExternalEventDispatcher s_events{ s_scheduler };
 		std::vector<std::unique_ptr<RegisteredMod>> s_mods;
 
 		[[nodiscard]] std::string PathText(
@@ -114,29 +126,44 @@ namespace DearModdingUI::MCM
 
 		void ComposeMcmAvailability(MappedPage& a_page)
 		{
-			for (auto& group : a_page.settings.groups)
+			auto hasModSettings = false;
+			for (const auto& row : a_page.rows)
 			{
-				for (auto& descriptor : group.settings)
+				if (!row.binding)
+					continue;
+				const auto family = row.binding->Family();
+				hasModSettings = hasModSettings ||
+					family == SourceFamily::kModSetting;
+				for (auto& group : a_page.settings.groups)
 				{
-					auto prior = std::move(descriptor.isEnabled);
-					descriptor.isEnabled = [prior = std::move(prior)] {
-						if (s_mcmAvailability.load(std::memory_order_acquire) !=
-							McmAvailability::kPresent)
-							return false;
-						return !prior || prior();
-					};
+					for (auto& descriptor : group.settings)
+					{
+						if (descriptor.id != row.binding->descriptorId)
+							continue;
+						auto prior = std::move(descriptor.isEnabled);
+						descriptor.isEnabled =
+							[family, prior = std::move(prior)] {
+								if (!IsControlOperable(
+										s_mcmAvailability.load(
+											std::memory_order_acquire),
+										family))
+									return false;
+								return !prior || prior();
+							};
+					}
 				}
 			}
 
 			auto prior = std::move(a_page.settings.prepareView);
 			a_page.settings.prepareView =
-				[prior = std::move(prior), noteAdded = false](
+				[prior = std::move(prior), hasModSettings, noteAdded = false](
 					dmui::SettingsPage& a_settings) mutable {
 					if (prior)
 						prior(a_settings);
-					if (!noteAdded &&
+					if (hasModSettings &&
+						!noteAdded &&
 						s_mcmAvailability.load(std::memory_order_acquire) ==
-							McmAvailability::kAbsent)
+							AvailabilityState::kAbsent)
 					{
 						a_settings.notes.push_back({
 							std::string{ kAbsentNote },
@@ -151,24 +178,60 @@ namespace DearModdingUI::MCM
 		{
 			for (const auto& diagnostic : a_result.diagnostics)
 			{
-				if (diagnostic.severity != DiagnosticSeverity::kError)
-					continue;
+				const auto warning =
+					diagnostic.severity == DiagnosticSeverity::kWarning;
 				if (diagnostic.location.empty())
 				{
-					REX::ERROR(
-						"DearModdingUI-MCM: {}: {}"sv,
-						diagnostic.source,
-						diagnostic.message);
+					if (warning)
+						REX::WARN(
+							"DearModdingUI-MCM: {}: {}"sv,
+							diagnostic.source,
+							diagnostic.message);
+					else
+						REX::ERROR(
+							"DearModdingUI-MCM: {}: {}"sv,
+							diagnostic.source,
+							diagnostic.message);
 				}
 				else
 				{
-					REX::ERROR(
-						"DearModdingUI-MCM: {}: {}: {}"sv,
-						diagnostic.source,
-						diagnostic.location,
-						diagnostic.message);
+					if (warning)
+						REX::WARN(
+							"DearModdingUI-MCM: {}: {}: {}"sv,
+							diagnostic.source,
+							diagnostic.location,
+							diagnostic.message);
+					else
+						REX::ERROR(
+							"DearModdingUI-MCM: {}: {}: {}"sv,
+							diagnostic.source,
+							diagnostic.location,
+							diagnostic.message);
 				}
 			}
+		}
+
+		void SurfaceCompatibility(
+			MappedPage& a_page,
+			const PageCompatibilitySummary& a_summary)
+		{
+			if (!a_summary.unsupported &&
+				!a_summary.unknownBindings &&
+				!a_summary.undeclaredModSettings &&
+				!a_summary.actions &&
+				!a_summary.images)
+				return;
+			a_page.settings.notes.push_back({
+				std::format(
+					"Compatibility: {} unsupported, {} unknown sources, "
+					"{} undeclared settings, {} actions, {} images.",
+					a_summary.unsupported,
+					a_summary.unknownBindings,
+					a_summary.undeclaredModSettings,
+					a_summary.actions,
+					a_summary.images),
+				false
+			});
 		}
 
 		void RegisterConfig(const std::filesystem::path& a_config) noexcept
@@ -192,6 +255,18 @@ namespace DearModdingUI::MCM
 					(configuration.modName.empty() ? folder : configuration.modName) :
 					configuration.displayName;
 				auto mod = std::make_unique<RegisteredMod>();
+				mod->modSettings = std::make_unique<ModSettingValueSource>(
+					configuration.modName,
+					s_events,
+					s_scheduler);
+				mod->properties =
+					std::make_unique<PropertyValueSource>(s_scheduler);
+				mod->values = std::make_unique<CompositeValueSource>();
+				mod->actions =
+					std::make_unique<PapyrusActionExecutor>(s_scheduler);
+				mod->values->Add(s_globalValues);
+				mod->values->Add(*mod->modSettings);
+				mod->values->Add(*mod->properties);
 				mod->client = std::make_unique<dmui::Client>(
 					ClientId(configuration.modName, folder),
 					displayName,
@@ -211,14 +286,40 @@ namespace DearModdingUI::MCM
 				}
 
 				size_t descriptors{};
+				const auto declarations =
+					LoadSettingsIni(a_config.parent_path() / "settings.ini");
 				for (size_t index = 0; index < result.pages.size(); ++index)
 				{
 					auto page =
 						std::make_unique<MappedPage>(std::move(result.pages[index]));
+					ApplyDeclarations(*page, declarations);
+					const auto summary = SummarizeCompatibility(*page);
+					SurfaceCompatibility(*page, summary);
+					REX::INFO(
+						"DearModdingUI-MCM: {} / {} compatibility: "
+						"{} bindings, {} unsupported, {} unknown sources, "
+						"{} undeclared settings, {} actions, {} images"sv,
+						displayName,
+						page->displayName,
+						summary.bindings,
+						summary.unsupported,
+						summary.unknownBindings,
+						summary.undeclaredModSettings,
+						summary.actions,
+						summary.images);
 					descriptors += DescriptorCount(*page);
-					BindPage(*page, s_valueSource);
+					BindPage(*page, *mod->values);
+					BindActions(*page, *mod->actions, *mod->values);
 					AttachTextRendering(*page);
 					ComposeMcmAvailability(*page);
+					auto priorPrepare = std::move(page->settings.prepare);
+					auto* values = mod->values.get();
+					page->settings.prepare =
+						[priorPrepare = std::move(priorPrepare), values] {
+							if (priorPrepare)
+								priorPrepare();
+							values->Pump();
+						};
 
 					auto* settings = &page->settings;
 					auto* client = mod->client.get();
@@ -227,7 +328,21 @@ namespace DearModdingUI::MCM
 						page->displayName.c_str(),
 						displayName.c_str(),
 						[settings, client] {
-							settings->Draw(*client);
+							try
+							{
+								settings->Draw(*client);
+							}
+							catch (const std::exception& a_error)
+							{
+								REX::ERROR(
+									"DearModdingUI-MCM: page draw failed: {}"sv,
+									a_error.what());
+							}
+							catch (...)
+							{
+								REX::ERROR(
+									"DearModdingUI-MCM: page draw failed"sv);
+							}
 						},
 						nullptr,
 						static_cast<int32_t>(index));
@@ -240,8 +355,30 @@ namespace DearModdingUI::MCM
 							DMUI_ResultToString(client->LastResult()));
 						continue;
 					}
-					mod->pages.push_back(std::move(page));
+					mod->pages.push_back({
+						std::move(page),
+						*registered
+					});
 				}
+				auto* observed = mod.get();
+				(void)mod->client->AddPageActivityObserver(
+					[observed](const dmui::PageActivity& a_activity) {
+						if (a_activity.kind == dmui::PageActivityKind::kActivated)
+							s_events.MenuOpened();
+						if (a_activity.kind == dmui::PageActivityKind::kDeactivated)
+						{
+							s_events.MenuClosed();
+							return;
+						}
+						for (const auto& registered : observed->pages)
+						{
+							if (registered.handle == a_activity.activePage)
+							{
+								observed->values->RefreshPage(*registered.page);
+								break;
+							}
+						}
+					});
 
 				REX::INFO(
 					"DearModdingUI-MCM: {} registered ({} pages, {} descriptors, {} diagnostics)"sv,
@@ -305,15 +442,12 @@ namespace DearModdingUI::MCM
 			}
 		}
 
-		void RefreshGlobals() noexcept
+		void RefreshValues() noexcept
 		{
 			for (const auto& mod : s_mods)
 			{
 				for (const auto& page : mod->pages)
-				{
-					for (const auto& binding : page->bindings)
-						s_valueSource.Refresh(binding);
-				}
+					mod->values->RefreshPage(*page.page);
 			}
 		}
 
@@ -332,8 +466,8 @@ namespace DearModdingUI::MCM
 					return;
 				const auto present = RE::BSScript::get<bool>(a_result);
 				s_mcmAvailability.store(
-					present ? McmAvailability::kPresent :
-							  McmAvailability::kAbsent,
+					present ? AvailabilityState::kPresent :
+							  AvailabilityState::kAbsent,
 					std::memory_order_release);
 				REX::INFO(
 					"DearModdingUI-MCM: Mod Configuration Menu is {}"sv,
@@ -345,25 +479,28 @@ namespace DearModdingUI::MCM
 		{
 			try
 			{
-				auto* gameVm = RE::GameVM::GetSingleton();
-				auto vm = gameVm ? gameVm->GetVM() : nullptr;
-				if (!vm)
-					return;
+				s_scheduler.Schedule([] {
+					auto* gameVm = RE::GameVM::GetSingleton();
+					auto vm = gameVm ? gameVm->GetVM() : nullptr;
+					if (!vm)
+						return;
 
-				RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback{
-					new McmInstalledCallback
-				};
-				if (!vm->DispatchStaticCall(
-						RE::BSFixedString{ "MCM" },
-						RE::BSFixedString{ "IsInstalled" },
-						callback))
-				{
-					s_mcmAvailability.store(
-						McmAvailability::kAbsent,
-						std::memory_order_release);
-					REX::INFO(
-						"DearModdingUI-MCM: Mod Configuration Menu is not installed"sv);
-				}
+					RE::BSTSmartPointer<
+						RE::BSScript::IStackCallbackFunctor> callback{
+						new McmInstalledCallback
+					};
+					if (!vm->DispatchStaticCall(
+							RE::BSFixedString{ "MCM" },
+							RE::BSFixedString{ "IsInstalled" },
+							callback))
+					{
+						s_mcmAvailability.store(
+							AvailabilityState::kAbsent,
+							std::memory_order_release);
+						REX::INFO(
+							"DearModdingUI-MCM: Mod Configuration Menu is not installed"sv);
+					}
+				});
 			}
 			catch (...)
 			{
@@ -383,7 +520,7 @@ namespace DearModdingUI::MCM
 					 F4SE::MessagingInterface::kGameDataReady &&
 					 a_message->data)
 			{
-				RefreshGlobals();
+				RefreshValues();
 				QueryMcmAvailability();
 			}
 		}

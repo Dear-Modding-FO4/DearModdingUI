@@ -79,6 +79,11 @@ namespace
 			"Copy something.",
 			[label] { (void)label; });
 		(void)client.AddFrameObserver([label] { (void)label; });
+		(void)client.AddPageActivityObserver(
+			[label](const dmui::PageActivity& a_activity) {
+				(void)label;
+				(void)a_activity;
+			});
 		const auto hotkey = client.AddHotkeyAction(
 			"example.author.mod.Toggle",
 			"Toggle example",
@@ -126,13 +131,15 @@ namespace
 			const auto row = client.BeginSettingsRow(
 				"enabled",
 				"Enabled",
-				"Enables the example.");
+				"Enables the example.",
+				dmui::RowPresentation::Layout::kLabelValue);
 			if (row.value_or(false))
 			{
 				bool enabled{};
 				(void)ImGui::Checkbox("##Value", &enabled);
 				(void)client.EndSettingsRow(true, enabled);
 			}
+			dmui::DrawDivider();
 			(void)client.EndSettingsTable();
 		}
 		(void)client.IsMenuVisible();

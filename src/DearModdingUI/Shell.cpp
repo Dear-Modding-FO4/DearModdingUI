@@ -3140,6 +3140,10 @@ namespace DearModdingUI
 			state.activeClient = client->handle;
 		else if (state.activeHostPage)
 			state.activeClient = DMUI_INVALID_CLIENT_HANDLE;
+		SetActivePage(
+			state.activeHostPage ?
+				DMUI_INVALID_PAGE_HANDLE :
+				state.activePage);
 		if (state.sidebarLayout == SidebarLayoutKind::DrillDown)
 		{
 			if (!state.drillDownInitialized)

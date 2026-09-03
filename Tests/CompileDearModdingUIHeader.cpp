@@ -205,6 +205,14 @@ static_assert(offsetof(DMUI_ClientDescriptor, iconName) == 72);
 static_assert(DMUI_CLIENT_DESCRIPTOR_1_0_SIZE == 68);
 static_assert(DMUI_CLIENT_DESCRIPTOR_ICON_NAME_SIZE ==
 	sizeof(DMUI_ClientDescriptor));
+static_assert(DMUI_PAGE_DESCRIPTOR_1_0_SIZE ==
+	sizeof(DMUI_PageDescriptor));
+static_assert(DMUI_ACTION_DESCRIPTOR_1_0_SIZE ==
+	sizeof(DMUI_ActionDescriptor));
+static_assert(DMUI_FRAME_OBSERVER_DESCRIPTOR_1_0_SIZE ==
+	sizeof(DMUI_FrameObserverDescriptor));
+static_assert(DMUI_HOTKEY_ACTION_DESCRIPTOR_1_0_SIZE ==
+	sizeof(DMUI_HotkeyActionDescriptor));
 static_assert(offsetof(DMUI_ThemeColors, structSize) == 0);
 static_assert(offsetof(DMUI_ThemeColors, success) == 4);
 static_assert(offsetof(DMUI_ThemeColors, warning) == 20);
@@ -226,10 +234,25 @@ static_assert(offsetof(DMUI_SettingsRowOptions, resetVisible) == 4);
 static_assert(offsetof(DMUI_SettingsRowOptions, resetEnabled) == 8);
 static_assert(DMUI_SETTINGS_ROW_OPTIONS_1_0_SIZE ==
 	sizeof(DMUI_SettingsRowOptions));
+static_assert(offsetof(DMUI_SettingsRowBeginOptions, structSize) == 0);
+static_assert(offsetof(DMUI_SettingsRowBeginOptions, layout) == 4);
+static_assert(DMUI_SETTINGS_ROW_BEGIN_OPTIONS_1_0_SIZE ==
+	sizeof(DMUI_SettingsRowBeginOptions));
+static_assert(offsetof(DMUI_PageActivityInfo, structSize) == 0);
+static_assert(offsetof(DMUI_PageActivityInfo, kind) == 4);
+static_assert(offsetof(DMUI_PageActivityInfo, previousPage) == 8);
+static_assert(offsetof(DMUI_PageActivityInfo, activePage) == 16);
+static_assert(DMUI_PAGE_ACTIVITY_INFO_1_0_SIZE ==
+	sizeof(DMUI_PageActivityInfo));
+static_assert(offsetof(DMUI_PageActivityObserverDescriptor, structSize) == 0);
+static_assert(offsetof(DMUI_PageActivityObserverDescriptor, callback) == 8);
+static_assert(offsetof(DMUI_PageActivityObserverDescriptor, userData) == 16);
+static_assert(DMUI_PAGE_ACTIVITY_OBSERVER_DESCRIPTOR_1_0_SIZE ==
+	sizeof(DMUI_PageActivityObserverDescriptor));
 static_assert(offsetof(DMUI_FrameObserverDescriptor, structSize) == 0);
 static_assert(offsetof(DMUI_FrameObserverDescriptor, callback) == 8);
 static_assert(offsetof(DMUI_FrameObserverDescriptor, userData) == 16);
-static_assert(sizeof(DMUI_HostAPI) == 248);
+static_assert(sizeof(DMUI_HostAPI) == 264);
 static_assert(offsetof(DMUI_HostAPI, structSize) == 0);
 static_assert(offsetof(DMUI_HostAPI, apiVersion) == 4);
 static_assert(offsetof(DMUI_HostAPI, imguiFingerprint) == 8);
@@ -262,6 +285,8 @@ static_assert(offsetof(DMUI_HostAPI, beginSettingsTable) == 216);
 static_assert(offsetof(DMUI_HostAPI, beginSettingsRow) == 224);
 static_assert(offsetof(DMUI_HostAPI, endSettingsRow) == 232);
 static_assert(offsetof(DMUI_HostAPI, endSettingsTable) == 240);
+static_assert(offsetof(DMUI_HostAPI, beginSettingsRowEx) == 248);
+static_assert(offsetof(DMUI_HostAPI, registerPageActivityObserver) == 256);
 static_assert(DMUI_HOST_API_SELECT_PAGE_SIZE == 72);
 static_assert(DMUI_HOST_API_ATTACH_SWAP_CHAIN_SIZE == 80);
 static_assert(DMUI_HOST_API_REGISTER_ACTION_SIZE == 88);
@@ -284,5 +309,8 @@ static_assert(DMUI_HOST_API_UNREGISTER_HOTKEY_ACTION_SIZE == 216);
 static_assert(DMUI_HOST_API_BEGIN_SETTINGS_TABLE_SIZE == 224);
 static_assert(DMUI_HOST_API_BEGIN_SETTINGS_ROW_SIZE == 232);
 static_assert(DMUI_HOST_API_END_SETTINGS_ROW_SIZE == 240);
-static_assert(DMUI_HOST_API_END_SETTINGS_TABLE_SIZE == sizeof(DMUI_HostAPI));
+static_assert(DMUI_HOST_API_END_SETTINGS_TABLE_SIZE == 248);
+static_assert(DMUI_HOST_API_BEGIN_SETTINGS_ROW_EX_SIZE == 256);
+static_assert(DMUI_HOST_API_REGISTER_PAGE_ACTIVITY_OBSERVER_SIZE ==
+	sizeof(DMUI_HostAPI));
 #endif

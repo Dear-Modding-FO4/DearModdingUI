@@ -28,8 +28,13 @@ namespace DearModdingUI::SettingsTable
 			float labelHeight{ 0.0f };
 			float buttonExtent{ 0.0f };
 			float resetWidth{ 0.0f };
+			float fullSpanMaxX{ 0.0f };
+			float savedWorkRectMaxX{ 0.0f };
+			ImRect labelRect;
 			std::string label;
 			std::string description;
+			RowLayout layout{ RowLayout::kLabelValue };
+			bool fullSpanClipPushed{ false };
 		};
 
 		thread_local RenderState s_state;
@@ -158,8 +163,22 @@ namespace DearModdingUI::SettingsTable
 			s_state.labelHeight = 0.0f;
 			s_state.buttonExtent = 0.0f;
 			s_state.resetWidth = 0.0f;
+			s_state.fullSpanMaxX = 0.0f;
+			s_state.savedWorkRectMaxX = 0.0f;
+			s_state.labelRect = {};
 			s_state.label.clear();
 			s_state.description.clear();
+			s_state.layout = RowLayout::kLabelValue;
+			s_state.fullSpanClipPushed = false;
+		}
+
+		void RestoreFullSpanContent() noexcept
+		{
+			if (!s_state.fullSpanClipPushed || !s_state.window)
+				return;
+			ImGui::PopClipRect();
+			s_state.window->WorkRect.Max.x = s_state.savedWorkRectMaxX;
+			s_state.fullSpanClipPushed = false;
 		}
 
 		void ClearTableState() noexcept
@@ -178,6 +197,7 @@ namespace DearModdingUI::SettingsTable
 					s_state.controlsIdDepth))
 			{
 				ImGui::EndTable();
+				RestoreFullSpanContent();
 				if (HasExpectedTable(s_state.tableId, s_state.rowIdDepth))
 				{
 					ImGui::PopID();
@@ -277,7 +297,8 @@ namespace DearModdingUI::SettingsTable
 		DMUI_ClientHandle a_owner,
 		const char* a_id,
 		const char* a_label,
-		const char* a_description) noexcept
+		const char* a_description,
+		RowLayout a_layout) noexcept
 	{
 		if (!a_id || a_id[0] == '\0' || !a_label)
 			return { DMUI_RESULT_INVALID_ARGUMENT, false };
@@ -288,6 +309,7 @@ namespace DearModdingUI::SettingsTable
 		{
 			s_state.label = a_label;
 			s_state.description = a_description ? a_description : "";
+			s_state.layout = a_layout;
 		}
 		catch (const std::bad_alloc&)
 		{
@@ -311,6 +333,22 @@ namespace DearModdingUI::SettingsTable
 		s_state.rowIdDepth = s_state.window->IDStack.Size;
 		ImGui::TableNextRow();
 		(void)ImGui::TableSetColumnIndex(0);
+		const auto labelOrigin = ImGui::GetCursorScreenPos();
+		if (a_layout == RowLayout::kFullSpan)
+		{
+			const auto* table = ImGui::GetCurrentTable();
+			const auto finalCell = ImGui::TableGetCellBgRect(table, 1);
+			s_state.fullSpanMaxX =
+				finalCell.Max.x - table->CellPaddingX;
+			s_state.savedWorkRectMaxX = s_state.window->WorkRect.Max.x;
+			s_state.window->WorkRect.Max.x = s_state.fullSpanMaxX;
+			const auto clip = s_state.window->ClipRect;
+			ImGui::PushClipRect(
+				clip.Min,
+				{ s_state.fullSpanMaxX, clip.Max.y },
+				false);
+			s_state.fullSpanClipPushed = true;
+		}
 		const auto wrapWidth = (std::max)(
 			ImGui::GetContentRegionAvail().x,
 			ImGui::GetFontSize());
@@ -318,17 +356,38 @@ namespace DearModdingUI::SettingsTable
 			s_state.label.c_str(),
 			s_state.description.c_str(),
 			wrapWidth);
-		ImGui::Dummy({ 0.0f, s_state.labelHeight });
-		(void)ImGui::TableSetColumnIndex(1);
+		if (s_state.labelHeight > 0.0f)
+		{
+			s_state.labelRect = {
+				labelOrigin,
+				{
+					labelOrigin.x + wrapWidth,
+					labelOrigin.y + s_state.labelHeight
+				}
+			};
+			ImGui::Dummy({ 0.0f, s_state.labelHeight });
+		}
+		if (a_layout == RowLayout::kLabelValue)
+			(void)ImGui::TableSetColumnIndex(1);
 
 		s_state.buttonExtent = ImGui::GetFrameHeight();
 		s_state.resetWidth = ResetColumnWidth(s_state.buttonExtent);
 		const auto visible = ImGui::BeginTable(
 			"##DearModdingUI.SettingsRowControls",
 			2,
-			ImGuiTableFlags_SizingStretchProp);
+			ImGuiTableFlags_SizingStretchProp,
+			a_layout == RowLayout::kFullSpan ?
+				ImVec2{
+					(std::max)(
+						s_state.fullSpanMaxX -
+							ImGui::GetCursorScreenPos().x,
+						0.0f),
+					0.0f
+				} :
+				ImVec2{});
 		if (!visible)
 		{
+			RestoreFullSpanContent();
 			ImGui::PopID();
 			(void)s_state.bracket.EndRow(a_owner);
 			ClearRowState();
@@ -387,12 +446,29 @@ namespace DearModdingUI::SettingsTable
 				a_options.resetEnabled);
 		}
 		ImGui::EndTable();
+		RestoreFullSpanContent();
 
 		if (!HasExpectedTable(s_state.tableId, s_state.rowIdDepth))
 			return DMUI_RESULT_UNBALANCED_BRACKET;
 		const auto* table = ImGui::GetCurrentTable();
 		(void)ImGui::TableSetColumnIndex(0);
-		DrawLabel(TableRowContentRect(table, 0));
+		if (s_state.layout == RowLayout::kFullSpan)
+		{
+			if (s_state.labelHeight > 0.0f)
+			{
+				const auto clip = s_state.window->ClipRect;
+				ImGui::PushClipRect(
+					clip.Min,
+					{ s_state.fullSpanMaxX, clip.Max.y },
+					false);
+				DrawLabel(s_state.labelRect);
+				ImGui::PopClipRect();
+			}
+		}
+		else
+		{
+			DrawLabel(TableRowContentRect(table, 0));
+		}
 		ImGui::PopID();
 		ClearRowState();
 		return s_state.bracket.EndRow(a_owner);

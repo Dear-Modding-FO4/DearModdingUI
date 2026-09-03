@@ -44,6 +44,11 @@ namespace vmm_tests
 			void* context{ nullptr };
 		};
 
+		struct PageActivityState
+		{
+			std::vector<DMUI_PageActivityInfo> events;
+		};
+
 		[[nodiscard]] DMUI_ImGuiFingerprint Fingerprint() noexcept
 		{
 			return DMUI_MakeImGuiFingerprint();
@@ -78,6 +83,13 @@ namespace vmm_tests
 		void DMUI_CALL Draw(void* a_userData) noexcept
 		{
 			++static_cast<CallbackState*>(a_userData)->draws;
+		}
+
+		void DMUI_CALL ObservePageActivity(
+			const DMUI_PageActivityInfo* a_info,
+			void* a_userData)
+		{
+			static_cast<PageActivityState*>(a_userData)->events.push_back(*a_info);
 		}
 
 		void DMUI_CALL ThrowReady(const DMUI_HostReadyInfo*, void*)
@@ -224,6 +236,112 @@ namespace vmm_tests
 			require(!Registry::SupportsVersion(0), "zero ABI was accepted");
 		});
 
+		runner.test("host API extensions preserve the published prefix", [] {
+			require(
+				offsetof(DMUI_HostAPI, beginSettingsRowEx) ==
+						DMUI_HOST_API_END_SETTINGS_TABLE_SIZE &&
+					DMUI_HOST_API_BEGIN_SETTINGS_ROW_EX_SIZE <
+						DMUI_HOST_API_REGISTER_PAGE_ACTIVITY_OBSERVER_SIZE &&
+					sizeof(DMUI_HostAPI) ==
+						DMUI_HOST_API_REGISTER_PAGE_ACTIVITY_OBSERVER_SIZE,
+				"the versioned host API prefix moved");
+		});
+
+		runner.test("page activity reports client boundaries without false closes", [] {
+			const auto fingerprint = Fingerprint();
+			Registry registry{ fingerprint };
+			CallbackState firstState;
+			CallbackState secondState;
+			const auto firstClient = AddClient(
+				registry,
+				"first.mod",
+				"First",
+				fingerprint,
+				firstState);
+			const auto secondClient = AddClient(
+				registry,
+				"second.mod",
+				"Second",
+				fingerprint,
+				secondState);
+			const auto firstPage = AddPage(
+				registry,
+				firstClient,
+				"first",
+				"First",
+				"General",
+				0,
+				DMUI_PAGE_KIND_SETTINGS,
+				firstState);
+			const auto nextPage = AddPage(
+				registry,
+				firstClient,
+				"next",
+				"Next",
+				"General",
+				1,
+				DMUI_PAGE_KIND_SETTINGS,
+				firstState);
+			const auto secondPage = AddPage(
+				registry,
+				secondClient,
+				"second",
+				"Second",
+				"General",
+				0,
+				DMUI_PAGE_KIND_SETTINGS,
+				secondState);
+			PageActivityState firstActivity;
+			PageActivityState secondActivity;
+			const DMUI_PageActivityObserverDescriptor firstObserver{
+				sizeof(DMUI_PageActivityObserverDescriptor),
+				&ObservePageActivity,
+				&firstActivity
+			};
+			const DMUI_PageActivityObserverDescriptor secondObserver{
+				sizeof(DMUI_PageActivityObserverDescriptor),
+				&ObservePageActivity,
+				&secondActivity
+			};
+			DMUI_PageActivityObserverHandle observer{};
+			require(
+				registry.RegisterPageActivityObserver(
+					firstClient,
+					&firstObserver,
+					&observer) == DMUI_RESULT_OK &&
+					registry.RegisterPageActivityObserver(
+						secondClient,
+						&secondObserver,
+						&observer) == DMUI_RESULT_OK &&
+					registry.Freeze(),
+				"page activity observers did not register");
+
+			registry.NotifyPageActivity(DMUI_INVALID_PAGE_HANDLE, firstPage);
+			registry.NotifyPageActivity(firstPage, nextPage);
+			registry.NotifyPageActivity(nextPage, secondPage);
+			registry.NotifyPageActivity(secondPage, DMUI_INVALID_PAGE_HANDLE);
+
+			require(
+				firstActivity.events.size() == 3 &&
+					firstActivity.events[0].kind ==
+						DMUI_PAGE_ACTIVITY_ACTIVATED &&
+					firstActivity.events[0].activePage == firstPage &&
+					firstActivity.events[1].kind ==
+						DMUI_PAGE_ACTIVITY_CHANGED &&
+					firstActivity.events[1].previousPage == firstPage &&
+					firstActivity.events[1].activePage == nextPage &&
+					firstActivity.events[2].kind ==
+						DMUI_PAGE_ACTIVITY_DEACTIVATED &&
+					firstActivity.events[2].previousPage == nextPage &&
+					secondActivity.events.size() == 2 &&
+					secondActivity.events[0].kind ==
+						DMUI_PAGE_ACTIVITY_ACTIVATED &&
+					secondActivity.events[0].activePage == secondPage &&
+					secondActivity.events[1].kind ==
+						DMUI_PAGE_ACTIVITY_DEACTIVATED,
+				"page activity invented a close/open pair within one client");
+		});
+
 		runner.test("settings reset column follows scaled live metrics", [] {
 			require(SettingsTable::ResolveResetColumnWidth(
 						true,
@@ -301,6 +419,22 @@ namespace vmm_tests
 			require(SettingsTable::ValidateRowOptions(&options) ==
 					DMUI_RESULT_OK,
 				"extended row options were rejected");
+			DMUI_SettingsRowBeginOptions beginOptions{};
+			beginOptions.structSize =
+				DMUI_SETTINGS_ROW_BEGIN_OPTIONS_1_0_SIZE - 1;
+			require(SettingsTable::ValidateRowBeginOptions(&beginOptions) ==
+					DMUI_RESULT_STRUCT_TOO_SMALL,
+				"short row begin options were accepted");
+			beginOptions.structSize =
+				DMUI_SETTINGS_ROW_BEGIN_OPTIONS_1_0_SIZE;
+			beginOptions.layout = DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN;
+			require(SettingsTable::ValidateRowBeginOptions(&beginOptions) ==
+					DMUI_RESULT_OK,
+				"full-span row begin options were rejected");
+			beginOptions.layout = 2;
+			require(SettingsTable::ValidateRowBeginOptions(&beginOptions) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"unknown row layout was accepted");
 		});
 
 		runner.test("declarative setting filters match metadata without reading values", [] {
@@ -452,6 +586,24 @@ namespace vmm_tests
 								.minimum = uint64_t{ 100 },
 								.maximum = uint64_t{ 20 } } }) == 100,
 				"signed, unsigned, or inverted bounds were not normalized");
+			require(
+				std::abs(
+					dmui::QuantizeSettingNumber(
+						0.61,
+						std::optional{
+							dmui::NumericQuantization<double>{ 0.2, 0.1 } }) -
+					0.7) < 1.0e-12 &&
+					dmui::QuantizeSettingNumber(
+						int64_t{ -4 },
+						std::optional{
+							dmui::NumericQuantization<int64_t>{ 3, -10 } }) ==
+						-4 &&
+					dmui::QuantizeSettingNumber(
+						uint64_t{ 18 },
+						std::optional{
+							dmui::NumericQuantization<uint64_t>{ 5, 3 } }) ==
+						18,
+				"numeric quantization stopped using its explicit origin");
 		});
 
 		runner.test("declarative defaults reset through accepted value bindings", [] {

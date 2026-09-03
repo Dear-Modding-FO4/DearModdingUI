@@ -72,6 +72,17 @@ namespace DearModdingUI
 		bool callbackFailed{ false };
 	};
 
+	struct RegisteredPageActivityObserver
+	{
+		DMUI_PageActivityObserverHandle handle{
+			DMUI_INVALID_PAGE_ACTIVITY_OBSERVER_HANDLE
+		};
+		DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
+		DMUI_PageActivityCallback callback{ nullptr };
+		void* userData{ nullptr };
+		bool callbackFailed{ false };
+	};
+
 	class Registry
 	{
 	public:
@@ -92,6 +103,10 @@ namespace DearModdingUI
 			DMUI_ClientHandle a_client,
 			const DMUI_FrameObserverDescriptor* a_descriptor,
 			DMUI_FrameObserverHandle* a_observer) noexcept;
+		[[nodiscard]] DMUI_Result RegisterPageActivityObserver(
+			DMUI_ClientHandle a_client,
+			const DMUI_PageActivityObserverDescriptor* a_descriptor,
+			DMUI_PageActivityObserverHandle* a_observer) noexcept;
 		[[nodiscard]] bool Freeze() noexcept;
 		[[nodiscard]] bool IsOpen() const noexcept;
 		[[nodiscard]] bool Empty() const noexcept;
@@ -133,6 +148,9 @@ namespace DearModdingUI
 		[[nodiscard]] DMUI_Result InvokeFrameObserver(
 			DMUI_FrameObserverHandle a_observer) noexcept;
 		void MarkFrameObserverFailed(DMUI_FrameObserverHandle a_observer) noexcept;
+		void NotifyPageActivity(
+			DMUI_PageHandle a_previousPage,
+			DMUI_PageHandle a_activePage) noexcept;
 		void NotifyReady(const DMUI_HostReadyInfo& a_info) noexcept;
 		void NotifyUnavailable(DMUI_UnavailableReason a_reason) noexcept;
 
@@ -158,6 +176,8 @@ namespace DearModdingUI
 		[[nodiscard]] const RegisteredAction* FindAction(DMUI_ActionHandle a_action) const noexcept;
 		[[nodiscard]] RegisteredFrameObserver* FindFrameObserver(
 			DMUI_FrameObserverHandle a_observer) noexcept;
+		[[nodiscard]] RegisteredPageActivityObserver* FindPageActivityObserver(
+			DMUI_PageActivityObserverHandle a_observer) noexcept;
 		[[nodiscard]] bool OwnsPage(
 			DMUI_ClientHandle a_client,
 			DMUI_PageHandle a_page) const noexcept;
@@ -168,11 +188,13 @@ namespace DearModdingUI
 		std::vector<RegisteredPage> m_pages;
 		std::vector<RegisteredAction> m_actions;
 		std::vector<RegisteredFrameObserver> m_frameObservers;
+		std::vector<RegisteredPageActivityObserver> m_pageActivityObservers;
 		NavigationModel m_navigation;
 		DMUI_ClientHandle m_nextClient{ 1 };
 		DMUI_PageHandle m_nextPage{ 1 };
 		DMUI_ActionHandle m_nextAction{ 1 };
 		DMUI_FrameObserverHandle m_nextFrameObserver{ 1 };
+		DMUI_PageActivityObserverHandle m_nextPageActivityObserver{ 1 };
 		std::atomic<size_t> m_activeFrameObserverCount{ 0 };
 		Notification m_notification{ Notification::kNone };
 		bool m_open{ true };

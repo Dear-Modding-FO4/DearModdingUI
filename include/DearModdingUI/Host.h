@@ -28,6 +28,7 @@ namespace DearModdingUI
 	void CloseMenu() noexcept;
 	[[nodiscard]] DMUI_PageHandle SelectedPage() noexcept;
 	void ClearPageSelection(DMUI_PageHandle a_page) noexcept;
+	void SetActivePage(DMUI_PageHandle a_page) noexcept;
 	[[nodiscard]] bool DrawPage(DMUI_PageHandle a_page) noexcept;
 	[[nodiscard]] bool PageFailed(DMUI_PageHandle a_page) noexcept;
 	[[nodiscard]] bool InvokeAction(DMUI_ActionHandle a_action) noexcept;

@@ -85,6 +85,19 @@ namespace DearModdingUI::SettingsTable
 			DMUI_RESULT_OK;
 	}
 
+	[[nodiscard]] constexpr DMUI_Result ValidateRowBeginOptions(
+		const DMUI_SettingsRowBeginOptions* a_options) noexcept
+	{
+		if (!a_options)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		if (a_options->structSize < DMUI_SETTINGS_ROW_BEGIN_OPTIONS_1_0_SIZE)
+			return DMUI_RESULT_STRUCT_TOO_SMALL;
+		return a_options->layout == DMUI_SETTINGS_ROW_LAYOUT_LABEL_VALUE ||
+				a_options->layout == DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN ?
+			DMUI_RESULT_OK :
+			DMUI_RESULT_INVALID_ARGUMENT;
+	}
+
 	[[nodiscard]] constexpr float ResolveResetColumnWidth(
 		bool a_hasGlyph,
 		float a_labelWidth,
@@ -110,6 +123,12 @@ namespace DearModdingUI::SettingsTable
 		bool resetEnabled{ false };
 	};
 
+	enum class RowLayout : uint32_t
+	{
+		kLabelValue,
+		kFullSpan
+	};
+
 	class ClientCallbackGuard
 	{
 	public:
@@ -130,7 +149,8 @@ namespace DearModdingUI::SettingsTable
 		DMUI_ClientHandle a_owner,
 		const char* a_id,
 		const char* a_label,
-		const char* a_description) noexcept;
+		const char* a_description,
+		RowLayout a_layout = RowLayout::kLabelValue) noexcept;
 	[[nodiscard]] DMUI_Result EndRow(
 		DMUI_ClientHandle a_owner,
 		const RowOptions& a_options,

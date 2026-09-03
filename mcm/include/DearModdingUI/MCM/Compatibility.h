@@ -5,11 +5,13 @@
 #include <DearModdingUI/Client.h>
 
 #include <cstddef>
+#include <concepts>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
@@ -75,6 +77,91 @@ namespace DearModdingUI::MCM
 		std::vector<GroupCondition> operands;
 	};
 
+	enum class DeclarationState : uint8_t
+	{
+		kUnknown,
+		kDeclared,
+		kUndeclared
+	};
+
+	struct GlobalBinding
+	{
+		std::string form;
+	};
+
+	struct PropertyBinding
+	{
+		std::string form;
+		std::optional<std::string> scriptName;
+		std::string propertyName;
+	};
+
+	struct ModSettingBinding
+	{
+		std::string section;
+		std::string key;
+		DeclarationState declaration{ DeclarationState::kUnknown };
+	};
+
+	struct ValueArgument
+	{
+		SourceValueKind type{ SourceValueKind::kNone };
+	};
+
+	using ActionArgument = std::variant<
+		bool,
+		int64_t,
+		uint64_t,
+		double,
+		std::string,
+		ValueArgument>;
+
+	struct CallFunctionAction
+	{
+		std::string form;
+		std::optional<std::string> scriptName;
+		std::string function;
+		std::vector<ActionArgument> arguments;
+	};
+
+	struct CallGlobalFunctionAction
+	{
+		std::string script;
+		std::string function;
+		std::vector<ActionArgument> arguments;
+	};
+
+	struct CallExternalFunctionAction
+	{
+		std::string plugin;
+		std::string function;
+		std::vector<ActionArgument> arguments;
+	};
+
+	struct RunConsoleCommandAction
+	{
+		std::string command;
+	};
+
+	struct SendEventAction
+	{
+		std::string event;
+		std::vector<ActionArgument> arguments;
+	};
+
+	using Action = std::variant<
+		CallFunctionAction,
+		CallGlobalFunctionAction,
+		CallExternalFunctionAction,
+		RunConsoleCommandAction,
+		SendEventAction>;
+
+	struct Image
+	{
+		std::string library;
+		std::string symbol;
+	};
+
 	struct ValueOptions
 	{
 		std::optional<SourceType> sourceType;
@@ -103,6 +190,8 @@ namespace DearModdingUI::MCM
 		std::optional<int64_t> groupControl;
 		std::optional<bool> html;
 		std::optional<std::string> alignment;
+		std::optional<Action> action;
+		std::optional<Image> image;
 		size_t sourceIndex{};
 	};
 
@@ -127,11 +216,26 @@ namespace DearModdingUI::MCM
 	struct MappedBinding
 	{
 		std::string descriptorId;
-		SourceType source;
 		dmui::SettingValue target;
-		std::optional<std::string> sourceForm;
-		std::optional<std::string> propertyName;
-		std::optional<std::string> modSettingId;
+		SourceValueKind valueKind{ SourceValueKind::kNone };
+		std::string rawSourceType;
+		std::variant<GlobalBinding, PropertyBinding, ModSettingBinding> source;
+		std::string cacheKey;
+
+		[[nodiscard]] SourceFamily Family() const noexcept
+		{
+			return std::visit(
+				[](const auto& a_source) {
+					using T = std::remove_cvref_t<decltype(a_source)>;
+					if constexpr (std::same_as<T, GlobalBinding>)
+						return SourceFamily::kGlobal;
+					else if constexpr (std::same_as<T, PropertyBinding>)
+						return SourceFamily::kProperty;
+					else
+						return SourceFamily::kModSetting;
+				},
+				source);
+		}
 	};
 
 	struct MappedText
@@ -140,13 +244,40 @@ namespace DearModdingUI::MCM
 		TextPresentation presentation;
 	};
 
+	struct MappedRow
+	{
+		std::string id;
+		bool emitted{};
+		bool unsupported{};
+		std::optional<int64_t> groupControl;
+		std::optional<GroupCondition> groupCondition;
+		std::optional<MappedBinding> binding;
+		std::optional<SourceType> unmappedSource;
+		std::optional<MappedText> text;
+		std::optional<Action> action;
+		std::optional<Image> image;
+	};
+
 	struct MappedPage
 	{
 		std::string id;
 		std::string displayName;
 		dmui::SettingsPage settings;
-		std::vector<MappedBinding> bindings;
-		std::vector<MappedText> texts;
+		std::vector<MappedRow> rows;
+	};
+
+	struct PageCompatibilitySummary
+	{
+		size_t rows{};
+		size_t unsupported{};
+		size_t bindings{};
+		size_t unknownBindings{};
+		size_t undeclaredModSettings{};
+		size_t actions{};
+		size_t images{};
+		size_t pendingConditions{};
+		size_t unevaluableConditions{};
+		size_t visibleRows{};
 	};
 
 	enum class DiagnosticSeverity : uint8_t
@@ -176,4 +307,7 @@ namespace DearModdingUI::MCM
 
 	[[nodiscard]] LoadResult LoadConfig(
 		const std::filesystem::path& a_path) noexcept;
+
+	[[nodiscard]] PageCompatibilitySummary SummarizeCompatibility(
+		const MappedPage& a_page) noexcept;
 }

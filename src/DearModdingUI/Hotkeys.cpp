@@ -213,7 +213,7 @@ namespace DearModdingUI
 			a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_action = DMUI_INVALID_HOTKEY_ACTION_HANDLE;
-		if (a_descriptor->structSize < sizeof(DMUI_HotkeyActionDescriptor))
+		if (a_descriptor->structSize < DMUI_HOTKEY_ACTION_DESCRIPTOR_1_0_SIZE)
 			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->callback)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;

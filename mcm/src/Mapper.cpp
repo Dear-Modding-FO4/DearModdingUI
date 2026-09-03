@@ -2,6 +2,9 @@
 
 #include "Diagnostics.h"
 
+#include <DearModdingUI/MCM/SettingsIni.h>
+#include <DearModdingUI/MCM/ValueSource.h>
+
 #include <algorithm>
 #include <charconv>
 #include <cmath>
@@ -39,6 +42,7 @@ namespace DearModdingUI::MCM::detail
 				separator = true;
 			}
 		}
+
 		return result.empty() ? std::string{ a_fallback } : result;
 	}
 
@@ -150,18 +154,6 @@ namespace DearModdingUI::MCM::detail
 			return static_cast<int64_t>(*a_value);
 		}
 
-		[[nodiscard]] float DragSpeed(
-			const std::optional<double>& a_step) noexcept
-		{
-			if (!a_step ||
-				!std::isfinite(*a_step) ||
-				*a_step <= 0.0 ||
-				*a_step > static_cast<double>(
-					(std::numeric_limits<float>::max)()))
-				return 0.0f;
-			return static_cast<float>(*a_step);
-		}
-
 		[[nodiscard]] bool UsesSignedNumbers(const Control& a_control)
 		{
 			return a_control.valueOptions &&
@@ -227,7 +219,17 @@ namespace DearModdingUI::MCM::detail
 				}
 				if (options.format)
 					mapped.format = *options.format;
-				mapped.dragSpeed = DragSpeed(options.step);
+				if (options.step &&
+					options.minimum &&
+					std::isfinite(*options.step) &&
+					*options.step > 0.0 &&
+					std::isfinite(*options.minimum))
+				{
+					mapped.quantization = dmui::NumericQuantization<double>{
+						*options.step,
+						*options.minimum
+					};
+				}
 				if (options.defaultValue)
 				{
 					if (const auto value = DoubleValue(*options.defaultValue))
@@ -287,7 +289,21 @@ namespace DearModdingUI::MCM::detail
 				}
 				if (options.format)
 					mapped.format = *options.format;
-				mapped.dragSpeed = DragSpeed(options.step);
+				const auto step = SignedBound(options.step);
+				if (step && *step > 0 && minimum)
+				{
+					mapped.quantization = dmui::NumericQuantization<int64_t>{
+						*step,
+						*minimum
+					};
+				}
+				else if (options.step && (!step || *step <= 0))
+				{
+					a_diag.Add(
+						DiagnosticSeverity::kWarning,
+						a_control.location + ".valueOptions.step",
+						"integer setting has a non-integral or out-of-range step");
+				}
 				if (options.defaultValue)
 				{
 					if (const auto value = SignedValue(*options.defaultValue))
@@ -358,7 +374,7 @@ namespace DearModdingUI::MCM::detail
 		[[nodiscard]] dmui::SettingDescriptor MapControl(
 			const Control& a_control,
 			std::string a_id,
-			std::vector<MappedText>& a_texts,
+			MappedRow& a_row,
 			detail::Diagnostics& a_diag)
 		{
 			dmui::SettingDescriptor descriptor;
@@ -379,6 +395,36 @@ namespace DearModdingUI::MCM::detail
 					descriptor,
 					a_diag);
 				break;
+			case ControlType::kHidden:
+			{
+				const auto kind =
+					a_control.valueOptions &&
+						a_control.valueOptions->sourceType ?
+					a_control.valueOptions->sourceType->value :
+					SourceValueKind::kNone;
+				switch (kind)
+				{
+				case SourceValueKind::kBool:
+					descriptor.control = dmui::CheckboxSettingControl{};
+					MapCheckboxDefault(a_control, descriptor, a_diag);
+					break;
+				case SourceValueKind::kInt:
+					MapSignedControl(a_control, descriptor, a_diag);
+					break;
+				case SourceValueKind::kString:
+					descriptor.control = dmui::TextSettingControl{};
+					descriptor.defaultValue = a_control.valueOptions &&
+							a_control.valueOptions->defaultValue ?
+						ScalarText(*a_control.valueOptions->defaultValue) :
+						std::string{};
+					break;
+				case SourceValueKind::kFloat:
+				case SourceValueKind::kNone:
+					MapDoubleControl(a_control, descriptor, a_diag);
+					break;
+				}
+				break;
+			}
 			case ControlType::kSlider:
 				if (UsesSignedNumbers(a_control))
 				{
@@ -426,22 +472,24 @@ namespace DearModdingUI::MCM::detail
 				descriptor.label.clear();
 				descriptor.defaultValue = presentation.text;
 				descriptor.control = dmui::ReadOnlySettingControl{};
-				a_texts.push_back({
+				a_row.text = MappedText{
 					descriptor.id,
 					std::move(presentation)
-				});
+				};
 				descriptor.showReset = false;
-				descriptor.labelMode =
-					dmui::SettingDescriptor::LabelMode::kHidden;
+				descriptor.presentation = {
+					dmui::RowPresentation::LabelMode::kHidden,
+					dmui::RowPresentation::Layout::kFullSpan
+				};
 				break;
 			}
 			case ControlType::kKeymap:
 				descriptor.control = dmui::ReadOnlySettingControl{};
 				descriptor.defaultValue = std::string{ "Managed by MCM" };
-				a_texts.push_back({
+				a_row.text = MappedText{
 					descriptor.id,
 					TextPresentation{ "Managed by MCM" }
-				});
+				};
 				descriptor.showReset = false;
 				break;
 			default:
@@ -453,6 +501,101 @@ namespace DearModdingUI::MCM::detail
 				break;
 			}
 			return descriptor;
+		}
+
+		[[nodiscard]] std::optional<MappedBinding> MapBinding(
+			const Control& a_control,
+			std::string_view a_id,
+			const dmui::SettingValue& a_target,
+			detail::Diagnostics& a_diag)
+		{
+			if (!a_control.valueOptions ||
+				!a_control.valueOptions->sourceType)
+				return std::nullopt;
+			const auto& options = *a_control.valueOptions;
+			const auto& type = *options.sourceType;
+			const auto location = a_control.location + ".valueOptions";
+			switch (type.family)
+			{
+			case SourceFamily::kGlobal:
+			{
+				if (!options.sourceForm || options.sourceForm->empty())
+				{
+					a_diag.Add(
+						DiagnosticSeverity::kError,
+						location + ".sourceForm",
+						"GlobalValue source requires a form identifier");
+					return std::nullopt;
+				}
+				auto result = MappedBinding{
+					std::string{ a_id },
+					a_target,
+					type.value,
+					type.raw,
+					GlobalBinding{ *options.sourceForm }
+				};
+				result.cacheKey = MakeBindingKey(result);
+				return result;
+			}
+			case SourceFamily::kProperty:
+			{
+				if (!options.sourceForm || options.sourceForm->empty() ||
+					!options.propertyName || options.propertyName->empty())
+				{
+					a_diag.Add(
+						DiagnosticSeverity::kError,
+						location,
+						"PropertyValue source requires form and propertyName");
+					return std::nullopt;
+				}
+				auto result = MappedBinding{
+					std::string{ a_id },
+					a_target,
+					type.value,
+					type.raw,
+					PropertyBinding{
+						*options.sourceForm,
+						options.scriptName,
+						*options.propertyName
+					}
+				};
+				result.cacheKey = MakeBindingKey(result);
+				return result;
+			}
+			case SourceFamily::kModSetting:
+			{
+				const auto setting = options.modSettingId ?
+					ParseSettingIdentifier(*options.modSettingId) :
+					std::nullopt;
+				if (!setting)
+				{
+					a_diag.Add(
+						DiagnosticSeverity::kError,
+						a_control.location + ".id",
+						"ModSetting source requires a valid setting id");
+					return std::nullopt;
+				}
+				auto result = MappedBinding{
+					std::string{ a_id },
+					a_target,
+					type.value,
+					type.raw,
+					ModSettingBinding{
+						setting->section,
+						setting->key
+					}
+				};
+				result.cacheKey = MakeBindingKey(result);
+				return result;
+			}
+			case SourceFamily::kUnknown:
+				a_diag.Add(
+					DiagnosticSeverity::kWarning,
+					location + ".sourceType",
+					"unknown setting value source '" + type.raw + "'");
+				return std::nullopt;
+			}
+			return std::nullopt;
 		}
 
 		void DiagnoseUnsupported(
@@ -472,7 +615,6 @@ namespace DearModdingUI::MCM::detail
 			}
 			switch (a_control.type)
 			{
-			case ControlType::kButton:
 			case ControlType::kColor:
 			case ControlType::kImage:
 				a_diag.Add(
@@ -536,8 +678,7 @@ namespace DearModdingUI::MCM::detail
 					}
 					continue;
 				}
-				if (control.type == ControlType::kSpacing ||
-					control.type == ControlType::kHidden)
+				if (control.type == ControlType::kSpacing)
 					continue;
 
 				if (!currentGroup)
@@ -551,25 +692,78 @@ namespace DearModdingUI::MCM::detail
 					descriptorIds,
 					"setting",
 					control.location);
+				MappedRow row;
+				row.id = id;
+				row.emitted = control.type != ControlType::kHidden &&
+					control.type != ControlType::kImage;
+				row.unsupported = control.type == ControlType::kImage;
+				row.groupControl = control.groupControl;
+				row.groupCondition = control.groupCondition;
+				row.action = control.action;
+				row.image = control.image;
+				if (control.type == ControlType::kImage)
+				{
+					mapped.rows.push_back(std::move(row));
+					DiagnoseUnsupported(control, a_diag);
+					continue;
+				}
+				if (control.type == ControlType::kButton)
+				{
+					auto label = control.text.empty() ?
+						(control.id.empty() ? "Action" : control.id) :
+						control.text;
+					auto description = control.help;
+					if (!control.action)
+					{
+						if (!description.empty())
+							description.push_back('\n');
+						description += "This button has no action.";
+					}
+					auto& group = mapped.settings.groups[*currentGroup];
+					dmui::SettingsActionRow action;
+					action.id = id;
+					action.buttonLabel = std::move(label);
+					action.description = std::move(description);
+					if (!control.action)
+						action.isEnabled = [] { return false; };
+					action.presentation = {
+						dmui::RowPresentation::LabelMode::kHidden,
+						dmui::RowPresentation::Layout::kFullSpan
+					};
+					group.actionRows.push_back(std::move(action));
+					group.rows.emplace_back(
+						dmui::SettingGroup::ActionIndex{
+							group.actionRows.size() - 1
+						});
+					mapped.rows.push_back(std::move(row));
+					++descriptorCount;
+					continue;
+				}
 				auto descriptor = MapControl(
 					control,
 					id,
-					mapped.texts,
+					row,
 					a_diag);
-				if (control.valueOptions && control.valueOptions->sourceType)
-				{
-					const auto& options = *control.valueOptions;
-					mapped.bindings.push_back({
-						id,
-						*options.sourceType,
-						descriptor.defaultValue,
-						options.sourceForm,
-						options.propertyName,
-						options.modSettingId
+				row.unsupported =
+					std::holds_alternative<dmui::UnsupportedSettingControl>(
+						descriptor.control);
+				row.binding = MapBinding(
+					control,
+					id,
+					descriptor.defaultValue,
+					a_diag);
+				if (!row.binding && control.valueOptions &&
+					control.valueOptions->sourceType)
+					row.unmappedSource = control.valueOptions->sourceType;
+				mapped.rows.push_back(std::move(row));
+				if (control.type == ControlType::kHidden)
+					continue;
+				auto& group = mapped.settings.groups[*currentGroup];
+				group.settings.push_back(std::move(descriptor));
+				group.rows.emplace_back(
+					dmui::SettingGroup::SettingIndex{
+						group.settings.size() - 1
 					});
-				}
-				mapped.settings.groups[*currentGroup].settings.push_back(
-					std::move(descriptor));
 				++descriptorCount;
 
 				DiagnoseUnsupported(

@@ -172,6 +172,53 @@ namespace vmm_tests
 				"unlabeled row changed the ImGui stack");
 		});
 
+		runner.test("full-span settings row uses the complete table width", [] {
+			constexpr DMUI_ClientHandle owner{ 7 };
+			ImGuiTestFrame frame;
+			float rowWidth{};
+			float valueColumnWidth{};
+			{
+				const SettingsTable::ClientCallbackGuard guard{ owner };
+				const auto table = SettingsTable::Begin(owner, "settings");
+				require(table.result == DMUI_RESULT_OK && table.visible,
+					"settings table did not begin");
+				const auto row = SettingsTable::BeginRow(
+					owner,
+					"prose",
+					"",
+					"",
+					SettingsTable::RowLayout::kFullSpan);
+				require(row.result == DMUI_RESULT_OK && row.visible,
+					"full-span settings row did not begin");
+				rowWidth = ImGui::GetCurrentTable()->OuterRect.GetWidth();
+				ImGui::TextWrapped("Full-width prose");
+				bool resetPressed{};
+				require(SettingsTable::EndRow(
+							owner, { false, false }, resetPressed) ==
+						DMUI_RESULT_OK,
+					"full-span settings row did not end");
+
+				const auto comparison = SettingsTable::BeginRow(
+					owner, "value", "", "");
+				require(comparison.result == DMUI_RESULT_OK && comparison.visible,
+					"value-column settings row did not begin");
+				valueColumnWidth = ImGui::GetCurrentTable()->OuterRect.GetWidth();
+				ImGui::TextUnformatted("Value");
+				require(SettingsTable::EndRow(
+							owner, { false, false }, resetPressed) ==
+						DMUI_RESULT_OK,
+					"value-column settings row did not end");
+				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
+					"settings table did not end");
+			}
+			require(rowWidth > valueColumnWidth * 1.8f,
+				"full-span row remained constrained to the value column (" +
+					std::to_string(rowWidth) + " vs " +
+					std::to_string(valueColumnWidth) + ")");
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"full-span row changed the ImGui stack");
+		});
+
 		runner.test("settings row survives ImGui table pool growth", [] {
 			constexpr DMUI_ClientHandle owner{ 7 };
 			ImGuiTestFrame frame;

@@ -4,6 +4,7 @@
 
 #include <RE/T/TESGlobal.h>
 
+#include <mutex>
 #include <string>
 #include <unordered_map>
 
@@ -15,12 +16,13 @@ namespace DearModdingUI::MCM
 		[[nodiscard]] bool Supports(
 			SourceFamily a_family) const noexcept override;
 
-		[[nodiscard]] std::optional<dmui::SettingValue> Read(
+		[[nodiscard]] ValueSnapshot Read(
 			const MappedBinding& a_binding) const noexcept override;
 
-		void Refresh(const MappedBinding& a_binding) noexcept override;
+		[[nodiscard]] uint64_t Refresh(
+			const MappedBinding& a_binding) noexcept override;
 
-		[[nodiscard]] bool Write(
+		[[nodiscard]] ValueSnapshot Write(
 			const MappedBinding& a_binding,
 			const dmui::SettingValue& a_value) noexcept override;
 
@@ -28,6 +30,16 @@ namespace DearModdingUI::MCM
 		[[nodiscard]] RE::TESGlobal* Find(
 			const MappedBinding& a_binding) const noexcept;
 
-		std::unordered_map<std::string, RE::TESGlobal*> globals_;
+		struct Entry
+		{
+			RE::TESGlobal* global{};
+			uint64_t generation{};
+		};
+
+		[[nodiscard]] const GlobalBinding* Global(
+			const MappedBinding& a_binding) const noexcept;
+
+		mutable std::mutex mutex_;
+		std::unordered_map<std::string, Entry> globals_;
 	};
 }

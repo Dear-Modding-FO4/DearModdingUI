@@ -17,8 +17,8 @@ version is unsupported. Discovery may succeed before the host plugin initializes
 registration then return `DMUI_RESULT_HOST_NOT_INITIALIZED`. Export presence does not mean the
 renderer is ready: register at `kPostPostLoad` and wait for exactly one lifecycle callback.
 
-Client, page, action, hotkey-action, and frame-observer registration closes when the first valid active-swapchain
-`Present` begins host initialization. Register them immediately after the client. All descriptor strings are copied;
+Client, page, action, hotkey-action, frame-observer, and page-activity-observer registration closes when the first valid
+active-swapchain `Present` begins host initialization. Register them immediately after the client. All descriptor strings are copied;
 callback and userdata pointers must remain valid for the process lifetime. IDs use ASCII letters,
 digits, `.`, `_`, and `-`. Client IDs are process-wide; page and action IDs are unique within their client.
 The optional client `iconName` is a Phosphor slug copied at registration; an unknown or null value
@@ -93,13 +93,30 @@ NUL-terminated, truncates edited output to `capacity - 1`, and reports whether t
 through the fixed-width output flag. The C++ wrapper marshals this contract to `std::string&` and
 returns sizing results through `std::optional<float>`.
 
-`beginSettingsTable`, `beginSettingsRow`, `endSettingsRow`, and `endSettingsTable` form the
+`beginSettingsTable`, `beginSettingsRow`, `beginSettingsRowEx`, `endSettingsRow`, and `endSettingsTable` form the
 host-owned label/value geometry bracket for settings pages. Both begin calls report clipping through
 their `visible` output: call the matching end only when `visible` is nonzero. Each row has a stable
 caller-supplied ID, a label, and an optional description; the host copies the text, draws the label
 column, opens the value cell, reserves the reset column from live font/style metrics, and draws Reset
 through the shared settings-action treatment. `DMUI_SettingsRowOptions` controls reset visibility and
 enabled state and must provide at least `DMUI_SETTINGS_ROW_OPTIONS_1_0_SIZE`.
+The appended `beginSettingsRowEx` accepts a caller-sized `DMUI_SettingsRowBeginOptions`. Its
+`DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN` layout gives the row content both table columns at begin time;
+`DMUI_SETTINGS_ROW_LAYOUT_LABEL_VALUE` preserves the original geometry. The C++ `RowPresentation`
+keeps label visibility and row layout independent. It prefers the extended entry when available and
+falls back to `beginSettingsRow`, so a full-span request remains usable in the older value column.
+
+`SettingsActionRow` is the inline, non-setting counterpart to `SettingDescriptor`. Groups retain
+settings and actions separately and use `SettingGroup::rows` when their source order must be
+preserved. Action rows share `RowPresentation`, visibility, enabled state, filtering, descriptions,
+and the host settings-table geometry without acquiring defaults, bindings, dirty state, or reset
+semantics. They use the forwarded ordinary ImGui button primitive; `drawSettingsActionButton` is
+reserved for the fixed Reset, Revert, and Apply actions and cannot represent arbitrary labels.
+
+`NumericSettingControl<T>::quantization` carries both an interval and an origin. Accepted edits use
+`origin + round((value - origin) / interval) * interval`, then the setting binding returns the
+effective stored value. `dragSpeed` remains an interaction-speed setting and does not encode storage
+quantization.
 
 The bracket is valid only on the render thread during that client's page callback. Settings brackets
 cannot nest or reenter, and a row cannot begin without an open settings table. Calls outside the active
@@ -165,6 +182,16 @@ regardless of menu visibility. Registration is permanent for the process lifetim
 contains C++ and Windows structured exceptions, recovers shared ImGui state, and permanently disables a
 faulting observer. The C++ wrapper stores capturing callables in stable storage and returns the observer
 handle from `AddFrameObserver`.
+
+The appended `registerPageActivityObserver` entry reports client-scoped settings-page activity.
+Entering the first page owned by a client produces `DMUI_PAGE_ACTIVITY_ACTIVATED`, switching between
+that client's pages produces `DMUI_PAGE_ACTIVITY_CHANGED`, and leaving the client or closing the menu
+produces `DMUI_PAGE_ACTIVITY_DEACTIVATED`. The event carries previous and active page handles, using
+the invalid page handle only across a client boundary. This lets a client implement one menu-open and
+one menu-close notification without inferring deselection from missing draw calls. Callbacks run on
+the render thread inside the shell draw. Registration lasts for the process lifetime in DMUI v1 and
+has no unregister counterpart. The C++ wrapper stores callbacks in stable storage and exposes
+`AddPageActivityObserver`.
 
 The optional `queryVideoMemory` entry returns current local-segment usage and budget in bytes from the
 adapter retained from the active swapchain. A non-OK result means no authoritative information is

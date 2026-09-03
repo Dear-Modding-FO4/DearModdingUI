@@ -113,6 +113,22 @@ namespace DearModdingUI
 			}
 		}
 
+		[[nodiscard]] bool InvokePageActivityCpp(
+			DMUI_PageActivityCallback a_callback,
+			const DMUI_PageActivityInfo* a_info,
+			void* a_userData) noexcept
+		{
+			try
+			{
+				a_callback(a_info, a_userData);
+				return true;
+			}
+			catch (...)
+			{
+				return false;
+			}
+		}
+
 		[[nodiscard]] bool InvokeReady(
 			DMUI_HostReadyCallback a_callback,
 			const DMUI_HostReadyInfo* a_info,
@@ -166,6 +182,25 @@ namespace DearModdingUI
 			}
 #else
 			return InvokeDrawCpp(a_callback, a_userData);
+#endif
+		}
+
+		[[nodiscard]] bool InvokePageActivity(
+			DMUI_PageActivityCallback a_callback,
+			const DMUI_PageActivityInfo* a_info,
+			void* a_userData) noexcept
+		{
+#if defined(_MSC_VER)
+			__try
+			{
+				return InvokePageActivityCpp(a_callback, a_info, a_userData);
+			}
+			__except (1)
+			{
+				return false;
+			}
+#else
+			return InvokePageActivityCpp(a_callback, a_info, a_userData);
 #endif
 		}
 	}
@@ -250,7 +285,7 @@ namespace DearModdingUI
 		if (!a_descriptor || !a_page || a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_page = DMUI_INVALID_PAGE_HANDLE;
-		if (a_descriptor->structSize < sizeof(DMUI_PageDescriptor))
+		if (a_descriptor->structSize < DMUI_PAGE_DESCRIPTOR_1_0_SIZE)
 			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->draw)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
@@ -311,7 +346,7 @@ namespace DearModdingUI
 		if (!a_descriptor || !a_action || a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_action = DMUI_INVALID_ACTION_HANDLE;
-		if (a_descriptor->structSize < sizeof(DMUI_ActionDescriptor))
+		if (a_descriptor->structSize < DMUI_ACTION_DESCRIPTOR_1_0_SIZE)
 			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->callback)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
@@ -380,7 +415,7 @@ namespace DearModdingUI
 		if (!a_descriptor || !a_observer || a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_observer = DMUI_INVALID_FRAME_OBSERVER_HANDLE;
-		if (a_descriptor->structSize < sizeof(DMUI_FrameObserverDescriptor))
+		if (a_descriptor->structSize < DMUI_FRAME_OBSERVER_DESCRIPTOR_1_0_SIZE)
 			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->callback)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
@@ -403,6 +438,49 @@ namespace DearModdingUI
 			observer.handle = m_nextFrameObserver++;
 			m_frameObservers.push_back(observer);
 			m_activeFrameObserverCount.fetch_add(1, std::memory_order_release);
+			*a_observer = observer.handle;
+			return DMUI_RESULT_OK;
+		}
+		catch (...)
+		{
+			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		}
+	}
+
+	DMUI_Result Registry::RegisterPageActivityObserver(
+		DMUI_ClientHandle a_client,
+		const DMUI_PageActivityObserverDescriptor* a_descriptor,
+		DMUI_PageActivityObserverHandle* a_observer) noexcept
+	{
+		if (!a_descriptor ||
+			!a_observer ||
+			a_client == DMUI_INVALID_CLIENT_HANDLE)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		*a_observer = DMUI_INVALID_PAGE_ACTIVITY_OBSERVER_HANDLE;
+		if (a_descriptor->structSize <
+			DMUI_PAGE_ACTIVITY_OBSERVER_DESCRIPTOR_1_0_SIZE)
+			return DMUI_RESULT_STRUCT_TOO_SMALL;
+		if (!a_descriptor->callback)
+			return DMUI_RESULT_INVALID_DESCRIPTOR;
+
+		try
+		{
+			RegisteredPageActivityObserver observer{};
+			observer.client = a_client;
+			observer.callback = a_descriptor->callback;
+			observer.userData = a_descriptor->userData;
+
+			const std::scoped_lock lock{ m_mutex };
+			if (!m_open)
+				return DMUI_RESULT_REGISTRATION_CLOSED;
+			if (!FindClient(a_client))
+				return DMUI_RESULT_CLIENT_NOT_FOUND;
+			if (m_nextPageActivityObserver ==
+				DMUI_INVALID_PAGE_ACTIVITY_OBSERVER_HANDLE)
+				return DMUI_RESULT_RESOURCE_EXHAUSTED;
+
+			observer.handle = m_nextPageActivityObserver++;
+			m_pageActivityObservers.push_back(observer);
 			*a_observer = observer.handle;
 			return DMUI_RESULT_OK;
 		}
@@ -724,6 +802,89 @@ namespace DearModdingUI
 		m_activeFrameObserverCount.fetch_sub(1, std::memory_order_release);
 	}
 
+	void Registry::NotifyPageActivity(
+		DMUI_PageHandle a_previousPage,
+		DMUI_PageHandle a_activePage) noexcept
+	{
+		if (a_previousPage == a_activePage)
+			return;
+
+		DMUI_ClientHandle previousClient{ DMUI_INVALID_CLIENT_HANDLE };
+		DMUI_ClientHandle activeClient{ DMUI_INVALID_CLIENT_HANDLE };
+		{
+			const std::scoped_lock lock{ m_mutex };
+			if (const auto* page = FindPage(a_previousPage))
+				previousClient = page->client;
+			if (const auto* page = FindPage(a_activePage))
+				activeClient = page->client;
+		}
+
+		const auto notify = [&](
+			DMUI_ClientHandle a_client,
+			DMUI_PageActivityKind a_kind,
+			DMUI_PageHandle a_previous,
+			DMUI_PageHandle a_active) {
+			const DMUI_PageActivityInfo info{
+				sizeof(DMUI_PageActivityInfo),
+				a_kind,
+				a_previous,
+				a_active
+			};
+			for (size_t index = 0;; ++index)
+			{
+				DMUI_PageActivityObserverHandle handle{
+					DMUI_INVALID_PAGE_ACTIVITY_OBSERVER_HANDLE
+				};
+				DMUI_PageActivityCallback callback{ nullptr };
+				void* userData{ nullptr };
+				{
+					const std::scoped_lock lock{ m_mutex };
+					if (index >= m_pageActivityObservers.size())
+						break;
+					const auto& observer = m_pageActivityObservers[index];
+					if (observer.client != a_client ||
+						observer.callbackFailed)
+						continue;
+					handle = observer.handle;
+					callback = observer.callback;
+					userData = observer.userData;
+				}
+				if (InvokePageActivity(callback, &info, userData))
+					continue;
+				const std::scoped_lock lock{ m_mutex };
+				if (auto* observer = FindPageActivityObserver(handle))
+					observer->callbackFailed = true;
+			}
+		};
+
+		if (previousClient != DMUI_INVALID_CLIENT_HANDLE &&
+			previousClient == activeClient)
+		{
+			notify(
+				previousClient,
+				DMUI_PAGE_ACTIVITY_CHANGED,
+				a_previousPage,
+				a_activePage);
+			return;
+		}
+		if (previousClient != DMUI_INVALID_CLIENT_HANDLE)
+		{
+			notify(
+				previousClient,
+				DMUI_PAGE_ACTIVITY_DEACTIVATED,
+				a_previousPage,
+				DMUI_INVALID_PAGE_HANDLE);
+		}
+		if (activeClient != DMUI_INVALID_CLIENT_HANDLE)
+		{
+			notify(
+				activeClient,
+				DMUI_PAGE_ACTIVITY_ACTIVATED,
+				DMUI_INVALID_PAGE_HANDLE,
+				a_activePage);
+		}
+	}
+
 	void Registry::NotifyReady(const DMUI_HostReadyInfo& a_info) noexcept
 	{
 		{
@@ -773,6 +934,11 @@ namespace DearModdingUI
 						observer.callbackFailed = true;
 						m_activeFrameObserverCount.fetch_sub(1, std::memory_order_release);
 					}
+				}
+				for (auto& observer : m_pageActivityObservers)
+				{
+					if (observer.client == handle)
+						observer.callbackFailed = true;
 				}
 			}
 		}
@@ -931,6 +1097,17 @@ namespace DearModdingUI
 				return a_existing.handle == a_observer;
 			});
 		return found != m_frameObservers.end() ? &*found : nullptr;
+	}
+
+	RegisteredPageActivityObserver* Registry::FindPageActivityObserver(
+		DMUI_PageActivityObserverHandle a_observer) noexcept
+	{
+		const auto found = std::ranges::find_if(
+			m_pageActivityObservers,
+			[&](const auto& a_existing) {
+				return a_existing.handle == a_observer;
+			});
+		return found != m_pageActivityObservers.end() ? &*found : nullptr;
 	}
 
 	bool Registry::OwnsPage(

@@ -27,6 +27,22 @@ namespace vmm_tests
 			]
 		})json";
 
+		constexpr std::string_view kMixedSourceConfig = R"json({
+			"modName":"MixedSourceFixture",
+			"displayName":"Mixed Source Fixture",
+			"pages":[{
+				"id":"workshop",
+				"pageDisplayName":"Workshop",
+				"content":[
+					{"id":"fGlobalRange","text":"Global range","type":"slider",
+					 "valueOptions":{"sourceType":"GlobalValue",
+					 "sourceForm":"Fixture.esp|801","min":0,"max":10,"default":1}},
+					{"id":"bStoredOption:Main","text":"Stored option","type":"switcher",
+					 "valueOptions":{"sourceType":"ModSettingBool","default":false}}
+				]
+			}]
+		})json";
+
 		class FakeValueSource final : public ValueSource
 		{
 		public:
@@ -40,30 +56,37 @@ namespace vmm_tests
 				return a_family == supported_;
 			}
 
-			[[nodiscard]] std::optional<dmui::SettingValue> Read(
+			[[nodiscard]] ValueSnapshot Read(
 				const MappedBinding& a_binding) const override
 			{
 				++reads;
+				if (forced)
+					return *forced;
 				const auto entry = values_.find(a_binding.descriptorId);
 				return entry == values_.end() ?
-					std::nullopt :
-					std::optional{ entry->second };
+					ValueSnapshot{ MissingValue{ generation } } :
+					ValueSnapshot{ ReadyValue{ entry->second, generation } };
 			}
 
-			void Refresh(const MappedBinding&) override
+			[[nodiscard]] uint64_t Refresh(const MappedBinding&) override
 			{
 				++refreshes;
+				return ++generation;
 			}
 
-			[[nodiscard]] bool Write(
+			[[nodiscard]] ValueSnapshot Write(
 				const MappedBinding& a_binding,
 				const dmui::SettingValue& a_value) override
 			{
 				++writes;
 				if (readOnly)
-					return false;
-				values_[a_binding.descriptorId] = a_value;
-				return true;
+					return Read(a_binding);
+				auto effective = a_value;
+				if (quantized)
+					effective = 2.0;
+				values_[a_binding.descriptorId] = effective;
+				++generation;
+				return ReadyValue{ std::move(effective), generation };
 			}
 
 			void Seed(std::string a_id, dmui::SettingValue a_value)
@@ -75,6 +98,9 @@ namespace vmm_tests
 			size_t refreshes{};
 			size_t writes{};
 			bool readOnly{};
+			bool quantized{};
+			uint64_t generation{};
+			std::optional<ValueSnapshot> forced;
 
 		private:
 			SourceFamily supported_;
@@ -170,6 +196,10 @@ namespace vmm_tests
 			require(!std::get<bool>(
 						BoundSetting(page, "bGlobalSwitch:Main").binding.get()),
 				"a mistyped source value was not replaced by the default");
+			require(!BoundSetting(
+						page,
+						"bGlobalSwitch:Main").isEnabled(),
+				"a mistyped source value did not mark the row unavailable");
 			require(std::get<double>(
 						BoundSetting(page, "fGlobalSlider:Main").binding.get()) ==
 					1.0,
@@ -189,6 +219,110 @@ namespace vmm_tests
 				"a rejected write did not report the effective value");
 			require(source.writes == 1,
 				"the rejected write never reached the source");
+		});
+
+		runner.test(
+			"MCM mixed global and modsetting page is fully operable",
+			[] {
+				auto result = ParseConfig(
+					kMixedSourceConfig,
+					"mixed-source-config.json");
+				require(result.pages.size() == 1,
+					"mixed-source fixture did not map one page");
+				auto page = std::move(result.pages.front());
+				FakeValueSource globals{ SourceFamily::kGlobal };
+				FakeValueSource settings{ SourceFamily::kModSetting };
+				globals.Seed("fGlobalRange", 4.0);
+				settings.Seed("bStoredOption:Main", true);
+				CompositeValueSource source;
+				source.Add(globals);
+				source.Add(settings);
+				BindPage(page, source);
+
+				auto& global = BoundSetting(page, "fGlobalRange");
+				auto& modSetting = BoundSetting(page, "bStoredOption:Main");
+				require((!global.isEnabled || global.isEnabled()) &&
+						std::get<double>(global.binding.get()) == 4.0,
+					"supported global control was not operable");
+				require(modSetting.isEnabled && modSetting.isEnabled() &&
+						std::get<bool>(modSetting.binding.get()),
+					"supported modsetting control was not operable");
+			});
+
+		runner.test("MCM writes report the effective quantized value", [] {
+			auto page = LoadBindingPage();
+			FakeValueSource source{ SourceFamily::kGlobal };
+			source.Seed("fGlobalSlider:Main", 1.0);
+			source.quantized = true;
+			BindPage(page, source);
+
+			const auto applied = BoundSetting(
+				page,
+				"fGlobalSlider:Main").binding.set(dmui::SettingValue{ 8.0 });
+			require(std::get<double>(applied) == 2.0 &&
+					source.generation == 1,
+				"effective quantized value or generation was lost");
+		});
+
+		runner.test("MCM pending values stay drawable and disable their row", [] {
+			auto page = LoadBindingPage();
+			FakeValueSource source{ SourceFamily::kGlobal };
+			source.forced = PendingValue{ 17 };
+			BindPage(page, source);
+
+			auto& setting = BoundSetting(page, "bGlobalSwitch:Main");
+			require(!std::get<bool>(setting.binding.get()) &&
+					setting.isEnabled && !setting.isEnabled(),
+				"pending state was not mapped to a disabled drawable fallback");
+			require(Generation(*source.forced) == 17,
+				"pending request generation was lost");
+		});
+
+		runner.test("MCM hidden controls drive visibility from snapshots", [] {
+			auto result = ParseConfig(R"json({
+				"modName":"ConditionFixture",
+				"content":[
+					{"id":"bController:Main","type":"hiddenSwitcher","groupControl":7,
+					 "valueOptions":{"sourceType":"ModSettingBool","default":false}},
+					{"id":"dependent","type":"text","text":"Dependent","groupCondition":7}
+				]
+			})json", "condition-fixture.json");
+			auto page = std::move(result.pages.front());
+			FakeValueSource source{ SourceFamily::kModSetting };
+			source.Seed("bController:Main", true);
+			BindPage(page, source);
+
+			auto& dependent = BoundSetting(page, "dependent");
+			require(dependent.isVisible && dependent.isVisible(),
+				"a ready hidden controller did not reveal its dependent");
+			source.forced = PendingValue{ 3 };
+			require(!dependent.isVisible(),
+				"a pending hidden controller used its false default");
+			require(source.refreshes == 0,
+				"visibility evaluation dispatched a refresh");
+		});
+
+		runner.test("MCM inert undeclared toggles stay disabled with a reason", [] {
+			auto page = LoadBindingPage();
+			auto& binding = *std::ranges::find_if(
+				page.rows,
+				[](const MappedRow& a_row) {
+					return a_row.binding &&
+						a_row.binding->Family() == SourceFamily::kModSetting;
+				})->binding;
+			std::get<ModSettingBinding>(binding.source).declaration =
+				DeclarationState::kUndeclared;
+			FakeValueSource source{ SourceFamily::kModSetting };
+			source.Seed(binding.descriptorId, false);
+			BindPage(page, source);
+
+			auto& setting = BoundSetting(page, binding.descriptorId);
+			require(setting.isEnabled && !setting.isEnabled(),
+				"an undeclared setting stayed enabled");
+			(void)setting.binding.set(dmui::SettingValue{ true });
+			require(source.writes == 0 &&
+					setting.description.find("not declared") != std::string::npos,
+				"an inert undeclared toggle became local or lacked a reason");
 		});
 	}
 }

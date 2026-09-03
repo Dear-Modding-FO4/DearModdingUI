@@ -6,8 +6,11 @@ namespace DearModdingUI::MCM
 {
 	inline void AttachTextRendering(MappedPage& a_page)
 	{
-		for (const auto& mapped : a_page.texts)
+		for (const auto& row : a_page.rows)
 		{
+			if (!row.text)
+				continue;
+			const auto& mapped = *row.text;
 			dmui::SettingDescriptor* descriptor{};
 			for (auto& group : a_page.settings.groups)
 			{

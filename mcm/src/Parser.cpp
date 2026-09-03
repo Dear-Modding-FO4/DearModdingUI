@@ -1,4 +1,5 @@
 #include <DearModdingUI/MCM/Compatibility.h>
+#include <DearModdingUI/MCM/JsonNormalization.h>
 
 #include "Diagnostics.h"
 #include "Mapper.h"
@@ -6,6 +7,7 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <charconv>
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -268,6 +270,195 @@ namespace DearModdingUI::MCM
 					DiagnosticSeverity::kError,
 					std::move(a_location),
 					"expected a scalar JSON value");
+				return std::nullopt;
+			}
+
+			[[nodiscard]] std::optional<ActionArgument> ReadActionArgument(
+				const Json& a_value,
+				std::string a_location)
+			{
+				if (!a_value.is_string())
+				{
+					auto scalar = ReadScalar(a_value, std::move(a_location));
+					if (!scalar)
+						return std::nullopt;
+					return std::visit(
+						[](auto a_scalar) -> ActionArgument {
+							return std::move(a_scalar);
+						},
+						std::move(*scalar));
+				}
+
+				auto value = a_value.get<std::string>();
+				auto type = SourceValueKind::kNone;
+				if (value.size() >= 3 && value.front() == '{' &&
+					value[2] == '}')
+				{
+					switch (value[1])
+					{
+					case 'i':
+						type = SourceValueKind::kInt;
+						break;
+					case 'f':
+						type = SourceValueKind::kFloat;
+						break;
+					case 'b':
+						type = SourceValueKind::kBool;
+						break;
+					case 's':
+						type = SourceValueKind::kString;
+						break;
+					default:
+						break;
+					}
+					if (type != SourceValueKind::kNone)
+						value.erase(0, 3);
+				}
+				if (value == "{value}")
+					return ActionArgument{ ValueArgument{ type } };
+				switch (type)
+				{
+				case SourceValueKind::kInt:
+				{
+					int64_t parsed{};
+					const auto converted = std::from_chars(
+						value.data(),
+						value.data() + value.size(),
+						parsed);
+					if (converted.ec == std::errc{} &&
+						converted.ptr == value.data() + value.size())
+						return ActionArgument{ parsed };
+					break;
+				}
+				case SourceValueKind::kFloat:
+				{
+					double parsed{};
+					const auto converted = std::from_chars(
+						value.data(),
+						value.data() + value.size(),
+						parsed);
+					if (converted.ec == std::errc{} &&
+						converted.ptr == value.data() + value.size())
+						return ActionArgument{ parsed };
+					break;
+				}
+				case SourceValueKind::kBool:
+					if (value == "true")
+						return ActionArgument{ true };
+					if (value == "false")
+						return ActionArgument{ false };
+					break;
+				case SourceValueKind::kString:
+					return ActionArgument{ std::move(value) };
+				case SourceValueKind::kNone:
+					return ActionArgument{ std::move(value) };
+				}
+				Diagnose(
+					DiagnosticSeverity::kWarning,
+					std::move(a_location),
+					"invalid typed action argument");
+				return std::nullopt;
+			}
+
+			[[nodiscard]] std::vector<ActionArgument> ReadActionArguments(
+				const Json& a_action,
+				const std::string& a_location)
+			{
+				std::vector<ActionArgument> result;
+				const auto params = a_action.find("params");
+				if (params == a_action.end())
+					return result;
+				if (!params->is_array())
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						a_location + ".params",
+						"expected an array");
+					return result;
+				}
+				for (size_t index = 0; index < params->size(); ++index)
+				{
+					if (auto argument = ReadActionArgument(
+							(*params)[index],
+							a_location + ".params[" +
+								std::to_string(index) + "]"))
+						result.push_back(std::move(*argument));
+				}
+				return result;
+			}
+
+			[[nodiscard]] std::optional<Action> ReadAction(
+				const Json& a_action,
+				const std::string& a_location)
+			{
+				if (!a_action.is_object())
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						a_location,
+						"expected an action object");
+					return std::nullopt;
+				}
+				const auto type = ReadString(a_action, "type", a_location, true);
+				if (!type)
+					return std::nullopt;
+				auto arguments = ReadActionArguments(a_action, a_location);
+				if (*type == "CallFunction")
+				{
+					return Action{ CallFunctionAction{
+						ReadString(a_action, "form", a_location, true)
+							.value_or(std::string{}),
+						ReadString(a_action, "scriptName", a_location),
+						ReadString(a_action, "function", a_location, true)
+							.value_or(std::string{}),
+						std::move(arguments)
+					} };
+				}
+				if (*type == "CallGlobalFunction")
+				{
+					return Action{ CallGlobalFunctionAction{
+						ReadString(a_action, "script", a_location, true)
+							.value_or(std::string{}),
+						ReadString(a_action, "function", a_location, true)
+							.value_or(std::string{}),
+						std::move(arguments)
+					} };
+				}
+				if (*type == "CallExternalFunction")
+				{
+					return Action{ CallExternalFunctionAction{
+						ReadString(a_action, "plugin", a_location, true)
+							.value_or(std::string{}),
+						ReadString(a_action, "function", a_location, true)
+							.value_or(std::string{}),
+						std::move(arguments)
+					} };
+				}
+				if (*type == "RunConsoleCommand")
+				{
+					return Action{ RunConsoleCommandAction{
+						ReadString(a_action, "command", a_location, true)
+							.value_or(std::string{})
+					} };
+				}
+				if (*type == "SendEvent")
+				{
+					auto event = ReadString(a_action, "event", a_location);
+					if (!event)
+						event = ReadString(
+							a_action,
+							"eventName",
+							a_location,
+							true);
+					return Action{ SendEventAction{
+						event.value_or(std::string{}),
+						std::move(arguments)
+					} };
+				}
+				Diagnose(
+					DiagnosticSeverity::kWarning,
+					a_location + ".type",
+					"unknown MCM action type '" + *type + "'");
 				return std::nullopt;
 			}
 
@@ -550,6 +741,23 @@ namespace DearModdingUI::MCM
 					ReadInteger(a_value, "groupControl", a_location);
 				control.html = ReadBoolean(a_value, "html", a_location);
 				control.alignment = ReadString(a_value, "align", a_location);
+				if (const auto action = a_value.find("action");
+					action != a_value.end())
+					control.action = ReadAction(*action, a_location + ".action");
+				if (control.type == ControlType::kImage)
+				{
+					const auto library =
+						ReadString(a_value, "libName", a_location);
+					const auto symbol =
+						ReadString(a_value, "className", a_location);
+					if (library && symbol)
+					{
+						control.image = Image{
+							*library,
+							*symbol
+						};
+					}
+				}
 
 				const auto valueOptions = a_value.find("valueOptions");
 				if (valueOptions == a_value.end())
@@ -750,12 +958,17 @@ namespace DearModdingUI::MCM
 		{
 			if (!a_source.empty())
 				source.assign(a_source);
+			const auto normalized = NormalizeJson(
+				a_json,
+				JsonNormalizationOptions{
+					.invalidEscapePassThrough = true
+				});
 			const auto document = Json::parse(
-				a_json.begin(),
-				a_json.end(),
+				normalized.begin(),
+				normalized.end(),
 				nullptr,
 				true,
-				true);
+				false);
 			ConfigReader reader{ source, result };
 			reader.Read(document);
 			if (result.configuration)
