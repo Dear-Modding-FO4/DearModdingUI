@@ -107,8 +107,6 @@ namespace DearModdingUI::MCM
 		virtual void SettingChanged(
 			std::string_view a_modName,
 			std::string_view a_controlId) noexcept = 0;
-		virtual void MenuOpened() noexcept = 0;
-		virtual void MenuClosed() noexcept = 0;
 	};
 
 	void NotifyAcceptedModSettingWrite(

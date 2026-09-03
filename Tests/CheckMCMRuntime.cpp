@@ -1,9 +1,11 @@
 #include <DearModdingUI/MCM/SettingsIni.h>
+#include <DearModdingUI/MCM/ExternalEvents.h>
 #include <DearModdingUI/MCM/ValueSource.h>
 
 #include "Harness.h"
 
 #include <algorithm>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -25,12 +27,7 @@ namespace vmm_tests
 					std::string{ a_controlId });
 			}
 
-			void MenuOpened() noexcept override { ++opens; }
-			void MenuClosed() noexcept override { ++closes; }
-
 			std::vector<std::string> changes;
-			size_t opens{};
-			size_t closes{};
 		};
 
 		[[nodiscard]] MappedBinding SettingBinding(
@@ -141,6 +138,16 @@ namespace vmm_tests
 					return a_note.text.find("condition") != std::string::npos;
 				});
 		}
+
+		void AppendEvents(
+			std::vector<McmExternalEvent>& a_target,
+			std::vector<McmExternalEvent> a_events)
+		{
+			a_target.insert(
+				a_target.end(),
+				std::make_move_iterator(a_events.begin()),
+				std::make_move_iterator(a_events.end()));
+		}
 	}
 
 	void run_mcm_runtime_checks(Runner& runner)
@@ -231,6 +238,85 @@ namespace vmm_tests
 						"Fixture/iUnknown:Main"
 					},
 				"setting change events ignored declaration or control id gating");
+		});
+
+		runner.test("MCM menu events match shipped names and zero argument arity", [] {
+			std::vector<McmExternalEvent> events;
+			AppendEvents(events, OverlayOpenedExternalEvents());
+			AppendEvents(events, MenuOpenedExternalEvents("Fixture"));
+			AppendEvents(events, MenuClosedExternalEvents("Fixture"));
+			AppendEvents(events, OverlayClosedExternalEvents());
+			require(events == std::vector<McmExternalEvent>{
+						{ "OnMCMOpen", {} },
+						{ "OnMCMMenuOpen", {} },
+						{ "OnMCMMenuOpen|Fixture", {} },
+						{ "OnMCMMenuClose|Fixture", {} },
+						{ "OnMCMClose", {} }
+					},
+				"MCM menu event names or shipped zero-argument arity changed");
+		});
+
+		runner.test("MCM overlay opening emits whole and mod menu events", [] {
+			McmEventLifecycle lifecycle;
+			require(lifecycle.PageActivated("ModA") ==
+					std::vector<McmExternalEvent>{
+						{ "OnMCMOpen", {} },
+						{ "OnMCMMenuOpen", {} },
+						{ "OnMCMMenuOpen|ModA", {} }
+					},
+				"opening the overlay on a mod emitted the wrong event sequence");
+		});
+
+		runner.test("MCM mod transitions omit whole menu close and open events", [] {
+			McmEventLifecycle lifecycle;
+			(void)lifecycle.PageActivated("ModA");
+			auto events = lifecycle.PageDeactivated("ModA", true);
+			AppendEvents(events, lifecycle.PageActivated("ModB"));
+			require(events == std::vector<McmExternalEvent>{
+						{ "OnMCMMenuClose|ModA", {} },
+						{ "OnMCMMenuOpen", {} },
+						{ "OnMCMMenuOpen|ModB", {} }
+					},
+				"switching MCM mods over-fired whole menu events");
+		});
+
+		runner.test("MCM overlay closing emits mod close then whole menu close", [] {
+			McmEventLifecycle lifecycle;
+			(void)lifecycle.PageActivated("ModB");
+			require(lifecycle.PageDeactivated("ModB", false) ==
+					std::vector<McmExternalEvent>{
+						{ "OnMCMMenuClose|ModB", {} },
+						{ "OnMCMClose", {} }
+					},
+				"closing the overlay emitted the wrong event sequence");
+		});
+
+		runner.test("MCM whole close waits for the overlay after leaving mod pages", [] {
+			McmEventLifecycle lifecycle;
+			(void)lifecycle.PageActivated("ModA");
+			auto events = lifecycle.PageDeactivated("ModA", true);
+			AppendEvents(
+				events,
+				lifecycle.OverlayVisibilityChanged(false));
+			require(events == std::vector<McmExternalEvent>{
+						{ "OnMCMMenuClose|ModA", {} },
+						{ "OnMCMClose", {} }
+					},
+				"whole menu close fired before the overlay actually closed");
+		});
+
+		runner.test("MCM filtered menu events require a nonempty mod name", [] {
+			McmEventLifecycle lifecycle;
+			const auto opened = lifecycle.PageActivated("");
+			const auto closed = lifecycle.PageDeactivated("", false);
+			require(opened == std::vector<McmExternalEvent>{
+						{ "OnMCMOpen", {} },
+						{ "OnMCMMenuOpen", {} }
+					} &&
+					closed == std::vector<McmExternalEvent>{
+						{ "OnMCMClose", {} }
+					},
+				"an empty mod name emitted a filtered MCM event");
 		});
 
 		runner.test("MCM unknown declarations remain attemptable", [] {

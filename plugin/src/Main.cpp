@@ -2,6 +2,7 @@
 #include <DearModdingUI/MCM/ExternalEventDispatcher.h>
 #include <DearModdingUI/MCM/F4SETaskScheduler.h>
 #include <DearModdingUI/MCM/GamePapyrusDispatcher.h>
+#include <DearModdingUI/MCM/GameScaleformInvoker.h>
 #include <DearModdingUI/MCM/GlobalValueSource.h>
 #include <DearModdingUI/MCM/ModSettingValueSource.h>
 #include <DearModdingUI/MCM/PapyrusActionExecutor.h>
@@ -62,7 +63,10 @@ namespace DearModdingUI::MCM
 		GlobalValueSource s_globalValues;
 		F4SETaskScheduler s_scheduler;
 		GamePapyrusDispatcher s_dispatcher;
+		GameScaleformInvoker s_scaleform;
 		ExternalEventDispatcher s_events{ s_scheduler };
+		McmEventLifecycle s_eventLifecycle;
+		bool s_visibilityObserverRegistered{};
 		std::vector<std::unique_ptr<RegisteredMod>> s_mods;
 
 		[[nodiscard]] std::string PathText(
@@ -219,7 +223,9 @@ namespace DearModdingUI::MCM
 					std::make_unique<PropertyValueSource>(s_scheduler);
 				mod->values = std::make_unique<CompositeValueSource>();
 				mod->actions =
-					std::make_unique<PapyrusActionExecutor>(s_scheduler);
+					std::make_unique<PapyrusActionExecutor>(
+						s_scheduler,
+						s_scaleform);
 				mod->values->Add(s_globalValues);
 				mod->values->Add(*mod->modSettings);
 				mod->values->Add(*mod->properties);
@@ -239,6 +245,18 @@ namespace DearModdingUI::MCM
 					}
 					s_mods.push_back(std::move(mod));
 					return;
+				}
+				if (!s_visibilityObserverRegistered)
+				{
+					auto* observedClient = mod->client.get();
+					s_visibilityObserverRegistered =
+						mod->client->AddFrameObserver([observedClient] {
+							if (const auto visible =
+									observedClient->IsMenuVisible())
+								s_events.DispatchEvents(
+									s_eventLifecycle.OverlayVisibilityChanged(
+										*visible));
+						}).has_value();
 				}
 
 				size_t descriptors{};
@@ -346,12 +364,20 @@ namespace DearModdingUI::MCM
 				}
 				auto* observed = mod.get();
 				(void)mod->client->AddPageActivityObserver(
-					[observed](const dmui::PageActivity& a_activity) {
+					[observed,
+					 modName = configuration.modName](
+						const dmui::PageActivity& a_activity) {
 						if (a_activity.kind == dmui::PageActivityKind::kActivated)
-							s_events.MenuOpened();
+							s_events.DispatchEvents(
+								s_eventLifecycle.PageActivated(modName));
 						if (a_activity.kind == dmui::PageActivityKind::kDeactivated)
 						{
-							s_events.MenuClosed();
+							const auto visible =
+								observed->client->IsMenuVisible();
+							s_events.DispatchEvents(
+								s_eventLifecycle.PageDeactivated(
+									modName,
+									visible.value_or(true)));
 							return;
 						}
 						for (const auto& registered : observed->pages)

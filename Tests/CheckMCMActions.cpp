@@ -69,10 +69,8 @@ namespace vmm_tests
 		{
 		public:
 			[[nodiscard]] std::optional<std::string> UnsupportedReason(
-				const Action& a_action) const noexcept override
+				const Action&) const noexcept override
 			{
-				if (std::holds_alternative<CallExternalFunctionAction>(a_action))
-					return "Scaleform movie unavailable.";
 				return std::nullopt;
 			}
 
@@ -119,8 +117,42 @@ namespace vmm_tests
 		public:
 			void Schedule(std::function<void()> a_work) override
 			{
+				++scheduled;
 				a_work();
 			}
+
+			void ScheduleUi(std::function<void()> a_work) override
+			{
+				++uiScheduled;
+				a_work();
+			}
+
+			size_t scheduled{};
+			size_t uiScheduled{};
+		};
+
+		class FakeScaleformInvoker final : public ScaleformInvoker
+		{
+		public:
+			[[nodiscard]] ScaleformInvocationStatus Invoke(
+				std::string_view a_plugin,
+				std::string_view a_function,
+				const std::vector<ScaleformArgument>& a_arguments) noexcept override
+			{
+				plugin = a_plugin;
+				function = a_function;
+				arguments = a_arguments;
+				++invocations;
+				return status;
+			}
+
+			ScaleformInvocationStatus status{
+				ScaleformInvocationStatus::kSucceeded
+			};
+			std::string plugin;
+			std::string function;
+			std::vector<ScaleformArgument> arguments;
+			size_t invocations{};
 		};
 
 		[[nodiscard]] dmui::SettingsActionRow& ActionNamed(
@@ -258,7 +290,7 @@ namespace vmm_tests
 				"an argument type mismatch produced no page diagnostic");
 		});
 
-		runner.test("MCM unsupported external actions render disabled", [] {
+		runner.test("MCM external actions fire for buttons and value changes", [] {
 			auto result = ParseConfig(R"json({
 				"modName":"Actions",
 				"content":[
@@ -279,13 +311,123 @@ namespace vmm_tests
 			BindActions(page, executor, values);
 
 			auto& action = ActionNamed(page, "external");
-			require(action.isEnabled && !action.isEnabled() &&
-					action.description.find("Scaleform") != std::string::npos,
-				"external action did not expose its disabled reason");
+			action.activate();
 			auto& setting = SettingNamed(page, "external-setting");
-			require(setting.isEnabled && !setting.isEnabled() &&
-					setting.description.find("Scaleform") != std::string::npos,
-				"external setting action did not disable with a reason");
+			(void)setting.binding.set(dmui::SettingValue{ true });
+			require(executor.invocations.size() == 2 &&
+					std::holds_alternative<CallExternalFunctionAction>(
+						executor.invocations[0].action) &&
+					std::holds_alternative<CallExternalFunctionAction>(
+						executor.invocations[1].action) &&
+					executor.bound[1] ==
+						std::vector<BoundActionArgument>{ true },
+				"external actions did not fire from both MCM action paths");
+		});
+
+		runner.test("MCM Scaleform seam invokes registered functions on UI tasks", [] {
+			ImmediateTaskScheduler scheduler;
+			FakeScaleformInvoker scaleform;
+			std::optional<ActionExecutionResult> result;
+			const CallExternalFunctionAction action{
+				"FixturePlugin",
+				"Apply",
+				{ int64_t{ 7 } }
+			};
+			ScheduleUiActionExecution(
+				scheduler,
+				[&](const ActionCompletion& a_completion) {
+					a_completion(InvokeExternalFunction(
+						scaleform,
+						action,
+						std::nullopt));
+				},
+				[&](ActionExecutionResult a_result) {
+					result = std::move(a_result);
+				});
+			require(scheduler.scheduled == 0 &&
+					scheduler.uiScheduled == 1 &&
+					scaleform.invocations == 1 &&
+					scaleform.plugin == "FixturePlugin" &&
+					scaleform.function == "Apply" &&
+					scaleform.arguments ==
+						std::vector<ScaleformArgument>{ int64_t{ 7 } } &&
+					result &&
+					result->status == ActionExecutionStatus::kSucceeded,
+				"the Scaleform seam did not invoke through the UI scheduler");
+		});
+
+		runner.test("MCM Scaleform seam reports an unregistered plugin", [] {
+			FakeScaleformInvoker scaleform;
+			scaleform.status =
+				ScaleformInvocationStatus::kPluginNotRegistered;
+			const auto result = InvokeExternalFunction(
+				scaleform,
+				{ "MissingPlugin", "Apply", {} },
+				std::nullopt);
+			require(result.status == ActionExecutionStatus::kFailed &&
+					result.message &&
+					result.message->find("MissingPlugin") != std::string::npos &&
+					result.message->find("not registered") != std::string::npos,
+				"an absent Scaleform plugin did not produce a specific failure");
+		});
+
+		runner.test("MCM Scaleform seam reports an unregistered function", [] {
+			FakeScaleformInvoker scaleform;
+			scaleform.status =
+				ScaleformInvocationStatus::kFunctionNotRegistered;
+			const auto result = InvokeExternalFunction(
+				scaleform,
+				{ "FixturePlugin", "MissingFunction", {} },
+				std::nullopt);
+			require(result.status == ActionExecutionStatus::kFailed &&
+					result.message &&
+					result.message->find("FixturePlugin.MissingFunction") !=
+						std::string::npos &&
+					result.message->find("not registered") != std::string::npos,
+				"an absent Scaleform function did not produce a specific failure");
+		});
+
+		runner.test("MCM Scaleform seam reports no loaded movie", [] {
+			FakeScaleformInvoker scaleform;
+			scaleform.status = ScaleformInvocationStatus::kNoMovieLoaded;
+			const auto result = InvokeExternalFunction(
+				scaleform,
+				{ "FixturePlugin", "Apply", {} },
+				std::nullopt);
+			require(result.status == ActionExecutionStatus::kFailed &&
+					result.message &&
+					result.message->find("No suitable loaded UI movie") !=
+						std::string::npos,
+				"a missing Scaleform movie did not produce a specific failure");
+		});
+
+		runner.test("MCM Scaleform seam substitutes embedded value parameters", [] {
+			auto parsed = ParseConfig(R"json({
+				"modName":"Actions",
+				"content":[{"id":"external","type":"slider",
+					"valueOptions":{"sourceType":"GlobalValueInt",
+						"sourceForm":"Fixture.esp|1","default":0},
+					"action":{"type":"CallExternalFunction",
+						"plugin":"FixturePlugin","function":"Apply",
+						"params":["offset-{value}","{s}copy-{value}",
+							"{i}{value}","{f}{value}","{b}{value}"]}}]
+			})json");
+			const auto& action = std::get<CallExternalFunctionAction>(
+				*parsed.pages.front().rows.front().action);
+			FakeScaleformInvoker scaleform;
+			const auto result = InvokeExternalFunction(
+				scaleform,
+				action,
+				dmui::SettingValue{ int64_t{ 12 } });
+			require(result.status == ActionExecutionStatus::kSucceeded &&
+					scaleform.arguments == std::vector<ScaleformArgument>{
+						std::string{ "offset-12" },
+						std::string{ "copy-12" },
+						int64_t{ 12 },
+						double{ 12.0 },
+						true
+					},
+				"Scaleform parameter substitution lost MCM value semantics");
 		});
 
 		runner.test("MCM action executor exceptions stay inside the page", [] {

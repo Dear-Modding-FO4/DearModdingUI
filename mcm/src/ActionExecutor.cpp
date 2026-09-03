@@ -1,7 +1,9 @@
 #include <DearModdingUI/MCM/ActionExecutor.h>
 #include <DearModdingUI/MCM/ValueSource.h>
 
+#include <charconv>
 #include <format>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <type_traits>
@@ -26,25 +28,165 @@ namespace DearModdingUI::MCM
 					case SourceValueKind::kBool:
 						if constexpr (std::same_as<T, bool>)
 							return BoundActionArgument{ a_current };
+						else if constexpr (std::integral<T>)
+							return BoundActionArgument{ a_current != 0 };
+						else if constexpr (std::same_as<T, double>)
+							return BoundActionArgument{ a_current != 0.0 };
+						else
+						{
+							int64_t parsed{};
+							const auto converted = std::from_chars(
+								a_current.data(),
+								a_current.data() + a_current.size(),
+								parsed);
+							if (converted.ec == std::errc{} &&
+								converted.ptr ==
+									a_current.data() + a_current.size())
+								return BoundActionArgument{ parsed != 0 };
+						}
 						break;
 					case SourceValueKind::kInt:
 						if constexpr (
 							std::same_as<T, int64_t> ||
 							std::same_as<T, uint64_t>)
 							return BoundActionArgument{ a_current };
+						else if constexpr (std::same_as<T, bool>)
+							return BoundActionArgument{
+								static_cast<int64_t>(a_current)
+							};
+						else if constexpr (std::same_as<T, double>)
+						{
+							if (a_current >=
+									static_cast<double>(
+										(std::numeric_limits<int64_t>::min)()) &&
+								a_current <=
+									static_cast<double>(
+										(std::numeric_limits<int64_t>::max)()))
+								return BoundActionArgument{
+									static_cast<int64_t>(a_current)
+								};
+						}
+						else
+						{
+							int64_t parsed{};
+							const auto converted = std::from_chars(
+								a_current.data(),
+								a_current.data() + a_current.size(),
+								parsed);
+							if (converted.ec == std::errc{} &&
+								converted.ptr ==
+									a_current.data() + a_current.size())
+								return BoundActionArgument{ parsed };
+						}
 						break;
 					case SourceValueKind::kFloat:
 						if constexpr (std::same_as<T, double>)
 							return BoundActionArgument{ a_current };
+						else if constexpr (std::same_as<T, bool> ||
+							std::same_as<T, int64_t> ||
+							std::same_as<T, uint64_t>)
+							return BoundActionArgument{
+								static_cast<double>(a_current)
+							};
+						else
+						{
+							double parsed{};
+							const auto converted = std::from_chars(
+								a_current.data(),
+								a_current.data() + a_current.size(),
+								parsed);
+							if (converted.ec == std::errc{} &&
+								converted.ptr ==
+									a_current.data() + a_current.size())
+								return BoundActionArgument{ parsed };
+						}
 						break;
 					case SourceValueKind::kString:
 						if constexpr (std::same_as<T, std::string>)
 							return BoundActionArgument{ a_current };
+						else if constexpr (std::same_as<T, bool>)
+							return BoundActionArgument{
+								std::string{ a_current ? "true" : "false" }
+							};
+						else
+							return BoundActionArgument{
+								std::format("{}", a_current)
+							};
 						break;
 					}
 					return std::nullopt;
 				},
 				a_value);
+		}
+
+		[[nodiscard]] std::string ValueText(
+			const dmui::SettingValue& a_value)
+		{
+			return std::visit(
+				[](const auto& a_current) {
+					using T = std::remove_cvref_t<decltype(a_current)>;
+					if constexpr (std::same_as<T, bool>)
+						return std::string{ a_current ? "true" : "false" };
+					else if constexpr (std::same_as<T, std::string>)
+						return a_current;
+					else
+						return std::format("{}", a_current);
+				},
+				a_value);
+		}
+
+		[[nodiscard]] std::expected<BoundActionArgument, std::string>
+			BindTemplate(
+			const ValueTemplateArgument& a_argument,
+			const dmui::SettingValue& a_value)
+		{
+			auto value = a_argument.value;
+			const auto position = value.find("{value}");
+			if (position != std::string::npos)
+				value.replace(position, 7, ValueText(a_value));
+			switch (a_argument.type)
+			{
+			case SourceValueKind::kNone:
+			case SourceValueKind::kString:
+				return BoundActionArgument{ std::move(value) };
+			case SourceValueKind::kInt:
+			{
+				int64_t parsed{};
+				const auto converted = std::from_chars(
+					value.data(),
+					value.data() + value.size(),
+					parsed);
+				if (converted.ec == std::errc{} &&
+					converted.ptr == value.data() + value.size())
+					return BoundActionArgument{ parsed };
+				break;
+			}
+			case SourceValueKind::kFloat:
+			{
+				double parsed{};
+				const auto converted = std::from_chars(
+					value.data(),
+					value.data() + value.size(),
+					parsed);
+				if (converted.ec == std::errc{} &&
+					converted.ptr == value.data() + value.size())
+					return BoundActionArgument{ parsed };
+				break;
+			}
+			case SourceValueKind::kBool:
+			{
+				int64_t parsed{};
+				const auto converted = std::from_chars(
+					value.data(),
+					value.data() + value.size(),
+					parsed);
+				if (converted.ec == std::errc{} &&
+					converted.ptr == value.data() + value.size())
+					return BoundActionArgument{ parsed != 0 };
+				break;
+			}
+			}
+			return std::unexpected("substituted value has the wrong type");
 		}
 
 		void CompleteAction(
@@ -245,10 +387,32 @@ namespace DearModdingUI::MCM
 					result.push_back(std::move(*bound));
 					continue;
 				}
+				if (const auto* placeholder =
+						std::get_if<ValueTemplateArgument>(&argument))
+				{
+					if (!a_value)
+					{
+						return std::unexpected(std::format(
+							"argument {} requires a control value",
+							index + 1));
+					}
+					auto bound = BindTemplate(*placeholder, *a_value);
+					if (!bound)
+					{
+						return std::unexpected(std::format(
+							"argument {} {}",
+							index + 1,
+							bound.error()));
+					}
+					result.push_back(std::move(*bound));
+					continue;
+				}
 				std::visit(
 					[&](const auto& a_typed) {
 						using T = std::remove_cvref_t<decltype(a_typed)>;
-						if constexpr (!std::same_as<T, ValueArgument>)
+						if constexpr (
+							!std::same_as<T, ValueArgument> &&
+							!std::same_as<T, ValueTemplateArgument>)
 							result.emplace_back(a_typed);
 					},
 					argument);
@@ -265,60 +429,142 @@ namespace DearModdingUI::MCM
 		}
 	}
 
+	ActionExecutionResult InvokeExternalFunction(
+		ScaleformInvoker& a_invoker,
+		const CallExternalFunctionAction& a_action,
+		const std::optional<dmui::SettingValue>& a_value) noexcept
+	{
+		auto arguments = BindActionArguments(a_action.arguments, a_value);
+		if (!arguments)
+			return { ActionExecutionStatus::kFailed, std::move(arguments.error()) };
+		switch (a_invoker.Invoke(
+			a_action.plugin,
+			a_action.function,
+			*arguments))
+		{
+		case ScaleformInvocationStatus::kSucceeded:
+			return { ActionExecutionStatus::kSucceeded, {} };
+		case ScaleformInvocationStatus::kNoMovieLoaded:
+			return {
+				ActionExecutionStatus::kFailed,
+				"No suitable loaded UI movie is available for Scaleform invocation"
+			};
+		case ScaleformInvocationStatus::kPluginNotRegistered:
+			return {
+				ActionExecutionStatus::kFailed,
+				std::format(
+					"Scaleform plugin '{}' is not registered in a loaded UI movie",
+					a_action.plugin)
+			};
+		case ScaleformInvocationStatus::kFunctionNotRegistered:
+			return {
+				ActionExecutionStatus::kFailed,
+				std::format(
+					"Scaleform function '{}.{}' is not registered",
+					a_action.plugin,
+					a_action.function)
+			};
+		case ScaleformInvocationStatus::kInvocationFailed:
+			return {
+				ActionExecutionStatus::kFailed,
+				std::format(
+					"Scaleform function '{}.{}' rejected the invocation",
+					a_action.plugin,
+					a_action.function)
+			};
+		}
+		return {
+			ActionExecutionStatus::kFailed,
+			"Scaleform invocation returned an unknown result"
+		};
+	}
+
+	namespace
+	{
+		void Schedule(
+			TaskScheduler& a_scheduler,
+			std::function<void(const ActionCompletion&)> a_work,
+			ActionCompletion a_completion,
+			bool a_ui) noexcept
+		{
+			try
+			{
+				auto completion =
+					std::make_shared<ActionCompletion>(a_completion);
+				auto workItem =
+					[work = std::move(a_work),
+					 completion = std::move(completion)] {
+						try
+						{
+							work(*completion);
+						}
+						catch (const std::exception& a_error)
+						{
+							CompleteAction(
+								*completion,
+								{
+									ActionExecutionStatus::kFailed,
+									a_error.what()
+								});
+						}
+						catch (...)
+						{
+							CompleteAction(
+								*completion,
+								{
+									ActionExecutionStatus::kFailed,
+									"action execution threw an unknown exception"
+								});
+						}
+					};
+				if (a_ui)
+					a_scheduler.ScheduleUi(std::move(workItem));
+				else
+					a_scheduler.Schedule(std::move(workItem));
+			}
+			catch (const std::exception& a_error)
+			{
+				CompleteAction(
+					a_completion,
+					{
+						ActionExecutionStatus::kFailed,
+						a_error.what()
+					});
+			}
+			catch (...)
+			{
+				CompleteAction(
+					a_completion,
+					{
+						ActionExecutionStatus::kFailed,
+						"action scheduling threw an unknown exception"
+					});
+			}
+		}
+	}
+
 	void ScheduleActionExecution(
 		TaskScheduler& a_scheduler,
 		std::function<void(const ActionCompletion&)> a_work,
 		ActionCompletion a_completion) noexcept
 	{
-		try
-		{
-			auto completion =
-				std::make_shared<ActionCompletion>(a_completion);
-			a_scheduler.Schedule(
-				[work = std::move(a_work),
-				 completion = std::move(completion)] {
-					try
-					{
-						work(*completion);
-					}
-					catch (const std::exception& a_error)
-					{
-						CompleteAction(
-							*completion,
-							{
-								ActionExecutionStatus::kFailed,
-								a_error.what()
-							});
-					}
-					catch (...)
-					{
-						CompleteAction(
-							*completion,
-							{
-								ActionExecutionStatus::kFailed,
-								"action execution threw an unknown exception"
-							});
-					}
-				});
-		}
-		catch (const std::exception& a_error)
-		{
-			CompleteAction(
-				a_completion,
-				{
-					ActionExecutionStatus::kFailed,
-					a_error.what()
-				});
-		}
-		catch (...)
-		{
-			CompleteAction(
-				a_completion,
-				{
-					ActionExecutionStatus::kFailed,
-					"action scheduling threw an unknown exception"
-				});
-		}
+		Schedule(
+			a_scheduler,
+			std::move(a_work),
+			std::move(a_completion),
+			false);
+	}
+
+	void ScheduleUiActionExecution(
+		TaskScheduler& a_scheduler,
+		std::function<void(const ActionCompletion&)> a_work,
+		ActionCompletion a_completion) noexcept
+	{
+		Schedule(
+			a_scheduler,
+			std::move(a_work),
+			std::move(a_completion),
+			true);
 	}
 
 	void BindActions(

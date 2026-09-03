@@ -16,5 +16,6 @@ namespace DearModdingUI::MCM
 		TaskScheduler& operator=(TaskScheduler&&) = delete;
 
 		virtual void Schedule(std::function<void()> a_work) = 0;
+		virtual void ScheduleUi(std::function<void()> a_work) = 0;
 	};
 }

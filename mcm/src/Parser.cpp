@@ -316,6 +316,12 @@ namespace DearModdingUI::MCM
 				}
 				if (value == "{value}")
 					return ActionArgument{ ValueArgument{ type } };
+				if (value.find("{value}") != std::string::npos)
+				{
+					return ActionArgument{
+						ValueTemplateArgument{ std::move(value), type }
+					};
+				}
 				switch (type)
 				{
 				case SourceValueKind::kInt:

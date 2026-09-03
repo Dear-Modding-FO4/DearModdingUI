@@ -1,5 +1,6 @@
 #pragma once
 
+#include <DearModdingUI/MCM/ExternalEvents.h>
 #include <DearModdingUI/MCM/ValueSource.h>
 #include <DearModdingUI/MCM/TaskScheduler.h>
 
@@ -18,8 +19,7 @@ namespace DearModdingUI::MCM
 		void SettingChanged(
 			std::string_view a_modName,
 			std::string_view a_controlId) noexcept override;
-		void MenuOpened() noexcept override;
-		void MenuClosed() noexcept override;
+		void DispatchEvents(std::vector<McmExternalEvent> a_events) noexcept;
 
 	private:
 		void Schedule(

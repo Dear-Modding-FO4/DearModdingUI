@@ -83,12 +83,13 @@ controls, substitutes their effective value for typed `{value}` arguments, conta
 exceptions, and reports failures as page notes. Successful completions refresh the page's existing
 mapped bindings.
 
-The runtime executor queues work through F4SE and supports `CallFunction` and
-`CallGlobalFunction`. It resolves attached scripts when a member action omits `scriptName`, validates
-Papyrus parameter count and scalar types, and dispatches only after validation. `CallExternalFunction`
-remains disabled with an explanation because its `root.f4se.plugins` target requires a Scaleform
-movie that is not present during ordinary gameplay. Console-command and event actions are also
-disabled rather than silently ignored.
+The runtime executor queues work through F4SE and supports `CallFunction`,
+`CallGlobalFunction`, and `CallExternalFunction`. It resolves attached scripts when a member action
+omits `scriptName`, validates Papyrus parameter count and scalar types, and dispatches only after
+validation. A pure `ScaleformInvoker` boundary lets the plugin invoke registered external functions
+through a loaded HUD or pause-menu movie on the UI task queue. Missing movies, plugins, functions,
+and rejected invocations remain distinct failures. Console-command and event actions are disabled
+rather than silently ignored.
 
 Papyrus scalar conversion is target-driven. Boolean targets accept booleans and numeric zero/nonzero;
 integer targets accept Papyrus integers; floating targets accept integers or floats; string targets
@@ -122,10 +123,12 @@ through `GetPropertyValue` callbacks and probe attached scripts when `scriptName
 Callback completions enter a queue and the settings page's per-frame preparation only pumps that
 queue. Generations reject a refresh completion that predates a write.
 
-The page lifecycle observer refreshes the active page and emits zero-argument `OnMCMOpen` and
-`OnMCMClose` events without false close/open pairs during same-client page changes. Accepted
-declared mod-setting writes emit both `OnMCMSettingChange` and its mod-specific form with
-`(modName, controlId)`; event dispatch is separate from value storage.
+The page lifecycle observer refreshes the active page and emits zero-argument `OnMCMMenuOpen`,
+`OnMCMMenuOpen|<modName>`, and `OnMCMMenuClose|<modName>` events at mod boundaries.
+`OnMCMOpen` and `OnMCMClose` instead bracket one visible overlay session, so mod-to-mod navigation
+does not produce false whole-menu close/open pairs. Accepted declared mod-setting writes emit both
+`OnMCMSettingChange` and its mod-specific form with `(modName, controlId)`; event dispatch is
+separate from value storage.
 
 Settings declarations are applied before `SummarizeCompatibility`. The page exposes unsupported,
 unknown-source, undeclared-setting, action, image, and inert-reason counts, while logs include both warnings and

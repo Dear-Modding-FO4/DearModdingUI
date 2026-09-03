@@ -240,13 +240,6 @@ namespace DearModdingUI::MCM
 			ActionInvocation a_invocation,
 			const ActionCompletion& a_completion)
 		{
-			if (std::holds_alternative<CallExternalFunctionAction>(
-					a_invocation.action))
-				return Complete(
-					a_completion,
-					ActionExecutionStatus::kUnsupported,
-					"This Scaleform action is unavailable because its menu movie "
-					"is not present during gameplay.");
 			if (std::holds_alternative<RunConsoleCommandAction>(
 					a_invocation.action))
 				return Complete(
@@ -380,21 +373,20 @@ namespace DearModdingUI::MCM
 		}
 	}
 
-	PapyrusActionExecutor::PapyrusActionExecutor(TaskScheduler& a_scheduler) :
-		scheduler_(a_scheduler)
+	PapyrusActionExecutor::PapyrusActionExecutor(
+		TaskScheduler& a_scheduler,
+		ScaleformInvoker& a_scaleform) :
+		scheduler_(a_scheduler),
+		scaleform_(a_scaleform)
 	{}
 
 	std::optional<std::string> PapyrusActionExecutor::UnsupportedReason(
 		const Action& a_action) const noexcept
 	{
 		if (std::holds_alternative<CallFunctionAction>(a_action) ||
-			std::holds_alternative<CallGlobalFunctionAction>(a_action))
+			std::holds_alternative<CallGlobalFunctionAction>(a_action) ||
+			std::holds_alternative<CallExternalFunctionAction>(a_action))
 			return std::nullopt;
-		if (std::holds_alternative<CallExternalFunctionAction>(a_action))
-		{
-			return "This Scaleform action is unavailable because its menu movie "
-				"is not present during gameplay.";
-		}
 		if (std::holds_alternative<RunConsoleCommandAction>(a_action))
 			return "Console command actions are not supported.";
 		return "Event actions are not supported.";
@@ -404,6 +396,25 @@ namespace DearModdingUI::MCM
 		ActionInvocation a_invocation,
 		ActionCompletion a_completion)
 	{
+		if (const auto* external =
+				std::get_if<CallExternalFunctionAction>(&a_invocation.action))
+		{
+			ScheduleUiActionExecution(
+				scheduler_,
+				[action = *external,
+				 value = std::move(a_invocation.value),
+				 &scaleform = scaleform_](
+					const ActionCompletion& a_scheduledCompletion) mutable {
+					const auto result = InvokeExternalFunction(
+						scaleform,
+						action,
+						value);
+					if (a_scheduledCompletion)
+						a_scheduledCompletion(result);
+				},
+				std::move(a_completion));
+			return;
+		}
 		ScheduleActionExecution(
 			scheduler_,
 			[invocation = std::move(a_invocation)](

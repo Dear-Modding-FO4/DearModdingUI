@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/MCM/ActionExecutor.h>
+#include <DearModdingUI/MCM/ScaleformInvoker.h>
 #include <DearModdingUI/MCM/TaskScheduler.h>
 
 namespace DearModdingUI::MCM
@@ -8,7 +9,9 @@ namespace DearModdingUI::MCM
 	class PapyrusActionExecutor final : public ActionExecutor
 	{
 	public:
-		explicit PapyrusActionExecutor(TaskScheduler& a_scheduler);
+		PapyrusActionExecutor(
+			TaskScheduler& a_scheduler,
+			ScaleformInvoker& a_scaleform);
 
 		[[nodiscard]] std::optional<std::string> UnsupportedReason(
 			const Action& a_action) const noexcept override;
@@ -18,5 +21,6 @@ namespace DearModdingUI::MCM
 
 	private:
 		TaskScheduler& scheduler_;
+		ScaleformInvoker& scaleform_;
 	};
 }

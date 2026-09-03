@@ -14,4 +14,12 @@ namespace DearModdingUI::MCM
 			throw std::runtime_error("F4SE task interface is unavailable");
 		tasks->AddTask(std::move(a_work));
 	}
+
+	void F4SETaskScheduler::ScheduleUi(std::function<void()> a_work)
+	{
+		const auto* tasks = F4SE::GetTaskInterface();
+		if (!tasks)
+			throw std::runtime_error("F4SE UI task interface is unavailable");
+		tasks->AddUITask(std::move(a_work));
+	}
 }

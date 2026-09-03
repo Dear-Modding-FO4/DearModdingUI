@@ -109,13 +109,20 @@ namespace DearModdingUI::MCM
 		SourceValueKind type{ SourceValueKind::kNone };
 	};
 
+	struct ValueTemplateArgument
+	{
+		std::string value;
+		SourceValueKind type{ SourceValueKind::kNone };
+	};
+
 	using ActionArgument = std::variant<
 		bool,
 		int64_t,
 		uint64_t,
 		double,
 		std::string,
-		ValueArgument>;
+		ValueArgument,
+		ValueTemplateArgument>;
 
 	struct CallFunctionAction
 	{

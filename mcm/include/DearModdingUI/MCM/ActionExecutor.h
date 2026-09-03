@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/MCM/Compatibility.h>
+#include <DearModdingUI/MCM/ScaleformInvoker.h>
 #include <DearModdingUI/MCM/TaskScheduler.h>
 
 #include <expected>
@@ -13,8 +14,7 @@ namespace DearModdingUI::MCM
 {
 	class ValueSource;
 
-	using BoundActionArgument =
-		std::variant<bool, int64_t, uint64_t, double, std::string>;
+	using BoundActionArgument = ScaleformArgument;
 
 	enum class ActionExecutionStatus : uint8_t
 	{
@@ -61,7 +61,16 @@ namespace DearModdingUI::MCM
 		const std::vector<ActionArgument>& a_arguments,
 		const std::optional<dmui::SettingValue>& a_value) noexcept;
 
+	[[nodiscard]] ActionExecutionResult InvokeExternalFunction(
+		ScaleformInvoker& a_invoker,
+		const CallExternalFunctionAction& a_action,
+		const std::optional<dmui::SettingValue>& a_value) noexcept;
+
 	void ScheduleActionExecution(
+		TaskScheduler& a_scheduler,
+		std::function<void(const ActionCompletion&)> a_work,
+		ActionCompletion a_completion) noexcept;
+	void ScheduleUiActionExecution(
 		TaskScheduler& a_scheduler,
 		std::function<void(const ActionCompletion&)> a_work,
 		ActionCompletion a_completion) noexcept;

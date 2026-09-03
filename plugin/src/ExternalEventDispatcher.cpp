@@ -1,4 +1,5 @@
 #include <DearModdingUI/MCM/ExternalEventDispatcher.h>
+#include <DearModdingUI/MCM/ExternalEvents.h>
 
 #include <F4SE/F4SE.h>
 #include <RE/B/BSScript_IStackCallbackFunctor.h>
@@ -64,6 +65,16 @@ namespace DearModdingUI::MCM
 			catch (...)
 			{}
 		}
+
+		[[nodiscard]] std::vector<RE::BSFixedString> ToArguments(
+			const std::vector<std::string>& a_arguments)
+		{
+			std::vector<RE::BSFixedString> result;
+			result.reserve(a_arguments.size());
+			for (const auto& argument : a_arguments)
+				result.emplace_back(argument);
+			return result;
+		}
 	}
 
 	ExternalEventDispatcher::ExternalEventDispatcher(
@@ -85,14 +96,18 @@ namespace DearModdingUI::MCM
 			std::move(arguments));
 	}
 
-	void ExternalEventDispatcher::MenuOpened() noexcept
+	void ExternalEventDispatcher::DispatchEvents(
+		std::vector<McmExternalEvent> a_events) noexcept
 	{
-		Schedule("OnMCMOpen", {});
-	}
-
-	void ExternalEventDispatcher::MenuClosed() noexcept
-	{
-		Schedule("OnMCMClose", {});
+		try
+		{
+			for (auto& event : a_events)
+				Schedule(
+					std::move(event.name),
+					ToArguments(event.arguments));
+		}
+		catch (...)
+		{}
 	}
 
 	void ExternalEventDispatcher::Schedule(

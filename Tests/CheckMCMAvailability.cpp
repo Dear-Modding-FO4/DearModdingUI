@@ -50,6 +50,11 @@ namespace vmm_tests
 			{
 				a_work();
 			}
+
+			void ScheduleUi(std::function<void()> a_work) override
+			{
+				a_work();
+			}
 		};
 
 		class FakeDispatcher final : public PapyrusDispatcher
@@ -89,8 +94,7 @@ namespace vmm_tests
 				change = std::string{ a_modName } + "/" +
 					std::string{ a_controlId };
 			}
-			void MenuOpened() noexcept override {}
-			void MenuClosed() noexcept override {}
+
 
 			std::string change;
 		};
