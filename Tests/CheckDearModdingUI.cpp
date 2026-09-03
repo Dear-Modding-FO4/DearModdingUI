@@ -347,6 +347,15 @@ namespace vmm_tests
 				"modified-only or negative filtering changed");
 		});
 
+		runner.test("choice option labels prefer human labels", [] {
+			const dmui::ChoiceSettingOption labeled{ "2", "61 (FX) slot" };
+			const dmui::ChoiceSettingOption unlabeled{ "raw", "" };
+			require(
+				dmui::ResolveChoiceOptionLabel(labeled) == "61 (FX) slot" &&
+					dmui::ResolveChoiceOptionLabel(unlabeled) == "raw",
+				"choice option label resolution diverged from its value fallback");
+		});
+
 		runner.test("declarative pending count uses dirty state without value getters", [] {
 			auto firstDirty = false;
 			auto secondDirty = true;

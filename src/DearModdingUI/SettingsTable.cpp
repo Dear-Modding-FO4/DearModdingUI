@@ -279,7 +279,7 @@ namespace DearModdingUI::SettingsTable
 		const char* a_label,
 		const char* a_description) noexcept
 	{
-		if (!a_id || a_id[0] == '\0' || !a_label || a_label[0] == '\0')
+		if (!a_id || a_id[0] == '\0' || !a_label)
 			return { DMUI_RESULT_INVALID_ARGUMENT, false };
 		if (!HasExpectedTable(s_state.tableId, s_state.tableIdDepth))
 			return { DMUI_RESULT_UNBALANCED_BRACKET, false };

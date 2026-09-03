@@ -18,15 +18,10 @@ namespace DearModdingUI::MCM
 	[[nodiscard]] std::optional<GlobalFormReference> ParseGlobalFormReference(
 		std::string_view a_sourceForm) noexcept;
 
-	[[nodiscard]] SourceValueKind ResolveSourceValueKind(
-		SourceValueKind a_declared,
-		const dmui::SettingValue& a_default) noexcept;
-
 	[[nodiscard]] std::optional<dmui::SettingValue> GlobalToSettingValue(
 		float a_value,
-		SourceValueKind a_kind) noexcept;
+		const dmui::SettingValue& a_target) noexcept;
 
 	[[nodiscard]] std::optional<float> SettingValueToGlobal(
-		const dmui::SettingValue& a_value,
-		SourceValueKind a_kind) noexcept;
+		const dmui::SettingValue& a_value) noexcept;
 }

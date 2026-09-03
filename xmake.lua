@@ -82,7 +82,6 @@ target("dmui-mcm", function()
     set_objectdir(project_dir(".LinkConf/xmake/dmui-mcm"))
     set_dependir(project_dir(".LinkConf/xmake/dmui-mcm/deps"))
 
-    add_deps("imgui")
     add_files("mcm/src/**.cpp")
     add_headerfiles("mcm/include/**.h")
     add_includedirs(

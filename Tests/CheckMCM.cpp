@@ -1,4 +1,5 @@
 #include <DearModdingUI/MCM/Compatibility.h>
+#include <DearModdingUI/MCM/TextMarkup.h>
 
 #include "Harness.h"
 
@@ -267,6 +268,69 @@ namespace vmm_tests
 
 	void run_mcm_checks(Runner& runner)
 	{
+		runner.test("MCM HTML text strips tags and expands break forms", [] {
+			const auto presentation = ResolveTextPresentation(
+				"A<br>B<br/>C<br />D <i>I</i> <b>B</b> <u>U</u> "
+				"<a href='target'>A</a> <font size='30'>F</font> "
+				"<unknown data='value'>U</unknown>",
+				true);
+			require(
+				presentation.text == "A\nB\nC\nD I B U A F U",
+				"HTML tag stripping or break expansion changed");
+		});
+
+		runner.test("MCM HTML paragraphs separate text and resolve alignment", [] {
+			const auto presentation = ResolveTextPresentation(
+				"Before<p>Plain</p><p ALIGN='right'>Right</p>After",
+				true);
+			require(
+				presentation.text == "Before\nPlain\nRight\nAfter" &&
+					presentation.alignment == TextAlignment::kRight,
+				"paragraph text or alignment did not resolve");
+		});
+
+		runner.test("MCM literal text preserves markup when HTML is disabled", [] {
+			const auto presentation = ResolveTextPresentation(
+				"<Press E> <i>literal</i> &amp;",
+				false,
+				"center");
+			require(
+				presentation.text == "<Press E> <i>literal</i> &amp;" &&
+					presentation.alignment == TextAlignment::kCenter,
+				"literal markup or control alignment changed");
+		});
+
+		runner.test("MCM malformed HTML remains readable", [] {
+			const auto presentation = ResolveTextPresentation(
+				"Keep < stray <i>open</i> <font size='30' broken &bogus; tail",
+				true);
+			require(
+				presentation.text ==
+					"Keep < stray open <font size='30' broken &bogus; tail",
+				"malformed HTML lost readable source text");
+		});
+
+		runner.test("MCM HTML decodes common and numeric entities", [] {
+			const auto presentation = ResolveTextPresentation(
+				"&lt;safe&gt; &amp; &quot;text&quot; &apos;x&apos; "
+				"&#65;&#x42;",
+				true);
+			require(
+				presentation.text == "<safe> & \"text\" 'x' AB",
+				"HTML entity decoding changed");
+		});
+
+		runner.test("MCM paragraph alignment overrides the control alignment", [] {
+			const auto presentation = ResolveTextPresentation(
+				"<p align=\"center\">Centered</p>",
+				true,
+				"right");
+			require(
+				presentation.text == "Centered" &&
+					presentation.alignment == TextAlignment::kCenter,
+				"paragraph alignment did not override the control default");
+		});
+
 		runner.test("MCM synthetic config preserves page and group structure", [] {
 			const auto result = ParseConfig(
 				kSyntheticConfig,
@@ -452,15 +516,59 @@ namespace vmm_tests
 						SettingNamed(root, "WelcomeMessage").control).kind ==
 						dmui::SettingControlKind::kReadOnly,
 				"text did not map to read-only");
-			require(static_cast<bool>(std::get<dmui::ReadOnlySettingControl>(
-						SettingNamed(root, "WelcomeMessage").control).draw),
-				"text read-only control cannot draw");
-			require(SettingNamed(root, "WelcomeMessage").label == " ",
+			require(!std::get<dmui::ReadOnlySettingControl>(
+						SettingNamed(root, "WelcomeMessage").control).draw,
+				"mapper attached consumer-specific text rendering");
+			const auto mappedText = std::ranges::find(
+				root.texts,
+				"WelcomeMessage",
+				&MappedText::descriptorId);
+			require(mappedText != root.texts.end() &&
+					mappedText->presentation.text == "$EXAMPLE_WELCOME",
+				"text presentation data was not mapped");
+			require(SettingNamed(root, "WelcomeMessage").label.empty() &&
+					SettingNamed(root, "WelcomeMessage").labelMode ==
+						dmui::SettingDescriptor::LabelMode::kHidden,
 				"text control did not reserve its prose for the value column");
 			require(ControlKindCount(
 						result,
 						dmui::SettingControlKind::kUnsupported) == 4,
 				"button, color, and image controls did not map to unsupported");
+		});
+
+		runner.test("MCM mapper gates markup on the HTML declaration", [] {
+			const auto result = ParseConfig(R"({
+				"modName":"Markup",
+				"content":[
+					{"id":"rich","type":"text","html":true,"align":"right",
+					 "text":"<p align='center'><i>Rich</i><br />text</p>"},
+					{"id":"literal","type":"text","html":false,
+					 "text":"Literal <Press E>"}
+				]
+			})", "markup-config.json");
+			require(result.pages.size() == 1,
+				"markup configuration did not map");
+			const auto& page = result.pages.front();
+			const auto richText = std::ranges::find(
+				page.texts,
+				"rich",
+				&MappedText::descriptorId);
+			require(
+				std::get<std::string>(
+					SettingNamed(page, "rich").defaultValue) ==
+						"Rich\ntext" &&
+					std::get<std::string>(
+						SettingNamed(page, "literal").defaultValue) ==
+						"Literal <Press E>",
+				"mapper did not honor the HTML declaration");
+			require(richText != page.texts.end() &&
+					richText->presentation.text == "Rich\ntext" &&
+					richText->presentation.alignment ==
+						TextAlignment::kCenter,
+				"mapper lost resolved text presentation data");
+			require(
+				!HasDiagnostic(result, "not represented"),
+				"rendered text presentation retained an unsupported warning");
 		});
 
 		runner.test("MCM LoadConfig reads a synthetic temporary file", [] {
@@ -690,6 +798,12 @@ namespace vmm_tests
 						result,
 						dmui::SettingControlKind::kUnsupported) == 3,
 				"documented control kinds changed");
+			const auto& prose =
+				SettingNamed(result.pages.front(), "text");
+			require(prose.label.empty() &&
+					prose.labelMode ==
+						dmui::SettingDescriptor::LabelMode::kHidden,
+				"MCM prose did not request a hidden row label");
 			require(!std::ranges::any_of(
 						result.pages.front().settings.groups.front().settings,
 						[](const dmui::SettingDescriptor& a_setting) {
@@ -724,9 +838,10 @@ namespace vmm_tests
 					std::holds_alternative<dmui::ReadOnlySettingControl>(
 						modified.control),
 				"a hotkey control degraded from read-only");
-			require(std::get<dmui::ReadOnlySettingControl>(bare.control).draw &&
-					std::get<dmui::ReadOnlySettingControl>(modified.control).draw,
-				"hotkey read-only control cannot draw");
+			require(!std::get<dmui::ReadOnlySettingControl>(bare.control).draw &&
+					!std::get<dmui::ReadOnlySettingControl>(modified.control).draw &&
+					result.pages.front().texts.size() == 2,
+				"mapper attached consumer-specific hotkey rendering");
 			require(std::get<std::string>(bare.defaultValue) ==
 						"Managed by MCM" &&
 					std::get<std::string>(modified.defaultValue) ==
@@ -751,8 +866,10 @@ namespace vmm_tests
 					result.pages.front().settings.groups.size() == 1,
 				"empty section did not produce one group");
 			const auto& group = result.pages.front().settings.groups.front();
-			require(group.id == "divider" && group.label == " " &&
-					group.glyph == U' ',
+			require(group.id == "divider" && group.label.empty() &&
+					group.glyph == U'\0' &&
+					group.headingMode ==
+						dmui::SettingGroup::HeadingMode::kDivider,
 				"empty section did not produce an unnamed group");
 		});
 

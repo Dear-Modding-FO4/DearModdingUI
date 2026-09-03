@@ -1,6 +1,3 @@
-#include <imgui.h>
-#include <imgui_internal.h>
-
 #include "Mapper.h"
 
 #include "Diagnostics.h"
@@ -47,9 +44,6 @@ namespace DearModdingUI::MCM::detail
 
 	namespace
 	{
-		// A nonempty blank label bypasses the client API's ID fallback.
-		constexpr auto kUnnamedLabel = " ";
-
 		[[nodiscard]] std::string ScalarText(const Scalar& a_value)
 		{
 			return std::visit(
@@ -182,16 +176,6 @@ namespace DearModdingUI::MCM::detail
 				a_control.valueOptions->sourceType &&
 				a_control.valueOptions->sourceType->value ==
 					SourceValueKind::kString;
-		}
-
-		[[nodiscard]] dmui::ReadOnlySettingControl MakeReadOnlyControl(
-			std::string a_text)
-		{
-			return {
-				[text = std::move(a_text)] {
-					ImGui::TextWrapped("%s", text.c_str());
-				}
-			};
 		}
 
 		void MapCheckboxDefault(
@@ -374,6 +358,7 @@ namespace DearModdingUI::MCM::detail
 		[[nodiscard]] dmui::SettingDescriptor MapControl(
 			const Control& a_control,
 			std::string a_id,
+			std::vector<MappedText>& a_texts,
 			detail::Diagnostics& a_diag)
 		{
 			dmui::SettingDescriptor descriptor;
@@ -430,14 +415,33 @@ namespace DearModdingUI::MCM::detail
 				break;
 			}
 			case ControlType::kText:
-				descriptor.label = kUnnamedLabel;
-				descriptor.control = MakeReadOnlyControl(a_control.text);
-				descriptor.defaultValue = a_control.text;
+			{
+				const auto alignment = a_control.alignment ?
+					std::optional<std::string_view>{ *a_control.alignment } :
+					std::nullopt;
+				auto presentation = ResolveTextPresentation(
+					a_control.text,
+					a_control.html.value_or(false),
+					alignment);
+				descriptor.label.clear();
+				descriptor.defaultValue = presentation.text;
+				descriptor.control = dmui::ReadOnlySettingControl{};
+				a_texts.push_back({
+					descriptor.id,
+					std::move(presentation)
+				});
 				descriptor.showReset = false;
+				descriptor.labelMode =
+					dmui::SettingDescriptor::LabelMode::kHidden;
 				break;
+			}
 			case ControlType::kKeymap:
-				descriptor.control = MakeReadOnlyControl("Managed by MCM");
+				descriptor.control = dmui::ReadOnlySettingControl{};
 				descriptor.defaultValue = std::string{ "Managed by MCM" };
+				a_texts.push_back({
+					descriptor.id,
+					TextPresentation{ "Managed by MCM" }
+				});
 				descriptor.showReset = false;
 				break;
 			default:
@@ -516,7 +520,7 @@ namespace DearModdingUI::MCM::detail
 				if (control.type == ControlType::kGroup)
 				{
 					const auto unnamed = control.text.empty();
-					auto label = unnamed ? kUnnamedLabel : control.text;
+					auto label = control.text;
 					auto id = control.id.empty() ?
 						MakeIdentifier(label, "section") + "-" +
 							std::to_string(control.sourceIndex + 1) :
@@ -526,7 +530,10 @@ namespace DearModdingUI::MCM::detail
 						std::move(label),
 						control.location);
 					if (unnamed)
-						mapped.settings.groups[*currentGroup].glyph = U' ';
+					{
+						mapped.settings.groups[*currentGroup].headingMode =
+							dmui::SettingGroup::HeadingMode::kDivider;
+					}
 					continue;
 				}
 				if (control.type == ControlType::kSpacing ||
@@ -544,35 +551,40 @@ namespace DearModdingUI::MCM::detail
 					descriptorIds,
 					"setting",
 					control.location);
+				auto descriptor = MapControl(
+					control,
+					id,
+					mapped.texts,
+					a_diag);
 				if (control.valueOptions && control.valueOptions->sourceType)
 				{
 					const auto& options = *control.valueOptions;
 					mapped.bindings.push_back({
 						id,
 						*options.sourceType,
+						descriptor.defaultValue,
 						options.sourceForm,
 						options.propertyName,
 						options.modSettingId
 					});
 				}
 				mapped.settings.groups[*currentGroup].settings.push_back(
-					MapControl(
-						control,
-						std::move(id),
-						a_diag));
+					std::move(descriptor));
 				++descriptorCount;
 
 				DiagnoseUnsupported(
 					control,
 					a_diag);
-				if (control.html.value_or(false))
+				if (control.type != ControlType::kText &&
+					control.html.value_or(false))
 				{
 					a_diag.Add(
 						DiagnosticSeverity::kWarning,
 						control.location + ".html",
 						"HTML text presentation is not represented by settings controls");
 				}
-				if (control.alignment)
+				if (control.type != ControlType::kText &&
+					control.alignment)
 				{
 					a_diag.Add(
 						DiagnosticSeverity::kWarning,

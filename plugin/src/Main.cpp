@@ -1,6 +1,7 @@
 #include <DearModdingUI/MCM/GlobalValueSource.h>
 
 #include <DearModdingUI/MCM/Compatibility.h>
+#include <DearModdingUI/MCM/TextRendering.h>
 
 #include <DearModdingUI/Client.h>
 
@@ -216,6 +217,7 @@ namespace DearModdingUI::MCM
 						std::make_unique<MappedPage>(std::move(result.pages[index]));
 					descriptors += DescriptorCount(*page);
 					BindPage(*page, s_valueSource);
+					AttachTextRendering(*page);
 					ComposeMcmAvailability(*page);
 
 					auto* settings = &page->settings;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <DearModdingUI/MCM/TextMarkup.h>
+
 #include <DearModdingUI/Client.h>
 
 #include <cstddef>
@@ -126,9 +128,16 @@ namespace DearModdingUI::MCM
 	{
 		std::string descriptorId;
 		SourceType source;
+		dmui::SettingValue target;
 		std::optional<std::string> sourceForm;
 		std::optional<std::string> propertyName;
 		std::optional<std::string> modSettingId;
+	};
+
+	struct MappedText
+	{
+		std::string descriptorId;
+		TextPresentation presentation;
 	};
 
 	struct MappedPage
@@ -137,6 +146,7 @@ namespace DearModdingUI::MCM
 		std::string displayName;
 		dmui::SettingsPage settings;
 		std::vector<MappedBinding> bindings;
+		std::vector<MappedText> texts;
 	};
 
 	enum class DiagnosticSeverity : uint8_t

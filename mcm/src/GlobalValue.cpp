@@ -40,63 +40,50 @@ namespace DearModdingUI::MCM
 		}
 	}
 
-	SourceValueKind ResolveSourceValueKind(
-		SourceValueKind a_declared,
-		const dmui::SettingValue& a_default) noexcept
-	{
-		return std::visit(
-			[a_declared]<class T>(const T&) noexcept {
-				if constexpr (std::is_same_v<T, bool>)
-					return SourceValueKind::kBool;
-				else if constexpr (std::is_same_v<T, double>)
-					return SourceValueKind::kFloat;
-				else if constexpr (std::is_same_v<T, int64_t> ||
-								   std::is_same_v<T, uint64_t>)
-					return SourceValueKind::kInt;
-				else if constexpr (std::is_same_v<T, std::string>)
-					return SourceValueKind::kString;
-				else
-					return a_declared;
-			},
-			a_default);
-	}
 
 	std::optional<dmui::SettingValue> GlobalToSettingValue(
 		float a_value,
-		SourceValueKind a_kind) noexcept
+		const dmui::SettingValue& a_target) noexcept
 	{
-		switch (a_kind)
-		{
-		case SourceValueKind::kBool:
-			return dmui::SettingValue{ a_value != 0.0f };
-		case SourceValueKind::kInt:
+		const auto integral = [a_value]<class T>() noexcept
+			-> std::optional<T> {
 			if (!std::isfinite(a_value) ||
 				static_cast<long double>(a_value) <
-					static_cast<long double>((std::numeric_limits<int64_t>::min)()) ||
+					static_cast<long double>((std::numeric_limits<T>::min)()) ||
 				static_cast<long double>(a_value) >
-					static_cast<long double>((std::numeric_limits<int64_t>::max)()))
+					static_cast<long double>((std::numeric_limits<T>::max)()))
 				return std::nullopt;
-			return dmui::SettingValue{ static_cast<int64_t>(a_value) };
-		case SourceValueKind::kFloat:
-			return dmui::SettingValue{ static_cast<double>(a_value) };
-		case SourceValueKind::kString:
-			if (!std::isfinite(a_value) ||
-				static_cast<long double>(a_value) <
-					static_cast<long double>((std::numeric_limits<int64_t>::min)()) ||
-				static_cast<long double>(a_value) >
-					static_cast<long double>((std::numeric_limits<int64_t>::max)()))
-				return std::nullopt;
-			return dmui::SettingValue{
-				std::to_string(static_cast<int64_t>(a_value))
-			};
-		default:
-			return std::nullopt;
-		}
+			return static_cast<T>(a_value);
+		};
+
+		return std::visit(
+			[&]<class T>(const T&) noexcept
+				-> std::optional<dmui::SettingValue> {
+				if constexpr (std::is_same_v<T, bool>)
+					return dmui::SettingValue{ a_value != 0.0f };
+				else if constexpr (std::is_same_v<T, double>)
+					return dmui::SettingValue{ static_cast<double>(a_value) };
+				else if constexpr (std::is_same_v<T, std::string>)
+				{
+					const auto index = integral.template operator()<int64_t>();
+					return index ?
+						std::optional{ dmui::SettingValue{
+							std::to_string(*index) } } :
+						std::nullopt;
+				}
+				else
+				{
+					const auto number = integral.template operator()<T>();
+					return number ?
+						std::optional{ dmui::SettingValue{ *number } } :
+						std::nullopt;
+				}
+			},
+			a_target);
 	}
 
 	std::optional<float> SettingValueToGlobal(
-		const dmui::SettingValue& a_value,
-		SourceValueKind a_kind) noexcept
+		const dmui::SettingValue& a_value) noexcept
 	{
 		const auto inFloatRange = [](long double a_number) noexcept {
 			return std::isfinite(a_number) &&
@@ -106,42 +93,30 @@ namespace DearModdingUI::MCM
 					(std::numeric_limits<float>::max)());
 		};
 
-		switch (a_kind)
-		{
-		case SourceValueKind::kBool:
-			if (const auto value = std::get_if<bool>(&a_value))
-				return *value ? 1.0f : 0.0f;
-			break;
-		case SourceValueKind::kInt:
-			if (const auto value = std::get_if<int64_t>(&a_value);
-				value && inFloatRange(static_cast<long double>(*value)))
-				return static_cast<float>(*value);
-			if (const auto value = std::get_if<uint64_t>(&a_value);
-				value && inFloatRange(static_cast<long double>(*value)))
-				return static_cast<float>(*value);
-			break;
-		case SourceValueKind::kFloat:
-			if (const auto value = std::get_if<double>(&a_value);
-				value && inFloatRange(static_cast<long double>(*value)))
-				return static_cast<float>(*value);
-			break;
-		case SourceValueKind::kString:
-			if (const auto text = std::get_if<std::string>(&a_value))
-			{
-				float value{};
-				const auto [end, error] = std::from_chars(
-					text->data(),
-					text->data() + text->size(),
-					value);
-				if (error == std::errc{} &&
-					end == text->data() + text->size() &&
-					std::isfinite(value))
-					return value;
-			}
-			break;
-		default:
-			break;
-		}
-		return std::nullopt;
+		return std::visit(
+			[&]<class T>(const T& a_held) noexcept -> std::optional<float> {
+				if constexpr (std::is_same_v<T, bool>)
+					return a_held ? 1.0f : 0.0f;
+				else if constexpr (std::is_same_v<T, std::string>)
+				{
+					float parsed{};
+					const auto [end, error] = std::from_chars(
+						a_held.data(),
+						a_held.data() + a_held.size(),
+						parsed);
+					return error == std::errc{} &&
+							end == a_held.data() + a_held.size() &&
+							std::isfinite(parsed) ?
+						std::optional{ parsed } :
+						std::nullopt;
+				}
+				else
+				{
+					return inFloatRange(static_cast<long double>(a_held)) ?
+						std::optional{ static_cast<float>(a_held) } :
+						std::nullopt;
+				}
+			},
+			a_value);
 	}
 }

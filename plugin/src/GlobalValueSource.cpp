@@ -19,7 +19,7 @@ namespace DearModdingUI::MCM
 		{
 			const auto* global = Find(a_binding);
 			return global ?
-				GlobalToSettingValue(global->GetValue(), a_binding.source.value) :
+				GlobalToSettingValue(global->GetValue(), a_binding.target) :
 				std::nullopt;
 		}
 		catch (...)
@@ -60,8 +60,7 @@ namespace DearModdingUI::MCM
 		try
 		{
 			auto* global = Find(a_binding);
-			const auto value =
-				SettingValueToGlobal(a_value, a_binding.source.value);
+			const auto value = SettingValueToGlobal(a_value);
 			if (!global || !value)
 				return false;
 			global->value = *value;

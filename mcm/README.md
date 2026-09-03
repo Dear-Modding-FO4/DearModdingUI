@@ -2,14 +2,23 @@
 
 `dmui-mcm` reads Mod Configuration Menu configurations and maps them onto the settings vocabulary in
 `Client.h`. It is a static library consumed by `dmui-tests`, `dmui-preview`, and the separate
-`DearModdingUI-MCM` compatibility plugin; the host links no MCM or JSON code. The mapper links ImGui
-for read-only draw callbacks but remains independent of game and F4SE headers.
+`DearModdingUI-MCM` compatibility plugin; the host links no MCM or JSON code. The library remains
+independent of ImGui, game, and F4SE headers.
 
 `ParseConfig` and `LoadConfig` are `noexcept` and total. Input is third-party JSON, so every failure
 is diagnosed and skipped rather than thrown or aborted on, and condition nesting is capped at
 `kMaxConditionDepth`. `ResolveSourceType` classifies each value source once at parse time, and
 `MappedPage::bindings` correlates emitted descriptor ids with their source, so callers never
 re-derive ids or re-parse source strings.
+
+## Text presentation
+
+`ResolveTextPresentation` leaves markup literal unless a text control declares `"html": true`.
+Opted-in text expands break and paragraph boundaries, strips tags, and decodes the five common named
+entities plus decimal and hexadecimal numeric entities. A control-level alignment is the default;
+the last valid paragraph alignment overrides it for the resolved read-only control.
+The mapper stores presentations in `MappedPage::texts`; each final binary calls
+`AttachTextRendering` so ImGui forwarding or lockstep linkage is selected by that consumer.
 
 ## Writing values
 

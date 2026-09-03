@@ -1,5 +1,4 @@
 #include <DearModdingUI/MCM/ValueSource.h>
-#include <DearModdingUI/MCM/GlobalValue.h>
 
 #include <utility>
 
@@ -34,13 +33,10 @@ namespace DearModdingUI::MCM
 
 		void BindSupported(
 			dmui::SettingDescriptor& a_descriptor,
-			MappedBinding a_binding,
+			const MappedBinding& a_binding,
 			ValueSource& a_source)
 		{
 			auto fallback = a_descriptor.defaultValue;
-			a_binding.source.value = ResolveSourceValueKind(
-				a_binding.source.value,
-				fallback);
 
 			// A mismatched alternative throws out of the host's draw.
 			const auto matched =

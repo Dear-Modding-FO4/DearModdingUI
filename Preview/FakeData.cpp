@@ -5,6 +5,7 @@
 
 #include <DearModdingUI/Client.h>
 #include <DearModdingUI/MCM/GlobalValue.h>
+#include <DearModdingUI/MCM/TextRendering.h>
 #include <DearModdingUI/MCM/ValueSource.h>
 
 #include <array>
@@ -81,6 +82,12 @@ namespace DearModdingUIPreview
 				{"id":"bridge","type":"section","text":"MCM Bridge"},
 				{"id":"BridgeDescription","type":"text",
 				 "text":"This long MCM text control demonstrates that explanatory prose wraps cleanly instead of being replaced or clipped at the value-column boundary."},
+				{"id":"MarkupDescription","type":"text","html":true,
+				 "text":"<i>Italic source</i> and <font size='30'>large source</font><br /><p align='center'>Centered markup paragraph</p>"},
+				{"id":"LiteralDescription","type":"text","html":false,
+				 "text":"Literal angle brackets survive: <Press E>"},
+				{"id":"AlignedDescription","type":"text","align":"center",
+				 "text":"Control-level centered text"},
 				{"id":"DisplaySlot","type":"dropdown","text":"Display slot",
 				 "valueOptions":{"sourceType":"GlobalValue",
 				 "sourceForm":"PreviewMCM.esp|800","default":0,
@@ -110,7 +117,7 @@ namespace DearModdingUIPreview
 					return std::nullopt;
 				return DearModdingUI::MCM::GlobalToSettingValue(
 					value->second,
-					a_binding.source.value);
+					a_binding.target);
 			}
 
 			void Refresh(
@@ -122,8 +129,7 @@ namespace DearModdingUIPreview
 				const dmui::SettingValue& a_value) override
 			{
 				const auto value = DearModdingUI::MCM::SettingValueToGlobal(
-					a_value,
-					a_binding.source.value);
+					a_value);
 				if (!value)
 					return false;
 				m_values[a_binding.descriptorId] = *value;
@@ -499,9 +505,14 @@ namespace DearModdingUIPreview
 				}
 			};
 
-			auto mcm = DearModdingUI::MCM::ParseConfig(
-				kMcmConfig,
-				"preview-mcm-config.json");
+			const auto* configOverride =
+				std::getenv("DMUI_PREVIEW_MCM_CONFIG");
+			auto mcm = configOverride ?
+				DearModdingUI::MCM::LoadConfig(
+					std::filesystem::path{ configOverride }) :
+				DearModdingUI::MCM::ParseConfig(
+					kMcmConfig,
+					"preview-mcm-config.json");
 			if (mcm.pages.empty())
 			{
 				a_error = "Could not parse the MCM preview fixture.";
@@ -509,24 +520,31 @@ namespace DearModdingUIPreview
 			}
 			m_impl->mcmValues.Seed("DisplaySlot", 2.0f);
 			m_impl->mcmValues.Seed("FeatureEnabled", 1.0f);
-			auto& mcmPage = mcm.pages.front();
-			DearModdingUI::MCM::BindPage(mcmPage, m_impl->mcmValues);
 			auto* mcmClient = m_impl->AddClient(
 				"dearmodding.mcm-preview",
 				"MCM Bridge Preview",
 				{ 1, 0 },
 				"sliders",
 				a_error);
-			if (!mcmClient ||
-				!mcmClient->AddSettingsPage(
-					mcmPage.id.c_str(),
-					mcmPage.displayName.c_str(),
-					"MCM",
-					std::move(mcmPage.settings),
-					"Parsed and bound MCM compatibility controls."))
+			if (!mcmClient)
 			{
 				a_error = "Could not register the MCM preview fixture.";
 				return false;
+			}
+			for (auto& mcmPage : mcm.pages)
+			{
+				DearModdingUI::MCM::BindPage(mcmPage, m_impl->mcmValues);
+				DearModdingUI::MCM::AttachTextRendering(mcmPage);
+				if (!mcmClient->AddSettingsPage(
+						mcmPage.id.c_str(),
+						mcmPage.displayName.c_str(),
+						"MCM",
+						std::move(mcmPage.settings),
+						"Parsed and bound MCM compatibility controls."))
+				{
+					a_error = "Could not register the MCM preview fixture.";
+					return false;
+				}
 			}
 
 			auto* addictol = m_impl->AddClient(

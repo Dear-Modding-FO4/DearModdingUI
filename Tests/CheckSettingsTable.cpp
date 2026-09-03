@@ -147,6 +147,31 @@ namespace vmm_tests
 				"balanced row changed the ImGui stack");
 		});
 
+		runner.test("settings row accepts a deliberately empty label", [] {
+			constexpr DMUI_ClientHandle owner{ 7 };
+			ImGuiTestFrame frame;
+			{
+				const SettingsTable::ClientCallbackGuard guard{ owner };
+				const auto table = SettingsTable::Begin(owner, "settings");
+				require(table.result == DMUI_RESULT_OK && table.visible,
+					"settings table did not begin");
+				const auto row = SettingsTable::BeginRow(
+					owner, "prose", "", "");
+				require(row.result == DMUI_RESULT_OK && row.visible,
+					"settings row rejected an empty label");
+				ImGui::TextUnformatted("Prose");
+				bool resetPressed{};
+				require(SettingsTable::EndRow(
+							owner, { false, false }, resetPressed) ==
+						DMUI_RESULT_OK,
+					"unlabeled settings row did not end");
+				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
+					"settings table did not end");
+			}
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"unlabeled row changed the ImGui stack");
+		});
+
 		runner.test("settings row survives ImGui table pool growth", [] {
 			constexpr DMUI_ClientHandle owner{ 7 };
 			ImGuiTestFrame frame;
