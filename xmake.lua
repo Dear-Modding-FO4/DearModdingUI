@@ -265,3 +265,35 @@ target(plugin_name, function()
         )
     end)
 end)
+
+target("DearModdingUI-MCM", function()
+    set_optimize("fastest")
+    set_symbols("debug")
+    set_exceptions("cxx")
+    set_targetdir(project_dir(".Build/F4SE/Plugins"))
+    set_objectdir(project_dir(".LinkConf/xmake/DearModdingUI-MCM"))
+    set_dependir(project_dir(".LinkConf/xmake/DearModdingUI-MCM/deps"))
+
+    add_rules("commonlibf4.plugin", {
+        name = "DearModdingUI-MCM",
+        author = "Dear Modding FO4",
+        description = "Mod Configuration Menu compatibility client for DearModdingUI"
+    })
+
+    add_deps("dmui-mcm")
+    add_files("plugin/src/**.cpp")
+    add_headerfiles("plugin/include/**.h")
+    add_extrafiles("mcm/README.md")
+    add_includedirs("plugin/include")
+    add_defines(
+        "NDEBUG",
+        "NOMINMAX",
+        "WIN32_LEAN_AND_MEAN"
+    )
+    add_cxxflags(
+        "/permissive-",
+        "/Zc:preprocessor",
+        { public = true }
+    )
+    set_pcxxheader("Depends/commonlibf4/include/F4SE/Impl/PCH.h")
+end)

@@ -14,6 +14,7 @@ int main()
 	run_hotkey_checks(runner);
 	run_mcm_checks(runner);
 	run_mcm_binding_checks(runner);
+	run_mcm_global_value_checks(runner);
 
 	std::cout << '\n' << runner.tests() - runner.failures() << '/' << runner.tests() << " checks passed\n";
 	return runner.failures() == 0 ? 0 : 1;

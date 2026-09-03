@@ -1,7 +1,8 @@
 # MCM compatibility module
 
 `dmui-mcm` reads Mod Configuration Menu configurations and maps them onto the settings vocabulary in
-`Client.h`. It is a static library consumed only by `dmui-tests`; the host links no MCM or JSON code.
+`Client.h`. It is a static library consumed by `dmui-tests` and the separate `DearModdingUI-MCM`
+compatibility plugin; the host links no MCM or JSON code.
 
 `ParseConfig` and `LoadConfig` are `noexcept` and total. Input is third-party JSON, so every failure
 is diagnosed and skipped rather than thrown or aborted on, and condition nesting is capped at
@@ -31,3 +32,11 @@ Measured in game:
 
 CommonLibF4 declares `BSScript::IStackCallbackFunctor::~IStackCallbackFunctor` without defining it;
 deriving from it requires supplying one.
+
+## Runtime plugin
+
+`DearModdingUI-MCM` discovers `Data\MCM\Config\*\config.json` at F4SE `kPostPostLoad` and registers
+each valid configuration as an independent DearModdingUI client. The first runtime slice supports
+only global values. Forms resolve through `TESDataHandler` at `kGameDataReady`; reads afterward use
+the cached `TESGlobal` pointer. MCM presence is queried through the `MCM.IsInstalled` Papyrus native.
+When it is absent, pages remain visible with disabled controls and an explanatory note.
