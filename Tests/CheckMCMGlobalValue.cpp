@@ -51,10 +51,6 @@ namespace vmm_tests
 				"global did not become a signed integer");
 			require(number && std::get<double>(*number) == 3.5,
 				"global did not become a double");
-			require(!GlobalToSettingValue(
-						1.0f,
-						SourceValueKind::kString),
-				"a global became a string value");
 		});
 
 		runner.test("MCM globals coerce descriptor writes to floats", [] {
@@ -79,6 +75,25 @@ namespace vmm_tests
 							(std::numeric_limits<double>::infinity)() },
 						SourceValueKind::kFloat),
 				"non-finite descriptor value was accepted");
+		});
+
+		runner.test("MCM global choices translate only numeric index strings", [] {
+			const auto read =
+				GlobalToSettingValue(2.0f, SourceValueKind::kString);
+			require(read && std::get<std::string>(*read) == "2",
+				"global choice did not become an index string");
+			require(SettingValueToGlobal(
+						dmui::SettingValue{ std::string{ "7" } },
+						SourceValueKind::kString) == 7.0f,
+				"global choice index did not become a float");
+			require(!SettingValueToGlobal(
+						dmui::SettingValue{ std::string{ "61 (FX) slot" } },
+						SourceValueKind::kString),
+				"global choice accepted an option label instead of an index");
+			require(!SettingValueToGlobal(
+						dmui::SettingValue{ std::string{ "2 trailing" } },
+						SourceValueKind::kString),
+				"global choice accepted a partially numeric string");
 		});
 
 		runner.test("MCM global kind follows the descriptor default", [] {

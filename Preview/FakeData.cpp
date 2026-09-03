@@ -4,6 +4,8 @@
 #include <imgui/imgui_internal.h>
 
 #include <DearModdingUI/Client.h>
+#include <DearModdingUI/MCM/GlobalValue.h>
+#include <DearModdingUI/MCM/ValueSource.h>
 
 #include <array>
 #include <cstdint>
@@ -13,6 +15,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -59,6 +62,7 @@ namespace DearModdingUIPreview
 				1.0,
 				2.0
 			};
+
 			SettingsValues committed{
 				true,
 				"Quality",
@@ -68,6 +72,71 @@ namespace DearModdingUIPreview
 				2.5
 			};
 			SettingsValues draft{ committed };
+		};
+
+		constexpr std::string_view kMcmConfig = R"json({
+			"modName": "PreviewMCM",
+			"displayName": "MCM Bridge Preview",
+			"content": [
+				{"id":"bridge","type":"section","text":"MCM Bridge"},
+				{"id":"BridgeDescription","type":"text",
+				 "text":"This long MCM text control demonstrates that explanatory prose wraps cleanly instead of being replaced or clipped at the value-column boundary."},
+				{"id":"DisplaySlot","type":"dropdown","text":"Display slot",
+				 "valueOptions":{"sourceType":"GlobalValue",
+				 "sourceForm":"PreviewMCM.esp|800","default":0,
+				 "options":["59 (Utility) slot","60 (Animation) slot","61 (FX) slot"]}},
+				{"id":"divider","type":"section","text":""},
+				{"id":"FeatureEnabled","type":"switcher","text":"Enable feature",
+				 "valueOptions":{"sourceType":"GlobalValue",
+				 "sourceForm":"PreviewMCM.esp|801","default":false}}
+			]
+		})json";
+
+		class PreviewGlobalValueSource final :
+			public DearModdingUI::MCM::ValueSource
+		{
+		public:
+			[[nodiscard]] bool Supports(
+				DearModdingUI::MCM::SourceFamily a_family) const noexcept override
+			{
+				return a_family == DearModdingUI::MCM::SourceFamily::kGlobal;
+			}
+
+			[[nodiscard]] std::optional<dmui::SettingValue> Read(
+				const DearModdingUI::MCM::MappedBinding& a_binding) const override
+			{
+				const auto value = m_values.find(a_binding.descriptorId);
+				if (value == m_values.end())
+					return std::nullopt;
+				return DearModdingUI::MCM::GlobalToSettingValue(
+					value->second,
+					a_binding.source.value);
+			}
+
+			void Refresh(
+				const DearModdingUI::MCM::MappedBinding&) override
+			{}
+
+			[[nodiscard]] bool Write(
+				const DearModdingUI::MCM::MappedBinding& a_binding,
+				const dmui::SettingValue& a_value) override
+			{
+				const auto value = DearModdingUI::MCM::SettingValueToGlobal(
+					a_value,
+					a_binding.source.value);
+				if (!value)
+					return false;
+				m_values[a_binding.descriptorId] = *value;
+				return true;
+			}
+
+			void Seed(std::string a_id, float a_value)
+			{
+				m_values.emplace(std::move(a_id), a_value);
+			}
+
+		private:
+			std::unordered_map<std::string, float> m_values;
 		};
 
 		void DrawFixturePage(
@@ -278,6 +347,7 @@ namespace DearModdingUIPreview
 	struct FakeData::Impl
 	{
 		SettingsState settings;
+		PreviewGlobalValueSource mcmValues;
 		std::vector<std::unique_ptr<dmui::Client>> clients;
 
 		[[nodiscard]] dmui::Client* AddClient(
@@ -428,6 +498,36 @@ namespace DearModdingUIPreview
 					{ "interface", "Interface", "Interface", "HUD and inventory interface settings." }
 				}
 			};
+
+			auto mcm = DearModdingUI::MCM::ParseConfig(
+				kMcmConfig,
+				"preview-mcm-config.json");
+			if (mcm.pages.empty())
+			{
+				a_error = "Could not parse the MCM preview fixture.";
+				return false;
+			}
+			m_impl->mcmValues.Seed("DisplaySlot", 2.0f);
+			m_impl->mcmValues.Seed("FeatureEnabled", 1.0f);
+			auto& mcmPage = mcm.pages.front();
+			DearModdingUI::MCM::BindPage(mcmPage, m_impl->mcmValues);
+			auto* mcmClient = m_impl->AddClient(
+				"dearmodding.mcm-preview",
+				"MCM Bridge Preview",
+				{ 1, 0 },
+				"sliders",
+				a_error);
+			if (!mcmClient ||
+				!mcmClient->AddSettingsPage(
+					mcmPage.id.c_str(),
+					mcmPage.displayName.c_str(),
+					"MCM",
+					std::move(mcmPage.settings),
+					"Parsed and bound MCM compatibility controls."))
+			{
+				a_error = "Could not register the MCM preview fixture.";
+				return false;
+			}
 
 			auto* addictol = m_impl->AddClient(
 				"dearmodding.addictol",

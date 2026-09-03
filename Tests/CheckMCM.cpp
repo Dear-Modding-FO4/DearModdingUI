@@ -452,6 +452,11 @@ namespace vmm_tests
 						SettingNamed(root, "WelcomeMessage").control).kind ==
 						dmui::SettingControlKind::kReadOnly,
 				"text did not map to read-only");
+			require(static_cast<bool>(std::get<dmui::ReadOnlySettingControl>(
+						SettingNamed(root, "WelcomeMessage").control).draw),
+				"text read-only control cannot draw");
+			require(SettingNamed(root, "WelcomeMessage").label == " ",
+				"text control did not reserve its prose for the value column");
 			require(ControlKindCount(
 						result,
 						dmui::SettingControlKind::kUnsupported) == 4,
@@ -719,6 +724,9 @@ namespace vmm_tests
 					std::holds_alternative<dmui::ReadOnlySettingControl>(
 						modified.control),
 				"a hotkey control degraded from read-only");
+			require(std::get<dmui::ReadOnlySettingControl>(bare.control).draw &&
+					std::get<dmui::ReadOnlySettingControl>(modified.control).draw,
+				"hotkey read-only control cannot draw");
 			require(std::get<std::string>(bare.defaultValue) ==
 						"Managed by MCM" &&
 					std::get<std::string>(modified.defaultValue) ==
@@ -728,6 +736,24 @@ namespace vmm_tests
 				"hotkey controls exposed reset actions");
 			require(!HasDiagnostic(result, "unsupported in this phase"),
 				"hotkey controls emitted unsupported diagnostics");
+		});
+
+		runner.test("MCM empty sections map to unnamed groups", [] {
+			const auto result = ParseConfig(R"({
+				"modName": "EmptySection",
+				"displayName": "Empty Section",
+				"content": [
+					{"id":"divider","type":"section","text":""},
+					{"id":"enabled","type":"switcher"}
+				]
+			})", "empty-section-config.json");
+			require(result.pages.size() == 1 &&
+					result.pages.front().settings.groups.size() == 1,
+				"empty section did not produce one group");
+			const auto& group = result.pages.front().settings.groups.front();
+			require(group.id == "divider" && group.label == " " &&
+					group.glyph == U' ',
+				"empty section did not produce an unnamed group");
 		});
 
 		runner.test("MCM text input spellings both map to text controls", [] {

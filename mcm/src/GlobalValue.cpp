@@ -79,6 +79,16 @@ namespace DearModdingUI::MCM
 			return dmui::SettingValue{ static_cast<int64_t>(a_value) };
 		case SourceValueKind::kFloat:
 			return dmui::SettingValue{ static_cast<double>(a_value) };
+		case SourceValueKind::kString:
+			if (!std::isfinite(a_value) ||
+				static_cast<long double>(a_value) <
+					static_cast<long double>((std::numeric_limits<int64_t>::min)()) ||
+				static_cast<long double>(a_value) >
+					static_cast<long double>((std::numeric_limits<int64_t>::max)()))
+				return std::nullopt;
+			return dmui::SettingValue{
+				std::to_string(static_cast<int64_t>(a_value))
+			};
 		default:
 			return std::nullopt;
 		}
@@ -114,6 +124,20 @@ namespace DearModdingUI::MCM
 			if (const auto value = std::get_if<double>(&a_value);
 				value && inFloatRange(static_cast<long double>(*value)))
 				return static_cast<float>(*value);
+			break;
+		case SourceValueKind::kString:
+			if (const auto text = std::get_if<std::string>(&a_value))
+			{
+				float value{};
+				const auto [end, error] = std::from_chars(
+					text->data(),
+					text->data() + text->size(),
+					value);
+				if (error == std::errc{} &&
+					end == text->data() + text->size() &&
+					std::isfinite(value))
+					return value;
+			}
 			break;
 		default:
 			break;

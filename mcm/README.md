@@ -1,8 +1,9 @@
 # MCM compatibility module
 
 `dmui-mcm` reads Mod Configuration Menu configurations and maps them onto the settings vocabulary in
-`Client.h`. It is a static library consumed by `dmui-tests` and the separate `DearModdingUI-MCM`
-compatibility plugin; the host links no MCM or JSON code.
+`Client.h`. It is a static library consumed by `dmui-tests`, `dmui-preview`, and the separate
+`DearModdingUI-MCM` compatibility plugin; the host links no MCM or JSON code. The mapper links ImGui
+for read-only draw callbacks but remains independent of game and F4SE headers.
 
 `ParseConfig` and `LoadConfig` are `noexcept` and total. Input is third-party JSON, so every failure
 is diagnosed and skipped rather than thrown or aborted on, and condition nesting is capped at
@@ -17,6 +18,9 @@ re-derive ids or re-parse source strings.
 | `kGlobal` | assign `TESGlobal::value` | no, the mod reads the global |
 | `kProperty` | write the Papyrus property slot | no, the mod reads the property |
 | `kModSetting` | `MCM.SetModSetting*` through the Papyrus VM | yes |
+
+Global-backed choices use numeric option indexes encoded as descriptor strings. Reads format the
+global as an integer index, and writes accept only numeric strings rather than option labels.
 
 Measured in game:
 

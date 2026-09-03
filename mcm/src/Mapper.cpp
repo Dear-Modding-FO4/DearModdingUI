@@ -1,3 +1,6 @@
+#include <imgui.h>
+#include <imgui_internal.h>
+
 #include "Mapper.h"
 
 #include "Diagnostics.h"
@@ -44,6 +47,9 @@ namespace DearModdingUI::MCM::detail
 
 	namespace
 	{
+		// A nonempty blank label bypasses the client API's ID fallback.
+		constexpr auto kUnnamedLabel = " ";
+
 		[[nodiscard]] std::string ScalarText(const Scalar& a_value)
 		{
 			return std::visit(
@@ -176,6 +182,16 @@ namespace DearModdingUI::MCM::detail
 				a_control.valueOptions->sourceType &&
 				a_control.valueOptions->sourceType->value ==
 					SourceValueKind::kString;
+		}
+
+		[[nodiscard]] dmui::ReadOnlySettingControl MakeReadOnlyControl(
+			std::string a_text)
+		{
+			return {
+				[text = std::move(a_text)] {
+					ImGui::TextWrapped("%s", text.c_str());
+				}
+			};
 		}
 
 		void MapCheckboxDefault(
@@ -414,12 +430,13 @@ namespace DearModdingUI::MCM::detail
 				break;
 			}
 			case ControlType::kText:
-				descriptor.control = dmui::ReadOnlySettingControl{};
+				descriptor.label = kUnnamedLabel;
+				descriptor.control = MakeReadOnlyControl(a_control.text);
 				descriptor.defaultValue = a_control.text;
 				descriptor.showReset = false;
 				break;
 			case ControlType::kKeymap:
-				descriptor.control = dmui::ReadOnlySettingControl{};
+				descriptor.control = MakeReadOnlyControl("Managed by MCM");
 				descriptor.defaultValue = std::string{ "Managed by MCM" };
 				descriptor.showReset = false;
 				break;
@@ -498,9 +515,8 @@ namespace DearModdingUI::MCM::detail
 			{
 				if (control.type == ControlType::kGroup)
 				{
-					auto label = control.text.empty() ?
-						"Section" :
-						control.text;
+					const auto unnamed = control.text.empty();
+					auto label = unnamed ? kUnnamedLabel : control.text;
 					auto id = control.id.empty() ?
 						MakeIdentifier(label, "section") + "-" +
 							std::to_string(control.sourceIndex + 1) :
@@ -509,6 +525,8 @@ namespace DearModdingUI::MCM::detail
 						std::move(id),
 						std::move(label),
 						control.location);
+					if (unnamed)
+						mapped.settings.groups[*currentGroup].glyph = U' ';
 					continue;
 				}
 				if (control.type == ControlType::kSpacing ||
