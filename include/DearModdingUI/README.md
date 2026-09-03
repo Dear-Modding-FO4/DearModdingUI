@@ -100,6 +100,7 @@ caller-supplied ID, a label, and an optional description; the host copies the te
 column, opens the value cell, reserves the reset column from live font/style metrics, and draws Reset
 through the shared settings-action treatment. `DMUI_SettingsRowOptions` controls reset visibility and
 enabled state and must provide at least `DMUI_SETTINGS_ROW_OPTIONS_1_0_SIZE`.
+Declarative descriptors may provide `resolveDescription` when the explanation depends on live state.
 The appended `beginSettingsRowEx` accepts a caller-sized `DMUI_SettingsRowBeginOptions`. Its
 `DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN` layout gives the row content both table columns at begin time;
 `DMUI_SETTINGS_ROW_LAYOUT_LABEL_VALUE` preserves the original geometry. The C++ `RowPresentation`
@@ -108,10 +109,12 @@ falls back to `beginSettingsRow`, so a full-span request remains usable in the o
 
 `SettingsActionRow` is the inline, non-setting counterpart to `SettingDescriptor`. Groups retain
 settings and actions separately and use `SettingGroup::rows` when their source order must be
-preserved. Action rows share `RowPresentation`, visibility, enabled state, filtering, descriptions,
-and the host settings-table geometry without acquiring defaults, bindings, dirty state, or reset
-semantics. They use the forwarded ordinary ImGui button primitive; `drawSettingsActionButton` is
-reserved for the fixed Reset, Revert, and Apply actions and cannot represent arbitrary labels.
+preserved. A `DividerRow` in that ordering draws the shared divider without contributing to the
+group's visible-row count. Action rows share `RowPresentation`, visibility, enabled state,
+filtering, descriptions, and the host settings-table geometry without acquiring defaults, bindings,
+dirty state, or reset semantics. They use the forwarded ordinary ImGui button primitive;
+`drawSettingsActionButton` is reserved for the fixed Reset, Revert, and Apply actions and cannot
+represent arbitrary labels.
 
 `NumericSettingControl<T>::quantization` carries both an interval and an origin. Accepted edits use
 `origin + round((value - origin) / interval) * interval`, then the setting binding returns the

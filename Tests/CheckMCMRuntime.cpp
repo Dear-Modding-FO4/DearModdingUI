@@ -293,6 +293,7 @@ namespace vmm_tests
 					!Dependent(page).isVisible() &&
 					summary.unevaluableConditions == 0 &&
 					SummarizeCompatibility(page).undeclaredModSettings == 1 &&
+					summary.localUiStateRows == 1 &&
 					!HasConditionNote(page),
 				"a local visibility controller was not interactive and collapsed");
 			(void)toggle.binding.set(dmui::SettingValue{ true });

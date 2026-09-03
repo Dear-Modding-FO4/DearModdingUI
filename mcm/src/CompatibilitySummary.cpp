@@ -7,6 +7,7 @@ namespace DearModdingUI::MCM
 	{
 		PageCompatibilitySummary result;
 		result.rows = a_page.rows.size();
+		result.localUiStateRows = a_page.localUiStateRows;
 		for (const auto& row : a_page.rows)
 		{
 			if (row.binding)

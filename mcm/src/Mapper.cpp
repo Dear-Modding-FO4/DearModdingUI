@@ -662,6 +662,12 @@ namespace DearModdingUI::MCM::detail
 				if (control.type == ControlType::kGroup)
 				{
 					const auto unnamed = control.text.empty();
+					if (unnamed && currentGroup)
+					{
+						mapped.settings.groups[*currentGroup].rows.emplace_back(
+							dmui::SettingGroup::DividerRow{});
+						continue;
+					}
 					auto label = control.text;
 					auto id = control.id.empty() ?
 						MakeIdentifier(label, "section") + "-" +

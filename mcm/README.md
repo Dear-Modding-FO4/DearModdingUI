@@ -49,6 +49,13 @@ persistent state. Other inoperable controllers and missing or failed dependencie
 dependent content visible, and add a page compatibility diagnostic. No unresolved source state is
 replaced with the configured default.
 
+Named MCM sections start collapsible groups. Unnamed sections inside a group preserve their source
+position as divider rows; a leading unnamed section retains an implicit divider-headed group.
+
+`BindPage` records each row's `ValueRoute`. Source-backed mod settings follow live MCM availability,
+while `kLocalUiState` rows remain interactive because they never dispatch to MCM. Unknown and absent
+availability disable only source-backed mod settings and add both page-level and per-row explanations.
+
 ## Writing values
 
 | Family | Path | Raises `OnMCMSettingChange` |

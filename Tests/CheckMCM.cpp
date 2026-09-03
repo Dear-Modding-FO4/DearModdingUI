@@ -904,6 +904,31 @@ namespace vmm_tests
 				"empty section did not produce an unnamed group");
 		});
 
+		runner.test("MCM empty sections divide an existing named group", [] {
+			const auto result = ParseConfig(R"({
+				"modName": "DividedSection",
+				"displayName": "Divided Section",
+				"content": [
+					{"id":"heading","type":"section","text":"Questions"},
+					{"id":"first","type":"switcher"},
+					{"id":"divider","type":"section","text":""},
+					{"id":"second","type":"switcher"}
+				]
+			})", "divided-section-config.json");
+			require(result.pages.size() == 1 &&
+					result.pages.front().settings.groups.size() == 1,
+				"empty section split an existing named group");
+			const auto& group = result.pages.front().settings.groups.front();
+			require(group.id == "heading" && group.label == "Questions" &&
+					group.headingMode ==
+						dmui::SettingGroup::HeadingMode::kAutomatic &&
+					group.settings.size() == 2 &&
+					group.rows.size() == 3 &&
+					std::holds_alternative<dmui::SettingGroup::DividerRow>(
+						group.rows[1]),
+				"empty section did not preserve a divider row in source order");
+		});
+
 		runner.test("MCM text input spellings both map to text controls", [] {
 			const auto result = ParseConfig(R"({
 				"modName": "Inputs",

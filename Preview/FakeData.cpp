@@ -43,6 +43,12 @@ namespace DearModdingUIPreview
 			PageSpec page;
 		};
 
+		enum class ClientConnection
+		{
+			kLockstep,
+			kForwarding
+		};
+
 		struct SettingsValues
 		{
 			bool fixesEnabled;
@@ -420,13 +426,21 @@ namespace DearModdingUIPreview
 			std::string_view a_displayName,
 			dmui::Version a_version,
 			std::string_view a_iconName,
-			std::string& a_error)
+			std::string& a_error,
+			ClientConnection a_connection = ClientConnection::kLockstep)
 		{
-			auto client = std::make_unique<dmui::Client>(
-				a_id,
-				a_displayName,
-				a_version,
-				a_iconName);
+			auto client = a_connection == ClientConnection::kForwarding ?
+				std::make_unique<dmui::Client>(
+					a_id,
+					a_displayName,
+					a_version,
+					dmui::kForwardingClient,
+					a_iconName) :
+				std::make_unique<dmui::Client>(
+					a_id,
+					a_displayName,
+					a_version,
+					a_iconName);
 			if (!client->Connect())
 			{
 				a_error = "Could not connect fake client " +
@@ -596,7 +610,8 @@ namespace DearModdingUIPreview
 				"MCM Bridge Preview",
 				{ 1, 0 },
 				"sliders",
-				a_error);
+				a_error,
+				ClientConnection::kForwarding);
 			if (!mcmClient)
 			{
 				a_error = "Could not register the MCM preview fixture.";

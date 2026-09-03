@@ -490,6 +490,30 @@ namespace vmm_tests
 				"choice option label resolution diverged from its value fallback");
 		});
 
+		runner.test("declarative divider rows preserve counts and filtering", [] {
+			const dmui::SettingGroup group{
+				.id = "questions",
+				.label = "Questions",
+				.settings = {
+					{ .id = "first", .label = "First" },
+					{ .id = "second", .label = "Second" }
+				},
+				.rows = {
+					dmui::SettingGroup::SettingIndex{ 0 },
+					dmui::SettingGroup::DividerRow{},
+					dmui::SettingGroup::SettingIndex{ 1 }
+				}
+			};
+			const auto all = dmui::setting_detail::MatchingRows(group, {});
+			const auto filtered =
+				dmui::setting_detail::MatchingRows(group, { "second" });
+			require(all.size() == 3 &&
+					dmui::setting_detail::MatchingContentCount(all) == 2 &&
+					filtered.size() == 1 &&
+					dmui::setting_detail::MatchingContentCount(filtered) == 1,
+				"divider rows changed heading counts or survived lone filtering");
+		});
+
 		runner.test("declarative pending count uses dirty state without value getters", [] {
 			auto firstDirty = false;
 			auto secondDirty = true;

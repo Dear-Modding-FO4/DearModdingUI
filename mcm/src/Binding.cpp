@@ -431,6 +431,13 @@ namespace DearModdingUI::MCM
 			BuildDependencies(a_page.rows));
 		const auto localToggles = std::make_shared<LocalToggleState>(
 			BuildLocalToggleState(a_page.rows, a_page.settings, a_source));
+		a_page.localUiStateRows = localToggles->values.size();
+		for (auto& row : a_page.rows)
+		{
+			if (row.groupControl &&
+				localToggles->values.contains(*row.groupControl))
+				row.valueRoute = ValueRoute::kLocalUiState;
+		}
 		auto priorPrepare = std::move(a_page.settings.prepareView);
 		a_page.settings.prepareView =
 			[&a_source,

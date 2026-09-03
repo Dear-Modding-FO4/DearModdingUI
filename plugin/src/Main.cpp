@@ -57,9 +57,6 @@ namespace DearModdingUI::MCM
 			std::vector<RegisteredPage> pages;
 		};
 
-		constexpr auto kAbsentNote =
-			"Mod Configuration Menu is not installed, so these values cannot be changed."sv;
-
 		std::atomic<AvailabilityState> s_mcmAvailability{
 			AvailabilityState::kUnknown
 		};
@@ -124,55 +121,7 @@ namespace DearModdingUI::MCM
 			return count;
 		}
 
-		void ComposeMcmAvailability(MappedPage& a_page)
-		{
-			auto hasModSettings = false;
-			for (const auto& row : a_page.rows)
-			{
-				if (!row.binding)
-					continue;
-				const auto family = row.binding->Family();
-				hasModSettings = hasModSettings ||
-					family == SourceFamily::kModSetting;
-				for (auto& group : a_page.settings.groups)
-				{
-					for (auto& descriptor : group.settings)
-					{
-						if (descriptor.id != row.binding->descriptorId)
-							continue;
-						auto prior = std::move(descriptor.isEnabled);
-						descriptor.isEnabled =
-							[family, prior = std::move(prior)] {
-								if (!IsControlOperable(
-										s_mcmAvailability.load(
-											std::memory_order_acquire),
-										family))
-									return false;
-								return !prior || prior();
-							};
-					}
-				}
-			}
-
-			auto prior = std::move(a_page.settings.prepareView);
-			a_page.settings.prepareView =
-				[prior = std::move(prior), hasModSettings, noteAdded = false](
-					dmui::SettingsPage& a_settings) mutable {
-					if (prior)
-						prior(a_settings);
-					if (hasModSettings &&
-						!noteAdded &&
-						s_mcmAvailability.load(std::memory_order_acquire) ==
-							AvailabilityState::kAbsent)
-					{
-						a_settings.notes.push_back({
-							std::string{ kAbsentNote },
-							false
-						});
-						noteAdded = true;
-					}
-				};
-		}
+		void QueryMcmAvailability() noexcept;
 
 		void LogErrors(const LoadResult& a_result)
 		{
@@ -293,25 +242,31 @@ namespace DearModdingUI::MCM
 					auto page =
 						std::make_unique<MappedPage>(std::move(result.pages[index]));
 					ApplyDeclarations(*page, declarations);
+					BindPage(*page, *mod->values);
 					const auto summary = SummarizeCompatibility(*page);
 					SurfaceCompatibility(*page, summary);
 					REX::INFO(
 						"DearModdingUI-MCM: {} / {} compatibility: "
-						"{} bindings, {} unsupported, {} unknown sources, "
+						"{} bindings, {} local UI-state rows, {} unsupported, {} unknown sources, "
 						"{} undeclared settings, {} actions, {} images"sv,
 						displayName,
 						page->displayName,
 						summary.bindings,
+						summary.localUiStateRows,
 						summary.unsupported,
 						summary.unknownBindings,
 						summary.undeclaredModSettings,
 						summary.actions,
 						summary.images);
 					descriptors += DescriptorCount(*page);
-					BindPage(*page, *mod->values);
 					BindActions(*page, *mod->actions, *mod->values);
 					AttachTextRendering(*page);
-					ComposeMcmAvailability(*page);
+					ComposeMcmAvailability(
+						*page,
+						[] {
+							return s_mcmAvailability.load(
+								std::memory_order_acquire);
+						});
 					auto priorPrepare = std::move(page->settings.prepare);
 					auto* values = mod->values.get();
 					page->settings.prepare =
@@ -364,7 +319,13 @@ namespace DearModdingUI::MCM
 				(void)mod->client->AddPageActivityObserver(
 					[observed](const dmui::PageActivity& a_activity) {
 						if (a_activity.kind == dmui::PageActivityKind::kActivated)
+						{
 							s_events.MenuOpened();
+							if (s_mcmAvailability.load(
+									std::memory_order_acquire) ==
+								AvailabilityState::kUnknown)
+								QueryMcmAvailability();
+						}
 						if (a_activity.kind == dmui::PageActivityKind::kDeactivated)
 						{
 							s_events.MenuClosed();
@@ -456,14 +417,22 @@ namespace DearModdingUI::MCM
 		{
 		public:
 			void CallQueued() override {}
-			void CallCanceled() override {}
+			void CallCanceled() override
+			{
+				REX::WARN(
+					"DearModdingUI-MCM: MCM availability query was canceled; availability remains unknown"sv);
+			}
 			void StartMultiDispatch() override {}
 			void EndMultiDispatch() override {}
 
 			void operator()(RE::BSScript::Variable a_result) override
 			{
 				if (!a_result.is<bool>())
+				{
+					REX::ERROR(
+						"DearModdingUI-MCM: MCM.IsInstalled returned a non-boolean result; availability remains unknown"sv);
 					return;
+				}
 				const auto present = RE::BSScript::get<bool>(a_result);
 				s_mcmAvailability.store(
 					present ? AvailabilityState::kPresent :
@@ -477,13 +446,20 @@ namespace DearModdingUI::MCM
 
 		void QueryMcmAvailability() noexcept
 		{
+			if (s_mcmAvailability.load(std::memory_order_acquire) !=
+				AvailabilityState::kUnknown)
+				return;
 			try
 			{
 				s_scheduler.Schedule([] {
 					auto* gameVm = RE::GameVM::GetSingleton();
 					auto vm = gameVm ? gameVm->GetVM() : nullptr;
 					if (!vm)
+					{
+						REX::WARN(
+							"DearModdingUI-MCM: MCM availability query deferred because the Papyrus VM is unavailable"sv);
 						return;
+					}
 
 					RE::BSTSmartPointer<
 						RE::BSScript::IStackCallbackFunctor> callback{
@@ -517,12 +493,19 @@ namespace DearModdingUI::MCM
 			if (a_message->type == F4SE::MessagingInterface::kPostPostLoad)
 				DiscoverAndRegister();
 			else if (a_message->type ==
-					 F4SE::MessagingInterface::kGameDataReady &&
-					 a_message->data)
+					F4SE::MessagingInterface::kGameDataReady)
 			{
-				RefreshValues();
-				QueryMcmAvailability();
+				if (a_message->data)
+				{
+					RefreshValues();
+					QueryMcmAvailability();
+				}
 			}
+			else if (a_message->type ==
+						F4SE::MessagingInterface::kPostLoadGame ||
+					a_message->type == F4SE::MessagingInterface::kNewGame ||
+					a_message->type == F4SE::MessagingInterface::kGameLoaded)
+				QueryMcmAvailability();
 		}
 
 		[[nodiscard]] bool InitializePlugin(

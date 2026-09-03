@@ -244,6 +244,12 @@ namespace DearModdingUI::MCM
 		TextPresentation presentation;
 	};
 
+	enum class ValueRoute : uint8_t
+	{
+		kSource,
+		kLocalUiState
+	};
+
 	struct MappedRow
 	{
 		std::string id;
@@ -256,6 +262,7 @@ namespace DearModdingUI::MCM
 		std::optional<MappedText> text;
 		std::optional<Action> action;
 		std::optional<Image> image;
+		ValueRoute valueRoute{ ValueRoute::kSource };
 	};
 
 	struct MappedPage
@@ -264,6 +271,7 @@ namespace DearModdingUI::MCM
 		std::string displayName;
 		dmui::SettingsPage settings;
 		std::vector<MappedRow> rows;
+		size_t localUiStateRows{};
 	};
 
 	struct PageCompatibilitySummary
@@ -271,6 +279,7 @@ namespace DearModdingUI::MCM
 		size_t rows{};
 		size_t unsupported{};
 		size_t bindings{};
+		size_t localUiStateRows{};
 		size_t unknownBindings{};
 		size_t undeclaredModSettings{};
 		size_t actions{};
