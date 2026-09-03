@@ -8,15 +8,16 @@
 
 namespace DearModdingUI::MCM
 {
-	enum class AvailabilityState : uint8_t
+	struct McmState
 	{
-		kUnknown,
-		kPresent,
-		kAbsent
+		bool installed{};
+		bool runtimeReady{};
+
+		bool operator==(const McmState&) const = default;
 	};
 
 	[[nodiscard]] constexpr bool IsControlOperable(
-		AvailabilityState a_availability,
+		McmState a_state,
 		SourceFamily a_family,
 		ValueRoute a_route = ValueRoute::kSource) noexcept
 	{
@@ -25,10 +26,11 @@ namespace DearModdingUI::MCM
 		switch (a_family)
 		{
 		case SourceFamily::kGlobal:
-		case SourceFamily::kProperty:
 			return true;
+		case SourceFamily::kProperty:
+			return a_state.runtimeReady;
 		case SourceFamily::kModSetting:
-			return a_availability == AvailabilityState::kPresent;
+			return a_state.installed && a_state.runtimeReady;
 		case SourceFamily::kUnknown:
 			return false;
 		}
@@ -36,24 +38,20 @@ namespace DearModdingUI::MCM
 	}
 
 	[[nodiscard]] constexpr std::string_view ControlUnavailableReason(
-		AvailabilityState a_availability,
+		McmState a_state,
 		SourceFamily a_family,
 		ValueRoute a_route = ValueRoute::kSource) noexcept
 	{
-		if (IsControlOperable(a_availability, a_family, a_route))
+		if (IsControlOperable(a_state, a_family, a_route))
 			return {};
-		if (a_family == SourceFamily::kModSetting)
-		{
-			return a_availability == AvailabilityState::kAbsent ?
-				"Mod Configuration Menu is not installed." :
-				"Mod Configuration Menu availability has not been determined yet.";
-		}
+		if (a_family == SourceFamily::kModSetting && !a_state.installed)
+			return "Mod Configuration Menu is not installed.";
+		if ((a_family == SourceFamily::kModSetting ||
+				a_family == SourceFamily::kProperty) &&
+			!a_state.runtimeReady)
+			return "Load a save to change these settings.";
 		return "This setting's value source is unavailable.";
 	}
 
-	using AvailabilityResolver = std::function<AvailabilityState()>;
-
-	void ComposeMcmAvailability(
-		MappedPage& a_page,
-		AvailabilityResolver a_resolve);
+	using McmStateResolver = std::function<McmState()>;
 }

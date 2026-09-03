@@ -278,6 +278,28 @@ namespace vmm_tests
 				"pending request generation was lost");
 		});
 
+		runner.test("MCM snapshot failures have distinct authoritative reasons", [] {
+			auto page = LoadBindingPage();
+			FakeValueSource source{ SourceFamily::kGlobal };
+			source.forced = PendingValue{ 1 };
+			BindPage(page, source);
+			auto& setting = BoundSetting(page, "bGlobalSwitch:Main");
+			require(
+				setting.resolveDescription() ==
+					"Waiting for this setting's value.",
+				"pending value reason was not authoritative");
+			source.forced = MissingValue{ 2 };
+			require(
+				setting.resolveDescription() ==
+					"This setting's value is unavailable.",
+				"missing value reason was not distinct");
+			source.forced = FailedValue{ 3 };
+			require(
+				setting.resolveDescription() ==
+					"This setting's value could not be read.",
+				"failed value reason was not distinct");
+		});
+
 		runner.test("MCM hidden controls drive visibility from snapshots", [] {
 			auto result = ParseConfig(R"json({
 				"modName":"ConditionFixture",
@@ -321,7 +343,9 @@ namespace vmm_tests
 				"an undeclared setting stayed enabled");
 			(void)setting.binding.set(dmui::SettingValue{ true });
 			require(source.writes == 0 &&
-					setting.description.find("not declared") != std::string::npos,
+					setting.resolveDescription &&
+					setting.resolveDescription().find("not declared") !=
+						std::string::npos,
 				"an inert undeclared toggle became local or lacked a reason");
 		});
 	}

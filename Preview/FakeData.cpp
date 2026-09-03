@@ -5,6 +5,7 @@
 
 #include <DearModdingUI/Client.h>
 #include <DearModdingUI/MCM/ActionExecutor.h>
+#include <DearModdingUI/MCM/Availability.h>
 #include <DearModdingUI/MCM/GlobalValue.h>
 #include <DearModdingUI/MCM/SettingsIni.h>
 #include <DearModdingUI/MCM/TextRendering.h>
@@ -580,6 +581,14 @@ namespace DearModdingUIPreview
 
 			const auto* configOverride =
 				std::getenv("DMUI_PREVIEW_MCM_CONFIG");
+			const auto environmentFlag = [](const char* a_name, bool a_default) {
+				const auto* value = std::getenv(a_name);
+				return value ? std::string_view{ value } != "0" : a_default;
+			};
+			const DearModdingUI::MCM::McmState mcmState{
+				environmentFlag("DMUI_PREVIEW_MCM_INSTALLED", true),
+				environmentFlag("DMUI_PREVIEW_GAME_LOADED", true)
+			};
 			auto mcm = configOverride ?
 				DearModdingUI::MCM::LoadConfig(
 					std::filesystem::path{ configOverride }) :
@@ -619,7 +628,10 @@ namespace DearModdingUIPreview
 			}
 			for (auto& mcmPage : mcm.pages)
 			{
-				DearModdingUI::MCM::BindPage(mcmPage, m_impl->mcmValues);
+				DearModdingUI::MCM::BindPage(
+					mcmPage,
+					m_impl->mcmValues,
+					[mcmState] { return mcmState; });
 				DearModdingUI::MCM::BindActions(
 					mcmPage,
 					m_impl->mcmActions,

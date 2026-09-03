@@ -1,5 +1,6 @@
 #pragma once
 
+#include <DearModdingUI/MCM/Availability.h>
 #include <DearModdingUI/MCM/Compatibility.h>
 
 #include <cstdint>
@@ -140,7 +141,9 @@ namespace DearModdingUI::MCM
 			const MappedBinding& a_binding,
 			const dmui::SettingValue& a_value) = 0;
 
-		virtual void RefreshPage(const MappedPage& a_page);
+		virtual void RefreshPage(
+			const MappedPage& a_page,
+			McmState a_state = { true, true });
 		virtual void Pump() noexcept {}
 	};
 
@@ -162,7 +165,9 @@ namespace DearModdingUI::MCM
 			const MappedBinding& a_binding,
 			const dmui::SettingValue& a_value) override;
 
-		void RefreshPage(const MappedPage& a_page) override;
+		void RefreshPage(
+			const MappedPage& a_page,
+			McmState a_state = { true, true }) override;
 		void Pump() noexcept override;
 
 	private:
@@ -171,6 +176,13 @@ namespace DearModdingUI::MCM
 		std::vector<std::reference_wrapper<ValueSource>> sources_;
 	};
 
+	[[nodiscard]] std::vector<size_t> SummarizeInertReasons(
+		const MappedPage& a_page);
+
 	// The source must outlive the page, whose descriptors capture it by reference.
 	void BindPage(MappedPage& a_page, ValueSource& a_source);
+	void BindPage(
+		MappedPage& a_page,
+		ValueSource& a_source,
+		McmStateResolver a_resolveState);
 }

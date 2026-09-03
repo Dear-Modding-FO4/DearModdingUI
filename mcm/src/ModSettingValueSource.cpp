@@ -1,13 +1,6 @@
 #include <DearModdingUI/MCM/ModSettingValueSource.h>
 
-#include <DearModdingUI/MCM/PapyrusValue.h>
-
-#include <RE/B/BSScript_IVirtualMachine.h>
-#include <RE/B/BSScriptUtil.h>
-#include <RE/G/GameScript.h>
-
-#include <memory>
-#include <optional>
+#include <array>
 #include <utility>
 
 namespace DearModdingUI::MCM
@@ -49,10 +42,12 @@ namespace DearModdingUI::MCM
 	ModSettingValueSource::ModSettingValueSource(
 		std::string a_modName,
 		McmEventDispatcher& a_events,
-		TaskScheduler& a_scheduler) :
+		TaskScheduler& a_scheduler,
+		PapyrusDispatcher& a_dispatcher) :
 		modName_(std::move(a_modName)),
 		events_(a_events),
-		scheduler_(a_scheduler)
+		scheduler_(a_scheduler),
+		dispatcher_(a_dispatcher)
 	{}
 
 	bool ModSettingValueSource::Supports(SourceFamily a_family) const noexcept
@@ -70,7 +65,6 @@ namespace DearModdingUI::MCM
 			(void)Cache().Complete(key, MissingValue{ generation });
 			return generation;
 		}
-
 		const auto function = FunctionName("GetModSetting", a_binding.valueKind);
 		if (function.empty())
 		{
@@ -86,38 +80,26 @@ namespace DearModdingUI::MCM
 				 function,
 				 settingId = SettingId(*setting),
 				 target = a_binding.target] {
-					auto* gameVm = RE::GameVM::GetSingleton();
-					auto vm = gameVm ? gameVm->GetVM() : nullptr;
-					if (!vm)
-					{
-						QueueCompletion(key, FailedValue{ generation });
-						return;
-					}
-					RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor>
-						callback{
-							new PapyrusResultCallback{
-								[this, key, generation, target](
-									RE::BSScript::Variable a_result) {
-									auto value = FromPapyrus(a_result, target);
-									QueueCompletion(
-										key,
-										value ?
-											ValueSnapshot{ ReadyValue{
-												std::move(*value),
-												generation
-											} } :
-											ValueSnapshot{
-												FailedValue{ generation }
-											});
-								}
-							}
-						};
-					if (!vm->DispatchStaticCall(
-							RE::BSFixedString{ "MCM" },
-							RE::BSFixedString{ function },
-							callback,
-							RE::BSFixedString{ modName_ },
-							RE::BSFixedString{ settingId }))
+					const std::array<PapyrusArgument, 2> arguments{
+						PapyrusArgument{ modName_, SourceValueKind::kString },
+						PapyrusArgument{ settingId, SourceValueKind::kString }
+					};
+					if (!dispatcher_.DispatchStatic(
+							"MCM",
+							function,
+							arguments,
+							target,
+							[this, key, generation](
+								std::optional<dmui::SettingValue> a_value) {
+								QueueCompletion(
+									key,
+									a_value ?
+										ValueSnapshot{ ReadyValue{
+											std::move(*a_value),
+											generation
+										} } :
+										ValueSnapshot{ FailedValue{ generation } });
+							}))
 						QueueCompletion(key, FailedValue{ generation });
 				});
 		}
@@ -134,11 +116,9 @@ namespace DearModdingUI::MCM
 	{
 		const auto* setting = Setting(a_binding);
 		const auto key = a_binding.cacheKey;
-		if (!setting || setting->declaration == DeclarationState::kUndeclared)
-			return Cache().Read(key);
-		const auto argument = ToPapyrus(a_value, a_binding.valueKind);
 		const auto function = FunctionName("SetModSetting", a_binding.valueKind);
-		if (!argument || function.empty())
+		if (!setting || setting->declaration == DeclarationState::kUndeclared ||
+			function.empty() || a_value.index() != a_binding.target.index())
 			return Cache().Read(key);
 
 		auto effective = Cache().Store(key, a_value);
@@ -151,25 +131,19 @@ namespace DearModdingUI::MCM
 				 generation,
 				 function,
 				 settingId = SettingId(*setting),
-				 argument = *argument,
+				 value = a_value,
 				 binding = a_binding] {
-					auto* gameVm = RE::GameVM::GetSingleton();
-					auto vm = gameVm ? gameVm->GetVM() : nullptr;
-					RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor>
-						callback;
-					if (!vm ||
-						!vm->DispatchStaticCall(
-							RE::BSFixedString{ "MCM" },
-							RE::BSFixedString{ function },
-							[&](RE::BSScrapArray<RE::BSScript::Variable>&
-									a_arguments) {
-								a_arguments.resize(3);
-								a_arguments[0] = RE::BSFixedString{ modName_ };
-								a_arguments[1] = RE::BSFixedString{ settingId };
-								a_arguments[2] = argument;
-								return true;
-							},
-							callback))
+					const std::array<PapyrusArgument, 3> arguments{
+						PapyrusArgument{ modName_, SourceValueKind::kString },
+						PapyrusArgument{ settingId, SourceValueKind::kString },
+						PapyrusArgument{ value, binding.valueKind }
+					};
+					if (!dispatcher_.DispatchStatic(
+							"MCM",
+							function,
+							arguments,
+							std::nullopt,
+							{}))
 					{
 						QueueCompletion(key, FailedValue{ generation });
 						return;

@@ -1,5 +1,6 @@
 #include <DearModdingUI/MCM/ValueSource.h>
 
+#include <algorithm>
 #include <format>
 #include <memory>
 #include <optional>
@@ -56,7 +57,6 @@ namespace DearModdingUI::MCM
 		{
 			auto fallback = a_descriptor.defaultValue;
 			a_descriptor.showReset = false;
-			a_descriptor.isEnabled = [] { return false; };
 			a_descriptor.binding.get = [fallback] { return fallback; };
 			a_descriptor.binding.set =
 				[fallback](dmui::SettingValue) { return fallback; };
@@ -73,7 +73,6 @@ namespace DearModdingUI::MCM
 			std::shared_ptr<LocalToggleState> a_state)
 		{
 			a_descriptor.showReset = false;
-			a_descriptor.isEnabled = [] { return true; };
 			a_descriptor.binding.get =
 				[a_control, a_state]() -> dmui::SettingValue {
 					return a_state->values.at(a_control);
@@ -107,14 +106,6 @@ namespace DearModdingUI::MCM
 						nullptr;
 				};
 
-			auto priorEnabled = std::move(a_descriptor.isEnabled);
-			a_descriptor.isEnabled =
-				[&a_source, a_binding, fallback, matched,
-				 priorEnabled = std::move(priorEnabled)] {
-					const auto current = a_source.Read(a_binding);
-					return matched(current, fallback) &&
-						(!priorEnabled || priorEnabled());
-				};
 			a_descriptor.binding.get =
 				[&a_source, a_binding, fallback, matched]() -> dmui::SettingValue {
 					const auto current = a_source.Read(a_binding);
@@ -154,6 +145,21 @@ namespace DearModdingUI::MCM
 				std::get_if<ModSettingBinding>(&a_binding.source);
 			return !setting ||
 				setting->declaration != DeclarationState::kUndeclared;
+		}
+
+		[[nodiscard]] InertReason SnapshotReason(
+			const ValueSnapshot& a_snapshot,
+			const dmui::SettingValue& a_target) noexcept
+		{
+			if (const auto* ready = std::get_if<ReadyValue>(&a_snapshot))
+				return ready->value.index() == a_target.index() ?
+					InertReason::kNone :
+					InertReason::kValueFailed;
+			if (std::holds_alternative<PendingValue>(a_snapshot))
+				return InertReason::kValuePending;
+			if (std::holds_alternative<MissingValue>(a_snapshot))
+				return InertReason::kValueMissing;
+			return InertReason::kValueFailed;
 		}
 
 		void CollectReferencedControls(
@@ -333,6 +339,31 @@ namespace DearModdingUI::MCM
 				a_notes.unavailable = true;
 			}
 		}
+
+		void UpdateInertNote(
+			dmui::SettingsPage& a_page,
+			const std::vector<std::function<ResolvedInertState()>>& a_resolvers)
+		{
+			constexpr auto kNoteId = "dearmodding.mcm.availability";
+			RemoveNote(a_page, kNoteId);
+			std::vector<InertReason> reasons;
+			for (const auto& resolve : a_resolvers)
+			{
+				const auto reason = resolve().governingReason;
+				if (Describe(reason).scope == InertReasonScope::kEnvironment &&
+					!std::ranges::contains(reasons, reason))
+					reasons.push_back(reason);
+			}
+			std::string text;
+			for (const auto reason : reasons)
+			{
+				if (!text.empty())
+					text.push_back('\n');
+				text.append(Describe(reason).pageText);
+			}
+			if (!text.empty())
+				a_page.notes.push_back({ std::move(text), false, kNoteId });
+		}
 	}
 
 	uint64_t Generation(const ValueSnapshot& a_snapshot) noexcept
@@ -342,11 +373,18 @@ namespace DearModdingUI::MCM
 			a_snapshot);
 	}
 
-	void ValueSource::RefreshPage(const MappedPage& a_page)
+	void ValueSource::RefreshPage(
+		const MappedPage& a_page,
+		McmState a_state)
 	{
 		for (const auto& row : a_page.rows)
 		{
-			if (row.binding && Supports(row.binding->Family()))
+			if (row.binding &&
+				Supports(row.binding->Family()) &&
+				IsControlOperable(
+					a_state,
+					row.binding->Family(),
+					row.valueRoute))
 				(void)Refresh(*row.binding);
 		}
 	}
@@ -403,10 +441,12 @@ namespace DearModdingUI::MCM
 			ValueSnapshot{ MissingValue{} };
 	}
 
-	void CompositeValueSource::RefreshPage(const MappedPage& a_page)
+	void CompositeValueSource::RefreshPage(
+		const MappedPage& a_page,
+		McmState a_state)
 	{
 		for (const auto source : sources_)
-			source.get().RefreshPage(a_page);
+			source.get().RefreshPage(a_page, a_state);
 	}
 
 	void CompositeValueSource::Pump() noexcept
@@ -425,8 +465,36 @@ namespace DearModdingUI::MCM
 		return nullptr;
 	}
 
+	std::vector<size_t> SummarizeInertReasons(const MappedPage& a_page)
+	{
+		std::vector<size_t> result(
+			static_cast<size_t>(InertReason::kValueFailed) + 1);
+		for (const auto& row : a_page.rows)
+		{
+			if (!row.emitted || !row.resolveInertState)
+				continue;
+			++result[static_cast<size_t>(
+				row.resolveInertState().governingReason)];
+		}
+		return result;
+	}
+
 	void BindPage(MappedPage& a_page, ValueSource& a_source)
 	{
+		BindPage(
+			a_page,
+			a_source,
+			[] { return McmState{ true, true }; });
+	}
+
+	void BindPage(
+		MappedPage& a_page,
+		ValueSource& a_source,
+		McmStateResolver a_resolveState)
+	{
+		auto inertResolvers =
+			std::make_shared<
+				std::vector<std::function<ResolvedInertState()>>>();
 		const auto dependencies = std::make_shared<const Dependencies>(
 			BuildDependencies(a_page.rows));
 		const auto localToggles = std::make_shared<LocalToggleState>(
@@ -458,34 +526,129 @@ namespace DearModdingUI::MCM
 					notes);
 			};
 
-		for (const auto& row : a_page.rows)
+		for (auto& row : a_page.rows)
 		{
 			auto* descriptor = FindDescriptor(a_page.settings, row.id);
+			std::function<ConditionResult()> resolveCondition;
 			if (row.groupCondition)
 			{
-				const auto bindVisibility = [&](
+				resolveCondition =
+					[&a_source,
+					 condition = *row.groupCondition,
+					 dependencies,
+					 localToggles] {
+						return EvaluateRowCondition(
+							condition,
+							*dependencies,
+							a_source,
+							*localToggles);
+					};
+				const auto bindVisibility = [&resolveCondition](
 					std::function<bool()>& a_visible) {
-					auto priorVisible = std::move(a_visible);
-					a_visible =
-						[&a_source,
-						 condition = *row.groupCondition,
-						 dependencies,
-						 localToggles,
-						 priorVisible = std::move(priorVisible)] {
-							const auto result = EvaluateRowCondition(
-								condition,
-								*dependencies,
-								a_source,
-								*localToggles);
-							return result != ConditionResult::kHidden &&
-								result != ConditionResult::kPending &&
-								(!priorVisible || priorVisible());
-						};
+					a_visible = [resolve = resolveCondition] {
+						const auto result = resolve();
+						return result != ConditionResult::kHidden &&
+							result != ConditionResult::kPending;
+					};
 				};
 				if (descriptor)
 					bindVisibility(descriptor->isVisible);
 				else if (auto* action = FindActionRow(a_page.settings, row.id))
 					bindVisibility(action->isVisible);
+			}
+			const auto sourceSupported =
+				row.binding && a_source.Supports(row.binding->Family());
+			const auto undeclared = row.binding &&
+				std::get_if<ModSettingBinding>(&row.binding->source) &&
+				std::get<ModSettingBinding>(row.binding->source).declaration ==
+					DeclarationState::kUndeclared;
+			row.resolveInertState =
+				[&a_source,
+				 binding = row.binding,
+				 route = row.valueRoute,
+				 unsupported = row.unsupported || row.unmappedSource.has_value(),
+				 sourceSupported,
+				 undeclared,
+				 resolveCondition,
+				 resolveState = a_resolveState]() -> ResolvedInertState {
+					if (resolveCondition)
+					{
+						const auto condition = resolveCondition();
+						if (condition == ConditionResult::kHidden)
+							return ResolvedInertState{
+								InertReason::kConditionFalse,
+								InertReason::kConditionFalse
+							};
+						if (condition == ConditionResult::kPending)
+							return ResolvedInertState{
+								InertReason::kConditionPending,
+								InertReason::kConditionPending
+							};
+					}
+					if (binding && route == ValueRoute::kLocalUiState)
+						return ResolvedInertState{};
+					const auto rowReason =
+						unsupported || (binding && !sourceSupported) ?
+							InertReason::kUnsupported :
+							(undeclared ?
+								InertReason::kUndeclaredModSetting :
+								InertReason::kNone);
+					if (!binding)
+						return {
+							rowReason,
+							rowReason
+						};
+					const auto state = resolveState();
+					auto environmentReason = InertReason::kNone;
+					if (binding->Family() == SourceFamily::kModSetting &&
+						!state.installed)
+						environmentReason = InertReason::kMcmNotInstalled;
+					else if ((binding->Family() == SourceFamily::kModSetting ||
+							binding->Family() == SourceFamily::kProperty) &&
+						!state.runtimeReady)
+						environmentReason = InertReason::kRuntimeNotReady;
+					if (environmentReason != InertReason::kNone)
+						return ResolvedInertState{
+							environmentReason,
+							rowReason
+						};
+					if (rowReason != InertReason::kNone)
+						return ResolvedInertState{ rowReason, rowReason };
+					const auto snapshotReason = SnapshotReason(
+						a_source.Read(*binding),
+						binding->target);
+					return ResolvedInertState{
+						snapshotReason,
+						snapshotReason
+					};
+				};
+			inertResolvers->push_back(row.resolveInertState);
+			if (descriptor)
+			{
+				auto resolve = row.resolveInertState;
+				descriptor->isEnabled = [resolve] {
+					return resolve().governingReason == InertReason::kNone;
+				};
+				auto priorDescription =
+					std::move(descriptor->resolveDescription);
+				const auto description = descriptor->description;
+				descriptor->resolveDescription =
+					[resolve,
+					 priorDescription = std::move(priorDescription),
+					 description] {
+						auto result = priorDescription ?
+							priorDescription() :
+							description;
+						const auto explanation =
+							Describe(resolve().rowReason).text;
+						if (!explanation.empty())
+						{
+							if (!result.empty())
+								result.push_back('\n');
+							result.append(explanation);
+						}
+						return result;
+					};
 			}
 			if (!row.binding)
 				continue;
@@ -506,20 +669,19 @@ namespace DearModdingUI::MCM
 			}
 			if (!IsBindingOperable(binding, a_source))
 			{
-				const auto* setting =
-					std::get_if<ModSettingBinding>(&binding.source);
-				if (setting &&
-					setting->declaration == DeclarationState::kUndeclared)
-				{
-					if (!descriptor->description.empty())
-						descriptor->description.push_back('\n');
-					descriptor->description +=
-						"This setting is not declared in MCM settings.ini.";
-				}
 				BindUnsupported(*descriptor);
 				continue;
 			}
 			BindSupported(*descriptor, binding, a_source);
 		}
+
+		auto priorPrepareView = std::move(a_page.settings.prepareView);
+		a_page.settings.prepareView =
+			[priorPrepareView = std::move(priorPrepareView),
+			 inertResolvers](dmui::SettingsPage& a_settings) {
+				if (priorPrepareView)
+					priorPrepareView(a_settings);
+				UpdateInertNote(a_settings, *inertResolvers);
+			};
 	}
 }

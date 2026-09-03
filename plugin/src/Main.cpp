@@ -1,6 +1,7 @@
 #include <DearModdingUI/MCM/Availability.h>
 #include <DearModdingUI/MCM/ExternalEventDispatcher.h>
 #include <DearModdingUI/MCM/F4SETaskScheduler.h>
+#include <DearModdingUI/MCM/GamePapyrusDispatcher.h>
 #include <DearModdingUI/MCM/GlobalValueSource.h>
 #include <DearModdingUI/MCM/ModSettingValueSource.h>
 #include <DearModdingUI/MCM/PapyrusActionExecutor.h>
@@ -14,11 +15,10 @@
 
 #include <F4SE/F4SE.h>
 #include <RE/B/BSScript_IStackCallbackFunctor.h>
-#include <RE/B/BSScript_IVirtualMachine.h>
-#include <RE/B/BSScript_Variable.h>
-#include <RE/B/BSScriptUtil.h>
-#include <RE/G/GameScript.h>
 #include <REX/REX.h>
+
+#include <Windows.h>
+#undef ERROR
 
 #include <algorithm>
 #include <atomic>
@@ -57,11 +57,11 @@ namespace DearModdingUI::MCM
 			std::vector<RegisteredPage> pages;
 		};
 
-		std::atomic<AvailabilityState> s_mcmAvailability{
-			AvailabilityState::kUnknown
-		};
+		std::atomic_bool s_mcmInstalled{ false };
+		std::atomic_bool s_runtimeReady{ false };
 		GlobalValueSource s_globalValues;
 		F4SETaskScheduler s_scheduler;
+		GamePapyrusDispatcher s_dispatcher;
 		ExternalEventDispatcher s_events{ s_scheduler };
 		std::vector<std::unique_ptr<RegisteredMod>> s_mods;
 
@@ -121,7 +121,13 @@ namespace DearModdingUI::MCM
 			return count;
 		}
 
-		void QueryMcmAvailability() noexcept;
+		[[nodiscard]] McmState CurrentMcmState() noexcept
+		{
+			return {
+				s_mcmInstalled.load(std::memory_order_acquire),
+				s_runtimeReady.load(std::memory_order_acquire)
+			};
+		}
 
 		void LogErrors(const LoadResult& a_result)
 		{
@@ -207,7 +213,8 @@ namespace DearModdingUI::MCM
 				mod->modSettings = std::make_unique<ModSettingValueSource>(
 					configuration.modName,
 					s_events,
-					s_scheduler);
+					s_scheduler,
+					s_dispatcher);
 				mod->properties =
 					std::make_unique<PropertyValueSource>(s_scheduler);
 				mod->values = std::make_unique<CompositeValueSource>();
@@ -242,8 +249,9 @@ namespace DearModdingUI::MCM
 					auto page =
 						std::make_unique<MappedPage>(std::move(result.pages[index]));
 					ApplyDeclarations(*page, declarations);
-					BindPage(*page, *mod->values);
-					const auto summary = SummarizeCompatibility(*page);
+					BindPage(*page, *mod->values, CurrentMcmState);
+					const auto summary =
+						SummarizeCompatibility(*page, *mod->values);
 					SurfaceCompatibility(*page, summary);
 					REX::INFO(
 						"DearModdingUI-MCM: {} / {} compatibility: "
@@ -258,15 +266,36 @@ namespace DearModdingUI::MCM
 						summary.undeclaredModSettings,
 						summary.actions,
 						summary.images);
+					const auto inert = SummarizeInertReasons(*page);
+					REX::INFO(
+						"DearModdingUI-MCM: {} / {} inert rows: "
+						"{} condition false, {} condition pending, "
+						"{} unsupported, {} undeclared, {} MCM missing, "
+						"{} load-save required, {} value pending, "
+						"{} value unavailable, {} value failed"sv,
+						displayName,
+						page->displayName,
+						inert[static_cast<size_t>(
+							InertReason::kConditionFalse)],
+						inert[static_cast<size_t>(
+							InertReason::kConditionPending)],
+						inert[static_cast<size_t>(
+							InertReason::kUnsupported)],
+						inert[static_cast<size_t>(
+							InertReason::kUndeclaredModSetting)],
+						inert[static_cast<size_t>(
+							InertReason::kMcmNotInstalled)],
+						inert[static_cast<size_t>(
+							InertReason::kRuntimeNotReady)],
+						inert[static_cast<size_t>(
+							InertReason::kValuePending)],
+						inert[static_cast<size_t>(
+							InertReason::kValueMissing)],
+						inert[static_cast<size_t>(
+							InertReason::kValueFailed)]);
 					descriptors += DescriptorCount(*page);
 					BindActions(*page, *mod->actions, *mod->values);
 					AttachTextRendering(*page);
-					ComposeMcmAvailability(
-						*page,
-						[] {
-							return s_mcmAvailability.load(
-								std::memory_order_acquire);
-						});
 					auto priorPrepare = std::move(page->settings.prepare);
 					auto* values = mod->values.get();
 					page->settings.prepare =
@@ -319,13 +348,7 @@ namespace DearModdingUI::MCM
 				(void)mod->client->AddPageActivityObserver(
 					[observed](const dmui::PageActivity& a_activity) {
 						if (a_activity.kind == dmui::PageActivityKind::kActivated)
-						{
 							s_events.MenuOpened();
-							if (s_mcmAvailability.load(
-									std::memory_order_acquire) ==
-								AvailabilityState::kUnknown)
-								QueryMcmAvailability();
-						}
 						if (a_activity.kind == dmui::PageActivityKind::kDeactivated)
 						{
 							s_events.MenuClosed();
@@ -335,7 +358,9 @@ namespace DearModdingUI::MCM
 						{
 							if (registered.handle == a_activity.activePage)
 							{
-								observed->values->RefreshPage(*registered.page);
+								observed->values->RefreshPage(
+									*registered.page,
+									CurrentMcmState());
 								break;
 							}
 						}
@@ -368,6 +393,17 @@ namespace DearModdingUI::MCM
 		{
 			try
 			{
+				const auto installed =
+					::GetModuleHandleW(L"mcm.dll") != nullptr;
+				s_mcmInstalled.store(installed, std::memory_order_release);
+				REX::INFO(
+					"DearModdingUI-MCM: Mod Configuration Menu installation: {} "
+					"(mcm.dll is {})"sv,
+					installed ? "installed" : "not installed",
+					installed ? "loaded" : "not loaded");
+				REX::INFO(
+					"DearModdingUI-MCM: Papyrus runtime: not ready "
+					"(load a save to change mod settings and properties)"sv);
 				const auto root =
 					std::filesystem::current_path() / "Data" / "MCM" / "Config";
 				std::error_code error;
@@ -408,80 +444,9 @@ namespace DearModdingUI::MCM
 			for (const auto& mod : s_mods)
 			{
 				for (const auto& page : mod->pages)
-					mod->values->RefreshPage(*page.page);
-			}
-		}
-
-		class McmInstalledCallback final :
-			public RE::BSScript::IStackCallbackFunctor
-		{
-		public:
-			void CallQueued() override {}
-			void CallCanceled() override
-			{
-				REX::WARN(
-					"DearModdingUI-MCM: MCM availability query was canceled; availability remains unknown"sv);
-			}
-			void StartMultiDispatch() override {}
-			void EndMultiDispatch() override {}
-
-			void operator()(RE::BSScript::Variable a_result) override
-			{
-				if (!a_result.is<bool>())
-				{
-					REX::ERROR(
-						"DearModdingUI-MCM: MCM.IsInstalled returned a non-boolean result; availability remains unknown"sv);
-					return;
-				}
-				const auto present = RE::BSScript::get<bool>(a_result);
-				s_mcmAvailability.store(
-					present ? AvailabilityState::kPresent :
-							  AvailabilityState::kAbsent,
-					std::memory_order_release);
-				REX::INFO(
-					"DearModdingUI-MCM: Mod Configuration Menu is {}"sv,
-					present ? "installed" : "not installed");
-			}
-		};
-
-		void QueryMcmAvailability() noexcept
-		{
-			if (s_mcmAvailability.load(std::memory_order_acquire) !=
-				AvailabilityState::kUnknown)
-				return;
-			try
-			{
-				s_scheduler.Schedule([] {
-					auto* gameVm = RE::GameVM::GetSingleton();
-					auto vm = gameVm ? gameVm->GetVM() : nullptr;
-					if (!vm)
-					{
-						REX::WARN(
-							"DearModdingUI-MCM: MCM availability query deferred because the Papyrus VM is unavailable"sv);
-						return;
-					}
-
-					RE::BSTSmartPointer<
-						RE::BSScript::IStackCallbackFunctor> callback{
-						new McmInstalledCallback
-					};
-					if (!vm->DispatchStaticCall(
-							RE::BSFixedString{ "MCM" },
-							RE::BSFixedString{ "IsInstalled" },
-							callback))
-					{
-						s_mcmAvailability.store(
-							AvailabilityState::kAbsent,
-							std::memory_order_release);
-						REX::INFO(
-							"DearModdingUI-MCM: Mod Configuration Menu is not installed"sv);
-					}
-				});
-			}
-			catch (...)
-			{
-				REX::ERROR(
-					"DearModdingUI-MCM: MCM.IsInstalled query failed"sv);
+					mod->values->RefreshPage(
+						*page.page,
+						CurrentMcmState());
 			}
 		}
 
@@ -493,19 +458,26 @@ namespace DearModdingUI::MCM
 			if (a_message->type == F4SE::MessagingInterface::kPostPostLoad)
 				DiscoverAndRegister();
 			else if (a_message->type ==
+					F4SE::MessagingInterface::kPreLoadGame)
+				s_runtimeReady.store(false, std::memory_order_release);
+			else if (a_message->type ==
 					F4SE::MessagingInterface::kGameDataReady)
 			{
 				if (a_message->data)
-				{
 					RefreshValues();
-					QueryMcmAvailability();
-				}
 			}
 			else if (a_message->type ==
 						F4SE::MessagingInterface::kPostLoadGame ||
 					a_message->type == F4SE::MessagingInterface::kNewGame ||
 					a_message->type == F4SE::MessagingInterface::kGameLoaded)
-				QueryMcmAvailability();
+			{
+				const auto wasReady =
+					s_runtimeReady.exchange(true, std::memory_order_acq_rel);
+				if (!wasReady)
+					REX::INFO(
+						"DearModdingUI-MCM: Papyrus runtime: ready"sv);
+				RefreshValues();
+			}
 		}
 
 		[[nodiscard]] bool InitializePlugin(

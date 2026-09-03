@@ -8,6 +8,7 @@
 #include <concepts>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -250,6 +251,108 @@ namespace DearModdingUI::MCM
 		kLocalUiState
 	};
 
+	enum class InertReason : uint8_t
+	{
+		kNone,
+		kConditionFalse,
+		kConditionPending,
+		kUnsupported,
+		kUndeclaredModSetting,
+		kMcmNotInstalled,
+		kRuntimeNotReady,
+		kValuePending,
+		kValueMissing,
+		kValueFailed
+	};
+
+	enum class InertReasonScope : uint8_t
+	{
+		kEnvironment,
+		kRow
+	};
+
+	struct InertReasonMetadata
+	{
+		InertReasonScope scope{ InertReasonScope::kRow };
+		std::string_view text;
+		std::string_view pageText;
+	};
+
+	[[nodiscard]] constexpr InertReasonMetadata Describe(
+		InertReason a_reason) noexcept
+	{
+		switch (a_reason)
+		{
+		case InertReason::kNone:
+			return { InertReasonScope::kRow, {}, {} };
+		case InertReason::kConditionFalse:
+			return {
+				InertReasonScope::kRow,
+				"This row is hidden by its condition.",
+				{}
+			};
+		case InertReason::kConditionPending:
+			return {
+				InertReasonScope::kRow,
+				"Waiting to determine whether this row should be shown.",
+				{}
+			};
+		case InertReason::kUnsupported:
+			return {
+				InertReasonScope::kRow,
+				"This control is not supported.",
+				{}
+			};
+		case InertReason::kUndeclaredModSetting:
+			return {
+				InertReasonScope::kRow,
+				"This setting is not declared in MCM settings.ini.",
+				{}
+			};
+		case InertReason::kMcmNotInstalled:
+			return {
+				InertReasonScope::kEnvironment,
+				"Mod Configuration Menu is not installed.",
+				"Mod Configuration Menu is not installed, so mod settings cannot be changed."
+			};
+		case InertReason::kRuntimeNotReady:
+			return {
+				InertReasonScope::kEnvironment,
+				"Load a save to change these settings.",
+				"Load a save to change these settings."
+			};
+		case InertReason::kValuePending:
+			return {
+				InertReasonScope::kRow,
+				"Waiting for this setting's value.",
+				{}
+			};
+		case InertReason::kValueMissing:
+			return {
+				InertReasonScope::kRow,
+				"This setting's value is unavailable.",
+				{}
+			};
+		case InertReason::kValueFailed:
+			return {
+				InertReasonScope::kRow,
+				"This setting's value could not be read.",
+				{}
+			};
+		}
+		return {
+			InertReasonScope::kRow,
+			"This setting is unavailable.",
+			{}
+		};
+	}
+
+	struct ResolvedInertState
+	{
+		InertReason governingReason{ InertReason::kNone };
+		InertReason rowReason{ InertReason::kNone };
+	};
+
 	struct MappedRow
 	{
 		std::string id;
@@ -263,6 +366,7 @@ namespace DearModdingUI::MCM
 		std::optional<Action> action;
 		std::optional<Image> image;
 		ValueRoute valueRoute{ ValueRoute::kSource };
+		std::function<ResolvedInertState()> resolveInertState;
 	};
 
 	struct MappedPage

@@ -42,6 +42,8 @@ Page activity drives refreshes for the complete mapped dependency set, including
 `hiddenSwitcher` controls. Draw-time reads and `groupCondition` evaluation consult snapshots only.
 A pure `TaskScheduler` boundary moves every Papyrus VM operation to the game thread before resolving
 attached scripts, dispatching events, refreshing values, writing values, or executing actions.
+`PapyrusDispatcher` separately owns static scalar calls, so mod-setting reads and writes are testable
+with a fake without linking game headers.
 A pending condition hides its dependent rows until the controller resolves and an all-pending page
 shows a loading note. A permanently inoperable mod-setting toggle owns page-local state only when its
 `groupControl` is referenced by a condition, restoring accordion interaction without inventing
@@ -52,9 +54,14 @@ replaced with the configured default.
 Named MCM sections start collapsible groups. Unnamed sections inside a group preserve their source
 position as divider rows; a leading unnamed section retains an implicit divider-headed group.
 
-`BindPage` records each row's `ValueRoute`. Source-backed mod settings follow live MCM availability,
-while `kLocalUiState` rows remain interactive because they never dispatch to MCM. Unknown and absent
-availability disable only source-backed mod settings and add both page-level and per-row explanations.
+`BindPage` records each row's `ValueRoute` and owns the row's inert-state resolver.
+`InertReasonMetadata` declares each reason as environment- or row-scoped alongside its text.
+Condition state and local ownership resolve first; environment gates then govern enablement before
+unsupported sources or controls, undeclared mod settings, and snapshot state. Environment reasons
+surface once in the page note, while durable row reasons remain on their row. The governing reason
+drives enablement and compatibility counts. Source-backed mod settings require MCM installation and
+a loaded game; properties require a loaded game; globals and `kLocalUiState` remain operable at the
+main menu.
 
 ## Writing values
 
@@ -90,8 +97,8 @@ integer property conditions no longer depend on boolean fallback conversion.
 
 Measured in game:
 
-- MCM registers eleven natives on the Papyrus script `MCM`, including `IsInstalled`,
-  `GetVersionCode`, and `RefreshMenu`. Dispatching them works from gameplay, independent of MCM's
+- MCM registers eleven natives on the Papyrus script `MCM`, including `GetVersionCode` and
+  `RefreshMenu`. Dispatching them works from gameplay, independent of MCM's
   menu, and MCM writes changes through to `MCM\Settings\<modName>.ini` itself.
 - `root.mcm` is unreachable. It lives on `PauseMenu`, which is not instantiated until the player
   opens it.
@@ -105,8 +112,10 @@ deriving from it requires supplying one.
 
 ## Runtime plugin
 
-`DearModdingUI-MCM` discovers `Data\MCM\Config\*\config.json` at F4SE `kPostPostLoad` and registers
-each valid configuration as an independent DearModdingUI client. Each client owns a composite with
+`DearModdingUI-MCM` resolves installation at F4SE `kPostPostLoad` by checking whether `mcm.dll` is
+loaded in the process, then discovers `Data\MCM\Config\*\config.json` and registers each valid
+configuration as an independent DearModdingUI client. The module signal proves MCM's native provider
+is loaded and avoids assumptions about mod-manager filesystem virtualization. Each client owns a composite with
 global, mod-setting, and property backends. Global forms resolve through `TESDataHandler`;
 mod-setting getters and setters dispatch through the `MCM` Papyrus natives; property reads resolve
 through `GetPropertyValue` callbacks and probe attached scripts when `scriptName` is absent.
@@ -119,7 +128,8 @@ declared mod-setting writes emit both `OnMCMSettingChange` and its mod-specific 
 `(modName, controlId)`; event dispatch is separate from value storage.
 
 Settings declarations are applied before `SummarizeCompatibility`. The page exposes unsupported,
-unknown-source, undeclared-setting, action, and image counts, while logs include both warnings and
+unknown-source, undeclared-setting, action, image, and inert-reason counts, while logs include both warnings and
 errors. Unsupported images retain their metadata, warning, and counts but emit no descriptor;
-load-bearing unsupported controls remain visible and disabled. MCM absence disables only mod-setting
-controls; globals and properties retain their direct runtime paths.
+load-bearing unsupported controls remain visible and disabled. The preview accepts
+`DMUI_PREVIEW_MCM_INSTALLED=0` and `DMUI_PREVIEW_GAME_LOADED=0` to inspect the missing-MCM and
+main-menu states without adding command-line surface.
