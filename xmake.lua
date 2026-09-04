@@ -41,8 +41,8 @@ target("imgui", function()
     set_symbols("debug")
     set_exceptions("cxx")
     set_targetdir(project_dir(".Lib/xmake"))
-    set_objectdir(project_dir(".LinkConf/xmake/imgui"))
-    set_dependir(project_dir(".LinkConf/xmake/imgui/deps"))
+    set_objectdir(".LinkConf/xmake/imgui")
+    set_dependir(".LinkConf/xmake/imgui/deps")
 
     add_files(
         "Depends/imgui/imgui.cpp",
@@ -79,8 +79,8 @@ target("dmui-mcm", function()
     set_runtimes("MT")
     set_exceptions("cxx")
     set_targetdir(project_dir(".Lib/xmake"))
-    set_objectdir(project_dir(".LinkConf/xmake/dmui-mcm"))
-    set_dependir(project_dir(".LinkConf/xmake/dmui-mcm/deps"))
+    set_objectdir(".LinkConf/xmake/dmui-mcm")
+    set_dependir(".LinkConf/xmake/dmui-mcm/deps")
 
     add_files("mcm/src/**.cpp")
     add_headerfiles("mcm/include/**.h")
@@ -109,8 +109,8 @@ target("dmui-tests", function()
     set_optimize("fastest")
     set_runtimes("MT")
     set_targetdir(project_dir(".Build/Tests"))
-    set_objectdir(project_dir(".LinkConf/xmake/dmui-tests"))
-    set_dependir(project_dir(".LinkConf/xmake/dmui-tests/deps"))
+    set_objectdir(".LinkConf/xmake/dmui-tests")
+    set_dependir(".LinkConf/xmake/dmui-tests/deps")
 
     add_deps("imgui", "dmui-mcm")
     add_files(
@@ -151,8 +151,8 @@ target("dmui-preview", function()
     set_exceptions("cxx")
     set_runtimes("MT")
     set_targetdir(project_dir(".Build/Preview"))
-    set_objectdir(project_dir(".LinkConf/xmake/dmui-preview"))
-    set_dependir(project_dir(".LinkConf/xmake/dmui-preview/deps"))
+    set_objectdir(".LinkConf/xmake/dmui-preview")
+    set_dependir(".LinkConf/xmake/dmui-preview/deps")
 
     add_deps("imgui", "dmui-mcm")
     add_files(
@@ -223,8 +223,8 @@ target(plugin_name, function()
     set_symbols("debug")
     set_exceptions("cxx")
     set_targetdir(project_dir(".Build/F4SE/Plugins"))
-    set_objectdir(project_dir(".LinkConf/xmake/DearModdingUI"))
-    set_dependir(project_dir(".LinkConf/xmake/DearModdingUI/deps"))
+    set_objectdir(".LinkConf/xmake/DearModdingUI")
+    set_dependir(".LinkConf/xmake/DearModdingUI/deps")
 
     add_rules("commonlibf4.plugin", {
         name = plugin_name,
@@ -271,8 +271,8 @@ target("DearModdingUI-MCM", function()
     set_symbols("debug")
     set_exceptions("cxx")
     set_targetdir(project_dir(".Build/F4SE/Plugins"))
-    set_objectdir(project_dir(".LinkConf/xmake/DearModdingUI-MCM"))
-    set_dependir(project_dir(".LinkConf/xmake/DearModdingUI-MCM/deps"))
+    set_objectdir(".LinkConf/xmake/DearModdingUI-MCM")
+    set_dependir(".LinkConf/xmake/DearModdingUI-MCM/deps")
 
     add_rules("commonlibf4.plugin", {
         name = "DearModdingUI-MCM",
