@@ -7,6 +7,7 @@
 #include <DearModdingUI/MCM/ActionExecutor.h>
 #include <DearModdingUI/MCM/Availability.h>
 #include <DearModdingUI/MCM/GlobalValue.h>
+#include <DearModdingUI/MCM/Keybinds.h>
 #include <DearModdingUI/MCM/SettingsIni.h>
 #include <DearModdingUI/MCM/TextRendering.h>
 #include <DearModdingUI/MCM/ValueSource.h>
@@ -606,8 +607,21 @@ namespace DearModdingUIPreview
 				const auto declarations =
 					DearModdingUI::MCM::LoadSettingsIni(
 						configPath.parent_path() / "settings.ini");
+				const auto definitions =
+					DearModdingUI::MCM::LoadKeybindDefinitions(
+						configPath.parent_path() / "keybinds.json");
+				const auto keybinds =
+					DearModdingUI::MCM::LoadUserKeybinds(
+						std::filesystem::current_path() /
+						"Data" / "MCM" / "Settings" / "Keybinds.json");
 				for (auto& page : mcm.pages)
+				{
 					DearModdingUI::MCM::ApplyDeclarations(page, declarations);
+					DearModdingUI::MCM::ApplyKeybinds(
+						page,
+						definitions,
+						keybinds);
+				}
 			}
 			m_impl->mcmValues.Seed("DisplaySlot", 2.0f);
 			m_impl->mcmValues.Seed("QuantizedScale", 0.7f);

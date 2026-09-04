@@ -23,6 +23,9 @@ namespace DearModdingUI::MCM
 				++result.unknownBindings;
 			if (row.unsupported)
 				++result.unsupported;
+			if (row.keybindId && row.keybindInertState &&
+				row.keybindInertState->governingReason == InertReason::kNone)
+				++result.resolvedKeybinds;
 			if (row.action)
 				++result.actions;
 			if (row.image)

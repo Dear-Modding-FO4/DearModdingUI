@@ -73,6 +73,7 @@ namespace vmm_tests
 	void run_mcm_binding_checks(Runner& runner);
 	void run_mcm_global_value_checks(Runner& runner);
 	void run_mcm_settings_ini_checks(Runner& runner);
+	void run_mcm_keybind_checks(Runner& runner);
 	void run_mcm_runtime_checks(Runner& runner);
 	void run_mcm_action_checks(Runner& runner);
 }

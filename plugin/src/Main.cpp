@@ -4,6 +4,7 @@
 #include <DearModdingUI/MCM/GamePapyrusDispatcher.h>
 #include <DearModdingUI/MCM/GameScaleformInvoker.h>
 #include <DearModdingUI/MCM/GlobalValueSource.h>
+#include <DearModdingUI/MCM/Keybinds.h>
 #include <DearModdingUI/MCM/ModSettingValueSource.h>
 #include <DearModdingUI/MCM/PapyrusActionExecutor.h>
 #include <DearModdingUI/MCM/PropertyValueSource.h>
@@ -262,22 +263,29 @@ namespace DearModdingUI::MCM
 				size_t descriptors{};
 				const auto declarations =
 					LoadSettingsIni(a_config.parent_path() / "settings.ini");
+				const auto definitions =
+					LoadKeybindDefinitions(a_config.parent_path() / "keybinds.json");
+				const auto keybinds = LoadUserKeybinds(
+					std::filesystem::current_path() /
+					"Data" / "MCM" / "Settings" / "Keybinds.json");
 				for (size_t index = 0; index < result.pages.size(); ++index)
 				{
 					auto page =
 						std::make_unique<MappedPage>(std::move(result.pages[index]));
 					ApplyDeclarations(*page, declarations);
+					ApplyKeybinds(*page, definitions, keybinds);
 					BindPage(*page, *mod->values, CurrentMcmState);
 					const auto summary =
 						SummarizeCompatibility(*page, *mod->values);
 					SurfaceCompatibility(*page, summary);
 					REX::INFO(
 						"DearModdingUI-MCM: {} / {} compatibility: "
-						"{} bindings, {} local UI-state rows, {} unsupported, {} unknown sources, "
+						"{} bindings, {} resolved keybinds, {} local UI-state rows, {} unsupported, {} unknown sources, "
 						"{} undeclared settings, {} actions, {} images"sv,
 						displayName,
 						page->displayName,
 						summary.bindings,
+						summary.resolvedKeybinds,
 						summary.localUiStateRows,
 						summary.unsupported,
 						summary.unknownBindings,
@@ -288,7 +296,10 @@ namespace DearModdingUI::MCM
 					REX::INFO(
 						"DearModdingUI-MCM: {} / {} inert rows: "
 						"{} condition false, {} condition pending, "
-						"{} unsupported, {} undeclared, {} MCM missing, "
+						"{} unsupported, {} undeclared, {} keybind unbound, "
+						"{} keybind undeclared, {} keybind definitions missing, "
+						"{} keybind definitions invalid, {} user keybinds invalid, "
+						"{} MCM missing, "
 						"{} load-save required, {} value pending, "
 						"{} value unavailable, {} value failed"sv,
 						displayName,
@@ -301,6 +312,16 @@ namespace DearModdingUI::MCM
 							InertReason::kUnsupported)],
 						inert[static_cast<size_t>(
 							InertReason::kUndeclaredModSetting)],
+						inert[static_cast<size_t>(
+							InertReason::kKeybindUnbound)],
+						inert[static_cast<size_t>(
+							InertReason::kKeybindDefinitionMissing)],
+						inert[static_cast<size_t>(
+							InertReason::kKeybindDefinitionsMissing)],
+						inert[static_cast<size_t>(
+							InertReason::kKeybindDefinitionsInvalid)],
+						inert[static_cast<size_t>(
+							InertReason::kKeybindBindingsInvalid)],
 						inert[static_cast<size_t>(
 							InertReason::kMcmNotInstalled)],
 						inert[static_cast<size_t>(

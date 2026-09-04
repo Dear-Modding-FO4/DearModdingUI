@@ -485,11 +485,12 @@ namespace DearModdingUI::MCM::detail
 			}
 			case ControlType::kKeymap:
 				descriptor.control = dmui::ReadOnlySettingControl{};
-				descriptor.defaultValue = std::string{ "Managed by MCM" };
+				descriptor.defaultValue = std::string{ "Unbound" };
 				a_row.text = MappedText{
 					descriptor.id,
-					TextPresentation{ "Managed by MCM" }
+					TextPresentation{ "Unbound" }
 				};
+				a_row.keybindId = a_control.id;
 				descriptor.showReset = false;
 				break;
 			default:

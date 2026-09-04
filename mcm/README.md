@@ -38,6 +38,14 @@ default for safe drawing and disable the row until a ready value exists.
 mod-setting bindings. An unavailable `settings.ini` leaves declarations unknown and therefore
 attemptable; only settings proven absent are disabled.
 
+`ParseKeybindDefinitions` and `LoadKeybindDefinitions` read each mod's
+`Data\MCM\Config\<folder>\keybinds.json`; `ParseUserKeybinds` and `LoadUserKeybinds` read the global
+`Data\MCM\Settings\Keybinds.json`. A hotkey matches by definition `modName` and control `id`.
+Declared keys without a user entry render unbound, while controls absent from the definitions file
+render as unable to be bound. The keyboard, mouse, and gamepad names use F4SE's unified DirectInput
+macro codes. Hotkeys are deliberately read-only: MCM dispatches from its in-memory map, so external
+writes do not apply until a game load and its next save or menu-close keybind commit overwrites them.
+
 Page activity drives refreshes for the complete mapped dependency set, including non-emitted
 `hiddenSwitcher` controls. Draw-time reads and `groupCondition` evaluation consult snapshots only.
 A pure `TaskScheduler` boundary moves every Papyrus VM operation to the game thread before resolving

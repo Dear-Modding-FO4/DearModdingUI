@@ -874,9 +874,9 @@ namespace vmm_tests
 						}) == 2,
 				"mapper attached consumer-specific hotkey rendering");
 			require(std::get<std::string>(bare.defaultValue) ==
-						"Managed by MCM" &&
+						"Unbound" &&
 					std::get<std::string>(modified.defaultValue) ==
-						"Managed by MCM",
+						"Unbound",
 				"hotkey status text changed");
 			require(!bare.showReset && !modified.showReset,
 				"hotkey controls exposed reset actions");

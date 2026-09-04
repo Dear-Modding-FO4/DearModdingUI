@@ -569,6 +569,7 @@ namespace DearModdingUI::MCM
 				 unsupported = row.unsupported || row.unmappedSource.has_value(),
 				 sourceSupported,
 				 undeclared,
+				 keybindInertState = row.keybindInertState,
 				 resolveCondition,
 				 resolveState = a_resolveState]() -> ResolvedInertState {
 					if (resolveCondition)
@@ -587,6 +588,8 @@ namespace DearModdingUI::MCM
 					}
 					if (binding && route == ValueRoute::kLocalUiState)
 						return ResolvedInertState{};
+					if (keybindInertState)
+						return *keybindInertState;
 					const auto rowReason =
 						unsupported || (binding && !sourceSupported) ?
 							InertReason::kUnsupported :

@@ -265,6 +265,11 @@ namespace DearModdingUI::MCM
 		kConditionPending,
 		kUnsupported,
 		kUndeclaredModSetting,
+		kKeybindUnbound,
+		kKeybindDefinitionMissing,
+		kKeybindDefinitionsMissing,
+		kKeybindDefinitionsInvalid,
+		kKeybindBindingsInvalid,
 		kMcmNotInstalled,
 		kRuntimeNotReady,
 		kValuePending,
@@ -315,6 +320,36 @@ namespace DearModdingUI::MCM
 				InertReasonScope::kRow,
 				"This setting is not declared in MCM settings.ini.",
 				{}
+			};
+		case InertReason::kKeybindUnbound:
+			return {
+				InertReasonScope::kRow,
+				"This hotkey is not bound in MCM.",
+				{}
+			};
+		case InertReason::kKeybindDefinitionMissing:
+			return {
+				InertReasonScope::kRow,
+				"This hotkey is not declared in the mod's MCM keybinds.json.",
+				{}
+			};
+		case InertReason::kKeybindDefinitionsMissing:
+			return {
+				InertReasonScope::kEnvironment,
+				{},
+				"This mod has no MCM keybinds.json, so its hotkeys cannot be bound."
+			};
+		case InertReason::kKeybindDefinitionsInvalid:
+			return {
+				InertReasonScope::kEnvironment,
+				{},
+				"This mod's MCM keybinds.json could not be read, so its hotkeys cannot be bound."
+			};
+		case InertReason::kKeybindBindingsInvalid:
+			return {
+				InertReasonScope::kEnvironment,
+				{},
+				"MCM's user key bindings could not be read."
 			};
 		case InertReason::kMcmNotInstalled:
 			return {
@@ -373,6 +408,8 @@ namespace DearModdingUI::MCM
 		std::optional<Action> action;
 		std::optional<Image> image;
 		ValueRoute valueRoute{ ValueRoute::kSource };
+		std::optional<std::string> keybindId;
+		std::optional<ResolvedInertState> keybindInertState;
 		std::function<ResolvedInertState()> resolveInertState;
 	};
 
@@ -393,6 +430,7 @@ namespace DearModdingUI::MCM
 		size_t localUiStateRows{};
 		size_t unknownBindings{};
 		size_t undeclaredModSettings{};
+		size_t resolvedKeybinds{};
 		size_t actions{};
 		size_t images{};
 		size_t pendingConditions{};
