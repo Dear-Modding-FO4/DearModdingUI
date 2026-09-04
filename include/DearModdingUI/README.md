@@ -21,10 +21,14 @@ Client, page, action, hotkey-action, frame-observer, and page-activity-observer 
 active-swapchain `Present` begins host initialization. Register them immediately after the client. All descriptor strings are copied;
 callback and userdata pointers must remain valid for the process lifetime. IDs use ASCII letters,
 digits, `.`, `_`, and `-`. Client IDs are process-wide; page and action IDs are unique within their client.
+Page categories and summaries are optional; null or empty category means the page has no group.
 The optional client `iconName` is copied at registration. Any canonical Phosphor 2.1.2 icon name is
 valid; hyphens, spaces, underscores, and PascalCase normalize to the same slug. An unknown or null
 value falls back through category and whole-word display-name concepts, then the question glyph. Set only documented
-`DMUI_ClientDescriptor::capabilities`; unknown bits reject the descriptor.
+`DMUI_ClientDescriptor::capabilities`; unknown bits reject the descriptor. Client origin defaults to
+`DMUI_CLIENT_ORIGIN_NATIVE`. A bridge sets `DMUI_CLIENT_ORIGIN_BRIDGED` and may provide a copied
+`bridgeSourceLabel`; the Home page groups bridged clients under `<source> mods`, or `Bridged mods`
+when no source label is supplied. Native clients must not provide a bridge source label.
 
 Settings pages draw only inside the common modal menu. Overlay pages draw without input capture while
 their reference-counted frame demand is nonzero. Balance every successful `requestFrame` with
@@ -36,8 +40,9 @@ game-input suppression; overlay demand never suppresses input.
 The Evil Modding window owns all navigation chrome. Its header shows the host and selected client as a
 breadcrumb with the undocked close control. While host interface settings are open, the breadcrumb
 names that view instead of the selected client. Its mod dropdown is built from registered client
-display names. The sidebar groups each client's settings pages by category and orders pages by
-`sortKey`, display name, and ID. Switching mods selects that client's first page. Overlay pages never
+display names. The sidebar places uncategorized settings pages first without a heading, then groups
+categorized pages under their category headings. Pages order by category, `sortKey`, display name,
+and ID. Switching mods selects that client's first page. Overlay pages never
 appear there. `selectPage` accepts settings pages, switches both the active mod and page, opens the
 window, and falls back deterministically if the previous selection is not available.
 The command palette searches mods, pages, and actions globally. A matching mod ranks above its pages
@@ -108,7 +113,7 @@ their `visible` output: call the matching end only when `visible` is nonzero. Ea
 caller-supplied ID, a label, and an optional description; the host copies the text, draws the label
 column, opens the value cell, reserves the reset column from live font/style metrics, and draws Reset
 through the shared settings-action treatment. `DMUI_SettingsRowOptions` controls reset visibility and
-enabled state and must provide at least `DMUI_SETTINGS_ROW_OPTIONS_1_0_SIZE`.
+enabled state and must provide at least `DMUI_SETTINGS_ROW_OPTIONS_0_1_SIZE`.
 Declarative descriptors may provide `resolveDescription` when the explanation depends on live state.
 The appended `beginSettingsRowEx` accepts a caller-sized `DMUI_SettingsRowBeginOptions`. Its
 `DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN` layout gives the row content both table columns at begin time;
@@ -142,9 +147,10 @@ clears its bracket state, so an early return cannot leak into shared chrome. The
 the two begin calls as `std::optional<bool>`, constructs the versioned row options, and applies every
 appended-table availability check.
 
-The C++ wrapper returns the accepted page handle from `AddPage` as
-`std::optional<DMUI_PageHandle>`. Pass that handle to `SelectPage` to select the registered settings
-page and open the shared menu. Both methods preserve `LastResult()` for failure details.
+The C++ wrapper accepts page metadata through `dmui::PageDescriptor`, where category and summary are
+optional, and returns the accepted page handle from `AddPage` as `std::optional<DMUI_PageHandle>`.
+Pass that handle to `SelectPage` to select the registered settings page and open the shared menu.
+Both methods preserve `LastResult()` for failure details.
 
 ## Client actions
 
@@ -192,7 +198,7 @@ whole press/release pair rather than leaving a client in a held state. The C++ w
 
 The optional `registerFrameObserver` entry accepts a descriptor with a callback and user data. The host
 calls each observer on the render thread after every successful non-test active-swapchain `Present`,
-regardless of menu visibility. Registration is permanent for the process lifetime in DMUI v1. The host
+regardless of menu visibility. Registration is permanent for the process lifetime. The host
 contains C++ and Windows structured exceptions, recovers shared ImGui state, and permanently disables a
 faulting observer. The C++ wrapper stores capturing callables in stable storage and returns the observer
 handle from `AddFrameObserver`.
@@ -203,7 +209,7 @@ that client's pages produces `DMUI_PAGE_ACTIVITY_CHANGED`, and leaving the clien
 produces `DMUI_PAGE_ACTIVITY_DEACTIVATED`. The event carries previous and active page handles, using
 the invalid page handle only across a client boundary. This lets a client implement one menu-open and
 one menu-close notification without inferring deselection from missing draw calls. Callbacks run on
-the render thread inside the shell draw. Registration lasts for the process lifetime in DMUI v1 and
+the render thread inside the shell draw. Registration lasts for the process lifetime and
 has no unregister counterpart. The C++ wrapper stores callbacks in stable storage and exposes
 `AddPageActivityObserver`.
 
@@ -312,7 +318,7 @@ callback boundary; structural misuse still returns `DMUI_RESULT_UNBALANCED_BRACK
 
 If initialization fails, each accepted client receives `onHostUnavailable` with an explicit reason
 and may start its standalone fallback. A client that receives `onHostReady` must stay hosted for the
-process lifetime; v1 supports hotkey-action unregistration but not client unload or hot reload.
+process lifetime; hotkey actions may be unregistered, but clients cannot unload or hot reload.
 
 ## Minimal registration
 
@@ -340,7 +346,9 @@ DMUI_ClientDescriptor client{
 	&Unavailable,
 	nullptr,
 	DMUI_CLIENT_CAPABILITY_NONE,
-	"puzzle-piece"
+	"puzzle-piece",
+	DMUI_CLIENT_ORIGIN_NATIVE,
+	nullptr
 };
 DMUI_ClientHandle clientHandle{};
 if (api->registerClient(&client, &clientHandle) != DMUI_RESULT_OK)

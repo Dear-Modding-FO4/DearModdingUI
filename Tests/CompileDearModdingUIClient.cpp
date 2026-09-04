@@ -26,13 +26,30 @@ namespace
 			dmui::Version{ 1, 0 },
 			"puzzle-piece"
 		};
+		static dmui::Client bridgedClient{
+			"example.author.bridge",
+			"Example Bridge",
+			dmui::Version{ 1, 0 },
+			"plugs-connected",
+			{
+				dmui::ClientOriginKind::kBridged,
+				"Example Framework"
+			}
+		};
+		(void)bridgedClient;
 		if (!client.Connect())
 			return;
 		const auto label = g_counter;
-		const auto page = client.AddPage("settings", "Settings", "General", [label] {
-			ImGui::TextUnformatted("hello");
-			(void)label;
-		});
+		const auto page = client.AddPage(
+			{
+				.id = "settings",
+				.displayName = "Settings",
+				.category = "General"
+			},
+			[label] {
+				ImGui::TextUnformatted("hello");
+				(void)label;
+			});
 		if (page)
 			(void)client.SelectPage(*page);
 		dmui::SettingsPage settings{
@@ -68,9 +85,11 @@ namespace
 			}
 		};
 		(void)client.AddSettingsPage(
-			"declarative",
-			"Declarative",
-			"General",
+			{
+				.id = "declarative",
+				.displayName = "Declarative",
+				.category = "General"
+			},
 			std::move(settings));
 		(void)client.AddAction(
 			"copy",

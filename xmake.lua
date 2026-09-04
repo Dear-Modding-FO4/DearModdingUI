@@ -118,6 +118,7 @@ target("dmui-tests", function()
     add_files(
         "Tests/**.cpp",
         "src/DearModdingUI/FontCatalog.cpp",
+        "src/DearModdingUI/Home.cpp",
         "src/DearModdingUI/Hotkeys.cpp",
         "src/DearModdingUI/Navigation.cpp",
         "src/DearModdingUI/Registry.cpp",
@@ -165,6 +166,7 @@ target("dmui-preview", function()
         "src/DearModdingUI/BackgroundBlur.cpp",
         "src/DearModdingUI/CursorLoader.cpp",
         "src/DearModdingUI/FontCatalog.cpp",
+        "src/DearModdingUI/Home.cpp",
         "src/DearModdingUI/Host.cpp",
         "src/DearModdingUI/HostSettings.cpp",
         "src/DearModdingUI/HostSettingsView.cpp",

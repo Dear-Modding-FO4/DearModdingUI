@@ -15,6 +15,7 @@ namespace DearModdingUI
 		inline constexpr size_t kCategoryCapacity{ 128 };
 		inline constexpr size_t kSummaryCapacity{ 1024 };
 		inline constexpr size_t kIconNameCapacity{ 128 };
+		inline constexpr size_t kBridgeSourceLabelCapacity{ 128 };
 
 		[[nodiscard]] bool ReadString(
 			const char* a_value,
@@ -216,7 +217,7 @@ namespace DearModdingUI
 		if (!a_descriptor || !a_client)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_client = DMUI_INVALID_CLIENT_HANDLE;
-		if (a_descriptor->structSize < DMUI_CLIENT_DESCRIPTOR_1_0_SIZE)
+		if (a_descriptor->structSize < DMUI_CLIENT_DESCRIPTOR_0_1_SIZE)
 			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!SupportsVersion(a_descriptor->apiVersion))
 			return DMUI_RESULT_UNSUPPORTED_ABI;
@@ -232,28 +233,38 @@ namespace DearModdingUI
 		if ((a_descriptor->capabilities &
 				~DMUI_CLIENT_CAPABILITY_RENDERER_REPLACEMENT) != 0)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
+		if (a_descriptor->origin != DMUI_CLIENT_ORIGIN_NATIVE &&
+			a_descriptor->origin != DMUI_CLIENT_ORIGIN_BRIDGED)
+			return DMUI_RESULT_INVALID_DESCRIPTOR;
 
 		try
 		{
 			RegisteredClient client{};
 			client.version = a_descriptor->version;
 			client.capabilities = a_descriptor->capabilities;
+			client.origin = a_descriptor->origin;
 			client.usesImGuiForwarding = a_descriptor->expectedImGui == nullptr;
 			client.onHostReady = a_descriptor->onHostReady;
 			client.onHostUnavailable = a_descriptor->onHostUnavailable;
 			client.userData = a_descriptor->userData;
 			if (!ReadString(a_descriptor->id, kIdCapacity, false, client.id) ||
 				!ReadString(a_descriptor->displayName, kDisplayNameCapacity, false, client.displayName) ||
-				(a_descriptor->structSize >=
-						DMUI_CLIENT_DESCRIPTOR_ICON_NAME_SIZE &&
-					!ReadString(
-						a_descriptor->iconName,
-						kIconNameCapacity,
-						true,
-						client.iconName)) ||
+				!ReadString(
+					a_descriptor->iconName,
+					kIconNameCapacity,
+					true,
+					client.iconName) ||
+				!ReadString(
+					a_descriptor->bridgeSourceLabel,
+					kBridgeSourceLabelCapacity,
+					true,
+					client.bridgeSourceLabel) ||
 				!ValidId(client.id) ||
 				!ValidText(client.displayName, false) ||
-				!ValidText(client.iconName, true))
+				!ValidText(client.iconName, true) ||
+				!ValidText(client.bridgeSourceLabel, true) ||
+				(client.origin == DMUI_CLIENT_ORIGIN_NATIVE &&
+					!client.bridgeSourceLabel.empty()))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 
 			const std::scoped_lock lock{ m_mutex };
@@ -285,7 +296,7 @@ namespace DearModdingUI
 		if (!a_descriptor || !a_page || a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_page = DMUI_INVALID_PAGE_HANDLE;
-		if (a_descriptor->structSize < DMUI_PAGE_DESCRIPTOR_1_0_SIZE)
+		if (a_descriptor->structSize < DMUI_PAGE_DESCRIPTOR_0_1_SIZE)
 			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->draw)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
@@ -303,11 +314,11 @@ namespace DearModdingUI
 			page.userData = a_descriptor->userData;
 			if (!ReadString(a_descriptor->id, kIdCapacity, false, page.id) ||
 				!ReadString(a_descriptor->displayName, kDisplayNameCapacity, false, page.displayName) ||
-				!ReadString(a_descriptor->category, kCategoryCapacity, false, page.category) ||
+				!ReadString(a_descriptor->category, kCategoryCapacity, true, page.category) ||
 				!ReadString(a_descriptor->summary, kSummaryCapacity, true, page.summary) ||
 				!ValidId(page.id) ||
 				!ValidText(page.displayName, false) ||
-				!ValidText(page.category, false) ||
+				!ValidText(page.category, true) ||
 				!ValidText(page.summary, true))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 
@@ -346,7 +357,7 @@ namespace DearModdingUI
 		if (!a_descriptor || !a_action || a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_action = DMUI_INVALID_ACTION_HANDLE;
-		if (a_descriptor->structSize < DMUI_ACTION_DESCRIPTOR_1_0_SIZE)
+		if (a_descriptor->structSize < DMUI_ACTION_DESCRIPTOR_0_1_SIZE)
 			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->callback)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
@@ -415,7 +426,7 @@ namespace DearModdingUI
 		if (!a_descriptor || !a_observer || a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_observer = DMUI_INVALID_FRAME_OBSERVER_HANDLE;
-		if (a_descriptor->structSize < DMUI_FRAME_OBSERVER_DESCRIPTOR_1_0_SIZE)
+		if (a_descriptor->structSize < DMUI_FRAME_OBSERVER_DESCRIPTOR_0_1_SIZE)
 			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->callback)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
@@ -458,7 +469,7 @@ namespace DearModdingUI
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_observer = DMUI_INVALID_PAGE_ACTIVITY_OBSERVER_HANDLE;
 		if (a_descriptor->structSize <
-			DMUI_PAGE_ACTIVITY_OBSERVER_DESCRIPTOR_1_0_SIZE)
+			DMUI_PAGE_ACTIVITY_OBSERVER_DESCRIPTOR_0_1_SIZE)
 			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->callback)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
@@ -987,7 +998,7 @@ namespace DearModdingUI
 
 	bool Registry::SupportsVersion(uint32_t a_requestedVersion) noexcept
 	{
-		return a_requestedVersion == DMUI_API_VERSION_1_0;
+		return a_requestedVersion == DMUI_API_VERSION_0_1;
 	}
 
 	bool Registry::FingerprintsMatch(

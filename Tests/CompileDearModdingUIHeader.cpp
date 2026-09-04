@@ -178,11 +178,13 @@ static_assert(DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT == 2u);
 static_assert(DMUI_HOTKEY_BINDING_UNBOUND_NEVER_SET == 3u);
 static_assert(DMUI_HOTKEY_BINDING_UNBOUND_OVERRIDE_CONFLICT == 4u);
 static_assert(DMUI_HOTKEY_BINDING_UNBOUND_INVALID_OVERRIDE == 5u);
+static_assert(DMUI_CLIENT_ORIGIN_NATIVE == 0u);
+static_assert(DMUI_CLIENT_ORIGIN_BRIDGED == 1u);
 
 #if UINTPTR_MAX == UINT64_MAX
 static_assert(sizeof(DMUI_ImGuiFingerprint) == 216);
 static_assert(sizeof(DMUI_HostReadyInfo) == 40);
-static_assert(sizeof(DMUI_ClientDescriptor) == 80);
+static_assert(sizeof(DMUI_ClientDescriptor) == 96);
 static_assert(sizeof(DMUI_PageDescriptor) == 64);
 static_assert(sizeof(DMUI_ActionDescriptor) == 64);
 static_assert(sizeof(DMUI_FrameObserverDescriptor) == 24);
@@ -202,16 +204,17 @@ static_assert(offsetof(DMUI_Vec4, w) == 12);
 static_assert(offsetof(DMUI_ClientDescriptor, structSize) == 0);
 static_assert(offsetof(DMUI_ClientDescriptor, capabilities) == 64);
 static_assert(offsetof(DMUI_ClientDescriptor, iconName) == 72);
-static_assert(DMUI_CLIENT_DESCRIPTOR_1_0_SIZE == 68);
-static_assert(DMUI_CLIENT_DESCRIPTOR_ICON_NAME_SIZE ==
+static_assert(offsetof(DMUI_ClientDescriptor, origin) == 80);
+static_assert(offsetof(DMUI_ClientDescriptor, bridgeSourceLabel) == 88);
+static_assert(DMUI_CLIENT_DESCRIPTOR_0_1_SIZE ==
 	sizeof(DMUI_ClientDescriptor));
-static_assert(DMUI_PAGE_DESCRIPTOR_1_0_SIZE ==
+static_assert(DMUI_PAGE_DESCRIPTOR_0_1_SIZE ==
 	sizeof(DMUI_PageDescriptor));
-static_assert(DMUI_ACTION_DESCRIPTOR_1_0_SIZE ==
+static_assert(DMUI_ACTION_DESCRIPTOR_0_1_SIZE ==
 	sizeof(DMUI_ActionDescriptor));
-static_assert(DMUI_FRAME_OBSERVER_DESCRIPTOR_1_0_SIZE ==
+static_assert(DMUI_FRAME_OBSERVER_DESCRIPTOR_0_1_SIZE ==
 	sizeof(DMUI_FrameObserverDescriptor));
-static_assert(DMUI_HOTKEY_ACTION_DESCRIPTOR_1_0_SIZE ==
+static_assert(DMUI_HOTKEY_ACTION_DESCRIPTOR_0_1_SIZE ==
 	sizeof(DMUI_HotkeyActionDescriptor));
 static_assert(offsetof(DMUI_ThemeColors, structSize) == 0);
 static_assert(offsetof(DMUI_ThemeColors, success) == 4);
@@ -228,26 +231,26 @@ static_assert(offsetof(DMUI_ThemeColors, statusRestartNeeded) == 164);
 static_assert(offsetof(DMUI_ThemeColors, statusCurrentHotkey) == 180);
 static_assert(offsetof(DMUI_ThemeColors, statusSuccess) == 196);
 static_assert(offsetof(DMUI_ThemeColors, statusInfo) == 212);
-static_assert(DMUI_THEME_COLORS_1_0_SIZE == sizeof(DMUI_ThemeColors));
+static_assert(DMUI_THEME_COLORS_0_1_SIZE == sizeof(DMUI_ThemeColors));
 static_assert(offsetof(DMUI_SettingsRowOptions, structSize) == 0);
 static_assert(offsetof(DMUI_SettingsRowOptions, resetVisible) == 4);
 static_assert(offsetof(DMUI_SettingsRowOptions, resetEnabled) == 8);
-static_assert(DMUI_SETTINGS_ROW_OPTIONS_1_0_SIZE ==
+static_assert(DMUI_SETTINGS_ROW_OPTIONS_0_1_SIZE ==
 	sizeof(DMUI_SettingsRowOptions));
 static_assert(offsetof(DMUI_SettingsRowBeginOptions, structSize) == 0);
 static_assert(offsetof(DMUI_SettingsRowBeginOptions, layout) == 4);
-static_assert(DMUI_SETTINGS_ROW_BEGIN_OPTIONS_1_0_SIZE ==
+static_assert(DMUI_SETTINGS_ROW_BEGIN_OPTIONS_0_1_SIZE ==
 	sizeof(DMUI_SettingsRowBeginOptions));
 static_assert(offsetof(DMUI_PageActivityInfo, structSize) == 0);
 static_assert(offsetof(DMUI_PageActivityInfo, kind) == 4);
 static_assert(offsetof(DMUI_PageActivityInfo, previousPage) == 8);
 static_assert(offsetof(DMUI_PageActivityInfo, activePage) == 16);
-static_assert(DMUI_PAGE_ACTIVITY_INFO_1_0_SIZE ==
+static_assert(DMUI_PAGE_ACTIVITY_INFO_0_1_SIZE ==
 	sizeof(DMUI_PageActivityInfo));
 static_assert(offsetof(DMUI_PageActivityObserverDescriptor, structSize) == 0);
 static_assert(offsetof(DMUI_PageActivityObserverDescriptor, callback) == 8);
 static_assert(offsetof(DMUI_PageActivityObserverDescriptor, userData) == 16);
-static_assert(DMUI_PAGE_ACTIVITY_OBSERVER_DESCRIPTOR_1_0_SIZE ==
+static_assert(DMUI_PAGE_ACTIVITY_OBSERVER_DESCRIPTOR_0_1_SIZE ==
 	sizeof(DMUI_PageActivityObserverDescriptor));
 static_assert(offsetof(DMUI_FrameObserverDescriptor, structSize) == 0);
 static_assert(offsetof(DMUI_FrameObserverDescriptor, callback) == 8);

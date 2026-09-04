@@ -30,6 +30,11 @@ namespace DearModdingUI
 	{
 		std::string displayName;
 		std::vector<NavigationPage> pages;
+
+		[[nodiscard]] bool HasHeading() const noexcept
+		{
+			return !displayName.empty();
+		}
 	};
 
 	struct NavigationClient

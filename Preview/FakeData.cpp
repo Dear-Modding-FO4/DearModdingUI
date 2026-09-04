@@ -394,15 +394,17 @@ namespace DearModdingUIPreview
 			for (const auto& page : a_pages)
 			{
 				const auto handle = a_client.AddPage(
-					page.id,
-					page.displayName,
-					page.category,
+					{
+						.id = page.id,
+						.displayName = page.displayName,
+						.category = page.category,
+						.summary = page.summary,
+						.sortKey = sortKey
+					},
 					[name = std::string{ page.displayName },
 						summary = std::string{ page.summary }]() {
 						DrawFixturePage(name, summary);
-					},
-					page.summary,
-					sortKey);
+					});
 				if (!handle)
 				{
 					a_error = "Could not register page " +
@@ -429,7 +431,8 @@ namespace DearModdingUIPreview
 			dmui::Version a_version,
 			std::string_view a_iconName,
 			std::string& a_error,
-			ClientConnection a_connection = ClientConnection::kLockstep)
+			ClientConnection a_connection = ClientConnection::kLockstep,
+			dmui::ClientOrigin a_origin = {})
 		{
 			auto client = a_connection == ClientConnection::kForwarding ?
 				std::make_unique<dmui::Client>(
@@ -437,12 +440,14 @@ namespace DearModdingUIPreview
 					a_displayName,
 					a_version,
 					dmui::kForwardingClient,
-					a_iconName) :
+					a_iconName,
+					a_origin) :
 				std::make_unique<dmui::Client>(
 					a_id,
 					a_displayName,
 					a_version,
-					a_iconName);
+					a_iconName,
+					a_origin);
 			if (!client->Connect())
 			{
 				a_error = "Could not connect fake client " +
@@ -470,31 +475,31 @@ namespace DearModdingUIPreview
 				PageSpec{
 					"overview",
 					"Overview",
-					"General",
+					nullptr,
 					"Runtime summary and active compatibility fixes."
 				},
 				PageSpec{
 					"fixes",
 					"Fixes",
-					"General",
+					nullptr,
 					"Individual engine fixes and their current state."
 				},
 				PageSpec{
 					"performance",
 					"Performance",
-					"Performance",
+					nullptr,
 					"Frame pacing, budgets, and background work."
 				},
 				PageSpec{
 					"rendering",
 					"Rendering",
-					"Visuals",
+					nullptr,
 					"Renderer compatibility and presentation options."
 				},
 				PageSpec{
 					"camera",
 					"Camera",
-					"Visuals",
+					nullptr,
 					"First-person and third-person camera behavior."
 				},
 				PageSpec{
@@ -632,9 +637,13 @@ namespace DearModdingUIPreview
 				"dearmodding.mcm-preview",
 				"MCM Bridge Preview",
 				{ 1, 0 },
-				"",
+				"plugs-connected",
 				a_error,
-				ClientConnection::kForwarding);
+				ClientConnection::kForwarding,
+				{
+					dmui::ClientOriginKind::kBridged,
+					"MCM"
+				});
 			if (!mcmClient)
 			{
 				a_error = "Could not register the MCM preview fixture.";
@@ -652,11 +661,13 @@ namespace DearModdingUIPreview
 					m_impl->mcmValues);
 				DearModdingUI::MCM::AttachTextRendering(mcmPage);
 				if (!mcmClient->AddSettingsPage(
-						mcmPage.id.c_str(),
-						mcmPage.displayName.c_str(),
-						"Interface",
-						std::move(mcmPage.settings),
-						"Parsed and bound MCM compatibility controls."))
+						{
+							.id = mcmPage.id.c_str(),
+							.displayName = mcmPage.displayName.c_str(),
+							.summary =
+								"Parsed and bound MCM compatibility controls."
+						},
+						std::move(mcmPage.settings)))
 				{
 					a_error = "Could not register the MCM preview fixture.";
 					return false;
@@ -672,12 +683,14 @@ namespace DearModdingUIPreview
 			if (!addictol || !AddPages(*addictol, addictolPages, a_error))
 				return false;
 			if (!addictol->AddSettingsPage(
-					"settings",
-					"Settings",
-					"General",
-					MakeAddictolSettingsPage(&m_impl->settings),
-					"Declarative settings controls used by Addictol.",
-					60))
+					{
+						.id = "settings",
+						.displayName = "Settings",
+						.summary =
+							"Declarative settings controls used by Addictol.",
+						.sortKey = 60
+					},
+					MakeAddictolSettingsPage(&m_impl->settings)))
 			{
 				a_error = "Could not register Addictol settings (result " +
 					std::to_string(addictol->LastResult()) + ").";

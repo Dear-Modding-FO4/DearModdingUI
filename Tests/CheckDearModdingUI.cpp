@@ -2,6 +2,7 @@
 #include <DearModdingUI/FontCatalog.h>
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/HostSettingsView.h>
+#include <DearModdingUI/Home.h>
 #include <DearModdingUI/MenuToggleKey.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/Registry.h>
@@ -307,10 +308,15 @@ namespace vmm_tests
 
 	void run_dear_modding_ui_checks(Runner& runner)
 	{
-		runner.test("DearModdingUI negotiates only the published ABI", [] {
-			require(Registry::SupportsVersion(DMUI_API_VERSION_1_0), "v1.0 was rejected");
-			require(!Registry::SupportsVersion(DMUI_MAKE_VERSION(1, 1)), "future minor was accepted");
-			require(!Registry::SupportsVersion(DMUI_MAKE_VERSION(2, 0)), "future major was accepted");
+		runner.test("DearModdingUI reports and negotiates the 0.1 ABI", [] {
+			require(
+				DMUI_API_VERSION_CURRENT == DMUI_MAKE_VERSION(0u, 1u) &&
+					Registry::SupportsVersion(DMUI_API_VERSION_0_1),
+				"v0.1 was not reported or accepted");
+			require(!Registry::SupportsVersion(DMUI_MAKE_VERSION(0, 2)),
+				"future minor was accepted");
+			require(!Registry::SupportsVersion(DMUI_MAKE_VERSION(1, 0)),
+				"future major was accepted");
 			require(!Registry::SupportsVersion(0), "zero ABI was accepted");
 		});
 
@@ -485,11 +491,11 @@ namespace vmm_tests
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"null row options were accepted");
 			DMUI_SettingsRowOptions options{};
-			options.structSize = DMUI_SETTINGS_ROW_OPTIONS_1_0_SIZE - 1;
+			options.structSize = DMUI_SETTINGS_ROW_OPTIONS_0_1_SIZE - 1;
 			require(SettingsTable::ValidateRowOptions(&options) ==
 					DMUI_RESULT_STRUCT_TOO_SMALL,
 				"short row options were accepted");
-			options.structSize = DMUI_SETTINGS_ROW_OPTIONS_1_0_SIZE;
+			options.structSize = DMUI_SETTINGS_ROW_OPTIONS_0_1_SIZE;
 			require(SettingsTable::ValidateRowOptions(&options) ==
 					DMUI_RESULT_OK,
 				"exact row options were rejected");
@@ -499,12 +505,12 @@ namespace vmm_tests
 				"extended row options were rejected");
 			DMUI_SettingsRowBeginOptions beginOptions{};
 			beginOptions.structSize =
-				DMUI_SETTINGS_ROW_BEGIN_OPTIONS_1_0_SIZE - 1;
+				DMUI_SETTINGS_ROW_BEGIN_OPTIONS_0_1_SIZE - 1;
 			require(SettingsTable::ValidateRowBeginOptions(&beginOptions) ==
 					DMUI_RESULT_STRUCT_TOO_SMALL,
 				"short row begin options were accepted");
 			beginOptions.structSize =
-				DMUI_SETTINGS_ROW_BEGIN_OPTIONS_1_0_SIZE;
+				DMUI_SETTINGS_ROW_BEGIN_OPTIONS_0_1_SIZE;
 			beginOptions.layout = DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN;
 			require(SettingsTable::ValidateRowBeginOptions(&beginOptions) ==
 					DMUI_RESULT_OK,
@@ -1474,7 +1480,7 @@ namespace vmm_tests
 			require(registry.RegisterClient(&client, nullptr) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"null output was accepted");
-			client.structSize = DMUI_CLIENT_DESCRIPTOR_1_0_SIZE - 1;
+			client.structSize = DMUI_CLIENT_DESCRIPTOR_0_1_SIZE - 1;
 			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_STRUCT_TOO_SMALL,
 				"short client descriptor was accepted");
@@ -1520,27 +1526,24 @@ namespace vmm_tests
 				"null page callback was accepted");
 		});
 
-		runner.test("client icons extend the descriptor without rejecting older clients", [] {
+		runner.test("client descriptors require and copy the complete 0.1 shape", [] {
 			const auto fingerprint = Fingerprint();
 			CallbackState state;
 
-			Registry legacyRegistry{ fingerprint };
-			auto legacy = Client("legacy.mod", "Legacy", fingerprint, state);
-			legacy.structSize =
-				static_cast<uint32_t>(offsetof(DMUI_ClientDescriptor, iconName));
-			legacy.iconName = reinterpret_cast<const char*>(uintptr_t{ 1 });
-			DMUI_ClientHandle legacyHandle{};
-			require(
-				legacyRegistry.RegisterClient(&legacy, &legacyHandle) ==
-						DMUI_RESULT_OK &&
-					legacyHandle != DMUI_INVALID_CLIENT_HANDLE,
-				"the 1.0 client descriptor size was rejected");
-
 			Registry registry{ fingerprint };
+			auto shortDescriptor = Client("short.mod", "Short", fingerprint, state);
+			shortDescriptor.structSize =
+				static_cast<uint32_t>(
+					offsetof(DMUI_ClientDescriptor, bridgeSourceLabel));
+			DMUI_ClientHandle handle{};
+			require(
+				registry.RegisterClient(&shortDescriptor, &handle) ==
+					DMUI_RESULT_STRUCT_TOO_SMALL,
+				"a partial 0.1 client descriptor was accepted");
+
 			char iconName[]{ "gauge" };
 			auto client = Client("owned.mod", "Owned", fingerprint, state);
 			client.iconName = iconName;
-			DMUI_ClientHandle handle{};
 			require(registry.RegisterClient(&client, &handle) == DMUI_RESULT_OK,
 				"client icon registration failed");
 			iconName[0] = 'x';
@@ -1558,6 +1561,150 @@ namespace vmm_tests
 				registry.Navigation().clients.size() == 1 &&
 					registry.Navigation().clients.front().iconName == "gauge",
 				"the client icon name was not deep-copied");
+		});
+
+		runner.test("client origin defaults to native", [] {
+			const auto fingerprint = Fingerprint();
+			Registry registry{ fingerprint };
+			CallbackState state;
+			auto client = Client("native.mod", "Native", fingerprint, state);
+			DMUI_ClientHandle handle{};
+
+			require(
+				client.origin == DMUI_CLIENT_ORIGIN_NATIVE &&
+					client.bridgeSourceLabel == nullptr &&
+					registry.RegisterClient(&client, &handle) == DMUI_RESULT_OK,
+				"a default client was not registered as native");
+			const auto& registered = registry.RegisteredClients().front();
+			require(
+				registered.origin == DMUI_CLIENT_ORIGIN_NATIVE &&
+					registered.bridgeSourceLabel.empty(),
+				"the registry changed the default native origin");
+		});
+
+		runner.test("bridged clients carry copied source labels", [] {
+			const auto fingerprint = Fingerprint();
+			Registry registry{ fingerprint };
+			CallbackState state;
+			char sourceLabel[]{ "MCM" };
+			auto client = Client("bridged.mod", "Bridged", fingerprint, state);
+			client.origin = DMUI_CLIENT_ORIGIN_BRIDGED;
+			client.bridgeSourceLabel = sourceLabel;
+			DMUI_ClientHandle handle{};
+
+			require(registry.RegisterClient(&client, &handle) == DMUI_RESULT_OK,
+				"a bridged client was rejected");
+			sourceLabel[0] = 'X';
+			const auto& registered = registry.RegisteredClients().front();
+			require(
+				registered.origin == DMUI_CLIENT_ORIGIN_BRIDGED &&
+					registered.bridgeSourceLabel == "MCM",
+				"the bridge source label was not copied");
+
+			auto contradictory =
+				Client("native.source", "Native Source", fingerprint, state);
+			contradictory.bridgeSourceLabel = "MCM";
+			require(
+				registry.RegisterClient(&contradictory, &handle) ==
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"a native client carried a bridge source label");
+		});
+
+		runner.test("Home groups native and bridged clients separately", [] {
+			const std::vector<RegisteredClient> clients{
+				{ .handle = 1, .id = "z.native", .displayName = "Zulu Native" },
+				{
+					.handle = 2,
+					.id = "bridge",
+					.displayName = "Bridge Client",
+					.origin = DMUI_CLIENT_ORIGIN_BRIDGED,
+					.bridgeSourceLabel = "MCM"
+				},
+				{ .handle = 3, .id = "a.native", .displayName = "Alpha Native" }
+			};
+
+			const auto sections = BuildHomeClientSections(clients);
+			require(
+				sections.size() == 2 &&
+					sections[0].heading == "Registered mods" &&
+					sections[0].clients.size() == 2 &&
+					sections[0].clients[0]->id == "a.native" &&
+					sections[0].clients[1]->id == "z.native" &&
+					sections[1].heading == "MCM mods" &&
+					sections[1].clients.size() == 1 &&
+					sections[1].clients[0]->id == "bridge",
+				"native and bridged Home clients were not split stably");
+		});
+
+		runner.test("Home preserves native-only rendering", [] {
+			const std::vector<RegisteredClient> clients{
+				{ .handle = 1, .id = "z", .displayName = "Zulu" },
+				{ .handle = 2, .id = "a", .displayName = "Alpha" }
+			};
+
+			const auto sections = BuildHomeClientSections(clients);
+			require(
+				sections.size() == 1 &&
+					sections.front().heading == "Registered mods" &&
+					sections.front().glyph == PhosphorGlyph::kPuzzlePiece &&
+					sections.front().clients.size() == 2 &&
+					sections.front().clients[0]->id == "a" &&
+					sections.front().clients[1]->id == "z",
+				"native-only Home presentation changed");
+		});
+
+		runner.test("Home creates a section for each bridge source", [] {
+			const std::vector<RegisteredClient> clients{
+				{ .handle = 1, .id = "native", .displayName = "Native" },
+				{
+					.handle = 2,
+					.id = "zeta-two",
+					.displayName = "Beta",
+					.origin = DMUI_CLIENT_ORIGIN_BRIDGED,
+					.bridgeSourceLabel = "Zeta"
+				},
+				{
+					.handle = 3,
+					.id = "alpha",
+					.displayName = "Alpha",
+					.origin = DMUI_CLIENT_ORIGIN_BRIDGED,
+					.bridgeSourceLabel = "Alpha"
+				},
+				{
+					.handle = 4,
+					.id = "zeta-one",
+					.displayName = "Able",
+					.origin = DMUI_CLIENT_ORIGIN_BRIDGED,
+					.bridgeSourceLabel = "Zeta"
+				}
+			};
+
+			const auto sections = BuildHomeClientSections(clients);
+			require(
+				sections.size() == 3 &&
+					sections[0].heading == "Registered mods" &&
+					sections[1].heading == "Alpha mods" &&
+					sections[1].clients.size() == 1 &&
+					sections[1].clients[0]->id == "alpha" &&
+					sections[2].heading == "Zeta mods" &&
+					sections[2].clients.size() == 2 &&
+					sections[2].clients[0]->id == "zeta-one" &&
+					sections[2].clients[1]->id == "zeta-two",
+				"bridge source sections or their member order were unstable");
+
+			const std::vector<RegisteredClient> unnamedBridge{
+				{
+					.handle = 5,
+					.id = "unnamed",
+					.displayName = "Unnamed",
+					.origin = DMUI_CLIENT_ORIGIN_BRIDGED
+				}
+			};
+			const auto fallback = BuildHomeClientSections(unnamedBridge);
+			require(
+				fallback.size() == 1 &&
+					fallback.front().heading == "Bridged mods",
+				"an unnamed bridge did not receive the generic heading");
 		});
 
 		runner.test("forwarding clients register without a fingerprint", [] {
@@ -1847,80 +1994,35 @@ namespace vmm_tests
 					"actions did not order by sort key then ID");
 		});
 
-		runner.test("Addictol home sorts first through ordinary settings ordering", [] {
+		runner.test("pages register without a category", [] {
 			const auto fingerprint = Fingerprint();
 			Registry registry{ fingerprint };
 			CallbackState state;
-			const auto addictol = AddClient(
+			const auto client = AddClient(
 				registry,
-				"dear-modding.addictol",
-				"Addictol",
+				"ungrouped.mod",
+				"Ungrouped",
 				fingerprint,
 				state);
-			const auto communityShaders = AddClient(
+			const auto page = AddPage(
 				registry,
-				"dear-modding.community-shaders",
-				"Community Shaders",
-				fingerprint,
-				state);
-			const auto addictolGeneral = AddPage(
-				registry,
-				addictol,
-				"general",
-				"General",
-				"Addictol",
-				10,
-				DMUI_PAGE_KIND_SETTINGS,
-				state);
-			const auto addictolHome = AddPage(
-				registry,
-				addictol,
-				"home",
-				"Home",
-				"Addictol",
+				client,
+				"overview",
+				"Overview",
+				nullptr,
 				0,
 				DMUI_PAGE_KIND_SETTINGS,
 				state);
-			(void)AddPage(
-				registry,
-				communityShaders,
-				"home",
-				"Home",
-				"Community Shaders",
-				0,
-				DMUI_PAGE_KIND_SETTINGS,
-				state);
-			require(registry.Freeze(), "ordinary home registry did not freeze");
+			require(registry.Freeze(), "uncategorized page registry did not freeze");
 			const auto& navigation = registry.Navigation();
-			const auto* addictolClient = navigation.FindClient(addictol);
-			const auto* communityShadersClient =
-				navigation.FindClient(communityShaders);
-			const auto countHomes = [](const NavigationClient& a_client) {
-				size_t count = 0;
-				for (const auto& category : a_client.categories)
-					count += std::ranges::count_if(category.pages, [](const auto& a_page) {
-						return a_page.displayName == "Home";
-					});
-				return count;
-			};
-			require(addictolClient &&
-					addictolClient->categories.size() == 1 &&
-					addictolClient->categories[0].displayName == "Addictol" &&
-					addictolClient->categories[0].pages.size() == 2,
-				"Addictol pages were not grouped as ordinary settings pages");
-			require(addictolClient->categories[0].pages[0].handle == addictolHome &&
-					addictolClient->categories[0].pages[1].handle == addictolGeneral,
-				"Addictol home did not sort first by its ordinary sort key");
-			require(communityShadersClient &&
-					communityShadersClient->categories.size() == 1 &&
-					communityShadersClient->categories[0].pages.size() == 1 &&
-					communityShadersClient->categories[0].pages[0].displayName == "Home",
-				"Community Shaders did not retain exactly one ordinary Home entry");
-			require(countHomes(*addictolClient) == 1 &&
-					countHomes(*communityShadersClient) == 1,
-				"clients did not retain exactly one registered Home entry");
-			require(registry.PageCount() == 3,
-				"the host added an unregistered page");
+			require(
+					registry.OrderedPages().size() == 1 &&
+						registry.OrderedPages()[0].category.empty() &&
+						navigation.clients.size() == 1 &&
+						navigation.clients[0].categories.size() == 1 &&
+						navigation.clients[0].categories[0].displayName.empty() &&
+						navigation.clients[0].categories[0].pages[0].handle == page,
+				"uncategorized page was rejected or assigned a category");
 		});
 
 		runner.test("registration copies strings and grows beyond the old capacity", [] {
@@ -1995,6 +2097,68 @@ namespace vmm_tests
 			require(pages[1].id == "sorted", "sort-key ordering changed");
 			require(pages[2].id == "second", "client page ordering changed");
 			require(pages[3].id == "late", "clients did not sort by display name");
+		});
+
+		runner.test("uncategorized pages order before headed groups", [] {
+			const auto fingerprint = Fingerprint();
+			Registry registry{ fingerprint };
+			CallbackState state;
+			const auto client = AddClient(
+				registry, "mixed.mod", "Mixed", fingerprint, state);
+			const auto headed = AddPage(
+				registry, client, "headed", "Headed", "General", -100,
+				DMUI_PAGE_KIND_SETTINGS, state);
+			const auto ungrouped = AddPage(
+				registry, client, "ungrouped", "Ungrouped", nullptr, 100,
+				DMUI_PAGE_KIND_SETTINGS, state);
+			require(registry.Freeze(), "mixed grouping registry did not freeze");
+			const auto& categories = registry.Navigation().clients[0].categories;
+			require(
+					categories.size() == 2 &&
+						categories[0].displayName.empty() &&
+						categories[0].pages[0].handle == ungrouped &&
+						categories[1].displayName == "General" &&
+						categories[1].pages[0].handle == headed,
+				"sort key displaced uncategorized pages below a heading");
+		});
+
+		runner.test("uncategorized-only clients render no category headers", [] {
+			const NavigationClient client{
+				.categories = {
+					{ "", {
+						{ 1, 1, "overview", "Overview", "", {}, 0 },
+						{ 2, 1, "settings", "Settings", "", {}, 10 }
+					} }
+				}
+			};
+			require(
+					client.categories.size() == 1 &&
+						!client.categories[0].HasHeading() &&
+						client.categories[0].pages.size() == 2,
+				"uncategorized pages requested a category header");
+		});
+
+		runner.test("multi-category clients render every category header", [] {
+			const NavigationClient client{
+				.categories = {
+					{ "Diagnostics", {
+						{ 1, 1, "logs", "Logs", "Diagnostics", {}, 0 }
+					} },
+					{ "Performance", {
+						{ 2, 1, "timing", "Timing", "Performance", {}, 0 }
+					} },
+					{ "Visuals", {
+						{ 3, 1, "lighting", "Lighting", "Visuals", {}, 0 }
+					} }
+				}
+			};
+			require(
+					std::ranges::count_if(
+						client.categories,
+						[](const auto& a_category) {
+							return a_category.HasHeading();
+						}) == client.categories.size(),
+				"multi-category rendering collapsed a category header");
 		});
 
 		runner.test("navigation groups clients categories and settings pages deterministically", [] {
@@ -2829,7 +2993,8 @@ namespace vmm_tests
 		});
 
 		runner.test("menu toggle keys parse and round trip", [] {
-			static_assert(kMenuDefaultToggleKey == 0x7A);
+			static_assert(kMenuDefaultToggleKey == 0x23);
+			static_assert(ParseMenuToggleKey("End"sv).virtualKey == 0x23);
 			static_assert(ParseMenuToggleKey("F11"sv).virtualKey == 0x7A);
 			static_assert(ParseMenuToggleKey("F11"sv).recognized);
 			static_assert(!ParseMenuToggleKey("Q"sv).recognized);
@@ -3174,7 +3339,8 @@ namespace vmm_tests
 				decoded.bodyFontFamily == kDefaultBodyFontFamily,
 				"malformed font family did not fall back");
 			require(
-				decoded.menuToggleKey == "F11",
+				decoded.menuToggleKey ==
+					MenuToggleKeyName(kMenuDefaultToggleKey),
 				"malformed toggle key did not fall back");
 			require(
 				DefaultHostInterfaceSettings() == HostInterfaceSettings{},

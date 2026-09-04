@@ -478,7 +478,7 @@ namespace DearModdingUI
 		{
 			if (!a_colors)
 				return DMUI_RESULT_INVALID_ARGUMENT;
-			if (a_colors->structSize < DMUI_THEME_COLORS_1_0_SIZE)
+			if (a_colors->structSize < DMUI_THEME_COLORS_0_1_SIZE)
 				return DMUI_RESULT_STRUCT_TOO_SMALL;
 			const auto validation = ValidateDrawingClient(a_client);
 			if (validation != DMUI_RESULT_OK)
@@ -1705,7 +1705,7 @@ DMUI_EXPORT DMUI_Result DMUI_CALL DMUI_GetStyleMetrics(
 {
 	if (!a_metrics)
 		return DMUI_RESULT_INVALID_ARGUMENT;
-	if (a_metrics->structSize < DMUI_STYLE_METRICS_1_0_SIZE)
+	if (a_metrics->structSize < DMUI_STYLE_METRICS_0_1_SIZE)
 		return DMUI_RESULT_STRUCT_TOO_SMALL;
 	if (!ImGui::GetCurrentContext())
 		return DMUI_RESULT_HOST_NOT_READY;

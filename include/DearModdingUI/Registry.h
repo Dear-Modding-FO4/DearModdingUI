@@ -18,6 +18,8 @@ namespace DearModdingUI
 		std::string id;
 		std::string displayName;
 		std::string iconName;
+		DMUI_ClientOrigin origin{ DMUI_CLIENT_ORIGIN_NATIVE };
+		std::string bridgeSourceLabel;
 		uint32_t version{ 0 };
 		DMUI_ClientCapabilities capabilities{ DMUI_CLIENT_CAPABILITY_NONE };
 		DMUI_HostReadyCallback onHostReady{ nullptr };

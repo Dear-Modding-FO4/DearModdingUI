@@ -234,7 +234,13 @@ namespace DearModdingUI::MCM
 					ClientId(configuration.modName, folder),
 					displayName,
 					dmui::Version{ 1, 0 },
-					dmui::kForwardingClient);
+					dmui::kForwardingClient,
+					// MCM configs carry no icon field, so bridged mods cannot declare one.
+					"plugs-connected",
+					dmui::ClientOrigin{
+						dmui::ClientOriginKind::kBridged,
+						"MCM"
+					});
 				if (!mod->client->Connect())
 				{
 					if (mod->client->HostPresent())
@@ -348,9 +354,11 @@ namespace DearModdingUI::MCM
 					auto* settings = &page->settings;
 					auto* client = mod->client.get();
 					const auto registered = client->AddPage(
-						page->id.c_str(),
-						page->displayName.c_str(),
-						displayName.c_str(),
+						{
+							.id = page->id.c_str(),
+							.displayName = page->displayName.c_str(),
+							.sortKey = static_cast<int32_t>(index)
+						},
 						[settings, client] {
 							try
 							{
@@ -367,9 +375,7 @@ namespace DearModdingUI::MCM
 								REX::ERROR(
 									"DearModdingUI-MCM: page draw failed"sv);
 							}
-						},
-						nullptr,
-						static_cast<int32_t>(index));
+						});
 					if (!registered)
 					{
 						REX::ERROR(

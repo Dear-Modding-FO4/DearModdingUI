@@ -80,7 +80,7 @@ namespace DearModdingUI::SettingsTable
 	{
 		if (!a_options)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		return a_options->structSize < DMUI_SETTINGS_ROW_OPTIONS_1_0_SIZE ?
+		return a_options->structSize < DMUI_SETTINGS_ROW_OPTIONS_0_1_SIZE ?
 			DMUI_RESULT_STRUCT_TOO_SMALL :
 			DMUI_RESULT_OK;
 	}
@@ -90,7 +90,7 @@ namespace DearModdingUI::SettingsTable
 	{
 		if (!a_options)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_options->structSize < DMUI_SETTINGS_ROW_BEGIN_OPTIONS_1_0_SIZE)
+		if (a_options->structSize < DMUI_SETTINGS_ROW_BEGIN_OPTIONS_0_1_SIZE)
 			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		return a_options->layout == DMUI_SETTINGS_ROW_LAYOUT_LABEL_VALUE ||
 				a_options->layout == DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN ?
