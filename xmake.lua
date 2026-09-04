@@ -3,6 +3,8 @@ includes("Depends/commonlibf4")
 local plugin_name = "DearModdingUI"
 local plugin_version = "1.0.0"
 
+local dev_mod_folder = "Dear Modding UI - Dev"
+
 local function project_dir(relative)
     return path.join(os.projectdir(), relative)
 end
@@ -233,6 +235,15 @@ target(plugin_name, function()
         description = "Shared Dear ImGui menu host for Fallout 4"
     })
 
+    -- must land after the plugin rule's own installdir assignment
+    on_config(function(target)
+        local mods_root = os.getenv("FO4_DEV_MODS")
+
+        if mods_root then
+            target:set("installdir", path.join(mods_root, dev_mod_folder))
+        end
+    end)
+
     add_deps("imgui")
     add_files(
         "src/**.cpp",
@@ -240,6 +251,8 @@ target(plugin_name, function()
     )
     add_headerfiles("include/**.h")
     add_extrafiles("data/**", "README.md", "THIRD_PARTY_NOTICES.md")
+    -- (**) preserves the Fonts/ and Shaders/ subtrees
+    add_installfiles("data/F4SE/Plugins/(**)", { prefixdir = "F4SE/Plugins" })
     add_includedirs(
         "include",
         "Depends",
@@ -280,6 +293,14 @@ target("DearModdingUI-MCM", function()
         author = "Dear Modding FO4",
         description = "Mod Configuration Menu compatibility client for DearModdingUI"
     })
+
+    on_config(function(target)
+        local mods_root = os.getenv("FO4_DEV_MODS")
+
+        if mods_root then
+            target:set("installdir", path.join(mods_root, dev_mod_folder))
+        end
+    end)
 
     add_deps("dmui-mcm")
     add_files("plugin/src/**.cpp")
