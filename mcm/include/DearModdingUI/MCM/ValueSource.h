@@ -38,6 +38,12 @@ namespace DearModdingUI::MCM
 	using ValueSnapshot =
 		std::variant<ReadyValue, PendingValue, MissingValue, FailedValue>;
 
+	struct StoredWrite
+	{
+		ValueSnapshot snapshot;
+		uint64_t settlementToken{};
+	};
+
 	[[nodiscard]] uint64_t Generation(const ValueSnapshot& a_snapshot) noexcept;
 	[[nodiscard]] std::string MakeBindingKey(const MappedBinding& a_binding);
 
@@ -46,11 +52,15 @@ namespace DearModdingUI::MCM
 	public:
 		[[nodiscard]] ValueSnapshot Read(std::string_view a_key) const;
 		[[nodiscard]] uint64_t BeginRefresh(std::string_view a_key);
-		[[nodiscard]] ValueSnapshot Store(
+		[[nodiscard]] StoredWrite Store(
 			std::string_view a_key,
 			dmui::SettingValue a_value);
 		[[nodiscard]] bool Complete(
 			std::string_view a_key,
+			ValueSnapshot a_snapshot);
+		[[nodiscard]] bool CompleteWrite(
+			std::string_view a_key,
+			uint64_t a_settlementToken,
 			ValueSnapshot a_snapshot);
 
 	private:
@@ -65,9 +75,14 @@ namespace DearModdingUI::MCM
 		};
 
 		mutable std::mutex mutex_;
+		struct Entry
+		{
+			ValueSnapshot snapshot;
+			uint64_t writeToken{};
+		};
 		std::unordered_map<
 			std::string,
-			ValueSnapshot,
+			Entry,
 			TransparentHash,
 			std::equal_to<>> values_;
 	};

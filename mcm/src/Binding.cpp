@@ -529,7 +529,7 @@ namespace DearModdingUI::MCM
 	std::vector<size_t> SummarizeInertReasons(const MappedPage& a_page)
 	{
 		std::vector<size_t> result(
-			static_cast<size_t>(InertReason::kValueFailed) + 1);
+			static_cast<size_t>(InertReason::kUnsupportedAction) + 1);
 		for (const auto& row : a_page.rows)
 		{
 			if (!row.emitted || !row.resolveInertState)
@@ -631,6 +631,7 @@ namespace DearModdingUI::MCM
 				 sourceSupported,
 				 undeclared,
 				 keybindInertState = row.keybindInertState,
+				 actionInertReason = row.actionInertReason,
 				 resolveCondition,
 				 resolveState = a_resolveState]() -> ResolvedInertState {
 					if (resolveCondition)
@@ -648,39 +649,50 @@ namespace DearModdingUI::MCM
 							};
 					}
 					if (binding && route == ValueRoute::kLocalUiState)
-						return ResolvedInertState{};
+						return ResolvedInertState{
+							InertReason::kNone,
+							actionInertReason.value_or(InertReason::kNone)
+						};
 					if (keybindInertState)
 						return *keybindInertState;
-					const auto rowReason =
+					const auto bindingReason =
 						unsupported || (binding && !sourceSupported) ?
 							InertReason::kUnsupported :
 							(undeclared ?
 								InertReason::kUndeclaredModSetting :
 								InertReason::kNone);
+					const auto rowReason =
+						bindingReason != InertReason::kNone ?
+							bindingReason :
+							actionInertReason.value_or(InertReason::kNone);
 					if (!binding)
 						return {
 							rowReason,
 							rowReason
 						};
 					const auto state = resolveState();
-					auto environmentReason = InertReason::kNone;
-					if (binding->Family() == SourceFamily::kModSetting &&
-						!state.installed)
-						environmentReason = InertReason::kMcmNotInstalled;
-					else if ((binding->Family() == SourceFamily::kModSetting ||
-							binding->Family() == SourceFamily::kProperty) &&
-						!state.runtimeReady)
-						environmentReason = InertReason::kRuntimeNotReady;
+					const auto environmentReason = ResolveControlInertReason(
+						state,
+						binding->Family(),
+						route);
 					if (environmentReason != InertReason::kNone)
 						return ResolvedInertState{
 							environmentReason,
 							rowReason
 						};
-					if (rowReason != InertReason::kNone)
-						return ResolvedInertState{ rowReason, rowReason };
+					if (bindingReason != InertReason::kNone)
+						return ResolvedInertState{
+							bindingReason,
+							bindingReason
+						};
 					const auto snapshotReason = SnapshotReason(
 						a_source.Read(*binding),
 						binding->target);
+					if (snapshotReason == InertReason::kNone)
+						return ResolvedInertState{
+							InertReason::kNone,
+							rowReason
+						};
 					return ResolvedInertState{
 						snapshotReason,
 						snapshotReason
@@ -713,6 +725,21 @@ namespace DearModdingUI::MCM
 						}
 						return result;
 					};
+			}
+			else if (auto* action = FindActionRow(a_page.settings, row.id))
+			{
+				auto resolve = row.resolveInertState;
+				action->isEnabled = [resolve] {
+					return resolve().governingReason == InertReason::kNone;
+				};
+				const auto explanation =
+					Describe(resolve().rowReason).text;
+				if (!explanation.empty())
+				{
+					if (!action->description.empty())
+						action->description.push_back('\n');
+					action->description.append(explanation);
+				}
 			}
 			if (!row.binding)
 				continue;

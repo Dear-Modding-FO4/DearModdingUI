@@ -106,6 +106,8 @@ The appended `beginSettingsRowEx` accepts a caller-sized `DMUI_SettingsRowBeginO
 `DMUI_SETTINGS_ROW_LAYOUT_LABEL_VALUE` preserves the original geometry. The C++ `RowPresentation`
 keeps label visibility and row layout independent. It prefers the extended entry when available and
 falls back to `beginSettingsRow`, so a full-span request remains usable in the older value column.
+Clients migrating from the former `SettingDescriptor::labelMode` field should assign
+`SettingDescriptor::presentation.labelMode` instead.
 
 `SettingsActionRow` is the inline, non-setting counterpart to `SettingDescriptor`. Groups retain
 settings and actions separately and use `SettingGroup::rows` when their source order must be

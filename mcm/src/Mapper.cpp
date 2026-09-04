@@ -220,15 +220,21 @@ namespace DearModdingUI::MCM::detail
 				if (options.format)
 					mapped.format = *options.format;
 				if (options.step &&
-					options.minimum &&
 					std::isfinite(*options.step) &&
 					*options.step > 0.0 &&
-					std::isfinite(*options.minimum))
+					(!options.minimum || std::isfinite(*options.minimum)))
 				{
 					mapped.quantization = dmui::NumericQuantization<double>{
 						*options.step,
-						*options.minimum
+						options.minimum.value_or(0.0)
 					};
+				}
+				else if (options.step)
+				{
+					a_diag.Add(
+						DiagnosticSeverity::kWarning,
+						a_control.location + ".valueOptions.step",
+						"numeric setting has a non-positive or non-finite step or origin");
 				}
 				if (options.defaultValue)
 				{
@@ -290,19 +296,19 @@ namespace DearModdingUI::MCM::detail
 				if (options.format)
 					mapped.format = *options.format;
 				const auto step = SignedBound(options.step);
-				if (step && *step > 0 && minimum)
+				if (step && *step > 0 && (!options.minimum || minimum))
 				{
 					mapped.quantization = dmui::NumericQuantization<int64_t>{
 						*step,
-						*minimum
+						minimum.value_or(0)
 					};
 				}
-				else if (options.step && (!step || *step <= 0))
+				else if (options.step)
 				{
 					a_diag.Add(
 						DiagnosticSeverity::kWarning,
 						a_control.location + ".valueOptions.step",
-						"integer setting has a non-integral or out-of-range step");
+						"integer setting has an invalid step or quantization origin");
 				}
 				if (options.defaultValue)
 				{

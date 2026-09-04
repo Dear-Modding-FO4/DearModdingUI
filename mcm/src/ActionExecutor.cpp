@@ -567,6 +567,20 @@ namespace DearModdingUI::MCM
 			true);
 	}
 
+	void ResolveActionAvailability(
+		MappedPage& a_page,
+		const ActionExecutor& a_executor) noexcept
+	{
+		for (auto& row : a_page.rows)
+		{
+			if (!row.action)
+				continue;
+			row.actionInertReason = a_executor.UnsupportedReason(*row.action) ?
+				std::optional{ InertReason::kUnsupportedAction } :
+				std::nullopt;
+		}
+	}
+
 	void BindActions(
 		MappedPage& a_page,
 		ActionExecutor& a_executor,
@@ -594,15 +608,8 @@ namespace DearModdingUI::MCM
 				continue;
 			if (auto* action = FindAction(a_page.settings, row.id))
 			{
-				if (const auto reason =
-						a_executor.UnsupportedReason(*row.action))
-				{
-					action->description = action->description.empty() ?
-						*reason :
-						action->description + "\n" + *reason;
-					action->isEnabled = [] { return false; };
+				if (row.actionInertReason)
 					continue;
-				}
 				action->activate =
 					[&a_executor,
 					 actionValue = *row.action,
@@ -621,15 +628,8 @@ namespace DearModdingUI::MCM
 			auto* setting = FindSetting(a_page.settings, row.id);
 			if (!setting)
 				continue;
-			if (const auto reason =
-					a_executor.UnsupportedReason(*row.action))
-			{
-				if (!setting->description.empty())
-					setting->description.push_back('\n');
-				setting->description += *reason;
-				setting->isEnabled = [] { return false; };
+			if (row.actionInertReason)
 				continue;
-			}
 			if (!setting->binding.set)
 				continue;
 			auto priorSet = std::move(setting->binding.set);

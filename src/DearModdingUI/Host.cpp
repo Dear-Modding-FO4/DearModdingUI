@@ -96,8 +96,6 @@ namespace DearModdingUI
 		void SetMenuVisibleState(Service& a_service, bool a_visible) noexcept
 		{
 			a_service.menuVisible.store(a_visible, std::memory_order_release);
-			if (!a_visible)
-				SetActivePageState(a_service, DMUI_INVALID_PAGE_HANDLE);
 			HostSettings::NotifyMenuVisible(a_visible);
 		}
 
@@ -1608,6 +1606,8 @@ namespace DearModdingUI
 		Hotkeys::BindRenderThread();
 		auto& service = GetService();
 		auto& registry = service.registry;
+		if (!service.menuVisible.load(std::memory_order_acquire))
+			SetActivePageState(service, DMUI_INVALID_PAGE_HANDLE);
 		if (service.state.load(std::memory_order_acquire) != DMUI_HOST_STATE_READY)
 			return;
 		Hotkeys::DispatchQueued();

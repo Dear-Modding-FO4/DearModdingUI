@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -23,12 +24,18 @@ namespace DearModdingUI::MCM
 			std::string a_key,
 			ValueSnapshot a_snapshot,
 			std::function<void()> a_accept = {}) noexcept;
+		void QueueWriteCompletion(
+			std::string a_key,
+			uint64_t a_settlementToken,
+			ValueSnapshot a_snapshot,
+			std::function<void()> a_accept = {}) noexcept;
 
 	private:
 		struct Completion
 		{
 			std::string key;
 			ValueSnapshot snapshot;
+			std::optional<uint64_t> settlementToken;
 			std::function<void()> accept;
 		};
 

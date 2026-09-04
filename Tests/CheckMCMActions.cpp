@@ -54,9 +54,10 @@ namespace vmm_tests
 				return true;
 			}
 
-			[[nodiscard]] uint64_t Refresh(const MappedBinding&) override
+			[[nodiscard]] uint64_t Refresh(
+				const MappedBinding& a_binding) override
 			{
-				return 0;
+				return Cache().BeginRefresh(a_binding.cacheKey);
 			}
 
 			[[nodiscard]] ValueSnapshot Write(
@@ -71,14 +72,15 @@ namespace vmm_tests
 				const dmui::SettingValue& a_value,
 				ValueWriteCompletion a_completion) override
 			{
-				auto snapshot = Cache().Store(a_binding.cacheKey, a_value);
+				auto stored = Cache().Store(a_binding.cacheKey, a_value);
 				pending.push_back({
 					a_binding.cacheKey,
-					snapshot,
+					stored.snapshot,
+					stored.settlementToken,
 					a_value,
 					std::move(a_completion)
 				});
-				return snapshot;
+				return stored.snapshot;
 			}
 
 			void Release(size_t a_index, bool a_succeeded)
@@ -89,8 +91,9 @@ namespace vmm_tests
 					ValueWriteResult{
 						std::unexpected("fixture Papyrus write was rejected")
 					};
-				QueueCompletion(
+				QueueWriteCompletion(
 					write.key,
+					write.settlementToken,
 					a_succeeded ?
 						write.snapshot :
 						ValueSnapshot{ FailedValue{
@@ -108,6 +111,7 @@ namespace vmm_tests
 			{
 				std::string key;
 				ValueSnapshot snapshot;
+				uint64_t settlementToken{};
 				dmui::SettingValue value;
 				ValueWriteCompletion completion;
 			};
@@ -141,7 +145,7 @@ namespace vmm_tests
 			[[nodiscard]] std::optional<std::string> UnsupportedReason(
 				const Action&) const noexcept override
 			{
-				return std::nullopt;
+				return unsupportedReason;
 			}
 
 			void Execute(
@@ -178,6 +182,7 @@ namespace vmm_tests
 
 			bool throws{};
 			bool requireSingleInt{};
+			std::optional<std::string> unsupportedReason;
 			std::vector<ActionInvocation> invocations;
 			std::vector<std::vector<BoundActionArgument>> bound;
 		};
@@ -356,6 +361,57 @@ namespace vmm_tests
 			values.Release(0, true);
 			require(executor.invocations.size() == 1,
 				"a settled value write did not fire its action exactly once");
+		});
+
+		runner.test("MCM page refresh preserves pending value actions", [] {
+			auto result = ParseConfig(R"json({
+				"modName":"Actions",
+				"content":[{"id":"setting","type":"switcher",
+					"valueOptions":{"sourceType":"GlobalValueBool",
+						"sourceForm":"Fixture.esp|1","default":false},
+					"action":{"type":"CallExternalFunction",
+						"plugin":"Fixture","function":"Apply"}}]
+			})json");
+			auto& page = result.pages.front();
+			DeferredActionValueSource values;
+			FakeActionExecutor executor;
+			BindPage(page, values);
+			BindActions(page, executor, values);
+
+			(void)SettingNamed(page, "setting").binding.set(
+				dmui::SettingValue{ true });
+			values.RefreshPage(page, { true, true });
+			values.Release(0, true);
+			require(executor.invocations.size() == 1,
+				"a page refresh canceled a pending value action");
+		});
+
+		runner.test("MCM unsupported value actions remain editable and explained", [] {
+			auto result = ParseConfig(R"json({
+				"modName":"Actions",
+				"content":[{"id":"setting","type":"switcher",
+					"help":"Original description.",
+					"valueOptions":{"sourceType":"GlobalValueBool",
+						"sourceForm":"Fixture.esp|1","default":false},
+					"action":{"type":"SendEvent","event":"Fixture"}}]
+			})json");
+			auto& page = result.pages.front();
+			ActionValueSource values;
+			values.value = false;
+			FakeActionExecutor executor;
+			executor.unsupportedReason = "fixture rejection";
+			ResolveActionAvailability(page, executor);
+			BindPage(page, values);
+			BindActions(page, executor, values);
+
+			auto& setting = SettingNamed(page, "setting");
+			const auto inert = page.rows.front().resolveInertState();
+			require(setting.isEnabled && setting.isEnabled() &&
+					inert.governingReason == InertReason::kNone &&
+					inert.rowReason == InertReason::kUnsupportedAction &&
+					dmui::ResolveSettingDescription(setting).find(
+						"Original description.\nThis action is not supported.") == 0,
+				"unsupported action explanation and inert state diverged");
 		});
 
 		runner.test("MCM failed writes suppress actions and report their reason", [] {

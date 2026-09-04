@@ -274,6 +274,7 @@ namespace DearModdingUI::MCM
 						std::make_unique<MappedPage>(std::move(result.pages[index]));
 					ApplyDeclarations(*page, declarations);
 					ApplyKeybinds(*page, definitions, keybinds);
+					ResolveActionAvailability(*page, *mod->actions);
 					BindPage(*page, *mod->values, CurrentMcmState);
 					const auto summary =
 						SummarizeCompatibility(*page, *mod->values);

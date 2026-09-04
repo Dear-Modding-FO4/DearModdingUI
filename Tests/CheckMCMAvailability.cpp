@@ -158,22 +158,32 @@ namespace vmm_tests
 			constexpr std::array cases{
 				std::tuple{ McmState{ false, false },
 					false,
-					std::string_view{ "Mod Configuration Menu is not installed." } },
+					InertReason::kMcmNotInstalled },
 				std::tuple{ McmState{ false, true },
 					false,
-					std::string_view{ "Mod Configuration Menu is not installed." } },
+					InertReason::kMcmNotInstalled },
 				std::tuple{ McmState{ true, false },
 					false,
-					std::string_view{ "Load a save to change these settings." } },
-				std::tuple{ McmState{ true, true }, true, std::string_view{} }
+					InertReason::kRuntimeNotReady },
+				std::tuple{
+					McmState{ true, true },
+					true,
+					InertReason::kNone
+				}
 			};
 			for (const auto& [state, expected, reason] : cases)
 			{
 				require(
 					IsControlOperable(state, SourceFamily::kModSetting) == expected &&
-						ControlUnavailableReason(
+						ResolveControlInertReason(
 							state,
-							SourceFamily::kModSetting) == reason,
+							SourceFamily::kModSetting) == reason &&
+						Describe(reason).text ==
+							(expected ?
+								 std::string_view{} :
+								 reason == InertReason::kMcmNotInstalled ?
+									 "Mod Configuration Menu is not installed." :
+									 "Load a save to change these settings."),
 					"mod-setting installation/readiness state was conflated");
 			}
 		});
@@ -219,9 +229,10 @@ namespace vmm_tests
 				!IsControlOperable({ false, false }, SourceFamily::kProperty) &&
 					!IsControlOperable({ true, false }, SourceFamily::kProperty) &&
 					IsControlOperable({ false, true }, SourceFamily::kProperty) &&
-					ControlUnavailableReason(
-						{ true, false },
-						SourceFamily::kProperty) ==
+					Describe(ResolveControlInertReason(
+							{ true, false },
+							SourceFamily::kProperty))
+							.text ==
 						"Load a save to change these settings.",
 				"property dispatch did not track Papyrus readiness");
 		});

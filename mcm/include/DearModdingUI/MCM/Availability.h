@@ -2,9 +2,7 @@
 
 #include <DearModdingUI/MCM/Compatibility.h>
 
-#include <cstdint>
 #include <functional>
-#include <string_view>
 
 namespace DearModdingUI::MCM
 {
@@ -16,41 +14,40 @@ namespace DearModdingUI::MCM
 		bool operator==(const McmState&) const = default;
 	};
 
-	[[nodiscard]] constexpr bool IsControlOperable(
+	[[nodiscard]] constexpr InertReason ResolveControlInertReason(
 		McmState a_state,
 		SourceFamily a_family,
 		ValueRoute a_route = ValueRoute::kSource) noexcept
 	{
 		if (a_route == ValueRoute::kLocalUiState)
-			return true;
+			return InertReason::kNone;
 		switch (a_family)
 		{
 		case SourceFamily::kGlobal:
-			return true;
+			return InertReason::kNone;
 		case SourceFamily::kProperty:
-			return a_state.runtimeReady;
+			return a_state.runtimeReady ?
+				InertReason::kNone :
+				InertReason::kRuntimeNotReady;
 		case SourceFamily::kModSetting:
-			return a_state.installed && a_state.runtimeReady;
+			if (!a_state.installed)
+				return InertReason::kMcmNotInstalled;
+			return a_state.runtimeReady ?
+				InertReason::kNone :
+				InertReason::kRuntimeNotReady;
 		case SourceFamily::kUnknown:
-			return false;
+			return InertReason::kUnsupported;
 		}
-		return false;
+		return InertReason::kUnsupported;
 	}
 
-	[[nodiscard]] constexpr std::string_view ControlUnavailableReason(
+	[[nodiscard]] constexpr bool IsControlOperable(
 		McmState a_state,
 		SourceFamily a_family,
 		ValueRoute a_route = ValueRoute::kSource) noexcept
 	{
-		if (IsControlOperable(a_state, a_family, a_route))
-			return {};
-		if (a_family == SourceFamily::kModSetting && !a_state.installed)
-			return "Mod Configuration Menu is not installed.";
-		if ((a_family == SourceFamily::kModSetting ||
-				a_family == SourceFamily::kProperty) &&
-			!a_state.runtimeReady)
-			return "Load a save to change these settings.";
-		return "This setting's value source is unavailable.";
+		return ResolveControlInertReason(a_state, a_family, a_route) ==
+			InertReason::kNone;
 	}
 
 	using McmStateResolver = std::function<McmState()>;

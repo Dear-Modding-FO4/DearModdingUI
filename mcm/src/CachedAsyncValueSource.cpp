@@ -21,9 +21,15 @@ namespace DearModdingUI::MCM
 			}
 			for (auto& completion : completions)
 			{
-				if (!cache_.Complete(
+				const auto accepted = completion.settlementToken ?
+					cache_.CompleteWrite(
 						completion.key,
-						std::move(completion.snapshot)))
+						*completion.settlementToken,
+						std::move(completion.snapshot)) :
+					cache_.Complete(
+						completion.key,
+						std::move(completion.snapshot));
+				if (!accepted)
 					continue;
 				if (completion.accept)
 					completion.accept();
@@ -54,6 +60,27 @@ namespace DearModdingUI::MCM
 			completions_.push_back({
 				std::move(a_key),
 				std::move(a_snapshot),
+				std::nullopt,
+				std::move(a_accept)
+			});
+		}
+		catch (...)
+		{}
+	}
+
+	void CachedAsyncValueSource::QueueWriteCompletion(
+		std::string a_key,
+		uint64_t a_settlementToken,
+		ValueSnapshot a_snapshot,
+		std::function<void()> a_accept) noexcept
+	{
+		try
+		{
+			const std::scoped_lock lock{ completionMutex_ };
+			completions_.push_back({
+				std::move(a_key),
+				std::move(a_snapshot),
+				a_settlementToken,
 				std::move(a_accept)
 			});
 		}

@@ -172,7 +172,7 @@ namespace vmm_tests
 			ValueCache cache;
 			const auto refresh = cache.BeginRefresh("setting");
 			const auto written = cache.Store("setting", dmui::SettingValue{ true });
-			require(Generation(written) > refresh,
+			require(Generation(written.snapshot) > refresh,
 				"write did not advance beyond the pending refresh");
 			require(!cache.Complete(
 						"setting",
@@ -180,8 +180,15 @@ namespace vmm_tests
 				"a stale completion was accepted");
 			const auto current = std::get<ReadyValue>(cache.Read("setting"));
 			require(std::get<bool>(current.value) &&
-					current.generation == Generation(written),
+					current.generation == Generation(written.snapshot),
 				"a stale completion replaced the newer write");
+		});
+
+		runner.test("MCM cache completion misses do not create ready values", [] {
+			ValueCache cache;
+			require(!cache.Complete("missing", ReadyValue{ true, 0 }) &&
+					std::holds_alternative<MissingValue>(cache.Read("missing")),
+				"a rejected completion inserted a default ready value");
 		});
 
 		runner.test("MCM conditions retain pending instead of using defaults", [] {

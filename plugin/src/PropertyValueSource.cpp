@@ -158,9 +158,10 @@ namespace DearModdingUI::MCM
 			return Cache().Read(key);
 		}
 
-		auto effective = Cache().Store(key, a_value);
-		const auto generation = Generation(effective);
-		const auto resultValue = std::get<ReadyValue>(effective).value;
+		auto stored = Cache().Store(key, a_value);
+		const auto generation = Generation(stored.snapshot);
+		const auto settlementToken = stored.settlementToken;
+		const auto resultValue = std::get<ReadyValue>(stored.snapshot).value;
 		auto completion =
 			std::make_shared<ValueWriteCompletion>(std::move(a_completion));
 		try
@@ -169,6 +170,7 @@ namespace DearModdingUI::MCM
 				[this,
 				 key,
 				 generation,
+				 settlementToken,
 				 object,
 				 propertyName = property->propertyName,
 				 argument = *argument,
@@ -181,14 +183,16 @@ namespace DearModdingUI::MCM
 						[this,
 						 key,
 						 generation,
+						 settlementToken,
 						 resultValue,
 						 completion,
 						 settled](ValueWriteResult a_result) mutable {
 							if (settled->exchange(true))
 								return;
 							const auto succeeded = a_result.has_value();
-							QueueCompletion(
+							QueueWriteCompletion(
 								key,
+								settlementToken,
 								succeeded ?
 									ValueSnapshot{ ReadyValue{
 										resultValue,
@@ -238,8 +242,11 @@ namespace DearModdingUI::MCM
 		}
 		catch (const std::exception& a_error)
 		{
-			(void)Cache().Complete(key, FailedValue{ generation });
-			if (*completion)
+			if (Cache().CompleteWrite(
+					key,
+					settlementToken,
+					FailedValue{ generation }) &&
+				*completion)
 				(*completion)(std::unexpected(std::format(
 					"Papyrus property write could not be scheduled: {}",
 					a_error.what())));
@@ -247,12 +254,15 @@ namespace DearModdingUI::MCM
 		}
 		catch (...)
 		{
-			(void)Cache().Complete(key, FailedValue{ generation });
-			if (*completion)
+			if (Cache().CompleteWrite(
+					key,
+					settlementToken,
+					FailedValue{ generation }) &&
+				*completion)
 				(*completion)(std::unexpected(
 					"Papyrus property write could not be scheduled"));
 			return Cache().Read(key);
 		}
-		return effective;
+		return stored.snapshot;
 	}
 }

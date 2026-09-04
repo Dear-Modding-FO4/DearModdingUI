@@ -278,7 +278,8 @@ namespace DearModdingUI::MCM
 		kRuntimeNotReady,
 		kValuePending,
 		kValueMissing,
-		kValueFailed
+		kValueFailed,
+		kUnsupportedAction
 	};
 
 	enum class InertReasonScope : uint8_t
@@ -385,6 +386,12 @@ namespace DearModdingUI::MCM
 				"This setting's value could not be read.",
 				{}
 			};
+		case InertReason::kUnsupportedAction:
+			return {
+				InertReasonScope::kRow,
+				"This action is not supported.",
+				{}
+			};
 		}
 		return {
 			InertReasonScope::kRow,
@@ -414,6 +421,7 @@ namespace DearModdingUI::MCM
 		ValueRoute valueRoute{ ValueRoute::kSource };
 		std::optional<std::string> keybindId;
 		std::optional<ResolvedInertState> keybindInertState;
+		std::optional<InertReason> actionInertReason;
 		std::function<ResolvedInertState()> resolveInertState;
 		std::function<dmui::SettingValue(
 			dmui::SettingValue,

@@ -63,29 +63,30 @@ namespace DearModdingUI::MCM
 		const auto found = values_.find(a_key);
 		return found == values_.end() ?
 			ValueSnapshot{ MissingValue{} } :
-			found->second;
+			found->second.snapshot;
 	}
 
 	uint64_t ValueCache::BeginRefresh(std::string_view a_key)
 	{
 		const std::scoped_lock lock{ mutex_ };
-		auto& snapshot = values_[std::string{ a_key }];
-		const auto generation = Generation(snapshot) + 1;
-		snapshot = PendingValue{ generation };
+		auto& entry = values_[std::string{ a_key }];
+		const auto generation = Generation(entry.snapshot) + 1;
+		entry.snapshot = PendingValue{ generation };
 		return generation;
 	}
 
-	ValueSnapshot ValueCache::Store(
+	StoredWrite ValueCache::Store(
 		std::string_view a_key,
 		dmui::SettingValue a_value)
 	{
 		const std::scoped_lock lock{ mutex_ };
-		auto& snapshot = values_[std::string{ a_key }];
-		snapshot = ReadyValue{
+		auto& entry = values_[std::string{ a_key }];
+		entry.snapshot = ReadyValue{
 			std::move(a_value),
-			Generation(snapshot) + 1
+			Generation(entry.snapshot) + 1
 		};
-		return snapshot;
+		++entry.writeToken;
+		return { entry.snapshot, entry.writeToken };
 	}
 
 	bool ValueCache::Complete(
@@ -93,10 +94,29 @@ namespace DearModdingUI::MCM
 		ValueSnapshot a_snapshot)
 	{
 		const std::scoped_lock lock{ mutex_ };
-		auto& current = values_[std::string{ a_key }];
+		const auto found = values_.find(a_key);
+		if (found == values_.end())
+			return false;
+		auto& current = found->second.snapshot;
 		if (Generation(a_snapshot) != Generation(current))
 			return false;
 		current = std::move(a_snapshot);
+		return true;
+	}
+
+	bool ValueCache::CompleteWrite(
+		std::string_view a_key,
+		uint64_t a_settlementToken,
+		ValueSnapshot a_snapshot)
+	{
+		const std::scoped_lock lock{ mutex_ };
+		const auto found = values_.find(a_key);
+		if (found == values_.end() ||
+			found->second.writeToken != a_settlementToken)
+			return false;
+		auto& current = found->second.snapshot;
+		if (Generation(a_snapshot) == Generation(current))
+			current = std::move(a_snapshot);
 		return true;
 	}
 

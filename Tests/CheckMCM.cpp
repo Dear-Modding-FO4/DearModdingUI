@@ -525,6 +525,31 @@ namespace vmm_tests
 				"hidden property name did not survive");
 		});
 
+		runner.test("MCM numeric steps without minima use a zero origin", [] {
+			const auto result = ParseConfig(R"json({
+				"modName":"Steps",
+				"content":[
+					{"id":"float","type":"slider","valueOptions":{
+						"sourceType":"GlobalValueFloat",
+						"sourceForm":"Fixture.esp|1","step":0.25}},
+					{"id":"integer","type":"slider","valueOptions":{
+						"sourceType":"GlobalValueInt",
+						"sourceForm":"Fixture.esp|2","step":2}}
+				]
+			})json");
+			const auto* floating = std::get_if<dmui::DoubleSettingControl>(
+				&SettingNamed(result.pages.front(), "float").control);
+			const auto* integer = std::get_if<dmui::SignedSettingControl>(
+				&SettingNamed(result.pages.front(), "integer").control);
+			require(floating && floating->quantization &&
+					floating->quantization->interval == 0.25 &&
+					floating->quantization->origin == 0.0 &&
+					integer && integer->quantization &&
+					integer->quantization->interval == 2 &&
+					integer->quantization->origin == 0,
+				"a step without a minimum was silently discarded");
+		});
+
 		runner.test("MCM synthetic config maps readable and unsupported controls", [] {
 			const auto result = ParseConfig(
 				kSyntheticConfig,

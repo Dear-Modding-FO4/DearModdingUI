@@ -75,6 +75,10 @@ namespace DearModdingUI::MCM
 		std::function<void(const ActionCompletion&)> a_work,
 		ActionCompletion a_completion) noexcept;
 
+	void ResolveActionAvailability(
+		MappedPage& a_page,
+		const ActionExecutor& a_executor) noexcept;
+
 	// The executor and source outlive the page because its rows capture them by reference.
 	void BindActions(
 		MappedPage& a_page,
