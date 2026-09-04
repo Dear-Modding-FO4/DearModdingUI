@@ -15,7 +15,7 @@ namespace DearModdingUI
 		bool recognized{ false };
 	};
 
-	inline constexpr uint32_t kMenuDefaultToggleKey{ 0x7A };
+	inline constexpr uint32_t kMenuDefaultToggleKey{ 0x23 };
 
 	struct MenuKeyName
 	{
