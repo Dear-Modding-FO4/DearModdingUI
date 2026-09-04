@@ -21,10 +21,15 @@
 #include <DearModdingUI/Client.h>
 #include <DearModdingUI/ImGuiFingerprint.h>
 
+#include <Windows.h>
+#include <bcrypt.h>
+
 #include <array>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -62,6 +67,79 @@ namespace vmm_tests
 				a_left.y == a_right.y &&
 				a_left.z == a_right.z &&
 				a_left.w == a_right.w;
+		}
+
+		[[nodiscard]] std::string Sha256(const std::filesystem::path& a_path)
+		{
+			std::ifstream stream{ a_path, std::ios::binary };
+			if (!stream)
+				throw std::runtime_error("could not open file for SHA-256");
+			const std::vector<unsigned char> bytes{
+				std::istreambuf_iterator<char>{ stream },
+				std::istreambuf_iterator<char>{}
+			};
+
+			BCRYPT_ALG_HANDLE algorithm{};
+			BCRYPT_HASH_HANDLE hash{};
+			DWORD objectSize{};
+			DWORD hashSize{};
+			DWORD resultSize{};
+			if (BCryptOpenAlgorithmProvider(
+					&algorithm,
+					BCRYPT_SHA256_ALGORITHM,
+					nullptr,
+					0) < 0 ||
+				BCryptGetProperty(
+					algorithm,
+					BCRYPT_OBJECT_LENGTH,
+					reinterpret_cast<PUCHAR>(&objectSize),
+					sizeof(objectSize),
+					&resultSize,
+					0) < 0 ||
+				BCryptGetProperty(
+					algorithm,
+					BCRYPT_HASH_LENGTH,
+					reinterpret_cast<PUCHAR>(&hashSize),
+					sizeof(hashSize),
+					&resultSize,
+					0) < 0)
+			{
+				if (algorithm)
+					BCryptCloseAlgorithmProvider(algorithm, 0);
+				throw std::runtime_error("could not initialize SHA-256");
+			}
+
+			std::vector<unsigned char> object(objectSize);
+			std::vector<unsigned char> digest(hashSize);
+			const auto created = BCryptCreateHash(
+				algorithm,
+				&hash,
+				object.data(),
+				objectSize,
+				nullptr,
+				0,
+				0);
+			const auto hashed = created >= 0 ?
+				BCryptHashData(
+					hash,
+					const_cast<PUCHAR>(bytes.data()),
+					static_cast<ULONG>(bytes.size()),
+					0) :
+				created;
+			const auto finished = hashed >= 0 ?
+				BCryptFinishHash(hash, digest.data(), hashSize, 0) :
+				hashed;
+			if (hash)
+				BCryptDestroyHash(hash);
+			BCryptCloseAlgorithmProvider(algorithm, 0);
+			if (finished < 0)
+				throw std::runtime_error("could not calculate SHA-256");
+
+			std::ostringstream result;
+			result << std::hex << std::setfill('0');
+			for (const auto byte : digest)
+				result << std::setw(2) << static_cast<unsigned>(byte);
+			return result.str();
 		}
 
 		void DMUI_CALL Ready(const DMUI_HostReadyInfo* a_info, void* a_userData) noexcept
@@ -2302,178 +2380,90 @@ namespace vmm_tests
 				"empty client resolved a landing page");
 		});
 
-		runner.test("icon names resolve to deterministic Phosphor glyphs", [] {
-			require(PhosphorGlyph::kGear == 0xE270,
-				"host settings gear glyph changed");
-			require(PhosphorGlyph::kX == 0xE4F6,
-				"host close glyph changed");
-			require(PhosphorGlyph::kMagnifyingGlass == 0xE30C,
-				"search glyph changed");
+		runner.test("Phosphor manifest matches shipped font", [] {
+			require(kPhosphorIconGlyphs.size() == 1512,
+				"Phosphor named-icon count changed");
 			require(
-				PhosphorGlyph::kArrowCounterClockwise == 0xE038 &&
-					PhosphorGlyph::kArrowsClockwise == 0xE094 &&
-					PhosphorGlyph::kFloppyDisk == 0xE248,
-				"settings action glyph codepoints changed");
-			require(SlugifyIconName("Post Process") == "post-process",
-				"spaces were not collapsed");
+				FindPhosphorIconGlyphOrZero("puzzle-piece") == 0xE596 &&
+					FindPhosphorIconGlyphOrZero("sun") == 0xE472 &&
+					FindPhosphorIconGlyphOrZero("gear") == 0xE270 &&
+					FindPhosphorIconGlyphOrZero("trash") == 0xE4A6 &&
+					FindPhosphorIconGlyphOrZero("app-window") == 0xE5DA &&
+					FindPhosphorIconGlyphOrZero("monitor") == 0xE32E &&
+					FindPhosphorIconGlyphOrZero("question") == 0xE3E8,
+				"Phosphor manifest anchors changed");
+			require(
+				PhosphorGlyph::kLastPrivateUse == 0xEE82 &&
+					0xEE83 > PhosphorGlyph::kLastPrivateUse,
+				"unnamed degenerate glyph entered the loaded range");
+			const auto font = std::filesystem::current_path() /
+				"data/F4SE/Plugins/DearModdingUI/Fonts/Phosphor/Phosphor-Fill.ttf";
+			require(
+				Sha256(font) ==
+					"a53f5d2630cab5e3b7536ecb9d69d71519a2190298c22b1f8d770dd37bc2940a",
+				"Phosphor Fill font no longer matches @phosphor-icons/web@2.1.2");
+		});
+
+		runner.test("icon slugs normalize canonically", [] {
+			require(
+				SlugifyIconName("puzzle-piece") == "puzzle-piece" &&
+					SlugifyIconName("puzzle piece") == "puzzle-piece" &&
+					SlugifyIconName("puzzle_piece") == "puzzle-piece" &&
+					SlugifyIconName("PuzzlePiece") == "puzzle-piece",
+				"multi-word icon spellings produced different slugs");
 			require(SlugifyIconName("Mixed___CASE Name") == "mixed-case-name",
-				"underscores or mixed case changed");
-			require(SlugifyIconName("A.B/C-D!") == "abcd",
-				"punctuation was not dropped");
+				"repeated separators or mixed case changed");
 			require(SlugifyIconName("").empty() && SlugifyIconName("!@#$").empty(),
 				"empty icon names produced a slug");
+		});
 
-			require(ResolveIconGlyph(IconKind::kCategory, "Lighting") ==
-					PhosphorGlyph::kSun &&
-					ResolveIconGlyph(IconKind::kCategory, "PERFORMANCE") ==
-					PhosphorGlyph::kGauge &&
-					ResolveIconGlyph(IconKind::kCategory, "Post Process") ==
-					PhosphorGlyph::kMagicWand &&
-					ResolveIconGlyph(IconKind::kCategory, "Post-process") ==
-					PhosphorGlyph::kMagicWand,
-				"known rendering categories changed glyphs");
-			require(ResolveIconGlyph(IconKind::kCategory, "Compatibility") ==
-					PhosphorGlyph::kPuzzlePiece &&
-					ResolveIconGlyph(IconKind::kCategory, "Dev Tools") ==
-					PhosphorGlyph::kTerminalWindow &&
-					ResolveIconGlyph(IconKind::kCategory, "Misc") ==
-					PhosphorGlyph::kDotsThreeCircle &&
-					ResolveIconGlyph(IconKind::kCategory, "Diagnostics") ==
-					PhosphorGlyph::kTerminalWindow,
-				"known utility categories changed glyphs");
-			require(ResolveIconGlyph(IconKind::kCategory, "Unloaded") ==
-					PhosphorGlyph::kArchive &&
-					ResolveIconGlyph(IconKind::kCategory, "Other") ==
-					PhosphorGlyph::kDotsThreeCircle &&
-					ResolveIconGlyph(IconKind::kCategory, "Overlay") ==
-					PhosphorGlyph::kAppWindow,
-				"host categories did not resolve to dedicated glyphs");
-			require(
-				ResolveIconGlyph(IconKind::kCategory, "Stability") ==
-						PhosphorGlyph::kShieldCheck &&
-					ResolveIconGlyph(IconKind::kCategory, "Visuals") ==
-						PhosphorGlyph::kPalette &&
-					ResolveIconGlyph(IconKind::kCategory, "Audio") ==
-						PhosphorGlyph::kSpeakerHigh &&
-					ResolveIconGlyph(IconKind::kCategory, "Gameplay") ==
-						PhosphorGlyph::kGameController &&
-					ResolveIconGlyph(IconKind::kCategory, "Interface") ==
-						PhosphorGlyph::kMonitor,
-				"settings categories did not resolve to dedicated glyphs");
-			require(ResolveIconGlyph(
-						IconKind::kClient,
-						"dear-modding.addictol") ==
-					PhosphorGlyph::kPuzzlePiece &&
-					ResolveIconGlyph(
-						IconKind::kClient,
-						"dear-modding.community-shaders") ==
-					PhosphorGlyph::kSun,
-				"known clients changed glyphs");
-			require(
-				ResolveIconGlyph(
-					IconKind::kClient,
-					"gauge",
-					"dear-modding.addictol") == PhosphorGlyph::kGauge &&
-					ResolveIconGlyph(
-						IconKind::kClient,
-						"unknown",
-						"dear-modding.addictol") ==
-						PhosphorGlyph::kPuzzlePiece &&
-					ResolveIconGlyph(
-						IconKind::kClient,
+		runner.test("icon resolution follows semantic fallback chain", [] {
+			require(ResolveIconGlyph(IconKind::kClient, "acorn") == 0xEB9A,
+				"full generated icon catalog was not consulted");
+			require(ResolveIconGlyph(IconKind::kCategory, "gear") ==
+					PhosphorGlyph::kGear,
+				"category did not prefer an explicit icon name");
+			require(ResolveClientIconGlyph(
+						"puzzle-piece",
+						"Performance",
+						"Weather Overhaul") ==
+					PhosphorGlyph::kPuzzlePiece,
+				"explicit client icon did not win");
+			const auto performance =
+				FindPhosphorIconGlyphOrZero("speedometer");
+			const auto weather = FindPhosphorIconGlyphOrZero("cloud-sun");
+			require(ResolveClientIconGlyph({}, "Performance", "Unknown") ==
+					performance,
+				"client category concept was not inferred");
+			require(ResolveClientIconGlyph({}, {}, "Weather Overhaul") == weather,
+				"whole-word display-name concept was not inferred");
+			require(ResolveClientIconGlyph({}, {}, "Weathering Steel") ==
+					PhosphorGlyph::kQuestion,
+				"display-name inference matched a concept substring");
+			require(ResolveClientIconGlyph(
 						{},
-						"dear-modding.community-shaders") ==
-						PhosphorGlyph::kSun &&
-					ResolveIconGlyph(
-						IconKind::kClient,
-						"unknown",
-						"unknown") == PhosphorGlyph::kQuestion,
-				"client icon preference or fallback order changed");
-			constexpr std::array fakeClientIcons{
-				std::string_view{ "puzzle-piece" },
-				std::string_view{ "sun" },
-				std::string_view{ "terminal-window" },
-				std::string_view{ "gauge" },
-				std::string_view{ "squares-four" },
-				std::string_view{ "files" },
-				std::string_view{ "palette" },
-				std::string_view{ "arrow-counter-clockwise" },
-				std::string_view{ "shield-check" },
-				std::string_view{ "monitor" }
-			};
-			for (size_t left = 0; left < fakeClientIcons.size(); ++left)
-			{
-				const auto leftGlyph = ResolveIconGlyph(
-					IconKind::kClient,
-					fakeClientIcons[left],
-					{});
-				require(leftGlyph != PhosphorGlyph::kQuestion,
-					"a fake client icon did not resolve");
-				for (size_t right = left + 1;
-					right < fakeClientIcons.size();
-					++right)
-				{
-					require(
-						leftGlyph != ResolveIconGlyph(
-							IconKind::kClient,
-							fakeClientIcons[right],
-							{}),
-						"fake client icons were not distinct");
-				}
-			}
-			require(ResolveCategoryIconGlyph(
-						"Community Shaders",
-						"Community Shaders",
-						"dearmodding.community-shaders") ==
-					PhosphorGlyph::kSun &&
-					ResolveCategoryIconGlyph(
-						"Addictol",
-						"Addictol",
-						"dear-modding.addictol") ==
-					PhosphorGlyph::kPuzzlePiece,
-				"registered client-named categories did not inherit client glyphs");
-			require(ResolveCategoryIconGlyph(
-						"Dear.Modding-Addictol",
-						"Different Name",
-						"dear-modding.addictol") ==
-					PhosphorGlyph::kPuzzlePiece,
-				"client ID matching did not use the client glyph lookup");
-			require(ResolveCategoryIconGlyph(
-						"COMMUNITY--SHADERS!",
-						"Community Shaders",
-						"dearmodding.community-shaders") ==
-					PhosphorGlyph::kSun,
-				"client-named category normalization changed");
-			require(ResolveCategoryIconGlyph(
-						"Lighting",
-						"Community Shaders",
-						"dearmodding.community-shaders") ==
-					PhosphorGlyph::kSun &&
-					ResolveCategoryIconGlyph(
-						"Unknown",
-						"Community Shaders",
-						"dearmodding.community-shaders") ==
-					PhosphorGlyph::kQuestion,
-				"non-matching categories were affected by client naming");
-			require(ResolveIconGlyph(IconKind::kCategory, "Unknown") ==
-					PhosphorGlyph::kQuestion &&
-					ResolveIconGlyph(IconKind::kClient, "") ==
-					PhosphorGlyph::kQuestion,
-				"unknown icon names did not use the fallback");
-			require(
-					ResolveActionIconGlyph("clipboard-text") ==
-							PhosphorGlyph::kClipboardText &&
-						ResolveActionIconGlyph("Clear Cache") ==
-							PhosphorGlyph::kTrash &&
-						ResolveActionIconGlyph("arrows-clockwise") ==
-							PhosphorGlyph::kArrowsClockwise &&
-						ResolveActionIconGlyph("floppy_disk") ==
-							PhosphorGlyph::kFloppyDisk &&
-						ResolveActionIconGlyph("restore_settings") ==
-							PhosphorGlyph::kArrowCounterClockwise,
-					"known action icon names changed glyphs");
-			require(ResolveActionIconGlyph("unknown") == char32_t{},
-				"unknown action icon name did not request text fallback");
+						{},
+						"Audio Performance Toolkit") == performance,
+				"longest deterministic concept did not win");
+			require(ResolveClientIconGlyph(
+						{},
+						{},
+						"Lighting Graphics Toolkit") ==
+					FindPhosphorIconGlyphOrZero("image"),
+				"equal-length concepts did not use the stable lexical tie-break");
+			require(ResolveActionIconGlyph("clipboard-text") ==
+						PhosphorGlyph::kClipboardText &&
+					ResolveActionIconGlyph("trash") ==
+						PhosphorGlyph::kTrash &&
+					ResolveActionIconGlyph("arrow-counter-clockwise") ==
+						PhosphorGlyph::kArrowCounterClockwise,
+				"canonical action icon names did not resolve");
+			require(ResolveActionIconGlyph("unknown") == char32_t{} &&
+					ResolveActionIconGlyph("clear-cache") == char32_t{} &&
+					ResolveActionIconGlyph("restore-settings") == char32_t{} &&
+					ResolveClientIconGlyph({}, {}, "Unknown") ==
+						PhosphorGlyph::kQuestion,
+				"action and client misses lost distinct fallbacks");
 		});
 
 		runner.test("settings actions map to deterministic glyphs", [] {

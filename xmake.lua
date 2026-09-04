@@ -140,6 +140,7 @@ target("dmui-tests", function()
         "/Zc:preprocessor",
         { public = true }
     )
+    add_syslinks("bcrypt")
 end)
 
 target("dmui-preview", function()

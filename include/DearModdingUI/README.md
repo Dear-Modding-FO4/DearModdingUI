@@ -21,8 +21,9 @@ Client, page, action, hotkey-action, frame-observer, and page-activity-observer 
 active-swapchain `Present` begins host initialization. Register them immediately after the client. All descriptor strings are copied;
 callback and userdata pointers must remain valid for the process lifetime. IDs use ASCII letters,
 digits, `.`, `_`, and `-`. Client IDs are process-wide; page and action IDs are unique within their client.
-The optional client `iconName` is a Phosphor slug copied at registration; an unknown or null value
-falls back to the known-client icon and then the question glyph. Set only documented
+The optional client `iconName` is copied at registration. Any canonical Phosphor 2.1.2 icon name is
+valid; hyphens, spaces, underscores, and PascalCase normalize to the same slug. An unknown or null
+value falls back through category and whole-word display-name concepts, then the question glyph. Set only documented
 `DMUI_ClientDescriptor::capabilities`; unknown bits reject the descriptor.
 
 Settings pages draw only inside the common modal menu. Overlay pages draw without input capture while
@@ -51,8 +52,8 @@ The host ports Community Shaders' current default palette, style dimensions, Jos
 Heading, Subheading, and Subtext roles, resolution scaling, search and navigation treatments,
 rounded title-bar highlights, footer, docking, and background blur around the neutral registry.
 Layout is saved to `Data\F4SE\Plugins\DearModdingUI\imgui.ini`. Fonts, icons, and blur shaders load
-only from that neutral root. Client IDs and category names select Phosphor glyphs from an in-code
-table after lowercase slug normalization. Icons use the accent tint by default. The footer gear
+only from that neutral root. Explicit names select from the complete Phosphor Fill catalog before
+semantic concepts are considered. Icons use the accent tint by default. The footer gear
 toggles a host-only settings view inside the existing scrolling content pane without changing the
 active client page or adding an entry to the mod dropdown. The view closes from its title-row control,
 the gear, Escape, or a mod selection. It exposes an accent picker with color-vision-friendly presets,
@@ -70,7 +71,15 @@ Atkinson Hyperlegible and Jost ship with the host, and users can add another fam
 code. A missing or failed family falls back to Jost, while a missing icon font falls back to text-only
 labels without disabling the menu or the C ABI host.
 When a normalized category name equals its client's normalized display name or full client ID, the
-category inherits that client's glyph.
+category inherits that client's resolved glyph. Other category labels try a Phosphor name before the
+semantic concept vocabulary.
+The semantic concepts are `ai`, `armor`, `audio`, `building`, `camera`, `combat`,
+`compatibility`, `controls`, `crafting`, `debug`, `dev-tools`, `diagnostics`, `dialogue`, `difficulty`,
+`economy`, `gameplay`, `general`, `graphics`, `hud`, `input`, `interface`, `inventory`, `leveling`,
+`lighting`, `logging`, `map`, `memory`, `misc`, `network`, `npc`, `other`, `overlay`, `performance`,
+`perks`, `physics`, `post-process`, `power-armor`, `quest`, `radio`, `save`,
+`settlement`, `skills`, `stability`, `stealth`, `survival`, `ui`, `unloaded`, `vats`, `video`,
+`visuals`, `weapons`, and `weather`.
 
 ## Shared theme and widgets
 

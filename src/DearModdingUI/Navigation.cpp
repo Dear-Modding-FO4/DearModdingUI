@@ -1,4 +1,5 @@
 #include <DearModdingUI/Navigation.h>
+#include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/Registry.h>
 
 #include <algorithm>
@@ -18,6 +19,20 @@ namespace DearModdingUI
 				return static_cast<char>(std::tolower(a_character));
 			});
 			return result;
+		}
+
+		[[nodiscard]] IconConceptMatch BestClientCategoryConcept(
+			const NavigationClient& a_client)
+		{
+			IconConceptMatch best;
+			for (const auto& category : a_client.categories)
+			{
+				const auto candidate =
+					FindIconConceptMatch(category.displayName, false);
+				if (PreferIconConceptMatch(candidate, best))
+					best = candidate;
+			}
+			return best;
 		}
 
 		[[nodiscard]] std::optional<NavigationMatchQuality> MatchQuality(
@@ -65,6 +80,23 @@ namespace DearModdingUI
 			}
 			result.append(a_entry.id);
 			return result;
+		}
+	}
+
+	[[nodiscard]] char32_t ResolveNavigationClientIconGlyph(
+		const NavigationClient& a_client) noexcept
+	{
+		try
+		{
+			const auto category = BestClientCategoryConcept(a_client);
+			return ResolveClientIconGlyph(
+				a_client.iconName,
+				category.slug,
+				a_client.displayName);
+		}
+		catch (...)
+		{
+			return PhosphorGlyph::kQuestion;
 		}
 	}
 
@@ -209,6 +241,7 @@ namespace DearModdingUI
 		std::vector<NavigationSearchEntry> entries;
 		for (const auto& client : a_model.clients)
 		{
+			const auto category = BestClientCategoryConcept(client);
 			entries.push_back({
 				NavigationItemKind::kClient,
 				client.handle,
@@ -219,7 +252,7 @@ namespace DearModdingUI
 				client.id,
 				client.displayName,
 				client.iconName,
-				{},
+				std::string{ category.slug },
 				{},
 				0
 			});

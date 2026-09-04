@@ -1364,10 +1364,7 @@ namespace DearModdingUI
 						RowLeadingAffordance::kIcon,
 				.expanded =
 					a_kind == ClientRowKind::Tree ? a_expanded : nullptr,
-				.glyph = ResolveIconGlyph(
-					IconKind::kClient,
-					a_client.iconName,
-					a_client.id),
+				.glyph = ResolveNavigationClientIconGlyph(a_client),
 				.textColor = textColor,
 				.hoveredTextColor = textColor,
 				.trailingWidth =
@@ -1680,10 +1677,7 @@ namespace DearModdingUI
 			ImGui::Spacing();
 			DrawSectionHeader(
 				selectedClient->displayName.c_str(),
-				ResolveIconGlyph(
-					IconKind::kClient,
-					selectedClient->iconName,
-					selectedClient->id));
+				ResolveNavigationClientIconGlyph(*selectedClient));
 			ImGui::Spacing();
 			DrawPageList(a_model, *selectedClient, a_state);
 		}
@@ -1746,10 +1740,7 @@ namespace DearModdingUI
 				{
 					DrawSectionHeader(
 						client->displayName.c_str(),
-						ResolveIconGlyph(
-							IconKind::kClient,
-							client->iconName,
-							client->id));
+						ResolveNavigationClientIconGlyph(*client));
 					ImGui::Spacing();
 					DrawPageList(a_model, *client, a_state);
 				}
@@ -1946,10 +1937,10 @@ namespace DearModdingUI
 			switch (a_entry.kind)
 			{
 			case NavigationItemKind::kClient:
-				return ResolveIconGlyph(
-					IconKind::kClient,
+				return ResolveClientIconGlyph(
 					a_entry.iconName,
-					a_entry.clientId);
+					a_entry.category,
+					a_entry.clientDisplayName);
 			case NavigationItemKind::kAction:
 				if (const auto glyph = ResolveActionIconGlyph(a_entry.iconName))
 					return glyph;

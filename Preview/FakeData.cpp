@@ -533,7 +533,7 @@ namespace DearModdingUIPreview
 					"highfpsphysicsfix",
 					"High FPS Physics Fix",
 					{ 0, 8 },
-					"gauge",
+					"",
 					{ "timing", "Frame Timing", "Performance", "Physics timing and loading controls." }
 				},
 				ClientSpec{
@@ -575,8 +575,8 @@ namespace DearModdingUIPreview
 					"fallui",
 					"FallUI",
 					{ 2, 3 },
-					"monitor",
-					{ "interface", "Interface", "Interface", "HUD and inventory interface settings." }
+					"",
+					{ "interface", "Interface", "General", "HUD and inventory interface settings." }
 				}
 			};
 
@@ -632,7 +632,7 @@ namespace DearModdingUIPreview
 				"dearmodding.mcm-preview",
 				"MCM Bridge Preview",
 				{ 1, 0 },
-				"sliders",
+				"",
 				a_error,
 				ClientConnection::kForwarding);
 			if (!mcmClient)
@@ -654,7 +654,7 @@ namespace DearModdingUIPreview
 				if (!mcmClient->AddSettingsPage(
 						mcmPage.id.c_str(),
 						mcmPage.displayName.c_str(),
-						"MCM",
+						"Interface",
 						std::move(mcmPage.settings),
 						"Parsed and bound MCM compatibility controls."))
 				{
@@ -699,7 +699,7 @@ namespace DearModdingUIPreview
 				!addictol->AddAction(
 					"restore-settings",
 					"Restore settings",
-					"restore-settings",
+					"arrow-counter-clockwise",
 					"Restore Addictol's saved settings.",
 					[]() {},
 					20))
@@ -720,7 +720,7 @@ namespace DearModdingUIPreview
 			if (!communityShaders->AddAction(
 					"clear-cache",
 					"Clear shader cache",
-					"clear-cache",
+					"trash",
 					"Clear compiled shaders before the next launch.",
 					[]() {}))
 			{

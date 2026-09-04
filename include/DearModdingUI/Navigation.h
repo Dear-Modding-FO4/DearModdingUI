@@ -42,6 +42,9 @@ namespace DearModdingUI
 		std::string iconName;
 	};
 
+	[[nodiscard]] char32_t ResolveNavigationClientIconGlyph(
+		const NavigationClient& a_client) noexcept;
+
 	struct NavigationModel
 	{
 		std::vector<NavigationClient> clients;
