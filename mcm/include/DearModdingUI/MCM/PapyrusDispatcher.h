@@ -12,7 +12,7 @@
 namespace DearModdingUI::MCM
 {
 	using PapyrusDispatchCompletion =
-		std::function<void(std::optional<dmui::SettingValue>)>;
+		std::function<void(bool, std::optional<dmui::SettingValue>)>;
 
 	struct PapyrusArgument
 	{

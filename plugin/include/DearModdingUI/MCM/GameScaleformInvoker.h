@@ -11,5 +11,11 @@ namespace DearModdingUI::MCM
 			std::string_view a_plugin,
 			std::string_view a_function,
 			const std::vector<ScaleformArgument>& a_arguments) noexcept override;
+
+	private:
+		[[nodiscard]] static ScaleformInvocationStatus InvokeUnlogged(
+			std::string_view a_plugin,
+			std::string_view a_function,
+			const std::vector<ScaleformArgument>& a_arguments) noexcept;
 	};
 }

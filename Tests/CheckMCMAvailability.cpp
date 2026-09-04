@@ -73,7 +73,7 @@ namespace vmm_tests
 				if (!accepted)
 					return false;
 				if (a_completion)
-					a_completion(result);
+					a_completion(true, result);
 				return true;
 			}
 

@@ -11,7 +11,9 @@
 
 namespace DearModdingUI::MCM
 {
-	ScaleformInvocationStatus GameScaleformInvoker::Invoke(
+	using namespace std::literals;
+
+	ScaleformInvocationStatus GameScaleformInvoker::InvokeUnlogged(
 		std::string_view a_plugin,
 		std::string_view a_function,
 		const std::vector<ScaleformArgument>& a_arguments) noexcept
@@ -105,5 +107,29 @@ namespace DearModdingUI::MCM
 		{
 			return ScaleformInvocationStatus::kInvocationFailed;
 		}
+	}
+
+	ScaleformInvocationStatus GameScaleformInvoker::Invoke(
+		std::string_view a_plugin,
+		std::string_view a_function,
+		const std::vector<ScaleformArgument>& a_arguments) noexcept
+	{
+		const auto status = InvokeUnlogged(a_plugin, a_function, a_arguments);
+		if (status == ScaleformInvocationStatus::kSucceeded)
+		{
+			REX::INFO(
+				"DearModdingUI-MCM: invoked {}.{}"sv,
+				a_plugin,
+				a_function);
+		}
+		else
+		{
+			REX::WARN(
+				"DearModdingUI-MCM: {}.{} was not invoked: {}"sv,
+				a_plugin,
+				a_function,
+				DescribeScaleformInvocation(status));
+		}
+		return status;
 	}
 }

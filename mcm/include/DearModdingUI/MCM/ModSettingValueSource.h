@@ -24,6 +24,10 @@ namespace DearModdingUI::MCM
 		[[nodiscard]] ValueSnapshot Write(
 			const MappedBinding& a_binding,
 			const dmui::SettingValue& a_value) override;
+		[[nodiscard]] ValueSnapshot Write(
+			const MappedBinding& a_binding,
+			const dmui::SettingValue& a_value,
+			ValueWriteCompletion a_completion) override;
 
 	private:
 		std::string modName_;

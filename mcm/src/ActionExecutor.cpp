@@ -633,12 +633,41 @@ namespace DearModdingUI::MCM
 			if (!setting->binding.set)
 				continue;
 			auto priorSet = std::move(setting->binding.set);
+			auto writeValue = std::move(row.writeValue);
 			setting->binding.set =
 				[&a_executor,
 				 priorSet = std::move(priorSet),
+				 writeValue = std::move(writeValue),
 				 actionValue = *row.action,
 				 id = row.id,
 				 state](dmui::SettingValue a_value) mutable {
+					if (writeValue)
+					{
+						// Wait for persistence before notifying a mod that its value changed.
+						return writeValue(
+							std::move(a_value),
+							[&a_executor,
+							 actionValue,
+							 id,
+							 state](ValueWriteResult a_result) mutable {
+								if (!a_result)
+								{
+									state->Complete(
+										std::move(id),
+										{
+											ActionExecutionStatus::kFailed,
+											std::move(a_result.error())
+										});
+									return;
+								}
+								Invoke(
+									a_executor,
+									actionValue,
+									std::move(*a_result),
+									std::move(id),
+									state);
+							});
+					}
 					auto effective = priorSet(std::move(a_value));
 					Invoke(
 						a_executor,

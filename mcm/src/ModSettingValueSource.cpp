@@ -1,6 +1,9 @@
 #include <DearModdingUI/MCM/ModSettingValueSource.h>
 
 #include <array>
+#include <atomic>
+#include <format>
+#include <memory>
 #include <utility>
 
 namespace DearModdingUI::MCM
@@ -90,10 +93,11 @@ namespace DearModdingUI::MCM
 							arguments,
 							target,
 							[this, key, generation](
+								bool a_succeeded,
 								std::optional<dmui::SettingValue> a_value) {
 								QueueCompletion(
 									key,
-									a_value ?
+									a_succeeded && a_value ?
 										ValueSnapshot{ ReadyValue{
 											std::move(*a_value),
 											generation
@@ -114,15 +118,31 @@ namespace DearModdingUI::MCM
 		const MappedBinding& a_binding,
 		const dmui::SettingValue& a_value)
 	{
+		return Write(a_binding, a_value, {});
+	}
+
+	ValueSnapshot ModSettingValueSource::Write(
+		const MappedBinding& a_binding,
+		const dmui::SettingValue& a_value,
+		ValueWriteCompletion a_completion)
+	{
 		const auto* setting = Setting(a_binding);
 		const auto key = a_binding.cacheKey;
 		const auto function = FunctionName("SetModSetting", a_binding.valueKind);
 		if (!setting || setting->declaration == DeclarationState::kUndeclared ||
 			function.empty() || a_value.index() != a_binding.target.index())
+		{
+			if (a_completion)
+				a_completion(std::unexpected(
+					"mod setting write is invalid or unavailable"));
 			return Cache().Read(key);
+		}
 
 		auto effective = Cache().Store(key, a_value);
 		const auto generation = Generation(effective);
+		const auto resultValue = std::get<ReadyValue>(effective).value;
+		auto completion =
+			std::make_shared<ValueWriteCompletion>(std::move(a_completion));
 		try
 		{
 			scheduler_.Schedule(
@@ -132,7 +152,42 @@ namespace DearModdingUI::MCM
 				 function,
 				 settingId = SettingId(*setting),
 				 value = a_value,
-				 binding = a_binding] {
+				 binding = a_binding,
+				 resultValue,
+				 completion]() mutable {
+					auto settled = std::make_shared<std::atomic_bool>();
+					auto settle =
+						[this,
+						 key,
+						 generation,
+						 resultValue,
+						 completion = std::move(completion),
+						 settled](ValueWriteResult a_result) mutable {
+							if (settled->exchange(true))
+								return;
+							const auto succeeded = a_result.has_value();
+							QueueCompletion(
+								key,
+								succeeded ?
+									ValueSnapshot{ ReadyValue{
+										resultValue,
+										generation
+									} } :
+									ValueSnapshot{ FailedValue{ generation } },
+								[completion,
+								 result = std::move(a_result)]() mutable {
+									if (*completion)
+										(*completion)(std::move(result));
+								});
+							try
+							{
+								scheduler_.ScheduleUi([this] { Pump(); });
+							}
+							catch (...)
+							{
+								Pump();
+							}
+						};
 					const std::array<PapyrusArgument, 3> arguments{
 						PapyrusArgument{ modName_, SourceValueKind::kString },
 						PapyrusArgument{ settingId, SourceValueKind::kString },
@@ -143,17 +198,42 @@ namespace DearModdingUI::MCM
 							function,
 							arguments,
 							std::nullopt,
-							{}))
+							[settle, resultValue, function, key](
+								bool a_succeeded,
+								std::optional<dmui::SettingValue>) mutable {
+								if (a_succeeded)
+									settle(resultValue);
+								else
+									settle(std::unexpected(std::format(
+										"Papyrus canceled {} for mod setting '{}'",
+										function,
+										key)));
+							}))
 					{
-						QueueCompletion(key, FailedValue{ generation });
+						settle(std::unexpected(std::format(
+							"Papyrus rejected {} dispatch for mod setting '{}'",
+							function,
+							key)));
 						return;
 					}
 					NotifyAcceptedModSettingWrite(events_, modName_, binding);
 				});
 		}
+		catch (const std::exception& a_error)
+		{
+			(void)Cache().Complete(key, FailedValue{ generation });
+			if (*completion)
+				(*completion)(std::unexpected(std::format(
+					"mod setting write could not be scheduled: {}",
+					a_error.what())));
+			return Cache().Read(key);
+		}
 		catch (...)
 		{
 			(void)Cache().Complete(key, FailedValue{ generation });
+			if (*completion)
+				(*completion)(std::unexpected(
+					"mod setting write could not be scheduled"));
 			return Cache().Read(key);
 		}
 		return effective;

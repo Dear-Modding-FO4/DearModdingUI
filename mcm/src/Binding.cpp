@@ -90,7 +90,8 @@ namespace DearModdingUI::MCM
 		void BindSupported(
 			dmui::SettingDescriptor& a_descriptor,
 			const MappedBinding& a_binding,
-			ValueSource& a_source)
+			ValueSource& a_source,
+			MappedRow& a_row)
 		{
 			auto fallback = a_descriptor.defaultValue;
 
@@ -112,12 +113,41 @@ namespace DearModdingUI::MCM
 					const auto* value = matched(current, fallback);
 					return value ? *value : fallback;
 				};
-			a_descriptor.binding.set =
+			a_row.writeValue =
 				[&a_source, a_binding, fallback, matched](
-					dmui::SettingValue a_value) -> dmui::SettingValue {
-					const auto effective = a_source.Write(a_binding, a_value);
+					dmui::SettingValue a_value,
+					ValueWriteCompletion a_completion) -> dmui::SettingValue {
+					auto complete =
+						[fallback,
+						 completion = std::move(a_completion)](
+							ValueWriteResult a_result) mutable {
+							if (!completion)
+								return;
+							if (!a_result)
+							{
+								completion(std::unexpected(
+									std::move(a_result.error())));
+								return;
+							}
+							if (a_result->index() != fallback.index())
+							{
+								completion(std::unexpected(
+									"written value has the wrong type"));
+								return;
+							}
+							completion(std::move(*a_result));
+						};
+					const auto effective = a_source.Write(
+						a_binding,
+						a_value,
+						std::move(complete));
 					const auto* value = matched(effective, fallback);
 					return value ? *value : fallback;
+				};
+			a_descriptor.binding.set =
+				[writeValue = a_row.writeValue](
+					dmui::SettingValue a_value) mutable -> dmui::SettingValue {
+					return writeValue(std::move(a_value), {});
 				};
 		}
 
@@ -373,6 +403,23 @@ namespace DearModdingUI::MCM
 			a_snapshot);
 	}
 
+	ValueSnapshot ValueSource::Write(
+		const MappedBinding& a_binding,
+		const dmui::SettingValue& a_value,
+		ValueWriteCompletion a_completion)
+	{
+		auto result = Write(a_binding, a_value);
+		if (a_completion)
+		{
+			if (const auto* ready = std::get_if<ReadyValue>(&result))
+				a_completion(ready->value);
+			else
+				a_completion(std::unexpected(
+					"synchronous value write did not settle successfully"));
+		}
+		return result;
+	}
+
 	void ValueSource::RefreshPage(
 		const MappedPage& a_page,
 		McmState a_state)
@@ -439,6 +486,20 @@ namespace DearModdingUI::MCM
 		return source ?
 			source->Write(a_binding, a_value) :
 			ValueSnapshot{ MissingValue{} };
+	}
+
+	ValueSnapshot CompositeValueSource::Write(
+		const MappedBinding& a_binding,
+		const dmui::SettingValue& a_value,
+		ValueWriteCompletion a_completion)
+	{
+		auto* source = Find(a_binding.Family());
+		if (source)
+			return source->Write(a_binding, a_value, std::move(a_completion));
+		if (a_completion)
+			a_completion(std::unexpected(
+				"no value source supports this setting"));
+		return MissingValue{};
 	}
 
 	void CompositeValueSource::RefreshPage(
@@ -675,7 +736,7 @@ namespace DearModdingUI::MCM
 				BindUnsupported(*descriptor);
 				continue;
 			}
-			BindSupported(*descriptor, binding, a_source);
+			BindSupported(*descriptor, binding, a_source, row);
 		}
 
 		auto priorPrepareView = std::move(a_page.settings.prepareView);

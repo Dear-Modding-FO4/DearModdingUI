@@ -1,4 +1,5 @@
 #include <DearModdingUI/MCM/ActionExecutor.h>
+#include <DearModdingUI/MCM/CachedAsyncValueSource.h>
 #include <DearModdingUI/MCM/ValueSource.h>
 
 #include "Harness.h"
@@ -43,6 +44,75 @@ namespace vmm_tests
 			dmui::SettingValue value{ int64_t{ 7 } };
 			uint64_t generation{};
 			uint64_t refreshes{};
+		};
+
+		class DeferredActionValueSource final : public CachedAsyncValueSource
+		{
+		public:
+			[[nodiscard]] bool Supports(SourceFamily) const noexcept override
+			{
+				return true;
+			}
+
+			[[nodiscard]] uint64_t Refresh(const MappedBinding&) override
+			{
+				return 0;
+			}
+
+			[[nodiscard]] ValueSnapshot Write(
+				const MappedBinding& a_binding,
+				const dmui::SettingValue& a_value) override
+			{
+				return Write(a_binding, a_value, {});
+			}
+
+			[[nodiscard]] ValueSnapshot Write(
+				const MappedBinding& a_binding,
+				const dmui::SettingValue& a_value,
+				ValueWriteCompletion a_completion) override
+			{
+				auto snapshot = Cache().Store(a_binding.cacheKey, a_value);
+				pending.push_back({
+					a_binding.cacheKey,
+					snapshot,
+					a_value,
+					std::move(a_completion)
+				});
+				return snapshot;
+			}
+
+			void Release(size_t a_index, bool a_succeeded)
+			{
+				auto& write = pending.at(a_index);
+				ValueWriteResult result = a_succeeded ?
+					ValueWriteResult{ write.value } :
+					ValueWriteResult{
+						std::unexpected("fixture Papyrus write was rejected")
+					};
+				QueueCompletion(
+					write.key,
+					a_succeeded ?
+						write.snapshot :
+						ValueSnapshot{ FailedValue{
+							Generation(write.snapshot)
+						} },
+					[completion = std::move(write.completion),
+					 result = std::move(result)]() mutable {
+						if (completion)
+							completion(std::move(result));
+					});
+				Pump();
+			}
+
+			struct PendingWrite
+			{
+				std::string key;
+				ValueSnapshot snapshot;
+				dmui::SettingValue value;
+				ValueWriteCompletion completion;
+			};
+
+			std::vector<PendingWrite> pending;
 		};
 
 		[[nodiscard]] const std::vector<ActionArgument>& Arguments(
@@ -185,6 +255,19 @@ namespace vmm_tests
 					return a_note.text.find("Action '") != std::string::npos;
 				});
 		}
+
+		[[nodiscard]] std::string_view ActionFailureText(
+			const MappedPage& a_page)
+		{
+			const auto found = std::ranges::find_if(
+				a_page.settings.notes,
+				[](const dmui::SettingsPageNote& a_note) {
+					return a_note.text.find("Action '") != std::string::npos;
+				});
+			return found == a_page.settings.notes.end() ?
+				std::string_view{} :
+				found->text;
+		}
 	}
 
 	void run_mcm_action_checks(Runner& runner)
@@ -225,7 +308,7 @@ namespace vmm_tests
 				"typed action arguments changed while binding");
 		});
 
-		runner.test("MCM action value placeholders bind effective values", [] {
+		runner.test("MCM synchronous value actions fire in the same turn", [] {
 			auto result = ParseConfig(R"json({
 				"modName":"Actions",
 				"content":[
@@ -249,6 +332,100 @@ namespace vmm_tests
 					executor.bound.front() ==
 						std::vector<BoundActionArgument>{ int64_t{ 12 } },
 				"the value placeholder did not receive the effective value");
+		});
+
+		runner.test("MCM value actions wait for deferred writes", [] {
+			auto result = ParseConfig(R"json({
+				"modName":"Actions",
+				"content":[{"id":"setting","type":"switcher",
+					"valueOptions":{"sourceType":"GlobalValueBool",
+						"sourceForm":"Fixture.esp|1","default":false},
+					"action":{"type":"CallExternalFunction",
+						"plugin":"Fixture","function":"Apply"}}]
+			})json");
+			auto& page = result.pages.front();
+			DeferredActionValueSource values;
+			FakeActionExecutor executor;
+			BindPage(page, values);
+			BindActions(page, executor, values);
+
+			(void)SettingNamed(page, "setting").binding.set(
+				dmui::SettingValue{ true });
+			require(executor.invocations.empty(),
+				"a value action fired before its deferred write settled");
+			values.Release(0, true);
+			require(executor.invocations.size() == 1,
+				"a settled value write did not fire its action exactly once");
+		});
+
+		runner.test("MCM failed writes suppress actions and report their reason", [] {
+			auto result = ParseConfig(R"json({
+				"modName":"Actions",
+				"content":[{"id":"setting","type":"switcher",
+					"valueOptions":{"sourceType":"GlobalValueBool",
+						"sourceForm":"Fixture.esp|1","default":false},
+					"action":{"type":"CallExternalFunction",
+						"plugin":"Fixture","function":"Apply"}}]
+			})json");
+			auto& page = result.pages.front();
+			DeferredActionValueSource values;
+			FakeActionExecutor executor;
+			BindPage(page, values);
+			BindActions(page, executor, values);
+
+			(void)SettingNamed(page, "setting").binding.set(
+				dmui::SettingValue{ true });
+			values.Release(0, false);
+			page.settings.prepareView(page.settings);
+			require(executor.invocations.empty() &&
+					ActionFailureText(page).find("Papyrus write was rejected") !=
+						std::string_view::npos,
+				"a failed write fired its action or lost its specific reason");
+		});
+
+		runner.test("MCM button actions fire without a value write", [] {
+			auto result = ParseConfig(R"json({
+				"modName":"Actions",
+				"content":[{"id":"apply","type":"button","action":{
+					"type":"CallExternalFunction",
+					"plugin":"Fixture","function":"Apply"}}]
+			})json");
+			auto& page = result.pages.front();
+			DeferredActionValueSource values;
+			FakeActionExecutor executor;
+			BindPage(page, values);
+			BindActions(page, executor, values);
+
+			ActionNamed(page, "apply").activate();
+			require(executor.invocations.size() == 1 && values.pending.empty(),
+				"a button action waited for a nonexistent value write");
+		});
+
+		runner.test("MCM superseded writes collapse to the latest action", [] {
+			auto result = ParseConfig(R"json({
+				"modName":"Actions",
+				"content":[{"id":"setting","type":"switcher",
+					"valueOptions":{"sourceType":"GlobalValueBool",
+						"sourceForm":"Fixture.esp|1","default":false},
+					"action":{"type":"CallExternalFunction",
+						"plugin":"Fixture","function":"Apply",
+						"params":["{value}"]}}]
+			})json");
+			auto& page = result.pages.front();
+			DeferredActionValueSource values;
+			FakeActionExecutor executor;
+			BindPage(page, values);
+			BindActions(page, executor, values);
+
+			auto& setting = SettingNamed(page, "setting");
+			(void)setting.binding.set(dmui::SettingValue{ true });
+			(void)setting.binding.set(dmui::SettingValue{ false });
+			values.Release(0, true);
+			values.Release(1, true);
+			require(executor.invocations.size() == 1 &&
+					executor.bound.front() ==
+						std::vector<BoundActionArgument>{ false },
+				"a superseded write fired or displaced the latest action");
 		});
 
 		runner.test("MCM action argument validation failures are diagnosed", [] {

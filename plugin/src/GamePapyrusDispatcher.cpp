@@ -35,15 +35,22 @@ namespace DearModdingUI::MCM
 		RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback;
 		if (a_completion)
 		{
+			auto completion =
+				std::make_shared<PapyrusDispatchCompletion>(
+					std::move(a_completion));
 			callback = RE::BSTSmartPointer<
 				RE::BSScript::IStackCallbackFunctor>{
 				new PapyrusResultCallback{
 					[target = a_resultTarget,
-					 completion = std::move(a_completion)](
+					 completion](
 						RE::BSScript::Variable a_result) mutable {
-						completion(
+						(*completion)(
+							true,
 							target ? FromPapyrus(a_result, *target) :
 									 std::optional<dmui::SettingValue>{});
+					},
+					[completion] {
+						(*completion)(false, {});
 					}
 				}
 			};

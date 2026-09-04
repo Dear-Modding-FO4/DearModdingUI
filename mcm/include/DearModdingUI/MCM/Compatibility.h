@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <concepts>
 #include <cstdint>
+#include <expected>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -18,6 +19,9 @@
 
 namespace DearModdingUI::MCM
 {
+	using ValueWriteResult = std::expected<dmui::SettingValue, std::string>;
+	using ValueWriteCompletion = std::function<void(ValueWriteResult)>;
+
 	enum class ControlType : uint8_t
 	{
 		kSwitch,
@@ -411,6 +415,9 @@ namespace DearModdingUI::MCM
 		std::optional<std::string> keybindId;
 		std::optional<ResolvedInertState> keybindInertState;
 		std::function<ResolvedInertState()> resolveInertState;
+		std::function<dmui::SettingValue(
+			dmui::SettingValue,
+			ValueWriteCompletion)> writeValue;
 	};
 
 	struct MappedPage

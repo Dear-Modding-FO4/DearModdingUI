@@ -7,6 +7,7 @@
 #include <RE/G/GameScript.h>
 
 #include <atomic>
+#include <format>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -124,11 +125,24 @@ namespace DearModdingUI::MCM
 		const MappedBinding& a_binding,
 		const dmui::SettingValue& a_value)
 	{
+		return Write(a_binding, a_value, {});
+	}
+
+	ValueSnapshot PropertyValueSource::Write(
+		const MappedBinding& a_binding,
+		const dmui::SettingValue& a_value,
+		ValueWriteCompletion a_completion)
+	{
 		const auto* property = Property(a_binding);
 		const auto argument = ToPapyrus(a_value, a_binding.valueKind);
 		const auto key = a_binding.cacheKey;
 		if (!property || !argument)
+		{
+			if (a_completion)
+				a_completion(std::unexpected(
+					"Papyrus property write is invalid"));
 			return Cache().Read(key);
+		}
 		RE::BSTSmartPointer<RE::BSScript::Object> object;
 		{
 			const std::scoped_lock lock{ objectMutex_ };
@@ -137,10 +151,18 @@ namespace DearModdingUI::MCM
 				object = found->second;
 		}
 		if (!object)
+		{
+			if (a_completion)
+				a_completion(std::unexpected(
+					"Papyrus property target is unavailable"));
 			return Cache().Read(key);
+		}
 
 		auto effective = Cache().Store(key, a_value);
 		const auto generation = Generation(effective);
+		const auto resultValue = std::get<ReadyValue>(effective).value;
+		auto completion =
+			std::make_shared<ValueWriteCompletion>(std::move(a_completion));
 		try
 		{
 			scheduler_.Schedule(
@@ -149,23 +171,86 @@ namespace DearModdingUI::MCM
 				 generation,
 				 object,
 				 propertyName = property->propertyName,
-				 argument = *argument] {
+				 argument = *argument,
+				 resultValue,
+				 completion]() mutable {
 					auto* gameVm = RE::GameVM::GetSingleton();
 					auto vm = gameVm ? gameVm->GetVM() : nullptr;
+					auto settled = std::make_shared<std::atomic_bool>();
+					auto settle =
+						[this,
+						 key,
+						 generation,
+						 resultValue,
+						 completion,
+						 settled](ValueWriteResult a_result) mutable {
+							if (settled->exchange(true))
+								return;
+							const auto succeeded = a_result.has_value();
+							QueueCompletion(
+								key,
+								succeeded ?
+									ValueSnapshot{ ReadyValue{
+										resultValue,
+										generation
+									} } :
+									ValueSnapshot{ FailedValue{ generation } },
+								[completion,
+								 result = std::move(a_result)]() mutable {
+									if (*completion)
+										(*completion)(std::move(result));
+								});
+							try
+							{
+								scheduler_.ScheduleUi([this] { Pump(); });
+							}
+							catch (...)
+							{
+								Pump();
+							}
+						};
 					RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor>
-						callback;
+						callback{
+							new PapyrusResultCallback{
+								[settle, resultValue](
+									RE::BSScript::Variable) mutable {
+									settle(resultValue);
+								},
+								[settle, propertyName, key]() mutable {
+									settle(std::unexpected(std::format(
+										"Papyrus canceled property '{}' write for '{}'",
+										propertyName,
+										key)));
+								}
+							}
+						};
 					if (!vm ||
 						!vm->SetPropertyValue(
 							object,
 							propertyName.c_str(),
 							argument,
 							callback))
-						QueueCompletion(key, FailedValue{ generation });
+						settle(std::unexpected(std::format(
+							"Papyrus rejected property '{}' write for '{}'",
+							propertyName,
+							key)));
 				});
+		}
+		catch (const std::exception& a_error)
+		{
+			(void)Cache().Complete(key, FailedValue{ generation });
+			if (*completion)
+				(*completion)(std::unexpected(std::format(
+					"Papyrus property write could not be scheduled: {}",
+					a_error.what())));
+			return Cache().Read(key);
 		}
 		catch (...)
 		{
 			(void)Cache().Complete(key, FailedValue{ generation });
+			if (*completion)
+				(*completion)(std::unexpected(
+					"Papyrus property write could not be scheduled"));
 			return Cache().Read(key);
 		}
 		return effective;

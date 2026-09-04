@@ -138,6 +138,10 @@ namespace DearModdingUI::MCM
 		[[nodiscard]] virtual ValueSnapshot Write(
 			const MappedBinding& a_binding,
 			const dmui::SettingValue& a_value) = 0;
+		[[nodiscard]] virtual ValueSnapshot Write(
+			const MappedBinding& a_binding,
+			const dmui::SettingValue& a_value,
+			ValueWriteCompletion a_completion);
 
 		virtual void RefreshPage(
 			const MappedPage& a_page,
@@ -162,6 +166,10 @@ namespace DearModdingUI::MCM
 		[[nodiscard]] ValueSnapshot Write(
 			const MappedBinding& a_binding,
 			const dmui::SettingValue& a_value) override;
+		[[nodiscard]] ValueSnapshot Write(
+			const MappedBinding& a_binding,
+			const dmui::SettingValue& a_value,
+			ValueWriteCompletion a_completion) override;
 
 		void RefreshPage(
 			const MappedPage& a_page,

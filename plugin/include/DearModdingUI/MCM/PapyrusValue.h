@@ -15,8 +15,11 @@ namespace DearModdingUI::MCM
 	{
 	public:
 		using Function = std::function<void(RE::BSScript::Variable)>;
+		using CancelFunction = std::function<void()>;
 
-		explicit PapyrusResultCallback(Function a_function);
+		explicit PapyrusResultCallback(
+			Function a_function,
+			CancelFunction a_cancel = {});
 
 		void CallQueued() override;
 		void CallCanceled() override;
@@ -26,6 +29,7 @@ namespace DearModdingUI::MCM
 
 	private:
 		Function function_;
+		CancelFunction cancel_;
 	};
 
 	[[nodiscard]] std::optional<RE::BSScript::Variable> ToPapyrus(

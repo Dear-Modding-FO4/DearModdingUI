@@ -20,6 +20,25 @@ namespace DearModdingUI::MCM
 		kInvocationFailed
 	};
 
+	[[nodiscard]] constexpr std::string_view DescribeScaleformInvocation(
+		ScaleformInvocationStatus a_status) noexcept
+	{
+		switch (a_status)
+		{
+		case ScaleformInvocationStatus::kSucceeded:
+			return "succeeded";
+		case ScaleformInvocationStatus::kNoMovieLoaded:
+			return "no loaded UI movie exposes F4SE plugins";
+		case ScaleformInvocationStatus::kPluginNotRegistered:
+			return "the plugin is not registered in a loaded UI movie";
+		case ScaleformInvocationStatus::kFunctionNotRegistered:
+			return "the plugin registered no such function";
+		case ScaleformInvocationStatus::kInvocationFailed:
+			return "the movie rejected the call";
+		}
+		return "the call failed for an unrecognized reason";
+	}
+
 	class ScaleformInvoker
 	{
 	public:

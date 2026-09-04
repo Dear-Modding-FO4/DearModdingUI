@@ -9,12 +9,21 @@
 
 namespace DearModdingUI::MCM
 {
-	PapyrusResultCallback::PapyrusResultCallback(Function a_function) :
-		function_(std::move(a_function))
+	PapyrusResultCallback::PapyrusResultCallback(
+		Function a_function,
+		CancelFunction a_cancel) :
+		function_(std::move(a_function)),
+		cancel_(std::move(a_cancel))
 	{}
 
 	void PapyrusResultCallback::CallQueued() {}
-	void PapyrusResultCallback::CallCanceled() { function_({}); }
+	void PapyrusResultCallback::CallCanceled()
+	{
+		if (cancel_)
+			cancel_();
+		else
+			function_({});
+	}
 	void PapyrusResultCallback::StartMultiDispatch() {}
 	void PapyrusResultCallback::EndMultiDispatch() {}
 
