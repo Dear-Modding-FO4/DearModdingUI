@@ -3,6 +3,7 @@
 #include <DearModdingUI/MCM/ValueSource.h>
 
 #include "Harness.h"
+#include "FakeDiagnosticReporter.h"
 
 #include <algorithm>
 #include <array>
@@ -16,6 +17,8 @@ namespace vmm_tests
 
 	namespace
 	{
+		FakeDiagnosticReporter diagnostics;
+
 		class ReadySource final : public ValueSource
 		{
 		public:
@@ -318,7 +321,8 @@ namespace vmm_tests
 				"Fixture",
 				events,
 				scheduler,
-				dispatcher
+				dispatcher,
+				diagnostics
 			};
 
 			source.RefreshPage(page, { true, false });

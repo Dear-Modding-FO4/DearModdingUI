@@ -2,6 +2,7 @@
 #include <DearModdingUI/MCM/ValueSource.h>
 
 #include "Harness.h"
+#include "FakeDiagnosticReporter.h"
 
 #include <filesystem>
 #include <fstream>
@@ -12,6 +13,8 @@ namespace vmm_tests
 {
 	namespace
 	{
+		FakeDiagnosticReporter diagnostics;
+
 		using namespace DearModdingUI::MCM;
 
 		class EmptyValueSource final : public ValueSource
@@ -151,7 +154,7 @@ namespace vmm_tests
 				]
 			})");
 			auto& page = result.pages.front();
-			ApplyKeybinds(page, definitions, bindings);
+			ApplyKeybinds(page, definitions, bindings, diagnostics);
 			require(DisplayedValue(page, "keyPlain") == "A" &&
 					DisplayedValue(page, "keyModified") == "Ctrl+Shift+K",
 				"bound keyboard names or stable modifier order changed");
@@ -197,7 +200,8 @@ namespace vmm_tests
 					"modName":"MyMod",
 					"keybinds":[{"id":"keyPlain"},{"id":"keyModified"}]
 				})"),
-				ParseUserKeybinds(R"({"keybinds":[]})"));
+				ParseUserKeybinds(R"({"keybinds":[]})"),
+				diagnostics);
 			const auto& unbound = *RowNamed(page, "keyPlain").keybindInertState;
 			const auto& missing = *RowNamed(page, "keyMissing").keybindInertState;
 			require(DisplayedValue(page, "keyPlain") == "Unbound" &&
@@ -214,7 +218,7 @@ namespace vmm_tests
 		runner.test("MCM missing definitions are reported once per page", [] {
 			auto result = MakeHotkeyConfig();
 			auto& page = result.pages.front();
-			ApplyKeybinds(page, {}, {});
+			ApplyKeybinds(page, {}, {}, diagnostics);
 			for (const auto& row : page.rows)
 			{
 				require(row.keybindInertState &&
@@ -249,7 +253,8 @@ namespace vmm_tests
 					"modName":"MyMod",
 					"keybinds":[{"id":"keyPlain"},{"id":"keyModified"},{"id":"keyMissing"}]
 				})"),
-				bindings);
+				bindings,
+				diagnostics);
 			require(DisplayedValue(page, "keyPlain") == "Unbound" &&
 					RowNamed(page, "keyPlain")
 							.keybindInertState->governingReason ==
@@ -267,7 +272,11 @@ namespace vmm_tests
 				"malformed definition or user JSON was accepted");
 
 			auto invalidDefinitions = MakeHotkeyConfig();
-			ApplyKeybinds(invalidDefinitions.pages.front(), definitions, {});
+			ApplyKeybinds(
+				invalidDefinitions.pages.front(),
+				definitions,
+				{},
+				diagnostics);
 			require(DisplayedValue(
 						invalidDefinitions.pages.front(),
 						"keyPlain") == "Can't be bound" &&
@@ -283,7 +292,8 @@ namespace vmm_tests
 					"modName":"MyMod",
 					"keybinds":[{"id":"keyPlain"},{"id":"keyModified"},{"id":"keyMissing"}]
 				})"),
-				bindings);
+				bindings,
+				diagnostics);
 			require(DisplayedValue(
 						invalidBindings.pages.front(),
 						"keyPlain") == "Binding unavailable" &&

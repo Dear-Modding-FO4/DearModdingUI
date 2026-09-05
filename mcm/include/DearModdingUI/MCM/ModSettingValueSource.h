@@ -15,7 +15,8 @@ namespace DearModdingUI::MCM
 			std::string a_modName,
 			McmEventDispatcher& a_events,
 			TaskScheduler& a_scheduler,
-			PapyrusDispatcher& a_dispatcher);
+			PapyrusDispatcher& a_dispatcher,
+			DiagnosticReporter& a_diagnostics);
 
 		[[nodiscard]] bool Supports(
 			SourceFamily a_family) const noexcept override;

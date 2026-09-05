@@ -3,6 +3,7 @@
 #include <DearModdingUI/MCM/ValueSource.h>
 
 #include "Harness.h"
+#include "FakeDiagnosticReporter.h"
 
 #include <stdexcept>
 #include <string>
@@ -13,6 +14,8 @@ namespace vmm_tests
 	namespace
 	{
 		using namespace DearModdingUI::MCM;
+
+		FakeDiagnosticReporter diagnostics;
 
 		class ActionValueSource final : public ValueSource
 		{
@@ -49,6 +52,11 @@ namespace vmm_tests
 		class DeferredActionValueSource final : public CachedAsyncValueSource
 		{
 		public:
+			explicit DeferredActionValueSource(
+				DiagnosticReporter& a_diagnostics) :
+				CachedAsyncValueSource(a_diagnostics)
+			{}
+
 			[[nodiscard]] bool Supports(SourceFamily) const noexcept override
 			{
 				return true;
@@ -104,6 +112,16 @@ namespace vmm_tests
 						if (completion)
 							completion(std::move(result));
 					});
+				Pump();
+			}
+
+			void ReleaseThrowingCompletion()
+			{
+				const auto generation = Cache().BeginRefresh("throwing");
+				QueueCompletion(
+					"throwing",
+					ReadyValue{ true, generation },
+					[] { throw std::runtime_error("fixture completion"); });
 				Pump();
 			}
 
@@ -277,6 +295,20 @@ namespace vmm_tests
 
 	void run_mcm_action_checks(Runner& runner)
 	{
+		runner.test("MCM dropped async completion reaches the diagnostic reporter", [] {
+			diagnostics.diagnostics.clear();
+			DeferredActionValueSource values{ diagnostics };
+			values.ReleaseThrowingCompletion();
+			require(
+				diagnostics.diagnostics.size() == 1 &&
+					diagnostics.diagnostics.front().severity ==
+						DiagnosticSeverity::kError &&
+					diagnostics.diagnostics.front().source ==
+						"async value completion" &&
+					diagnostics.diagnostics.front().location == "throwing",
+				"a dropped async completion remained silent");
+		});
+
 		runner.test("MCM action executor receives member and global actions", [] {
 			auto result = ParseConfig(R"json({
 				"modName":"Actions",
@@ -293,7 +325,7 @@ namespace vmm_tests
 			ActionValueSource values;
 			FakeActionExecutor executor;
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			ActionNamed(page, "member").activate();
 			ActionNamed(page, "global").activate();
@@ -328,7 +360,7 @@ namespace vmm_tests
 			ActionValueSource values;
 			FakeActionExecutor executor;
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			const auto effective = SettingNamed(page, "setting").binding.set(
 				dmui::SettingValue{ int64_t{ 12 } });
@@ -349,10 +381,10 @@ namespace vmm_tests
 						"plugin":"Fixture","function":"Apply"}}]
 			})json");
 			auto& page = result.pages.front();
-			DeferredActionValueSource values;
+			DeferredActionValueSource values{ diagnostics };
 			FakeActionExecutor executor;
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			(void)SettingNamed(page, "setting").binding.set(
 				dmui::SettingValue{ true });
@@ -373,10 +405,10 @@ namespace vmm_tests
 						"plugin":"Fixture","function":"Apply"}}]
 			})json");
 			auto& page = result.pages.front();
-			DeferredActionValueSource values;
+			DeferredActionValueSource values{ diagnostics };
 			FakeActionExecutor executor;
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			(void)SettingNamed(page, "setting").binding.set(
 				dmui::SettingValue{ true });
@@ -402,7 +434,7 @@ namespace vmm_tests
 			executor.unsupportedReason = "fixture rejection";
 			ResolveActionAvailability(page, executor);
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			auto& setting = SettingNamed(page, "setting");
 			const auto inert = page.rows.front().resolveInertState();
@@ -424,10 +456,10 @@ namespace vmm_tests
 						"plugin":"Fixture","function":"Apply"}}]
 			})json");
 			auto& page = result.pages.front();
-			DeferredActionValueSource values;
+			DeferredActionValueSource values{ diagnostics };
 			FakeActionExecutor executor;
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			(void)SettingNamed(page, "setting").binding.set(
 				dmui::SettingValue{ true });
@@ -447,10 +479,10 @@ namespace vmm_tests
 					"plugin":"Fixture","function":"Apply"}}]
 			})json");
 			auto& page = result.pages.front();
-			DeferredActionValueSource values;
+			DeferredActionValueSource values{ diagnostics };
 			FakeActionExecutor executor;
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			ActionNamed(page, "apply").activate();
 			require(executor.invocations.size() == 1 && values.pending.empty(),
@@ -468,10 +500,10 @@ namespace vmm_tests
 						"params":["{value}"]}}]
 			})json");
 			auto& page = result.pages.front();
-			DeferredActionValueSource values;
+			DeferredActionValueSource values{ diagnostics };
 			FakeActionExecutor executor;
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			auto& setting = SettingNamed(page, "setting");
 			(void)setting.binding.set(dmui::SettingValue{ true });
@@ -495,7 +527,7 @@ namespace vmm_tests
 			ActionValueSource values;
 			FakeActionExecutor executor;
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			ActionNamed(page, "invalid").activate();
 			page.settings.prepareView(page.settings);
@@ -515,7 +547,7 @@ namespace vmm_tests
 			FakeActionExecutor executor;
 			executor.requireSingleInt = true;
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			ActionNamed(page, "invalid").activate();
 			page.settings.prepareView(page.settings);
@@ -541,7 +573,7 @@ namespace vmm_tests
 			ActionValueSource values;
 			FakeActionExecutor executor;
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			auto& action = ActionNamed(page, "external");
 			action.activate();
@@ -568,6 +600,7 @@ namespace vmm_tests
 			};
 			ScheduleUiActionExecution(
 				scheduler,
+				diagnostics,
 				[&](const ActionCompletion& a_completion) {
 					a_completion(InvokeExternalFunction(
 						scaleform,
@@ -675,7 +708,7 @@ namespace vmm_tests
 			FakeActionExecutor executor;
 			executor.throws = true;
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			ActionNamed(page, "throwing").activate();
 			page.settings.prepareView(page.settings);
@@ -688,6 +721,7 @@ namespace vmm_tests
 			std::optional<ActionExecutionResult> result;
 			ScheduleActionExecution(
 				scheduler,
+				diagnostics,
 				[](const ActionCompletion&) {
 					throw std::runtime_error("scheduled fixture exception");
 				},
@@ -718,7 +752,7 @@ namespace vmm_tests
 			ActionValueSource values;
 			FakeActionExecutor executor;
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			ActionNamed(page, "refresh").activate();
 			page.settings.prepareView(page.settings);
@@ -737,7 +771,7 @@ namespace vmm_tests
 			ActionValueSource values;
 			FakeActionExecutor executor;
 			BindPage(page, values);
-			BindActions(page, executor, values);
+			BindActions(page, executor, values, diagnostics);
 
 			ActionNamed(page, "invalid").activate();
 			page.settings.prepareView(page.settings);

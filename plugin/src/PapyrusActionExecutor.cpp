@@ -375,9 +375,11 @@ namespace DearModdingUI::MCM
 
 	PapyrusActionExecutor::PapyrusActionExecutor(
 		TaskScheduler& a_scheduler,
-		ScaleformInvoker& a_scaleform) :
+		ScaleformInvoker& a_scaleform,
+		DiagnosticReporter& a_diagnostics) :
 		scheduler_(a_scheduler),
-		scaleform_(a_scaleform)
+		scaleform_(a_scaleform),
+		diagnostics_(a_diagnostics)
 	{}
 
 	std::optional<std::string> PapyrusActionExecutor::UnsupportedReason(
@@ -401,6 +403,7 @@ namespace DearModdingUI::MCM
 		{
 			ScheduleUiActionExecution(
 				scheduler_,
+				diagnostics_,
 				[action = *external,
 				 value = std::move(a_invocation.value),
 				 &scaleform = scaleform_](
@@ -417,6 +420,7 @@ namespace DearModdingUI::MCM
 		}
 		ScheduleActionExecution(
 			scheduler_,
+			diagnostics_,
 			[invocation = std::move(a_invocation)](
 				const ActionCompletion& a_scheduledCompletion) mutable {
 				Run(std::move(invocation), a_scheduledCompletion);

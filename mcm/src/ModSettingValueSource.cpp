@@ -46,7 +46,9 @@ namespace DearModdingUI::MCM
 		std::string a_modName,
 		McmEventDispatcher& a_events,
 		TaskScheduler& a_scheduler,
-		PapyrusDispatcher& a_dispatcher) :
+		PapyrusDispatcher& a_dispatcher,
+		DiagnosticReporter& a_diagnostics) :
+		CachedAsyncValueSource(a_diagnostics),
 		modName_(std::move(a_modName)),
 		events_(a_events),
 		scheduler_(a_scheduler),

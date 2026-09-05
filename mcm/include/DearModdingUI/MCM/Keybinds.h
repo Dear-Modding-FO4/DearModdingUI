@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/MCM/Compatibility.h>
+#include <DearModdingUI/MCM/DiagnosticReporter.h>
 
 #include <cstdint>
 #include <filesystem>
@@ -75,5 +76,6 @@ namespace DearModdingUI::MCM
 	void ApplyKeybinds(
 		MappedPage& a_page,
 		const KeybindDefinitions& a_definitions,
-		const UserKeybinds& a_bindings) noexcept;
+		const UserKeybinds& a_bindings,
+		DiagnosticReporter& a_diagnostics) noexcept;
 }

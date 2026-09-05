@@ -440,7 +440,8 @@ namespace DearModdingUI::MCM
 	void ApplyKeybinds(
 		MappedPage& a_page,
 		const KeybindDefinitions& a_definitions,
-		const UserKeybinds& a_bindings) noexcept
+		const UserKeybinds& a_bindings,
+		DiagnosticReporter& a_diagnostics) noexcept
 	{
 		try
 		{
@@ -510,6 +511,13 @@ namespace DearModdingUI::MCM
 			}
 		}
 		catch (...)
-		{}
+		{
+			a_diagnostics.Report({
+				DiagnosticSeverity::kError,
+				"keybind application",
+				a_page.displayName,
+				"keybind state could not be applied to the page"
+			});
+		}
 	}
 }

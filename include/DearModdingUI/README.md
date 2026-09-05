@@ -266,18 +266,19 @@ swapchain, it may call the optional `attachSwapChain(clientHandle, nativeSwapCha
 before calling it. On Windows/D3D11, `nativeSwapChain` is an `IDXGISwapChain*`; the public ABI keeps it
 opaque and exposes no D3D types.
 
-The host validates the client handle and capability, validates the swapchain's D3D11 device, immediate
-context, and output window, installs its final `Present`/`ResizeBuffers` dispatch, and retains its own
-COM references. Attachment is allowed while waiting for the first `Present` and after the host is
-ready. A ready retarget keeps the shared ImGui context and safely reinitializes the platform/renderer
-backends only if the render binding changed. An attachment racing backend initialization returns
+The host validates the client handle and capability, combines the override with the engine renderer's
+device, immediate context, and current window, installs its final `Present`/`ResizeBuffers` dispatch,
+and retains its own COM references. Attachment is allowed while waiting for the first `Present` and
+after the host is ready. A ready retarget keeps the shared ImGui context and safely reinitializes the
+platform/renderer backends. An attachment racing backend initialization returns
 `DMUI_RESULT_RENDERER_BUSY`; an invalid or unhookable native object returns
 `DMUI_RESULT_SWAPCHAIN_REJECTED`. Regular clients receive
 `DMUI_RESULT_CLIENT_CAPABILITY_REQUIRED`.
 
-Discovery ignores unrelated swapchains while an attachment is active. Destruction of the active
-window or a definitive DXGI device loss retires the attachment, releases host-owned COM/resources,
-and permits the next discovered or explicit final swapchain to attach.
+The host reconciles against the engine's current renderer state throughout the session. An explicit
+override remains authoritative while its engine device, context, and window are current; a renderer
+generation change replaces it. Destruction of the active window or a definitive DXGI device loss
+retires the attachment, releases host-owned COM/resources, and requests immediate reconciliation.
 
 ## ImGui compatibility and callbacks
 

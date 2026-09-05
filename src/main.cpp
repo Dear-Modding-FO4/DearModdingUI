@@ -124,7 +124,7 @@ namespace Addictol
 				const auto hooksInstalled = PlatformImgui::InstallHooks();
 				const auto sinksRegistered = RegisterHostSinks();
 				if (!hooksInstalled)
-					REX::ERROR("DearModdingUI: D3D11 hooks could not be installed"sv);
+					REX::ERROR("DearModdingUI: renderer reconciliation could not be installed"sv);
 
 				initialized = hooksInstalled && sinksRegistered;
 				if (initialized)

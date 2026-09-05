@@ -4,6 +4,11 @@
 
 namespace DearModdingUI::MCM
 {
+	CachedAsyncValueSource::CachedAsyncValueSource(
+		DiagnosticReporter& a_diagnostics) noexcept :
+		diagnostics_(a_diagnostics)
+	{}
+
 	ValueSnapshot CachedAsyncValueSource::Read(
 		const MappedBinding& a_binding) const
 	{
@@ -21,22 +26,41 @@ namespace DearModdingUI::MCM
 			}
 			for (auto& completion : completions)
 			{
-				const auto accepted = completion.settlementToken ?
-					cache_.CompleteWrite(
+				try
+				{
+					const auto accepted = completion.settlementToken ?
+						cache_.CompleteWrite(
+							completion.key,
+							*completion.settlementToken,
+							std::move(completion.snapshot)) :
+						cache_.Complete(
+							completion.key,
+							std::move(completion.snapshot));
+					if (!accepted)
+						continue;
+					if (completion.accept)
+						completion.accept();
+				}
+				catch (...)
+				{
+					diagnostics_.Report({
+						DiagnosticSeverity::kError,
+						"async value completion",
 						completion.key,
-						*completion.settlementToken,
-						std::move(completion.snapshot)) :
-					cache_.Complete(
-						completion.key,
-						std::move(completion.snapshot));
-				if (!accepted)
-					continue;
-				if (completion.accept)
-					completion.accept();
+						"completion was dropped after an exception"
+					});
+				}
 			}
 		}
 		catch (...)
-		{}
+		{
+			diagnostics_.Report({
+				DiagnosticSeverity::kError,
+				"async value completion",
+				{},
+				"queued completions could not be collected"
+			});
+		}
 	}
 
 	ValueCache& CachedAsyncValueSource::Cache() noexcept
@@ -65,7 +89,14 @@ namespace DearModdingUI::MCM
 			});
 		}
 		catch (...)
-		{}
+		{
+			diagnostics_.Report({
+				DiagnosticSeverity::kError,
+				"async value completion",
+				{},
+				"completion could not be queued"
+			});
+		}
 	}
 
 	void CachedAsyncValueSource::QueueWriteCompletion(
@@ -85,6 +116,13 @@ namespace DearModdingUI::MCM
 			});
 		}
 		catch (...)
-		{}
+		{
+			diagnostics_.Report({
+				DiagnosticSeverity::kError,
+				"async value write",
+				{},
+				"completion could not be queued"
+			});
+		}
 	}
 }

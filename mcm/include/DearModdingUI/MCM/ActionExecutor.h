@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/MCM/Compatibility.h>
+#include <DearModdingUI/MCM/DiagnosticReporter.h>
 #include <DearModdingUI/MCM/ScaleformInvoker.h>
 #include <DearModdingUI/MCM/TaskScheduler.h>
 
@@ -68,10 +69,12 @@ namespace DearModdingUI::MCM
 
 	void ScheduleActionExecution(
 		TaskScheduler& a_scheduler,
+		DiagnosticReporter& a_diagnostics,
 		std::function<void(const ActionCompletion&)> a_work,
 		ActionCompletion a_completion) noexcept;
 	void ScheduleUiActionExecution(
 		TaskScheduler& a_scheduler,
+		DiagnosticReporter& a_diagnostics,
 		std::function<void(const ActionCompletion&)> a_work,
 		ActionCompletion a_completion) noexcept;
 
@@ -83,5 +86,6 @@ namespace DearModdingUI::MCM
 	void BindActions(
 		MappedPage& a_page,
 		ActionExecutor& a_executor,
-		ValueSource& a_values);
+		ValueSource& a_values,
+		DiagnosticReporter& a_diagnostics);
 }

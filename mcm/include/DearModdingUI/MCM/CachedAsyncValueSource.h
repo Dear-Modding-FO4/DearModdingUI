@@ -1,5 +1,6 @@
 #pragma once
 
+#include <DearModdingUI/MCM/DiagnosticReporter.h>
 #include <DearModdingUI/MCM/ValueSource.h>
 
 #include <functional>
@@ -13,6 +14,8 @@ namespace DearModdingUI::MCM
 	class CachedAsyncValueSource : public ValueSource
 	{
 	public:
+		explicit CachedAsyncValueSource(DiagnosticReporter& a_diagnostics) noexcept;
+
 		[[nodiscard]] ValueSnapshot Read(
 			const MappedBinding& a_binding) const final;
 		void Pump() noexcept final;
@@ -40,6 +43,7 @@ namespace DearModdingUI::MCM
 		};
 
 		ValueCache cache_;
+		DiagnosticReporter& diagnostics_;
 		std::mutex completionMutex_;
 		std::vector<Completion> completions_;
 	};

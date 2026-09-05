@@ -190,6 +190,7 @@ namespace DearModdingUI::MCM
 		}
 
 		void CompleteAction(
+			DiagnosticReporter& a_diagnostics,
 			const ActionCompletion& a_completion,
 			ActionExecutionResult a_result) noexcept
 		{
@@ -199,7 +200,14 @@ namespace DearModdingUI::MCM
 					a_completion(std::move(a_result));
 			}
 			catch (...)
-			{}
+			{
+				a_diagnostics.Report({
+					DiagnosticSeverity::kError,
+					"action execution",
+					{},
+					"completion callback threw an exception"
+				});
+			}
 		}
 
 		struct PendingResult
@@ -211,7 +219,10 @@ namespace DearModdingUI::MCM
 		class PageActionState
 		{
 		public:
-			explicit PageActionState(std::vector<MappedBinding> a_bindings) :
+			PageActionState(
+				std::vector<MappedBinding> a_bindings,
+				DiagnosticReporter& a_diagnostics) :
+				diagnostics_(a_diagnostics),
 				bindings_(std::move(a_bindings))
 			{}
 
@@ -228,7 +239,14 @@ namespace DearModdingUI::MCM
 					});
 				}
 				catch (...)
-				{}
+				{
+					diagnostics_.Report({
+						DiagnosticSeverity::kError,
+						"action execution",
+						{},
+						"completion could not be queued"
+					});
+				}
 			}
 
 			void Pump(
@@ -282,12 +300,20 @@ namespace DearModdingUI::MCM
 					}
 				}
 				catch (...)
-				{}
+				{
+					diagnostics_.Report({
+						DiagnosticSeverity::kError,
+						"action execution",
+						{},
+						"queued page completions could not be applied"
+					});
+				}
 			}
 
 		private:
 			std::mutex mutex_;
 			std::vector<PendingResult> pending_;
+			DiagnosticReporter& diagnostics_;
 			std::vector<MappedBinding> bindings_;
 		};
 
@@ -483,6 +509,7 @@ namespace DearModdingUI::MCM
 	{
 		void Schedule(
 			TaskScheduler& a_scheduler,
+			DiagnosticReporter& a_diagnostics,
 			std::function<void(const ActionCompletion&)> a_work,
 			ActionCompletion a_completion,
 			bool a_ui) noexcept
@@ -493,7 +520,8 @@ namespace DearModdingUI::MCM
 					std::make_shared<ActionCompletion>(a_completion);
 				auto workItem =
 					[work = std::move(a_work),
-					 completion = std::move(completion)] {
+					 completion = std::move(completion),
+					 &a_diagnostics] {
 						try
 						{
 							work(*completion);
@@ -501,6 +529,7 @@ namespace DearModdingUI::MCM
 						catch (const std::exception& a_error)
 						{
 							CompleteAction(
+								a_diagnostics,
 								*completion,
 								{
 									ActionExecutionStatus::kFailed,
@@ -510,6 +539,7 @@ namespace DearModdingUI::MCM
 						catch (...)
 						{
 							CompleteAction(
+								a_diagnostics,
 								*completion,
 								{
 									ActionExecutionStatus::kFailed,
@@ -525,6 +555,7 @@ namespace DearModdingUI::MCM
 			catch (const std::exception& a_error)
 			{
 				CompleteAction(
+					a_diagnostics,
 					a_completion,
 					{
 						ActionExecutionStatus::kFailed,
@@ -534,6 +565,7 @@ namespace DearModdingUI::MCM
 			catch (...)
 			{
 				CompleteAction(
+					a_diagnostics,
 					a_completion,
 					{
 						ActionExecutionStatus::kFailed,
@@ -545,11 +577,13 @@ namespace DearModdingUI::MCM
 
 	void ScheduleActionExecution(
 		TaskScheduler& a_scheduler,
+		DiagnosticReporter& a_diagnostics,
 		std::function<void(const ActionCompletion&)> a_work,
 		ActionCompletion a_completion) noexcept
 	{
 		Schedule(
 			a_scheduler,
+			a_diagnostics,
 			std::move(a_work),
 			std::move(a_completion),
 			false);
@@ -557,11 +591,13 @@ namespace DearModdingUI::MCM
 
 	void ScheduleUiActionExecution(
 		TaskScheduler& a_scheduler,
+		DiagnosticReporter& a_diagnostics,
 		std::function<void(const ActionCompletion&)> a_work,
 		ActionCompletion a_completion) noexcept
 	{
 		Schedule(
 			a_scheduler,
+			a_diagnostics,
 			std::move(a_work),
 			std::move(a_completion),
 			true);
@@ -584,14 +620,17 @@ namespace DearModdingUI::MCM
 	void BindActions(
 		MappedPage& a_page,
 		ActionExecutor& a_executor,
-		ValueSource& a_values)
+		ValueSource& a_values,
+		DiagnosticReporter& a_diagnostics)
 	{
 		std::vector<MappedBinding> bindings;
 		for (const auto& row : a_page.rows)
 			if (row.binding)
 				bindings.push_back(*row.binding);
 		auto state =
-			std::make_shared<PageActionState>(std::move(bindings));
+			std::make_shared<PageActionState>(
+				std::move(bindings),
+				a_diagnostics);
 		auto priorPrepare = std::move(a_page.settings.prepareView);
 		a_page.settings.prepareView =
 			[priorPrepare = std::move(priorPrepare),

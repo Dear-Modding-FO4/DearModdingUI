@@ -52,6 +52,10 @@ A pure `TaskScheduler` boundary moves every Papyrus VM operation to the game thr
 attached scripts, dispatching events, refreshing values, writing values, or executing actions.
 `PapyrusDispatcher` separately owns static scalar calls, so mod-setting reads and writes are testable
 with a fake without linking game headers.
+Every async runtime source also requires a `DiagnosticReporter`. The pure module reports only
+exceptions that would otherwise drop a completion or leave queued state unapplied; parser and
+binding failures continue to return durable `Diagnostic` or result values. The plugin implements
+the reporter with REX logging, while tests and the preview retain reported diagnostics in memory.
 A pending condition hides its dependent rows until the controller resolves and an all-pending page
 shows a loading note. A permanently inoperable mod-setting toggle owns page-local state only when its
 `groupControl` is referenced by a condition, restoring accordion interaction without inventing

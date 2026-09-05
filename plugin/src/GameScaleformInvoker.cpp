@@ -118,14 +118,14 @@ namespace DearModdingUI::MCM
 		if (status == ScaleformInvocationStatus::kSucceeded)
 		{
 			REX::INFO(
-				"DearModdingUI-MCM: invoked {}.{}"sv,
+				"[dmui.mcm.scaleform] DearModdingUI-MCM: invoked {}.{}"sv,
 				a_plugin,
 				a_function);
 		}
 		else
 		{
 			REX::WARN(
-				"DearModdingUI-MCM: {}.{} was not invoked: {}"sv,
+				"[dmui.mcm.scaleform] DearModdingUI-MCM: {}.{} was not invoked: {}"sv,
 				a_plugin,
 				a_function,
 				DescribeScaleformInvocation(status));

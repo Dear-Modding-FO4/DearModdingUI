@@ -15,7 +15,9 @@ namespace DearModdingUI::MCM
 	class PropertyValueSource final : public CachedAsyncValueSource
 	{
 	public:
-		explicit PropertyValueSource(TaskScheduler& a_scheduler);
+		PropertyValueSource(
+			TaskScheduler& a_scheduler,
+			DiagnosticReporter& a_diagnostics);
 
 		[[nodiscard]] bool Supports(
 			SourceFamily a_family) const noexcept override;

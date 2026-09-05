@@ -27,78 +27,91 @@ namespace vmm_tests
 			require(kResizeBuffersSlot == 13, "ResizeBuffers must use slot 13");
 		});
 
-		runner.test("swapchain discovery attaches once and explicit handoff retargets", [] {
+		runner.test("reconciliation waits when renderer data is unavailable", [] {
+			constexpr RendererProbe missing{};
+			require(
+				ObserveRenderer(missing) == RendererObservation::kRendererDataMissing,
+				"missing renderer data must remain recoverable");
+		});
+
+		runner.test("reconciliation attaches a valid renderer binding", [] {
 			constexpr AttachmentIdentity empty{};
 			constexpr AttachmentIdentity game{ 1, 2, 3, 4 };
-			constexpr AttachmentIdentity sameGame{ 1, 2, 3, 4 };
-			constexpr AttachmentIdentity reboundGame{ 1, 2, 3, 8 };
-			constexpr AttachmentIdentity other{ 5, 2, 3, 4 };
-			constexpr AttachmentIdentity invalid{ 5, 2, 0, 4 };
+			constexpr RendererProbe renderer{ true, true, true, game };
 
+			require(
+				ObserveRenderer(renderer) == RendererObservation::kReady,
+				"a complete renderer binding must be usable");
 			require(
 				DecideAttachment(
 					empty,
 					game,
-					AttachmentSource::kDiscovery,
+					AttachmentSource::kRenderer,
+					AttachmentSource::kRenderer,
 					AttachmentLifecycle::kVacant) ==
 					AttachmentDecision::kAttach,
-				"the first discovered swapchain must attach");
+				"the first renderer binding must attach");
+		});
+
+		runner.test("unchanged reconciliation is a no-op that does not re-hook", [] {
+			constexpr AttachmentIdentity game{ 1, 2, 3, 4 };
 			require(
 				DecideAttachment(
 					game,
-					sameGame,
-					AttachmentSource::kExplicit,
+					game,
+					AttachmentSource::kRenderer,
+					AttachmentSource::kRenderer,
 					AttachmentLifecycle::kActive) ==
 					AttachmentDecision::kKeepCurrent,
-				"reattaching the same swapchain must be idempotent");
+				"an unchanged binding must return before hook installation");
+		});
+
+		runner.test("changed reconciliation retires and replaces the old binding", [] {
+			constexpr AttachmentIdentity game{ 1, 2, 3, 4 };
+			constexpr AttachmentIdentity reboundGame{ 5, 6, 7, 8 };
 			require(
 				DecideAttachment(
 					game,
 					reboundGame,
-					AttachmentSource::kDiscovery,
+					AttachmentSource::kRenderer,
+					AttachmentSource::kRenderer,
 					AttachmentLifecycle::kActive) ==
-					AttachmentDecision::kAttach,
-				"a captured swapchain with a changed binding must refresh its attachment");
+					AttachmentDecision::kReplace,
+				"a changed renderer generation must retire and replace the active binding");
+		});
+
+		runner.test("explicit swapchain overrides remain authoritative for their renderer binding", [] {
+			constexpr AttachmentIdentity renderer{ 1, 2, 3, 4 };
+			constexpr AttachmentIdentity explicitOverride{ 5, 2, 3, 4 };
+			constexpr AttachmentIdentity nextGeneration{ 6, 7, 8, 4 };
+
 			require(
 				DecideAttachment(
-					game,
-					other,
-					AttachmentSource::kDiscovery,
+					renderer,
+					explicitOverride,
+					AttachmentSource::kRenderer,
+					AttachmentSource::kExplicit,
+					AttachmentLifecycle::kActive) ==
+					AttachmentDecision::kReplace,
+				"an explicit override must replace the renderer swapchain");
+			require(
+				DecideAttachment(
+					explicitOverride,
+					renderer,
+					AttachmentSource::kExplicit,
+					AttachmentSource::kRenderer,
 					AttachmentLifecycle::kActive) ==
 					AttachmentDecision::kKeepCurrent,
-				"an active attachment must keep an unrelated discovery");
+				"reconciliation must not undo an override in the same renderer generation");
 			require(
 				DecideAttachment(
-					game,
-					other,
-					AttachmentSource::kDiscovery,
-					AttachmentLifecycle::kRetired) ==
-					AttachmentDecision::kAttach,
-				"a retired attachment must accept a discovered replacement");
-			require(
-				DecideAttachment(
-					game,
-					sameGame,
-					AttachmentSource::kDiscovery,
-					AttachmentLifecycle::kRetired) ==
-					AttachmentDecision::kAttach,
-				"a retired address reused by a new swapchain must attach");
-			require(
-				DecideAttachment(
-					game,
-					other,
+					explicitOverride,
+					nextGeneration,
 					AttachmentSource::kExplicit,
+					AttachmentSource::kRenderer,
 					AttachmentLifecycle::kActive) ==
-					AttachmentDecision::kAttach,
-				"an explicit final swapchain must replace discovery");
-			require(
-				DecideAttachment(
-					game,
-					invalid,
-					AttachmentSource::kExplicit,
-					AttachmentLifecycle::kActive) ==
-					AttachmentDecision::kReject,
-				"incomplete render bindings must be rejected");
+					AttachmentDecision::kReplace,
+				"a renderer generation change must retire a stale override");
 		});
 
 		runner.test("definitive DXGI failures retire the active attachment", [] {
@@ -288,15 +301,15 @@ namespace vmm_tests
 				"out-of-window mouse coordinates were scaled into the viewport");
 		});
 
-		runner.test("install state permits one IAT attempt", [] {
+		runner.test("install state permits one reconciliation task", [] {
 			require(AllowsInstallAttempt(InstallState::kNotAttempted), "the first attempt must be allowed");
-			require(!AllowsInstallAttempt(InstallState::kRejected), "an unavailable IAT is never retried");
+			require(!AllowsInstallAttempt(InstallState::kRejected), "a rejected task is never duplicated");
 			require(!AllowsInstallAttempt(InstallState::kAttempted), "a started attempt is never repeated");
 			require(!AllowsInstallAttempt(InstallState::kInstalled), "installation is idempotent");
 
 			require(IsInstalled(InstallState::kInstalled), "only the installed state is ready");
 			require(!IsInstalled(InstallState::kAttempted), "an attempt alone is not ready");
-			require(!IsInstalled(InstallState::kRejected), "an unavailable IAT is not ready");
+			require(!IsInstalled(InstallState::kRejected), "a rejected task is not ready");
 		});
 
 		runner.test("sink registration rejects null, duplicate and overlong names", [] {

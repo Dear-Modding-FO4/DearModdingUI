@@ -23,7 +23,10 @@ namespace DearModdingUI::MCM
 		}
 	}
 
-	PropertyValueSource::PropertyValueSource(TaskScheduler& a_scheduler) :
+	PropertyValueSource::PropertyValueSource(
+		TaskScheduler& a_scheduler,
+		DiagnosticReporter& a_diagnostics) :
+		CachedAsyncValueSource(a_diagnostics),
 		scheduler_(a_scheduler)
 	{}
 

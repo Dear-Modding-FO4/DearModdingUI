@@ -6,6 +6,7 @@
 #include <DearModdingUI/Client.h>
 #include <DearModdingUI/MCM/ActionExecutor.h>
 #include <DearModdingUI/MCM/Availability.h>
+#include <DearModdingUI/MCM/DiagnosticReporter.h>
 #include <DearModdingUI/MCM/GlobalValue.h>
 #include <DearModdingUI/MCM/Keybinds.h>
 #include <DearModdingUI/MCM/SettingsIni.h>
@@ -209,6 +210,19 @@ namespace DearModdingUIPreview
 					{}
 				});
 			}
+		};
+
+		class PreviewDiagnosticReporter final :
+			public DearModdingUI::MCM::DiagnosticReporter
+		{
+		public:
+			void Report(
+				DearModdingUI::MCM::Diagnostic a_diagnostic) noexcept override
+			{
+				diagnostics.push_back(std::move(a_diagnostic));
+			}
+
+			std::vector<DearModdingUI::MCM::Diagnostic> diagnostics;
 		};
 
 		void DrawFixturePage(
@@ -423,6 +437,7 @@ namespace DearModdingUIPreview
 		SettingsState settings;
 		PreviewValueSource mcmValues;
 		PreviewActionExecutor mcmActions;
+		PreviewDiagnosticReporter mcmDiagnostics;
 		std::vector<std::unique_ptr<dmui::Client>> clients;
 
 		[[nodiscard]] dmui::Client* AddClient(
@@ -625,7 +640,8 @@ namespace DearModdingUIPreview
 					DearModdingUI::MCM::ApplyKeybinds(
 						page,
 						definitions,
-						keybinds);
+						keybinds,
+						m_impl->mcmDiagnostics);
 				}
 			}
 			m_impl->mcmValues.Seed("DisplaySlot", 2.0f);
@@ -658,7 +674,8 @@ namespace DearModdingUIPreview
 				DearModdingUI::MCM::BindActions(
 					mcmPage,
 					m_impl->mcmActions,
-					m_impl->mcmValues);
+					m_impl->mcmValues,
+					m_impl->mcmDiagnostics);
 				DearModdingUI::MCM::AttachTextRendering(mcmPage);
 				if (!mcmClient->AddSettingsPage(
 						{

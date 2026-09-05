@@ -13,7 +13,7 @@ namespace Addictol
 	using PlatformImguiToggleSink = bool (*)(uint32_t a_virtualKey) noexcept;
 	using PlatformImguiSetupSink = void (*)(void* a_window) noexcept;
 
-	// The IAT, vtable, and window hooks stay installed because process-exit teardown order is unsafe.
+	// The vtable and window hooks stay installed because process-exit teardown order is unsafe.
 	namespace PlatformImgui
 	{
 		// Sinks are permanent and must register from a load-stage module install.
@@ -29,7 +29,7 @@ namespace Addictol
 		// Called at kGameLoaded, after the render window exists.
 		[[nodiscard]] bool InitializeWindow() noexcept;
 
-		// Internal handoff point for a final or proxy game swapchain.
+		// Deliberate external override for a final or proxy game swapchain.
 		[[nodiscard]] bool AttachSwapChain(IDXGISwapChain* a_swapChain) noexcept;
 
 		void SetDrawingEnabled(bool a_enabled) noexcept;

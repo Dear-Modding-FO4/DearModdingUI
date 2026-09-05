@@ -28,7 +28,7 @@ namespace Addictol::ImguiPlatform
 
 	enum class AttachmentSource : uint32_t
 	{
-		kDiscovery,
+		kRenderer,
 		kExplicit
 	};
 
@@ -36,7 +36,8 @@ namespace Addictol::ImguiPlatform
 	{
 		kReject,
 		kKeepCurrent,
-		kAttach
+		kAttach,
+		kReplace
 	};
 
 	enum class AttachmentLifecycle : uint32_t
@@ -49,27 +50,68 @@ namespace Addictol::ImguiPlatform
 	[[nodiscard]] constexpr AttachmentDecision DecideAttachment(
 		const AttachmentIdentity& a_current,
 		const AttachmentIdentity& a_candidate,
-		AttachmentSource a_source,
+		AttachmentSource a_currentSource,
+		AttachmentSource a_candidateSource,
 		AttachmentLifecycle a_lifecycle) noexcept
 	{
 		if (!a_candidate.Valid())
 			return AttachmentDecision::kReject;
-		if (a_lifecycle == AttachmentLifecycle::kRetired)
+		if (a_lifecycle != AttachmentLifecycle::kActive || !a_current.Valid())
 			return AttachmentDecision::kAttach;
 		if (a_current.swapChain == a_candidate.swapChain &&
 			a_current.device == a_candidate.device &&
 			a_current.context == a_candidate.context &&
-			a_current.window == a_candidate.window &&
-			a_lifecycle == AttachmentLifecycle::kActive)
+			a_current.window == a_candidate.window)
 			return AttachmentDecision::kKeepCurrent;
-		if (a_current.swapChain == a_candidate.swapChain &&
-			a_lifecycle == AttachmentLifecycle::kActive)
-			return AttachmentDecision::kAttach;
-		if (a_lifecycle != AttachmentLifecycle::kActive ||
-			!a_current.Valid() ||
-			a_source == AttachmentSource::kExplicit)
-			return AttachmentDecision::kAttach;
-		return AttachmentDecision::kKeepCurrent;
+		if (a_currentSource == AttachmentSource::kExplicit &&
+			a_candidateSource == AttachmentSource::kRenderer &&
+			a_current.device == a_candidate.device &&
+			a_current.context == a_candidate.context &&
+			a_current.window == a_candidate.window)
+			return AttachmentDecision::kKeepCurrent;
+		return AttachmentDecision::kReplace;
+	}
+
+	enum class RendererObservation : uint32_t
+	{
+		kReady,
+		kRendererDataMissing,
+		kRendererNotInitialized,
+		kRendererWindowMissing,
+		kSwapChainMissing,
+		kDeviceMissing,
+		kContextMissing,
+		kWindowMissing,
+		kBindingChanged,
+		kHookInstallationFailed
+	};
+
+	struct RendererProbe
+	{
+		bool hasRendererData{ false };
+		bool initialized{ false };
+		bool hasRendererWindow{ false };
+		AttachmentIdentity binding{};
+	};
+
+	[[nodiscard]] constexpr RendererObservation ObserveRenderer(
+		const RendererProbe& a_probe) noexcept
+	{
+		if (!a_probe.hasRendererData)
+			return RendererObservation::kRendererDataMissing;
+		if (!a_probe.initialized)
+			return RendererObservation::kRendererNotInitialized;
+		if (!a_probe.hasRendererWindow)
+			return RendererObservation::kRendererWindowMissing;
+		if (!a_probe.binding.swapChain)
+			return RendererObservation::kSwapChainMissing;
+		if (!a_probe.binding.device)
+			return RendererObservation::kDeviceMissing;
+		if (!a_probe.binding.context)
+			return RendererObservation::kContextMissing;
+		if (!a_probe.binding.window)
+			return RendererObservation::kWindowMissing;
+		return RendererObservation::kReady;
 	}
 
 	inline constexpr uint32_t kDxgiErrorDeviceRemoved = 0x887A0005u;
@@ -225,7 +267,7 @@ namespace Addictol::ImguiPlatform
 		kRejected
 	};
 
-	// Installation is attempted once so repeated calls cannot disturb an existing IAT chain.
+	// Installation is attempted once so the permanent reconciliation task is not duplicated.
 	[[nodiscard]] constexpr bool AllowsInstallAttempt(InstallState a_state) noexcept
 	{
 		return a_state == InstallState::kNotAttempted;

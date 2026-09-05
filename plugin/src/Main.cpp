@@ -8,6 +8,7 @@
 #include <DearModdingUI/MCM/ModSettingValueSource.h>
 #include <DearModdingUI/MCM/PapyrusActionExecutor.h>
 #include <DearModdingUI/MCM/PropertyValueSource.h>
+#include <DearModdingUI/MCM/RexDiagnosticReporter.h>
 #include <DearModdingUI/MCM/SettingsIni.h>
 
 #include <DearModdingUI/MCM/Compatibility.h>
@@ -52,6 +53,7 @@ namespace DearModdingUI::MCM
 		struct RegisteredMod
 		{
 			std::unique_ptr<dmui::Client> client;
+			std::unique_ptr<RexDiagnosticReporter> diagnostics;
 			std::unique_ptr<ModSettingValueSource> modSettings;
 			std::unique_ptr<PropertyValueSource> properties;
 			std::unique_ptr<CompositeValueSource> values;
@@ -116,6 +118,89 @@ namespace DearModdingUI::MCM
 				"dear-modding.mcm.{}.{:016x}",
 				sanitized,
 				HashText(a_folder));
+		}
+
+		struct CompatibilityLogRecord
+		{
+			std::string_view mod;
+			std::string_view clientId;
+			std::string_view page;
+			size_t bindings{};
+			size_t resolvedKeybinds{};
+			size_t localUiStateRows{};
+			size_t unsupported{};
+			size_t unknownSources{};
+			size_t undeclaredSettings{};
+			size_t actions{};
+			size_t images{};
+		};
+
+		void LogCompatibility(const CompatibilityLogRecord& a_record)
+		{
+			REX::INFO(
+				"[dmui.mcm.compatibility] mod=\"{}\" client_id=\"{}\" page=\"{}\" bindings={} "
+				"resolved_keybinds={} local_ui_state_rows={} unsupported={} "
+				"unknown_sources={} undeclared_settings={} actions={} images={}"sv,
+				a_record.mod,
+				a_record.clientId,
+				a_record.page,
+				a_record.bindings,
+				a_record.resolvedKeybinds,
+				a_record.localUiStateRows,
+				a_record.unsupported,
+				a_record.unknownSources,
+				a_record.undeclaredSettings,
+				a_record.actions,
+				a_record.images);
+		}
+
+		struct InertRowsLogRecord
+		{
+			std::string_view mod;
+			std::string_view clientId;
+			std::string_view page;
+			size_t conditionFalse{};
+			size_t conditionPending{};
+			size_t unsupported{};
+			size_t undeclared{};
+			size_t keybindUnbound{};
+			size_t keybindUndeclared{};
+			size_t keybindDefinitionsMissing{};
+			size_t keybindDefinitionsInvalid{};
+			size_t userKeybindsInvalid{};
+			size_t mcmMissing{};
+			size_t loadSaveRequired{};
+			size_t valuePending{};
+			size_t valueUnavailable{};
+			size_t valueFailed{};
+		};
+
+		void LogInertRows(const InertRowsLogRecord& a_record)
+		{
+			REX::INFO(
+				"[dmui.mcm.inert-rows] mod=\"{}\" client_id=\"{}\" page=\"{}\" condition_false={} "
+				"condition_pending={} unsupported={} undeclared={} "
+				"keybind_unbound={} keybind_undeclared={} "
+				"keybind_definitions_missing={} keybind_definitions_invalid={} "
+				"user_keybinds_invalid={} mcm_missing={} load_save_required={} "
+				"value_pending={} value_unavailable={} value_failed={}"sv,
+				a_record.mod,
+				a_record.clientId,
+				a_record.page,
+				a_record.conditionFalse,
+				a_record.conditionPending,
+				a_record.unsupported,
+				a_record.undeclared,
+				a_record.keybindUnbound,
+				a_record.keybindUndeclared,
+				a_record.keybindDefinitionsMissing,
+				a_record.keybindDefinitionsInvalid,
+				a_record.userKeybindsInvalid,
+				a_record.mcmMissing,
+				a_record.loadSaveRequired,
+				a_record.valuePending,
+				a_record.valueUnavailable,
+				a_record.valueFailed);
 		}
 
 		[[nodiscard]] size_t DescriptorCount(const MappedPage& a_page) noexcept
@@ -214,24 +299,33 @@ namespace DearModdingUI::MCM
 				const auto displayName = configuration.displayName.empty() ?
 					(configuration.modName.empty() ? folder : configuration.modName) :
 					configuration.displayName;
+				const auto clientId =
+					ClientId(configuration.modName, folder);
 				auto mod = std::make_unique<RegisteredMod>();
+				mod->diagnostics = std::make_unique<RexDiagnosticReporter>(
+					displayName,
+					clientId);
 				mod->modSettings = std::make_unique<ModSettingValueSource>(
 					configuration.modName,
 					s_events,
 					s_scheduler,
-					s_dispatcher);
+					s_dispatcher,
+					*mod->diagnostics);
 				mod->properties =
-					std::make_unique<PropertyValueSource>(s_scheduler);
+					std::make_unique<PropertyValueSource>(
+						s_scheduler,
+						*mod->diagnostics);
 				mod->values = std::make_unique<CompositeValueSource>();
 				mod->actions =
 					std::make_unique<PapyrusActionExecutor>(
 						s_scheduler,
-						s_scaleform);
+						s_scaleform,
+						*mod->diagnostics);
 				mod->values->Add(s_globalValues);
 				mod->values->Add(*mod->modSettings);
 				mod->values->Add(*mod->properties);
 				mod->client = std::make_unique<dmui::Client>(
-					ClientId(configuration.modName, folder),
+					clientId,
 					displayName,
 					dmui::Version{ 1, 0 },
 					dmui::kForwardingClient,
@@ -279,17 +373,19 @@ namespace DearModdingUI::MCM
 					auto page =
 						std::make_unique<MappedPage>(std::move(result.pages[index]));
 					ApplyDeclarations(*page, declarations);
-					ApplyKeybinds(*page, definitions, keybinds);
+					ApplyKeybinds(
+						*page,
+						definitions,
+						keybinds,
+						*mod->diagnostics);
 					ResolveActionAvailability(*page, *mod->actions);
 					BindPage(*page, *mod->values, CurrentMcmState);
 					const auto summary =
 						SummarizeCompatibility(*page, *mod->values);
 					SurfaceCompatibility(*page, summary);
-					REX::INFO(
-						"DearModdingUI-MCM: {} / {} compatibility: "
-						"{} bindings, {} resolved keybinds, {} local UI-state rows, {} unsupported, {} unknown sources, "
-						"{} undeclared settings, {} actions, {} images"sv,
+					LogCompatibility({
 						displayName,
+						clientId,
 						page->displayName,
 						summary.bindings,
 						summary.resolvedKeybinds,
@@ -298,18 +394,12 @@ namespace DearModdingUI::MCM
 						summary.unknownBindings,
 						summary.undeclaredModSettings,
 						summary.actions,
-						summary.images);
+						summary.images
+					});
 					const auto inert = SummarizeInertReasons(*page);
-					REX::INFO(
-						"DearModdingUI-MCM: {} / {} inert rows: "
-						"{} condition false, {} condition pending, "
-						"{} unsupported, {} undeclared, {} keybind unbound, "
-						"{} keybind undeclared, {} keybind definitions missing, "
-						"{} keybind definitions invalid, {} user keybinds invalid, "
-						"{} MCM missing, "
-						"{} load-save required, {} value pending, "
-						"{} value unavailable, {} value failed"sv,
+					LogInertRows({
 						displayName,
+						clientId,
 						page->displayName,
 						inert[static_cast<size_t>(
 							InertReason::kConditionFalse)],
@@ -338,9 +428,14 @@ namespace DearModdingUI::MCM
 						inert[static_cast<size_t>(
 							InertReason::kValueMissing)],
 						inert[static_cast<size_t>(
-							InertReason::kValueFailed)]);
+							InertReason::kValueFailed)]
+					});
 					descriptors += DescriptorCount(*page);
-					BindActions(*page, *mod->actions, *mod->values);
+					BindActions(
+						*page,
+						*mod->actions,
+						*mod->values,
+						*mod->diagnostics);
 					AttachTextRendering(*page);
 					auto priorPrepare = std::move(page->settings.prepare);
 					auto* values = mod->values.get();

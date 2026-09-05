@@ -8,6 +8,10 @@
 #include <Platform/GameInput.h>
 #include <Support/Detours.h>
 #include <Support/Runtime.h>
+#include <Support/SubsystemHealth.h>
+#include <F4SE/API.h>
+#include <F4SE/Interfaces.h>
+#include <RE/B/BSGraphics.h>
 #include <RE/C/ControlMap.h>
 
 #include <Windows.h>
@@ -20,6 +24,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <limits>
 #include <string_view>
@@ -57,11 +62,6 @@ namespace Addictol
 		static_assert(kDxgiErrorDeviceReset == static_cast<uint32_t>(DXGI_ERROR_DEVICE_RESET));
 		static_assert(kDxgiErrorDriverInternal == static_cast<uint32_t>(DXGI_ERROR_DRIVER_INTERNAL_ERROR));
 
-		using TD3D11Create = HRESULT(WINAPI*)(
-			IDXGIAdapter*, D3D_DRIVER_TYPE, HMODULE, UINT,
-			const D3D_FEATURE_LEVEL*, UINT, UINT,
-			const DXGI_SWAP_CHAIN_DESC*, IDXGISwapChain**,
-			ID3D11Device**, D3D_FEATURE_LEVEL*, ID3D11DeviceContext**);
 		using TPresent = HRESULT(WINAPI*)(IDXGISwapChain*, UINT, UINT);
 		using TResizeBuffers = HRESULT(WINAPI*)(IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
 
@@ -116,6 +116,23 @@ namespace Addictol
 			}
 		};
 
+		struct RendererSnapshot
+		{
+			Attachment attachment{};
+			RE::BSGraphics::RendererData* rendererData{ nullptr };
+			RE::BSGraphics::RendererWindow* rendererWindow{ nullptr };
+			IDXGISwapChain* publishedSwapChain{ nullptr };
+		};
+
+		class RendererHealthReporter final :
+			public DearModdingUI::HealthReporter
+		{
+		public:
+			void Report(
+				DearModdingUI::HealthEvent a_event,
+				const DearModdingUI::HealthSnapshot& a_snapshot) noexcept override;
+		};
+
 		static constexpr size_t kSwapChainHookCapacity = 8;
 		static constexpr size_t kSwapChainDispatchCapacity = 16;
 		static constexpr size_t kWindowHookCapacity = 4;
@@ -128,7 +145,6 @@ namespace Addictol
 		static std::array<SwapChainDispatchRecord, kSwapChainDispatchCapacity> s_swapChainDispatches{};
 		static std::array<WindowHookRecord, kWindowHookCapacity> s_windowHooks{};
 		static std::atomic<InstallState> s_installState{ InstallState::kNotAttempted };
-		static std::atomic<TD3D11Create> s_originalCreate{ nullptr };
 		static std::atomic<IDXGISwapChain*> s_activeSwapChain{ nullptr };
 		static std::atomic<HWND> s_activeWindow{ nullptr };
 		static std::atomic<bool> s_drawingEnabled{ false };
@@ -138,10 +154,17 @@ namespace Addictol
 		static std::array<std::atomic<bool>, 256> s_consumedToggleKeys{};
 		static std::atomic<bool> s_missingPresentOriginalLogged{ false };
 		static std::atomic<bool> s_missingResizeOriginalLogged{ false };
+		static std::atomic<int64_t> s_nextReconciliationAt{ 0 };
 		static std::string s_iniPath;
 
+		static RendererHealthReporter s_rendererHealthReporter;
+		static DearModdingUI::SubsystemHealth s_rendererHealth{
+			"dmui.render.reconciliation",
+			s_rendererHealthReporter
+		};
 		static Attachment s_attachment{};
 		static AttachmentLifecycle s_attachmentLifecycle{ AttachmentLifecycle::kVacant };
+		static AttachmentSource s_attachmentSource{ AttachmentSource::kRenderer };
 		static ID3D11Texture2D* s_backBuffer{ nullptr };
 		static ID3D11RenderTargetView* s_backBufferView{ nullptr };
 		static BackBufferIdentity s_backBufferIdentity{};
@@ -164,6 +187,7 @@ namespace Addictol
 		static LRESULT CALLBACK HKWindowProc(HWND a_window, UINT a_message, WPARAM a_wparam, LPARAM a_lparam) noexcept;
 		static void CloseSinkRegistration() noexcept;
 		static void ShutdownBackend() noexcept;
+		static void PollRendererReconciliation() noexcept;
 
 		static BOOL CALLBACK InitializeContextLock(
 			[[maybe_unused]] PINIT_ONCE a_once,
@@ -192,6 +216,147 @@ namespace Addictol
 			ContextLock& operator=(const ContextLock&) = delete;
 			ContextLock& operator=(ContextLock&&) = delete;
 		};
+
+		struct RendererDataLock
+		{
+			explicit RendererDataLock(RE::BSGraphics::RendererData& a_data) noexcept :
+				lock(std::addressof(a_data.rendererLock.criticalSection))
+			{
+				REX::W32::EnterCriticalSection(lock);
+			}
+
+			~RendererDataLock() noexcept
+			{
+				REX::W32::LeaveCriticalSection(lock);
+			}
+
+			RendererDataLock(const RendererDataLock&) = delete;
+			RendererDataLock(RendererDataLock&&) = delete;
+			RendererDataLock& operator=(const RendererDataLock&) = delete;
+			RendererDataLock& operator=(RendererDataLock&&) = delete;
+
+			REX::W32::CRITICAL_SECTION* lock;
+		};
+
+		using ReconciliationClock = DearModdingUI::HealthClock;
+		static constexpr auto kReconciliationInterval = std::chrono::milliseconds(250);
+		static constexpr auto kReconciliationDeadline = std::chrono::seconds(10);
+
+		[[nodiscard]] static int64_t ReconciliationTicks(
+			ReconciliationClock::time_point a_time = ReconciliationClock::now()) noexcept
+		{
+			return std::chrono::duration_cast<std::chrono::milliseconds>(
+				a_time.time_since_epoch()).count();
+		}
+
+		[[nodiscard]] static std::string_view DescribeRendererObservation(
+			RendererObservation a_observation) noexcept
+		{
+			switch (a_observation)
+			{
+			case RendererObservation::kRendererDataMissing:
+				return "renderer data is null";
+			case RendererObservation::kRendererNotInitialized:
+				return "renderer data is not initialized";
+			case RendererObservation::kRendererWindowMissing:
+				return "the current renderer window is null";
+			case RendererObservation::kSwapChainMissing:
+				return "the current renderer window has no swapchain";
+			case RendererObservation::kDeviceMissing:
+				return "renderer data has no D3D11 device";
+			case RendererObservation::kContextMissing:
+				return "renderer data has no D3D11 device context";
+			case RendererObservation::kWindowMissing:
+				return "the current renderer window has no HWND";
+			case RendererObservation::kBindingChanged:
+				return "the renderer binding changed while it was captured";
+			case RendererObservation::kHookInstallationFailed:
+				return "the renderer binding was valid but swapchain hooks could not be installed";
+			default:
+				return "the renderer binding is valid";
+			}
+		}
+
+		void RendererHealthReporter::Report(
+			DearModdingUI::HealthEvent a_event,
+			const DearModdingUI::HealthSnapshot& a_snapshot) noexcept
+		{
+			using DearModdingUI::HealthEvent;
+			using DearModdingUI::HealthState;
+
+			if (a_event == HealthEvent::kDeadlineExceeded)
+			{
+				if (a_snapshot.state == HealthState::kProgressing)
+				{
+					REX::ERROR("[dmui.render.reconciliation] Platform Imgui: renderer reconciliation deadline exceeded: the renderer binding is valid but Present has not been observed; reconciliation will continue"sv);
+				}
+				else
+				{
+					REX::ERROR("[dmui.render.reconciliation] Platform Imgui: renderer reconciliation deadline exceeded: {}; reconciliation will continue"sv,
+						a_snapshot.reason);
+				}
+				return;
+			}
+
+			const auto recovered = a_event == HealthEvent::kRecovery;
+			if (a_snapshot.state == HealthState::kWaiting)
+			{
+				REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer state: waiting for renderer ({})"sv,
+					a_snapshot.reason);
+			}
+			else if (a_snapshot.state == HealthState::kProgressing)
+			{
+				if (recovered)
+				{
+					REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer state recovered after deadline: bound and waiting for Present (swapchain {}, device {}, context {}, window {})"sv,
+						static_cast<void*>(s_attachment.swapChain),
+						static_cast<void*>(s_attachment.device),
+						static_cast<void*>(s_attachment.context),
+						static_cast<void*>(s_attachment.window));
+				}
+				else
+				{
+					REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer state: bound and waiting for Present (swapchain {}, device {}, context {}, window {})"sv,
+						static_cast<void*>(s_attachment.swapChain),
+						static_cast<void*>(s_attachment.device),
+						static_cast<void*>(s_attachment.context),
+						static_cast<void*>(s_attachment.window));
+				}
+			}
+			else
+			{
+				if (recovered)
+					REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer state recovered after deadline: ready"sv);
+				else
+					REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer state: ready"sv);
+			}
+		}
+
+		static void SetRendererWaitingLocked(RendererObservation a_observation) noexcept
+		{
+			s_rendererHealth.Observe(
+				DearModdingUI::HealthState::kWaiting,
+				DescribeRendererObservation(a_observation));
+		}
+
+		static void SetRendererBoundLocked() noexcept
+		{
+			s_rendererHealth.Observe(
+				DearModdingUI::HealthState::kProgressing,
+				"the renderer binding is valid but Present has not been observed");
+		}
+
+		static void SetRendererReadyLocked() noexcept
+		{
+			s_rendererHealth.Observe(
+				DearModdingUI::HealthState::kReady,
+				{});
+		}
+
+		static void RequestRendererReconciliation() noexcept
+		{
+			s_nextReconciliationAt.store(0, std::memory_order_release);
+		}
 
 		static void SetGameInputSuppressed(bool a_suppressed) noexcept
 		{
@@ -375,7 +540,10 @@ namespace Addictol
 			s_windowReady.store(false, std::memory_order_release);
 			ReleaseAttachment(s_attachment);
 			s_attachmentLifecycle = AttachmentLifecycle::kRetired;
+			s_attachmentSource = AttachmentSource::kRenderer;
+			s_rendererHealth.InvalidateObservation();
 			ClearConsumedToggleKeys();
+			RequestRendererReconciliation();
 		}
 
 		[[nodiscard]] static IDXGIAdapter3* AcquireVideoMemoryAdapter(ID3D11Device* a_device) noexcept
@@ -394,34 +562,109 @@ namespace Addictol
 			return valid ? adapter3 : nullptr;
 		}
 
-		[[nodiscard]] static bool AcquireAttachment(
-			IDXGISwapChain* a_swapChain,
-			Attachment& a_attachment) noexcept
+		[[nodiscard]] static bool CaptureRendererSnapshot(
+			RendererSnapshot& a_snapshot,
+			RendererObservation& a_observation) noexcept
 		{
-			if (!a_swapChain)
+			auto* rendererData = RE::BSGraphics::GetRendererData();
+			if (!rendererData)
+			{
+				a_observation = RendererObservation::kRendererDataMissing;
+				return false;
+			}
+
+			const RendererDataLock rendererLock{ *rendererData };
+			if (RE::BSGraphics::GetRendererData() != rendererData)
+			{
+				a_observation = RendererObservation::kBindingChanged;
+				return false;
+			}
+			auto* rendererWindow = RE::BSGraphics::GetCurrentRendererWindow();
+			const RendererProbe probe{
+				true,
+				rendererData->initialized,
+				rendererWindow != nullptr,
+				{
+					rendererWindow ?
+						reinterpret_cast<uintptr_t>(rendererWindow->swapChain) : 0,
+					reinterpret_cast<uintptr_t>(rendererData->device),
+					reinterpret_cast<uintptr_t>(rendererData->context),
+					rendererWindow ?
+						reinterpret_cast<uintptr_t>(rendererWindow->hwnd) : 0
+				}
+			};
+			a_observation = ObserveRenderer(probe);
+			if (a_observation != RendererObservation::kReady)
+				return false;
+
+			a_snapshot.rendererData = rendererData;
+			a_snapshot.rendererWindow = rendererWindow;
+			a_snapshot.publishedSwapChain =
+				reinterpret_cast<IDXGISwapChain*>(rendererWindow->swapChain);
+			a_snapshot.attachment = {
+				a_snapshot.publishedSwapChain,
+				reinterpret_cast<ID3D11Device*>(rendererData->device),
+				reinterpret_cast<ID3D11DeviceContext*>(rendererData->context),
+				nullptr,
+				reinterpret_cast<HWND>(rendererWindow->hwnd)
+			};
+			a_snapshot.attachment.swapChain->AddRef();
+			a_snapshot.attachment.device->AddRef();
+			a_snapshot.attachment.context->AddRef();
+			return true;
+		}
+
+		[[nodiscard]] static bool ValidateRendererSnapshot(
+			const RendererSnapshot& a_snapshot) noexcept
+		{
+			return RE::BSGraphics::GetRendererData() == a_snapshot.rendererData &&
+				RE::BSGraphics::GetCurrentRendererWindow() == a_snapshot.rendererWindow &&
+				a_snapshot.rendererData->initialized &&
+				reinterpret_cast<IDXGISwapChain*>(
+					a_snapshot.rendererWindow->swapChain) == a_snapshot.publishedSwapChain &&
+				reinterpret_cast<ID3D11Device*>(
+					a_snapshot.rendererData->device) == a_snapshot.attachment.device &&
+				reinterpret_cast<ID3D11DeviceContext*>(
+					a_snapshot.rendererData->context) == a_snapshot.attachment.context &&
+				reinterpret_cast<HWND>(
+					a_snapshot.rendererWindow->hwnd) == a_snapshot.attachment.window;
+		}
+
+		[[nodiscard]] static bool PrepareExplicitSnapshot(
+			IDXGISwapChain* a_swapChain,
+			RendererSnapshot& a_snapshot,
+			RendererObservation& a_observation) noexcept
+		{
+			if (!a_swapChain || !CaptureRendererSnapshot(a_snapshot, a_observation))
 				return false;
 
 			a_swapChain->AddRef();
-			a_attachment.swapChain = a_swapChain;
-			if (FAILED(a_swapChain->GetDevice(IID_PPV_ARGS(std::addressof(a_attachment.device)))) ||
-				!a_attachment.device)
+			a_snapshot.attachment.swapChain->Release();
+			a_snapshot.attachment.swapChain = a_swapChain;
+			return true;
+		}
+
+		static void CompleteRendererSnapshot(RendererSnapshot& a_snapshot) noexcept
+		{
+			a_snapshot.attachment.videoMemoryAdapter =
+				AcquireVideoMemoryAdapter(a_snapshot.attachment.device);
+		}
+
+		static void ReleaseRendererSnapshot(RendererSnapshot& a_snapshot) noexcept
+		{
+			ReleaseAttachment(a_snapshot.attachment);
+			a_snapshot = {};
+		}
+
+		[[nodiscard]] static bool ValidateSnapshotForCommit(
+			const RendererSnapshot& a_snapshot,
+			RendererObservation& a_observation) noexcept
+		{
+			if (!ValidateRendererSnapshot(a_snapshot))
 			{
-				ReleaseAttachment(a_attachment);
+				a_observation = RendererObservation::kBindingChanged;
 				return false;
 			}
-
-			a_attachment.device->GetImmediateContext(std::addressof(a_attachment.context));
-			DXGI_SWAP_CHAIN_DESC description{};
-			if (!a_attachment.context ||
-				FAILED(a_swapChain->GetDesc(std::addressof(description))) ||
-				!description.OutputWindow)
-			{
-				ReleaseAttachment(a_attachment);
-				return false;
-			}
-
-			a_attachment.window = description.OutputWindow;
-			a_attachment.videoMemoryAdapter = AcquireVideoMemoryAdapter(a_attachment.device);
 			return true;
 		}
 
@@ -862,6 +1105,8 @@ namespace Addictol
 			}
 			else if (firstInitialization)
 				DearModdingUI::CompleteBackendInitialization(ImGui::GetCurrentContext());
+			if (ready)
+				SetRendererReadyLocked();
 			return ready;
 		}
 
@@ -1252,116 +1497,134 @@ namespace Addictol
 				CallPreviousWindowProc(a_window, a_message, a_wparam, a_lparam);
 		}
 
-		[[nodiscard]] static bool AttachSwapChain(
-			IDXGISwapChain* a_swapChain,
-			AttachmentSource a_source) noexcept
+		[[nodiscard]] static bool CommitRendererSnapshot(
+			RendererSnapshot& a_snapshot,
+			AttachmentSource a_source,
+			RendererObservation& a_observation) noexcept
 		{
-			Attachment candidate{};
-			if (!AcquireAttachment(a_swapChain, candidate))
-			{
-				REX::WARN("Platform Imgui: swapchain attachment has no valid D3D11 render binding"sv);
+			// Hold the renderer lock through commit so the validated COM identities cannot be republished underneath us.
+			const RendererDataLock rendererLock{ *a_snapshot.rendererData };
+			if (!ValidateSnapshotForCommit(a_snapshot, a_observation))
 				return false;
-			}
-
 			const ContextLock lock;
+			if (!ValidateSnapshotForCommit(a_snapshot, a_observation))
+				return false;
+
 			const auto currentIdentity = s_attachment.Identity();
-			const auto candidateIdentity = candidate.Identity();
+			const auto candidateIdentity = a_snapshot.attachment.Identity();
 			const auto decision = DecideAttachment(
 				currentIdentity,
 				candidateIdentity,
+				s_attachmentSource,
 				a_source,
 				s_attachmentLifecycle);
 			if (decision == AttachmentDecision::kReject)
-			{
-				ReleaseAttachment(candidate);
 				return false;
-			}
 			if (decision == AttachmentDecision::kKeepCurrent)
+				return true;
+			if (!InstallSwapChainHooks(
+					a_snapshot.attachment.swapChain,
+					s_attachmentLifecycle))
 			{
-				const auto sameSwapChain =
-					currentIdentity.swapChain == candidateIdentity.swapChain;
-				ReleaseAttachment(candidate);
-				return sameSwapChain || a_source == AttachmentSource::kDiscovery;
-			}
-			if (!InstallSwapChainHooks(candidate.swapChain, s_attachmentLifecycle))
-			{
-				ReleaseAttachment(candidate);
+				a_observation = RendererObservation::kHookInstallationFailed;
 				return false;
 			}
 
-			const auto resetBackend = RequiresBackendReset(
-				currentIdentity,
-				candidateIdentity,
-				s_backend.load(std::memory_order_acquire) != Backend::kUninitialized);
-			const auto windowAlreadyHooked = FindWindowHook(candidate.window) != nullptr;
-			if (currentIdentity.Valid() &&
-				s_attachmentLifecycle == AttachmentLifecycle::kActive)
-			{
-				CloseModalState(
-					DearModdingUI::CarrierMenu::Event::kRetarget);
-			}
-			ReleaseBackBuffer();
-			s_backBufferFailureLogged = false;
-			if (resetBackend)
-				ShutdownBackend();
-			auto previous = s_attachment;
-			s_attachment = candidate;
-			candidate = {};
-			s_attachmentLifecycle = AttachmentLifecycle::kActive;
-			s_activeWindow.store(s_attachment.window, std::memory_order_release);
-			s_windowReady.store(windowAlreadyHooked, std::memory_order_release);
-			s_activeSwapChain.store(s_attachment.swapChain, std::memory_order_release);
-			ReleaseAttachment(previous);
+			if (decision == AttachmentDecision::kReplace)
+				RetireActiveAttachmentLocked(nullptr, nullptr);
 
-			REX::INFO("Platform Imgui: {} swapchain attached at {}"sv,
-				a_source == AttachmentSource::kExplicit ? "explicit" : "discovered",
-				static_cast<void*>(s_attachment.swapChain));
+			s_attachment = a_snapshot.attachment;
+			a_snapshot.attachment = {};
+			s_attachmentLifecycle = AttachmentLifecycle::kActive;
+			s_attachmentSource = a_source;
+			s_activeWindow.store(s_attachment.window, std::memory_order_release);
+			s_windowReady.store(
+				FindWindowHook(s_attachment.window) != nullptr,
+				std::memory_order_release);
+			s_activeSwapChain.store(s_attachment.swapChain, std::memory_order_release);
+			if (s_gameLoaded.load(std::memory_order_acquire) &&
+				!s_windowReady.load(std::memory_order_acquire) &&
+				!SubclassWindow(s_attachment.window))
+				REX::WARN("Platform Imgui: active renderer window could not be subclassed before Present"sv);
+
+			SetRendererBoundLocked();
 			return true;
 		}
 
-		static HRESULT WINAPI HKD3D11Create(
-			IDXGIAdapter* a_adapter,
-			D3D_DRIVER_TYPE a_driverType,
-			HMODULE a_software,
-			UINT a_flags,
-			const D3D_FEATURE_LEVEL* a_featureLevels,
-			UINT a_featureLevelCount,
-			UINT a_sdkVersion,
-			const DXGI_SWAP_CHAIN_DESC* a_description,
-			IDXGISwapChain** a_outSwapChain,
-			ID3D11Device** a_outDevice,
-			D3D_FEATURE_LEVEL* a_outFeatureLevel,
-			ID3D11DeviceContext** a_outContext) noexcept
+		[[nodiscard]] static bool ReconcileRenderer() noexcept
 		{
-			auto original = s_originalCreate.load(std::memory_order_acquire);
-			while (!original &&
-				s_installState.load(std::memory_order_acquire) == InstallState::kAttempted)
+			RendererSnapshot snapshot{};
+			RendererObservation observation{ RendererObservation::kRendererDataMissing };
+			if (!CaptureRendererSnapshot(snapshot, observation))
 			{
-				SwitchToThread();
-				original = s_originalCreate.load(std::memory_order_acquire);
+				const ContextLock lock;
+				if (!s_attachment.Identity().Valid())
+					SetRendererWaitingLocked(observation);
+				return true;
 			}
-			if (!original)
-				return E_FAIL;
+			CompleteRendererSnapshot(snapshot);
+			const auto committed = CommitRendererSnapshot(
+				snapshot,
+				AttachmentSource::kRenderer,
+				observation);
+			ReleaseRendererSnapshot(snapshot);
+			if (!committed)
+			{
+				const ContextLock lock;
+				if (!s_attachment.Identity().Valid())
+					SetRendererWaitingLocked(observation);
+			}
+			return committed || observation == RendererObservation::kBindingChanged;
+		}
 
-			const auto result = original(
-				a_adapter,
-				a_driverType,
-				a_software,
-				a_flags,
-				a_featureLevels,
-				a_featureLevelCount,
-				a_sdkVersion,
-				a_description,
-				a_outSwapChain,
-				a_outDevice,
-				a_outFeatureLevel,
-				a_outContext);
-			if (SUCCEEDED(result) && a_outSwapChain && *a_outSwapChain)
+		[[nodiscard]] static bool AttachExplicitSwapChain(
+			IDXGISwapChain* a_swapChain) noexcept
+		{
+			RendererSnapshot snapshot{};
+			RendererObservation observation{ RendererObservation::kRendererDataMissing };
+			if (!PrepareExplicitSnapshot(a_swapChain, snapshot, observation))
 			{
-				if (!AttachSwapChain(*a_outSwapChain, AttachmentSource::kDiscovery))
-					REX::WARN("Platform Imgui: discovered swapchain attachment failed"sv);
+				REX::WARN("Platform Imgui: explicit swapchain override rejected ({})"sv,
+					DescribeRendererObservation(observation));
+				return false;
 			}
-			return result;
+			CompleteRendererSnapshot(snapshot);
+			const auto committed = CommitRendererSnapshot(
+				snapshot,
+				AttachmentSource::kExplicit,
+				observation);
+			ReleaseRendererSnapshot(snapshot);
+			if (!committed)
+				REX::WARN("Platform Imgui: explicit swapchain override could not be committed ({})"sv,
+					DescribeRendererObservation(observation));
+			return committed;
+		}
+
+		static void CheckReconciliationDeadline() noexcept
+		{
+			if (!s_gameLoaded.load(std::memory_order_acquire))
+				return;
+
+			const ContextLock lock;
+			if (s_backend.load(std::memory_order_acquire) == Backend::kFailed)
+				return;
+			s_rendererHealth.Evaluate();
+		}
+
+		static void PollRendererReconciliation() noexcept
+		{
+			if (!s_gameLoaded.load(std::memory_order_acquire))
+				return;
+			const auto now = ReconciliationTicks();
+			auto next = s_nextReconciliationAt.load(std::memory_order_acquire);
+			if (next > now ||
+				!s_nextReconciliationAt.compare_exchange_strong(
+					next,
+					now + kReconciliationInterval.count(),
+					std::memory_order_acq_rel))
+				return;
+			(void)ReconcileRenderer();
+			CheckReconciliationDeadline();
 		}
 
 		static void CloseSinkRegistration() noexcept
@@ -1415,22 +1678,19 @@ namespace Addictol
 				std::memory_order_acq_rel))
 			return IsInstalled(expected);
 
-		const auto original = reinterpret_cast<TD3D11Create>(Support::DetourIAT(
-			"d3d11.dll",
-			"D3D11CreateDeviceAndSwapChain",
-			reinterpret_cast<uintptr_t>(&HKD3D11Create)));
-		if (!original)
+		auto* tasks = F4SE::GetTaskInterface();
+		if (!tasks)
 		{
 			CloseSinkRegistration();
 			s_installState.store(InstallState::kRejected, std::memory_order_release);
-			REX::ERROR("Platform Imgui: D3D11CreateDeviceAndSwapChain was not found in the IAT"sv);
-			DearModdingUI::SetBackendUnavailable(DMUI_UNAVAILABLE_BACKEND_FAILED);
+			REX::ERROR("[dmui.render.reconciliation] Platform Imgui: renderer reconciliation task interface is unavailable"sv);
+			DearModdingUI::FailBackendInitialization();
 			return false;
 		}
 
-		s_originalCreate.store(original, std::memory_order_release);
+		tasks->AddTaskPermanent(&PollRendererReconciliation);
 		s_installState.store(InstallState::kInstalled, std::memory_order_release);
-		REX::INFO("Platform Imgui: D3D11 swapchain discovery installed with {} draw, {} toggle, and {} setup sinks"sv,
+		REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer reconciliation installed with {} draw, {} toggle, and {} setup sinks"sv,
 			s_drawSinks.Size(), s_toggleSinks.Size(), s_setupSinks.Size());
 		return true;
 	}
@@ -1439,32 +1699,27 @@ namespace Addictol
 	{
 		using namespace platformImguiDetail;
 		s_gameLoaded.store(true, std::memory_order_release);
+		{
+			const ContextLock lock;
+			s_rendererHealth.SetDeadline(
+				ReconciliationClock::now() + kReconciliationDeadline);
+		}
+		RequestRendererReconciliation();
 		if (s_drawSinks.Empty() && s_toggleSinks.Empty())
 			return true;
 		if (!IsInstalled(s_installState.load(std::memory_order_acquire)))
 		{
-			REX::ERROR("Platform Imgui: sinks were registered but swapchain discovery was not installed"sv);
+			REX::ERROR("[dmui.render.reconciliation] Platform Imgui: sinks were registered but renderer reconciliation was not installed"sv);
 			return false;
 		}
 
-		const ContextLock lock;
-		if (!s_attachment.swapChain)
-		{
-			REX::INFO("Platform Imgui: waiting for a discovered or explicit final swapchain"sv);
-			return true;
-		}
-		if (!SubclassWindow(s_attachment.window))
-			return false;
-
-		REX::INFO("Platform Imgui: active swapchain window subclassed; ImGui will initialize on Present"sv);
+		PollRendererReconciliation();
 		return true;
 	}
 
 	bool PlatformImgui::AttachSwapChain(IDXGISwapChain* a_swapChain) noexcept
 	{
-		return platformImguiDetail::AttachSwapChain(
-			a_swapChain,
-			ImguiPlatform::AttachmentSource::kExplicit);
+		return platformImguiDetail::AttachExplicitSwapChain(a_swapChain);
 	}
 
 	void PlatformImgui::SetDrawingEnabled(bool a_enabled) noexcept
