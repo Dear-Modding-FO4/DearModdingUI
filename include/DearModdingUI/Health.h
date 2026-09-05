@@ -48,7 +48,6 @@ namespace DearModdingUI
 		DMUI_StatusSeverity worstSeverity{ DMUI_STATUS_SEVERITY_INFO };
 		std::string severitySummary;
 		std::string disclosureLabel;
-		bool defaultExpanded{ false };
 		std::vector<HealthDiagnosticRow> rows;
 		size_t droppedReportCount{};
 		std::string droppedReportLabel;

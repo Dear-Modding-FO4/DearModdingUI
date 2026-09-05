@@ -254,13 +254,5 @@
     "replace": "case DMUI_STATUS_SEVERITY_ERROR:\r\n\t\t\t\treturn 3;",
     "check": "Health diagnostic clients sort by worst severity",
     "message": "Health diagnostic clients were not ordered by worst severity"
-  },
-  {
-    "name": "Health diagnostic warnings expand by default",
-    "target": "src/DearModdingUI/Health.cpp",
-    "find": "errors != 0 || warnings != 0;",
-    "replace": "errors != 0 && warnings != 0;",
-    "check": "Health diagnostic expansion defaults follow severity",
-    "message": "Health diagnostic expansion defaults ignored severity"
   }
 ]

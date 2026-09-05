@@ -267,16 +267,12 @@ namespace DearModdingUI
 				continue;
 
 			HealthDiagnosticSection section{
-				diagnostic.client,
-				client->id,
-				client->displayName,
-				DMUI_STATUS_SEVERITY_INFO,
-				{},
-				{},
-				false,
-				{},
-				diagnostic.droppedReportCount,
-				diagnostic.droppedReportCount == 0 ?
+				.client = diagnostic.client,
+				.clientId = client->id,
+				.clientDisplayName = client->displayName,
+				.worstSeverity = DMUI_STATUS_SEVERITY_INFO,
+				.droppedReportCount = diagnostic.droppedReportCount,
+				.droppedReportLabel = diagnostic.droppedReportCount == 0 ?
 					std::string{} :
 					DroppedReportLabel(
 						diagnostic.droppedReportCount)
@@ -335,8 +331,6 @@ namespace DearModdingUI
 				section.disclosureLabel.append(
 					section.severitySummary);
 			}
-			section.defaultExpanded =
-				errors != 0 || warnings != 0;
 			std::ranges::sort(
 				section.rows,
 				[](const HealthDiagnosticRow& a_left,

@@ -1942,67 +1942,6 @@ namespace vmm_tests
 				"Health diagnostic clients were not ordered by worst severity");
 		});
 
-		runner.test("Health diagnostic expansion defaults follow severity", [] {
-			const std::vector<RegisteredClient> clients{
-				{ .handle = 1, .id = "error", .displayName = "Error" },
-				{ .handle = 2, .id = "warning", .displayName = "Warning" },
-				{ .handle = 3, .id = "info", .displayName = "Info" }
-			};
-			const std::array diagnostics{
-				ClientDiagnosticSnapshot{
-					1,
-					{ ClientDiagnosticRecord{
-						1,
-						DMUI_STATUS_SEVERITY_ERROR,
-						{},
-						"Error",
-						{},
-						1 } }
-				},
-				ClientDiagnosticSnapshot{
-					2,
-					{ ClientDiagnosticRecord{
-						2,
-						DMUI_STATUS_SEVERITY_WARNING,
-						{},
-						"Warning",
-						{},
-						1 } }
-				},
-				ClientDiagnosticSnapshot{
-					3,
-					{ ClientDiagnosticRecord{
-						3,
-						DMUI_STATUS_SEVERITY_INFO,
-						{},
-						"Info",
-						{},
-						1 } }
-				}
-			};
-
-			const auto sections =
-				BuildHealthDiagnosticSections(clients, diagnostics);
-			const auto error = std::ranges::find(
-				sections,
-				DMUI_ClientHandle{ 1 },
-				&HealthDiagnosticSection::client);
-			const auto warning = std::ranges::find(
-				sections,
-				DMUI_ClientHandle{ 2 },
-				&HealthDiagnosticSection::client);
-			const auto info = std::ranges::find(
-				sections,
-				DMUI_ClientHandle{ 3 },
-				&HealthDiagnosticSection::client);
-			require(
-				error != sections.end() && error->defaultExpanded &&
-					warning != sections.end() &&
-					warning->defaultExpanded &&
-					info != sections.end() &&
-					!info->defaultExpanded,
-				"Health diagnostic expansion defaults ignored severity");
-		});
 
 		runner.test("Health diagnostics report includes support context", [] {
 			const std::vector<RegisteredClient> clients{

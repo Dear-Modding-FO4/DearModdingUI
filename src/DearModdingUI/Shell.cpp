@@ -2473,6 +2473,82 @@ namespace DearModdingUI
 			}
 
 			ImGui::Spacing();
+			const auto sections = BuildHealthClientSections(clients);
+			for (size_t sectionIndex = 0;
+				sectionIndex < sections.size();
+				++sectionIndex)
+			{
+				const auto& section = sections[sectionIndex];
+				if (sectionIndex != 0)
+					ImGui::Spacing();
+				DrawSectionHeader(section.heading.c_str(), section.glyph);
+				if (section.clients.empty())
+				{
+					DrawBulletText("No client mods registered this session.");
+					continue;
+				}
+
+				const auto scopeTableId = sections.size() > 1;
+				if (scopeTableId)
+					ImGui::PushID(static_cast<int>(sectionIndex));
+				const auto table = SettingsTable::Begin(
+					DMUI_INVALID_CLIENT_HANDLE,
+					"##DearModdingUI.HostHealthClients");
+				if (table.result != DMUI_RESULT_OK || !table.visible)
+				{
+					if (scopeTableId)
+						ImGui::PopID();
+					continue;
+				}
+				for (const auto* client : section.clients)
+				{
+					const auto pageCount = std::ranges::count(
+						pages,
+						client->handle,
+						&RegisteredPage::client);
+					const auto actionCount = std::ranges::count(
+						actions,
+						client->handle,
+						&RegisteredAction::client);
+					char description[256]{};
+					std::snprintf(
+						description,
+						sizeof(description),
+						"%s | %td pages | %td actions",
+						client->id.c_str(),
+						pageCount,
+						actionCount);
+					char version[64]{};
+					std::snprintf(
+						version,
+						sizeof(version),
+						"Version %u.%u",
+						client->version >> 16,
+						client->version & 0xFFFFu);
+					const auto* status =
+						FindClientStatus(statuses, client->handle);
+					const auto severity = ClientStatusSeverity(*client, status);
+					std::string rowId{ "Client/" };
+					rowId.append(client->id);
+					DrawHostDetailRow(
+						rowId.c_str(),
+						client->displayName.c_str(),
+						description,
+						[&]() noexcept {
+							ImGui::TextUnformatted(version);
+							ImGui::SameLine();
+							ImGui::TextColored(
+								StatusTextColor(severity),
+								"Status: %s",
+								ClientStatusLabel(*client, status));
+						});
+				}
+				(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
+				if (scopeTableId)
+					ImGui::PopID();
+			}
+
+			ImGui::Spacing();
 			DrawSectionHeader(
 				"Reported problems",
 				FindPhosphorIconGlyphOrZero("warning-circle"));
@@ -2495,7 +2571,7 @@ namespace DearModdingUI
 					{
 						auto expanded = expansion.try_emplace(
 							section.clientId,
-							section.defaultExpanded).first;
+							false).first;
 						const Theme::FontGuard font{
 							Theme::FontRole::kBody
 						};
@@ -2570,82 +2646,6 @@ namespace DearModdingUI
 					ImGui::Spacing();
 				}
 				ImGui::Unindent();
-			}
-
-			ImGui::Spacing();
-			const auto sections = BuildHealthClientSections(clients);
-			for (size_t sectionIndex = 0;
-				sectionIndex < sections.size();
-				++sectionIndex)
-			{
-				const auto& section = sections[sectionIndex];
-				if (sectionIndex != 0)
-					ImGui::Spacing();
-				DrawSectionHeader(section.heading.c_str(), section.glyph);
-				if (section.clients.empty())
-				{
-					DrawBulletText("No client mods registered this session.");
-					return;
-				}
-
-				const auto scopeTableId = sections.size() > 1;
-				if (scopeTableId)
-					ImGui::PushID(static_cast<int>(sectionIndex));
-				const auto table = SettingsTable::Begin(
-					DMUI_INVALID_CLIENT_HANDLE,
-					"##DearModdingUI.HostHealthClients");
-				if (table.result != DMUI_RESULT_OK || !table.visible)
-				{
-					if (scopeTableId)
-						ImGui::PopID();
-					return;
-				}
-				for (const auto* client : section.clients)
-				{
-					const auto pageCount = std::ranges::count(
-						pages,
-						client->handle,
-						&RegisteredPage::client);
-					const auto actionCount = std::ranges::count(
-						actions,
-						client->handle,
-						&RegisteredAction::client);
-					char description[256]{};
-					std::snprintf(
-						description,
-						sizeof(description),
-						"%s | %td pages | %td actions",
-						client->id.c_str(),
-						pageCount,
-						actionCount);
-					char version[64]{};
-					std::snprintf(
-						version,
-						sizeof(version),
-						"Version %u.%u",
-						client->version >> 16,
-						client->version & 0xFFFFu);
-					const auto* status =
-						FindClientStatus(statuses, client->handle);
-					const auto severity = ClientStatusSeverity(*client, status);
-					std::string rowId{ "Client/" };
-					rowId.append(client->id);
-					DrawHostDetailRow(
-						rowId.c_str(),
-						client->displayName.c_str(),
-						description,
-						[&]() noexcept {
-							ImGui::TextUnformatted(version);
-							ImGui::SameLine();
-							ImGui::TextColored(
-								StatusTextColor(severity),
-								"Status: %s",
-								ClientStatusLabel(*client, status));
-						});
-				}
-				(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
-				if (scopeTableId)
-					ImGui::PopID();
 			}
 		}
 
