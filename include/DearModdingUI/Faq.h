@@ -2,8 +2,22 @@
 
 #include <DearModdingUI/API.h>
 
+#include <cstddef>
+#include <string>
+#include <string_view>
+
 namespace DearModdingUI
 {
+	[[nodiscard]] inline std::string BuildFaqExpansionKey(
+		std::string_view a_id,
+		size_t a_index)
+	{
+		std::string key{ a_id };
+		key.push_back('\x1F');
+		key.append(std::to_string(a_index));
+		return key;
+	}
+
 	[[nodiscard]] inline DMUI_Result DMUI_CALL ValidateFaqArguments(
 		DMUI_ClientHandle,
 		const char* a_id,

@@ -28,7 +28,7 @@ namespace DearModdingUI
 	{
 		DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
 		std::vector<ClientDiagnosticRecord> records;
-		size_t droppedDistinctCount{};
+		size_t droppedReportCount{};
 	};
 
 	[[nodiscard]] inline DMUI_Result DMUI_CALL ValidateDiagnosticArguments(

@@ -106,7 +106,7 @@ provides `dmui::FontGuard` and converts `DMUI_Vec4` to `ImVec4` with `dmui::ToIm
 calls into the same helpers used by the host. Link rows evenly divide the available width and copy
 enabled URLs to the clipboard without launching a browser; disabled links remain hoverable so their
 note or URL can explain the state. FAQ rows use host-owned disclosure state keyed by the widget ID
-and question. The sizing calls return live host font and style measurements through `float` output
+and entry index. The sizing calls return live host font and style measurements through `float` output
 parameters. Search buffers must have a nonzero capacity and contain a NUL terminator within that
 capacity. A successful call always leaves the buffer NUL-terminated, truncates edited output to
 `capacity - 1`, and reports whether the text changed through the fixed-width output flag. The C++
@@ -251,8 +251,8 @@ one-line summary, and optional detail. The host copies all strings before return
 
 `reportDiagnostic` may be called from any thread. Matching client, severity, scope, and summary values
 aggregate into one retained record with an occurrence count; the first detail is preserved. Retention
-is bounded per client, and the Health page and copied diagnostics report disclose how many additional
-distinct records could not be retained.
+is bounded per client, and the Health page and copied diagnostics report disclose how many further
+reports could not be retained.
 
 ```cpp
 if (api->structSize >= DMUI_HOST_API_SET_STATUS_SIZE && api->setStatus)

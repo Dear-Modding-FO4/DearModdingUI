@@ -1,5 +1,6 @@
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/BackgroundBlur.h>
+#include <DearModdingUI/Faq.h>
 #include <DearModdingUI/Health.h>
 #include <DearModdingUI/Host.h>
 #include <DearModdingUI/HostSettings.h>
@@ -2550,7 +2551,7 @@ namespace DearModdingUI
 								DMUI_INVALID_CLIENT_HANDLE);
 						}
 					}
-					if (!section.droppedLabel.empty())
+					if (!section.droppedReportLabel.empty())
 					{
 						const Theme::FontGuard font{
 							Theme::FontRole::kSubtext
@@ -2561,7 +2562,7 @@ namespace DearModdingUI
 								ImGuiCol_TextDisabled));
 						ImGui::TextWrapped(
 							"%s",
-							section.droppedLabel.c_str());
+							section.droppedReportLabel.c_str());
 						ImGui::PopStyleColor();
 					}
 					ImGui::PopID();
@@ -3432,16 +3433,17 @@ namespace DearModdingUI
 		const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
 		ImGui::PushID(a_id);
 		ImGui::Indent();
-		for (const auto& entry : a_entries)
+		for (size_t index = 0; index < a_entries.size(); ++index)
 		{
-			std::string key{ a_id };
-			key.push_back('\x1F');
-			key.append(entry.question);
-			auto expanded = expansion.try_emplace(std::move(key), false).first;
+			const auto& entry = a_entries[index];
+			auto expanded = expansion.try_emplace(
+				BuildFaqExpansionKey(a_id, index),
+				false).first;
+			ImGui::PushID(static_cast<int>(index));
 			{
 				const Theme::FontGuard font{ Theme::FontRole::kBody };
 				(void)DrawSelectableRow({
-					.id = entry.question.data(),
+					.id = "##DearModdingUI.FaqEntry",
 					.label = entry.question.data(),
 					.leadingAffordance = RowLeadingAffordance::kArrow,
 					.expanded = &expanded->second,
@@ -3452,7 +3454,10 @@ namespace DearModdingUI
 				});
 			}
 			if (!expanded->second)
+			{
+				ImGui::PopID();
 				continue;
+			}
 
 			const Theme::FontGuard font{ Theme::FontRole::kSubtext };
 			ImGui::Indent();
@@ -3462,6 +3467,7 @@ namespace DearModdingUI
 				entry.answer.data());
 			ImGui::Unindent();
 			ImGui::Spacing();
+			ImGui::PopID();
 		}
 		ImGui::Unindent();
 		ImGui::PopID();

@@ -34,6 +34,7 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -1819,13 +1820,24 @@ namespace vmm_tests
 			require(
 				store.Report(9, repeated) == DMUI_RESULT_OK,
 				"an existing diagnostic stopped incrementing at the cap");
+			const DMUI_DiagnosticDescriptor repeatedDropped{
+				DMUI_DIAGNOSTIC_DESCRIPTOR_0_1_SIZE,
+				DMUI_STATUS_SEVERITY_WARNING,
+				"General",
+				summaries[kDiagnosticRecordLimitPerClient].c_str(),
+				nullptr
+			};
+			require(
+				store.Report(9, repeatedDropped) == DMUI_RESULT_OK &&
+					store.Report(9, repeatedDropped) == DMUI_RESULT_OK,
+				"a dropped diagnostic report was rejected");
 
 			const auto snapshot = store.Snapshot(9);
 			require(
 				snapshot &&
 					snapshot->records.size() ==
 						kDiagnosticRecordLimitPerClient &&
-					snapshot->droppedDistinctCount == 2 &&
+					snapshot->droppedReportCount == 4 &&
 					snapshot->records.front().occurrenceCount == 2,
 				"bounded diagnostic retention lost counts or admitted overflow");
 		});
@@ -2048,7 +2060,8 @@ namespace vmm_tests
 						std::string::npos &&
 					report.find("Value could not be loaded. (x3)") !=
 						std::string::npos &&
-					report.find("2 additional distinct diagnostics") !=
+					report.find(
+						"2 further diagnostic reports were not retained.") !=
 						std::string::npos,
 				"the copied Health report omitted required support context");
 		});
@@ -2110,6 +2123,29 @@ namespace vmm_tests
 			require(
 				f11Faq.front().answer.find("F11") != std::string::npos,
 				"Home FAQ hardcoded a different toggle key");
+		});
+
+		runner.test("FAQ expansion identity ignores question text", [] {
+			std::map<std::string, bool> expansion;
+			const std::array questions{
+				"How do I open the menu?",
+				"How do I open the menu? (1)",
+				"How do I open the menu? (2)"
+			};
+			for (const std::string_view question : questions)
+			{
+				expansion.try_emplace(
+					BuildFaqExpansionKey("faq", 0),
+					question.empty());
+			}
+			expansion.try_emplace(
+				BuildFaqExpansionKey("faq", 1),
+				false);
+			require(
+				expansion.size() == 2 &&
+					expansion.contains(BuildFaqExpansionKey("faq", 0)) &&
+					expansion.contains(BuildFaqExpansionKey("faq", 1)),
+				"volatile FAQ text changed expansion identity");
 		});
 
 		runner.test("Home quick links preserve enabled-link invariants", [] {

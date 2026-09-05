@@ -50,8 +50,8 @@ namespace DearModdingUI
 		std::string disclosureLabel;
 		bool defaultExpanded{ false };
 		std::vector<HealthDiagnosticRow> rows;
-		size_t droppedDistinctCount{};
-		std::string droppedLabel;
+		size_t droppedReportCount{};
+		std::string droppedReportLabel;
 	};
 
 	[[nodiscard]] std::vector<HealthClientSection> BuildHealthClientSections(

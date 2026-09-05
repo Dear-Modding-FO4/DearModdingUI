@@ -216,12 +216,20 @@
     "message": "diagnostic aggregation or first-detail retention changed"
   },
   {
-    "name": "client diagnostics count dropped identities",
+    "name": "client diagnostics count dropped reports",
     "target": "src/DearModdingUI/Diagnostics.cpp",
-    "find": "++client->droppedDistinctCount;",
-    "replace": "client->droppedDistinctCount += 0;",
+    "find": "++client->droppedReportCount;",
+    "replace": "client->droppedReportCount += 0;",
     "check": "client diagnostic retention stays bounded",
     "message": "bounded diagnostic retention lost counts or admitted overflow"
+  },
+  {
+    "name": "FAQ expansion identity follows entry position",
+    "target": "include/DearModdingUI/Faq.h",
+    "find": "key.append(std::to_string(a_index));",
+    "replace": "key.append(\"entry\");",
+    "check": "FAQ expansion identity ignores question text",
+    "message": "volatile FAQ text changed expansion identity"
   },
   {
     "name": "Health diagnostics report includes occurrence counts",

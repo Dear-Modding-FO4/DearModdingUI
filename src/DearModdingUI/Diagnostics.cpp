@@ -48,9 +48,9 @@ namespace DearModdingUI
 			}
 			if (client->records.size() >= kDiagnosticRecordLimitPerClient)
 			{
-				if (client->droppedDistinctCount <
+				if (client->droppedReportCount <
 					(std::numeric_limits<size_t>::max)())
-					++client->droppedDistinctCount;
+					++client->droppedReportCount;
 				return DMUI_RESULT_OK;
 			}
 

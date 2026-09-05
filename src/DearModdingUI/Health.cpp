@@ -120,12 +120,13 @@ namespace DearModdingUI
 				std::to_address(client);
 		}
 
-		[[nodiscard]] std::string DroppedDiagnosticLabel(size_t a_count)
+		[[nodiscard]] std::string DroppedReportLabel(size_t a_count)
 		{
 			return std::format(
-				"{} additional distinct diagnostic{} could not be retained.",
+				"{} further diagnostic report{} {} not retained.",
 				a_count,
-				a_count == 1 ? "" : "s");
+				a_count == 1 ? "" : "s",
+				a_count == 1 ? "was" : "were");
 		}
 
 		[[nodiscard]] std::string DiagnosticDescription(
@@ -259,7 +260,7 @@ namespace DearModdingUI
 		for (const auto& diagnostic : a_diagnostics)
 		{
 			if (diagnostic.records.empty() &&
-				diagnostic.droppedDistinctCount == 0)
+				diagnostic.droppedReportCount == 0)
 				continue;
 			const auto* client = FindClient(a_clients, diagnostic.client);
 			if (!client)
@@ -274,11 +275,11 @@ namespace DearModdingUI
 				{},
 				false,
 				{},
-				diagnostic.droppedDistinctCount,
-				diagnostic.droppedDistinctCount == 0 ?
+				diagnostic.droppedReportCount,
+				diagnostic.droppedReportCount == 0 ?
 					std::string{} :
-					DroppedDiagnosticLabel(
-						diagnostic.droppedDistinctCount)
+					DroppedReportLabel(
+						diagnostic.droppedReportCount)
 			};
 			section.rows.reserve(diagnostic.records.size());
 			uint64_t errors{};
@@ -489,10 +490,10 @@ namespace DearModdingUI
 						report.push_back('\n');
 					}
 				}
-				if (section.droppedDistinctCount != 0)
+				if (section.droppedReportCount != 0)
 				{
 					report.append("- ");
-					report.append(section.droppedLabel);
+					report.append(section.droppedReportLabel);
 					report.push_back('\n');
 				}
 			}
