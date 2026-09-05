@@ -3,6 +3,7 @@
 
 #include <DearModdingUI/Client.h>
 
+#include <array>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -114,6 +115,12 @@ namespace
 		if (videoMemory)
 			(void)videoMemory->budget;
 		(void)client.SetStatus(DMUI_STATUS_SEVERITY_SUCCESS, "ready");
+		(void)client.ReportDiagnostic({
+			DMUI_STATUS_SEVERITY_WARNING,
+			"example",
+			"An example diagnostic.",
+			"Additional context."
+		});
 		const auto colors = client.GetThemeColors();
 		if (colors)
 			(void)dmui::ToImVec4(colors->accent);
@@ -128,6 +135,21 @@ namespace
 			0,
 			expanded,
 			1);
+		const std::array links{
+			dmui::Link{
+				"GitHub",
+				"https://github.com/Dear-Modding-FO4/DearModdingUI",
+				nullptr,
+				U'\0',
+				true }
+		};
+		(void)client.DrawLinkRow("links", links);
+		const std::array faq{
+			dmui::FaqEntry{
+				"How do I open the menu?",
+				"Press the configured key." }
+		};
+		(void)client.DrawFaq("faq", faq);
 		(void)client.DrawSettingsActionButton(
 			"apply",
 			{},

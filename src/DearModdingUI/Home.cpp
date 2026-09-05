@@ -1,57 +1,120 @@
 #include <DearModdingUI/Home.h>
 
-#include <DearModdingUI/IconGlyphs.h>
-#include <DearModdingUI/Registry.h>
-
-#include <algorithm>
-#include <map>
-#include <tuple>
+#include <array>
+#include <cstdio>
 #include <utility>
 
 namespace DearModdingUI
 {
-	std::vector<HomeClientSection> BuildHomeClientSections(
-		const std::vector<RegisteredClient>& a_clients)
+	namespace
 	{
-		std::vector<const RegisteredClient*> sortedClients;
-		sortedClients.reserve(a_clients.size());
-		for (const auto& client : a_clients)
-			sortedClients.push_back(&client);
-		std::ranges::sort(
-			sortedClients,
-			[](const auto* a_left, const auto* a_right) {
-				return std::tie(a_left->displayName, a_left->id) <
-					std::tie(a_right->displayName, a_right->id);
-			});
-
-		HomeClientSection native{
-			"Registered mods",
-			PhosphorGlyph::kPuzzlePiece,
-			{}
+		constexpr std::array<HomeQuickLink, 2> kQuickLinks{
+			HomeQuickLink{
+				"GitHub",
+				"https://github.com/Dear-Modding-FO4/DearModdingUI",
+				{},
+				"github-logo",
+				true },
+			HomeQuickLink{
+				"Nexus Mods",
+				{},
+				"DearModdingUI is not published on Nexus Mods yet.",
+				{},
+				false }
 		};
-		std::map<std::string, std::vector<const RegisteredClient*>> bridged;
-		for (const auto* client : sortedClients)
-		{
-			if (client->origin == DMUI_CLIENT_ORIGIN_NATIVE)
-				native.clients.push_back(client);
-			else
-				bridged[client->bridgeSourceLabel].push_back(client);
-		}
+	}
 
-		std::vector<HomeClientSection> sections;
-		if (!native.clients.empty() || bridged.empty())
-			sections.push_back(std::move(native));
-		const auto bridgeGlyph = FindPhosphorIconGlyphOrZero("share-network");
-		for (auto& [sourceLabel, clients] : bridged)
+	std::string_view HomeAboutText() noexcept
+	{
+		return "DearModdingUI is a shared settings menu for Fallout 4. "
+			"Mods register their own pages in one overlay instead of each "
+			"shipping a separate menu, and mods that were never built for it "
+			"can appear here too.";
+	}
+
+	std::span<const HomeQuickLink> HomeQuickLinks() noexcept
+	{
+		return kQuickLinks;
+	}
+
+	std::vector<HomeFaqEntry> BuildHomeFaq(
+		std::string_view a_toggleKeyName)
+	{
+		std::string toggleAnswer{ "Press " };
+		toggleAnswer.append(a_toggleKeyName);
+		toggleAnswer.append(
+			" to open or close DearModdingUI. You can change this key on "
+			"the Settings page.");
+		return {
+			{
+				"How do I open the menu?",
+				std::move(toggleAnswer)
+			},
+			{
+				"Where are settings stored?",
+				"Host settings are stored in "
+				"Data/F4SE/Plugins/DearModdingUI.toml."
+			},
+			{
+				"Why is a mod page missing or grayed out?",
+				"Open the Health page to see whether the host or that mod "
+				"reported a problem."
+			},
+			{
+				"Does this replace a mod's own menu?",
+				"No. Mods register pages and DearModdingUI draws them in the "
+				"shared overlay."
+			}
+		};
+	}
+
+	std::string BuildHomeHealthSummary(
+		std::span<const HealthSnapshot> a_subsystems,
+		size_t a_clientsNeedingAttention)
+	{
+		size_t subsystemsNeedingAttention{};
+		for (const auto& subsystem : a_subsystems)
 		{
-			sections.push_back({
-				sourceLabel.empty() ?
-					"Bridged mods" :
-					sourceLabel + " mods",
-				bridgeGlyph,
-				std::move(clients)
-			});
+			if (subsystem.state != HealthState::kReady)
+				++subsystemsNeedingAttention;
 		}
-		return sections;
+		if (subsystemsNeedingAttention == 0 &&
+			a_clientsNeedingAttention == 0)
+			return "All systems ready";
+
+		char summary[128]{};
+		if (subsystemsNeedingAttention != 0 &&
+			a_clientsNeedingAttention != 0)
+		{
+			std::snprintf(
+				summary,
+				sizeof(summary),
+				"%zu host subsystem%s and %zu mod%s need attention",
+				subsystemsNeedingAttention,
+				subsystemsNeedingAttention == 1 ? "" : "s",
+				a_clientsNeedingAttention,
+				a_clientsNeedingAttention == 1 ? "" : "s");
+		}
+		else if (subsystemsNeedingAttention != 0)
+		{
+			std::snprintf(
+				summary,
+				sizeof(summary),
+				"%zu host subsystem%s need%s attention",
+				subsystemsNeedingAttention,
+				subsystemsNeedingAttention == 1 ? "" : "s",
+				subsystemsNeedingAttention == 1 ? "s" : "");
+		}
+		else
+		{
+			std::snprintf(
+				summary,
+				sizeof(summary),
+				"%zu mod%s need%s attention",
+				a_clientsNeedingAttention,
+				a_clientsNeedingAttention == 1 ? "" : "s",
+				a_clientsNeedingAttention == 1 ? "s" : "");
+		}
+		return summary;
 	}
 }

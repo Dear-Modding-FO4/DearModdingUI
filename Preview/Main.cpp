@@ -64,6 +64,7 @@ namespace DearModdingUIPreview
 			uint32_t frames{ kDefaultFrames };
 			std::optional<std::filesystem::path> screenshot;
 			std::optional<std::string> page;
+			std::optional<HostPageKind> hostPage;
 			std::optional<std::vector<std::string>> expandedMods;
 			std::optional<SidebarLayoutKind> sidebarOverride;
 			bool help{};
@@ -147,6 +148,7 @@ namespace DearModdingUIPreview
 				<< L"  --width <n>              Backbuffer width (default 3840)\n"
 				<< L"  --height <n>             Backbuffer height (default 2160)\n"
 				<< L"  --page <client-id/page-id>  Open a registered settings page\n"
+				<< L"  --host-page <home|health|settings>  Open a host page\n"
 				<< L"  --sidebar <tree|twopane|drilldown|iconrail>  Select the sidebar layout\n"
 				<< L"  --expand <client-id>      Expand a tree mod or enter a drill-down mod\n"
 				<< L"  --collapse-all            Collapse the tree or show the drill-down root\n"
@@ -228,6 +230,26 @@ namespace DearModdingUIPreview
 						return false;
 					}
 					a_options.page = *page;
+				}
+				else if (argument == L"--host-page")
+				{
+					const auto page = WideToUtf8(value);
+					if (!page)
+					{
+						a_error = L"Host page selector is not valid UTF-8.";
+						return false;
+					}
+					if (*page == "home")
+						a_options.hostPage = HostPageKind::kHome;
+					else if (*page == "health")
+						a_options.hostPage = HostPageKind::kHealth;
+					else if (*page == "settings")
+						a_options.hostPage = HostPageKind::kSettings;
+					else
+					{
+						a_error = L"Host page must be home, health, or settings.";
+						return false;
+					}
 				}
 				else if (argument == L"--sidebar")
 				{
@@ -929,10 +951,19 @@ namespace DearModdingUIPreview
 
 			[[nodiscard]] bool SelectInitialPage(std::wstring& a_error)
 			{
+				if (m_options.page && m_options.hostPage)
+				{
+					a_error = L"Choose either --page or --host-page.";
+					return false;
+				}
 				if (!m_options.page)
 				{
 					if (SetMenuVisible(true) == DMUI_RESULT_OK)
+					{
+						if (m_options.hostPage)
+							ConfigurePreviewHostPage(*m_options.hostPage);
 						return true;
+					}
 					a_error = L"Could not open the host menu.";
 					return false;
 				}

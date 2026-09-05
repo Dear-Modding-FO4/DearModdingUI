@@ -59,7 +59,7 @@ namespace DearModdingUI
 			}
 		};
 		HostSettingsDraftState g_settingsDraft;
-		uint64_t g_observedPanelRevision{ 0 };
+		uint64_t g_observedPageRevision{ 0 };
 
 		[[nodiscard]] float ControlWidth() noexcept
 		{
@@ -122,22 +122,22 @@ namespace DearModdingUI
 		{
 			HostSettings::SetPreview(
 				PreviewHostInterfaceSettings(g_settingsDraft.draft),
-				g_observedPanelRevision);
+				g_observedPageRevision);
 			Theme::ApplyStyle();
 		}
 
 		void EnsureDraft() noexcept
 		{
-			const auto revision = HostSettings::PanelRevision();
+			const auto revision = HostSettings::PageRevision();
 			if (g_settingsDraft.active &&
-				g_observedPanelRevision == revision)
+				g_observedPageRevision == revision)
 				return;
 
 			if (g_settingsDraft.active)
 				LeaveHostSettingsDraft(g_settingsDraft);
 			g_settingsDraft = BeginHostSettingsDraft(
 				HostSettings::Current());
-			g_observedPanelRevision = revision;
+			g_observedPageRevision = revision;
 			PreviewDraft();
 		}
 

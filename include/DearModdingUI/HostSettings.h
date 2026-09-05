@@ -308,30 +308,6 @@ namespace DearModdingUI
 		};
 	}
 
-	enum class HostSettingsPanelEvent : uint32_t
-	{
-		kNone,
-		kToggleRequested,
-		kDismissed,
-		kModSelected,
-		kMenuClosed
-	};
-
-	[[nodiscard]] constexpr bool DecideHostSettingsPanelOpen(
-		bool a_open,
-		bool a_menuVisible,
-		HostSettingsPanelEvent a_event) noexcept
-	{
-		if (!a_menuVisible ||
-			a_event == HostSettingsPanelEvent::kDismissed ||
-			a_event == HostSettingsPanelEvent::kModSelected ||
-			a_event == HostSettingsPanelEvent::kMenuClosed)
-			return false;
-		if (a_event == HostSettingsPanelEvent::kToggleRequested)
-			return !a_open;
-		return a_open;
-	}
-
 	[[nodiscard]] constexpr float ResolveTitleBarButtonPadding(
 		float a_framePaddingY) noexcept
 	{
@@ -406,13 +382,10 @@ namespace DearModdingUI
 		[[nodiscard]] bool SetSidebarLayout(SidebarLayoutKind a_layout) noexcept;
 		void SetPreview(
 			HostInterfacePreviewSettings a_settings,
-			uint64_t a_panelRevision) noexcept;
+			uint64_t a_pageRevision) noexcept;
 		void NotifyMenuVisible(bool a_visible) noexcept;
-		void TogglePanel(bool a_menuVisible) noexcept;
-		void NotifyModSelected() noexcept;
-		void DismissPanel() noexcept;
-		[[nodiscard]] bool IsPanelOpen() noexcept;
-		[[nodiscard]] uint64_t PanelRevision() noexcept;
+		void SetPageActive(bool a_active) noexcept;
+		[[nodiscard]] uint64_t PageRevision() noexcept;
 		[[nodiscard]] uint32_t MenuToggleVirtualKey() noexcept;
 		[[nodiscard]] bool SetHotkeyOverride(
 			std::string_view a_id,

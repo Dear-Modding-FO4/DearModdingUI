@@ -26,8 +26,8 @@ namespace DearModdingUI::HostSettings
 
 	namespace
 	{
-		std::atomic<bool> s_panelOpen{ false };
-		std::atomic<uint64_t> s_panelRevision{ 0 };
+		std::atomic<bool> s_pageActive{ false };
+		std::atomic<uint64_t> s_pageRevision{ 0 };
 		std::mutex s_previewMutex;
 		std::optional<HostInterfacePreviewSettings> s_preview;
 		std::once_flag s_loadOnce;
@@ -205,22 +205,16 @@ namespace DearModdingUI::HostSettings
 			}
 		}
 
-		void StorePanelEvent(
-			bool a_menuVisible,
-			HostSettingsPanelEvent a_event) noexcept
+		void StorePageActive(bool a_active) noexcept
 		{
-			const auto current = s_panelOpen.load(std::memory_order_acquire);
-			const auto next = DecideHostSettingsPanelOpen(
-				current,
-				a_menuVisible,
-				a_event);
+			const auto current = s_pageActive.load(std::memory_order_acquire);
 			const std::scoped_lock lock{ s_previewMutex };
-			if (current && !next)
+			if (current && !a_active)
 			{
 				s_preview.reset();
-				s_panelRevision.fetch_add(1, std::memory_order_release);
+				s_pageRevision.fetch_add(1, std::memory_order_release);
 			}
-			s_panelOpen.store(next, std::memory_order_release);
+			s_pageActive.store(a_active, std::memory_order_release);
 		}
 	}
 
@@ -320,50 +314,30 @@ namespace DearModdingUI::HostSettings
 
 	void SetPreview(
 		HostInterfacePreviewSettings a_settings,
-		uint64_t a_panelRevision) noexcept
+		uint64_t a_pageRevision) noexcept
 	{
 		const std::scoped_lock lock{ s_previewMutex };
-		if (!s_panelOpen.load(std::memory_order_acquire) ||
-			s_panelRevision.load(std::memory_order_acquire) !=
-				a_panelRevision)
+		if (!s_pageActive.load(std::memory_order_acquire) ||
+			s_pageRevision.load(std::memory_order_acquire) !=
+				a_pageRevision)
 			return;
 		s_preview = a_settings;
 	}
 
 	void NotifyMenuVisible(bool a_visible) noexcept
 	{
-		StorePanelEvent(
-			a_visible,
-			a_visible ?
-				HostSettingsPanelEvent::kNone :
-				HostSettingsPanelEvent::kMenuClosed);
+		if (!a_visible)
+			StorePageActive(false);
 	}
 
-	void TogglePanel(bool a_menuVisible) noexcept
+	void SetPageActive(bool a_active) noexcept
 	{
-		StorePanelEvent(
-			a_menuVisible,
-			HostSettingsPanelEvent::kToggleRequested);
+		StorePageActive(a_active);
 	}
 
-	void NotifyModSelected() noexcept
+	uint64_t PageRevision() noexcept
 	{
-		StorePanelEvent(true, HostSettingsPanelEvent::kModSelected);
-	}
-
-	void DismissPanel() noexcept
-	{
-		StorePanelEvent(true, HostSettingsPanelEvent::kDismissed);
-	}
-
-	bool IsPanelOpen() noexcept
-	{
-		return s_panelOpen.load(std::memory_order_acquire);
-	}
-
-	uint64_t PanelRevision() noexcept
-	{
-		return s_panelRevision.load(std::memory_order_acquire);
+		return s_pageRevision.load(std::memory_order_acquire);
 	}
 
 	uint32_t MenuToggleVirtualKey() noexcept

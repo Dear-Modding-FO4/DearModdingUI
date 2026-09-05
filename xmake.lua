@@ -117,7 +117,9 @@ target("dmui-tests", function()
     add_deps("imgui", "dmui-mcm")
     add_files(
         "Tests/**.cpp",
+        "src/DearModdingUI/Diagnostics.cpp",
         "src/DearModdingUI/FontCatalog.cpp",
+        "src/DearModdingUI/Health.cpp",
         "src/DearModdingUI/Home.cpp",
         "src/DearModdingUI/Hotkeys.cpp",
         "src/DearModdingUI/Navigation.cpp",
@@ -165,7 +167,9 @@ target("dmui-preview", function()
         "Preview/PlatformImguiStub.cpp",
         "src/DearModdingUI/BackgroundBlur.cpp",
         "src/DearModdingUI/CursorLoader.cpp",
+        "src/DearModdingUI/Diagnostics.cpp",
         "src/DearModdingUI/FontCatalog.cpp",
+        "src/DearModdingUI/Health.cpp",
         "src/DearModdingUI/Home.cpp",
         "src/DearModdingUI/Host.cpp",
         "src/DearModdingUI/HostSettings.cpp",

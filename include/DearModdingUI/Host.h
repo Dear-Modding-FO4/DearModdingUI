@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/API.h>
+#include <DearModdingUI/Diagnostics.h>
 #include <DearModdingUI/Registry.h>
 #include <DearModdingUI/Status.h>
 
@@ -44,5 +45,7 @@ namespace DearModdingUI
 		std::string_view a_message) noexcept;
 	[[nodiscard]] std::optional<StatusMessage> CurrentStatus() noexcept;
 	[[nodiscard]] std::vector<ClientStatus> CurrentClientStatuses() noexcept;
+	[[nodiscard]] std::vector<ClientDiagnosticSnapshot>
+		CurrentClientDiagnostics() noexcept;
 	[[nodiscard]] bool DismissStatus(uint64_t a_generation) noexcept;
 }

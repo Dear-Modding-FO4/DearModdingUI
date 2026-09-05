@@ -1,8 +1,11 @@
 #define DMUI_HOST_EXPORTS
+#include <DearModdingUI/Diagnostics.h>
 #include <DearModdingUI/Host.h>
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/Hotkeys.h>
 #include <DearModdingUI/ImGuiRecovery.h>
+#include <DearModdingUI/Faq.h>
+#include <DearModdingUI/LinkRow.h>
 #include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
@@ -58,6 +61,7 @@ namespace DearModdingUI
 			std::atomic<DMUI_PageHandle> activePage{ DMUI_INVALID_PAGE_HANDLE };
 			AllocatorState allocator;
 			StatusModel status;
+			DiagnosticStore diagnostics;
 		};
 
 		struct ClientFontPush
@@ -472,6 +476,22 @@ namespace DearModdingUI
 				a_message);
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiReportDiagnosticCpp(
+			DMUI_ClientHandle a_client,
+			const DMUI_DiagnosticDescriptor* a_diagnostic) noexcept
+		{
+			const auto validation =
+				ValidateDiagnosticArguments(a_client, a_diagnostic);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+
+			auto& service = GetService();
+			const auto clientResult = service.registry.ValidateClient(a_client);
+			if (clientResult != DMUI_RESULT_OK)
+				return clientResult;
+			return service.diagnostics.Report(a_client, *a_diagnostic);
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiGetThemeColorsCpp(
 			DMUI_ClientHandle a_client,
 			DMUI_ThemeColors* a_colors) noexcept
@@ -654,6 +674,86 @@ namespace DearModdingUI
 				a_count);
 			*a_expanded = expanded ? 1u : 0u;
 			return DMUI_RESULT_OK;
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawLinkRowCpp(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			const DMUI_LinkDescriptor* a_links,
+			size_t a_count) noexcept
+		{
+			const auto arguments =
+				ValidateLinkRowArguments(a_client, a_id, a_links, a_count);
+			if (arguments != DMUI_RESULT_OK || a_count == 0)
+				return arguments;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+
+			try
+			{
+				std::vector<LinkRowEntry> links;
+				links.reserve(a_count);
+				for (size_t index = 0; index < a_count; ++index)
+				{
+					const auto& link = a_links[index];
+					links.push_back({
+						link.label,
+						link.url ? link.url : "",
+						link.note ? link.note : "",
+						static_cast<char32_t>(link.glyph),
+						link.enabled != 0
+					});
+				}
+				DrawLinkRow(a_id, links);
+				return DMUI_RESULT_OK;
+			}
+			catch (const std::bad_alloc&)
+			{
+				return DMUI_RESULT_RESOURCE_EXHAUSTED;
+			}
+			catch (...)
+			{
+				return DMUI_RESULT_CALLBACK_FAILED;
+			}
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawFaqCpp(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			const DMUI_FaqEntry* a_entries,
+			size_t a_count) noexcept
+		{
+			const auto arguments =
+				ValidateFaqArguments(a_client, a_id, a_entries, a_count);
+			if (arguments != DMUI_RESULT_OK || a_count == 0)
+				return arguments;
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+
+			try
+			{
+				std::vector<FaqRowEntry> entries;
+				entries.reserve(a_count);
+				for (size_t index = 0; index < a_count; ++index)
+				{
+					entries.push_back({
+						a_entries[index].question,
+						a_entries[index].answer
+					});
+				}
+				DrawFaq(a_id, entries);
+				return DMUI_RESULT_OK;
+			}
+			catch (const std::bad_alloc&)
+			{
+				return DMUI_RESULT_RESOURCE_EXHAUSTED;
+			}
+			catch (...)
+			{
+				return DMUI_RESULT_CALLBACK_FAILED;
+			}
 		}
 
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSettingsActionButtonCpp(
@@ -980,6 +1080,15 @@ namespace DearModdingUI
 			});
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiReportDiagnostic(
+			DMUI_ClientHandle a_client,
+			const DMUI_DiagnosticDescriptor* a_diagnostic) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiReportDiagnosticCpp(a_client, a_diagnostic);
+			});
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiGetThemeColors(
 			DMUI_ClientHandle a_client,
 			DMUI_ThemeColors* a_colors) noexcept
@@ -1059,6 +1168,36 @@ namespace DearModdingUI
 					a_text,
 					a_glyph,
 					a_expanded,
+					a_count);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawLinkRow(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			const DMUI_LinkDescriptor* a_links,
+			size_t a_count) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiDrawLinkRowCpp(
+					a_client,
+					a_id,
+					a_links,
+					a_count);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawFaq(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			const DMUI_FaqEntry* a_entries,
+			size_t a_count) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiDrawFaqCpp(
+					a_client,
+					a_id,
+					a_entries,
 					a_count);
 			});
 		}
@@ -1379,7 +1518,10 @@ namespace DearModdingUI
 			&ApiEndSettingsRow,
 			&ApiEndSettingsTable,
 			&ApiBeginSettingsRowEx,
-			&ApiRegisterPageActivityObserver
+			&ApiRegisterPageActivityObserver,
+			&ApiDrawLinkRow,
+			&ApiDrawFaq,
+			&ApiReportDiagnostic
 		};
 		return api;
 	}
@@ -1691,6 +1833,11 @@ namespace DearModdingUI
 	std::vector<ClientStatus> CurrentClientStatuses() noexcept
 	{
 		return GetService().status.SnapshotClientStatuses();
+	}
+
+	std::vector<ClientDiagnosticSnapshot> CurrentClientDiagnostics() noexcept
+	{
+		return GetService().diagnostics.Snapshots();
 	}
 
 	bool DismissStatus(uint64_t a_generation) noexcept

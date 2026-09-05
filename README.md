@@ -4,7 +4,7 @@ DearModdingUI is a standalone F4SE plugin that hosts one shared Dear ImGui menu 
 
 The host owns the ImGui context, D3D11 and Win32 backends, common shell, navigation, fonts, theme, cursor, background blur, menu toggle key, and host appearance settings. Window layout is stored in `Data/F4SE/Plugins/DearModdingUI/imgui.ini`; host settings are stored in `Data/F4SE/Plugins/DearModdingUI.toml`. The `tree`, `twopane`, or `drilldown` sidebar selected by `[Additional] sMenuSidebarLayout` saves immediately, while cosmetic changes remain previews until Apply.
 
-The host-owned Home page is the landing page for each game launch and summarizes the live client registry. Closing and reopening the menu within that launch returns to the last selected host or client page; active-page selection is not persisted across launches.
+The host-owned Home page is the landing page for each game launch and gives a concise host identity, registration counts, and overall live-health summary. The peer Health page owns detailed host subsystem observations and the full client registry with per-mod status. Settings is the third host page, and the footer gear navigates to that same authoritative settings surface. Closing and reopening the menu within that launch returns to the last selected host or client page; active-page selection is not persisted across launches.
 
 ## Client registration
 

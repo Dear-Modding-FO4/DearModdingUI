@@ -160,7 +160,8 @@ namespace Addictol
 		static RendererHealthReporter s_rendererHealthReporter;
 		static DearModdingUI::SubsystemHealth s_rendererHealth{
 			"dmui.render.reconciliation",
-			s_rendererHealthReporter
+			s_rendererHealthReporter,
+			DearModdingUI::HostSubsystemHealthRegistry()
 		};
 		static Attachment s_attachment{};
 		static AttachmentLifecycle s_attachmentLifecycle{ AttachmentLifecycle::kVacant };

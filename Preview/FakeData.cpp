@@ -665,6 +665,29 @@ namespace DearModdingUIPreview
 				a_error = "Could not register the MCM preview fixture.";
 				return false;
 			}
+			for (size_t index = 0; index < 17; ++index)
+			{
+				if (!mcmClient->ReportDiagnostic({
+						DMUI_STATUS_SEVERITY_WARNING,
+						"preview-mcm-config.json",
+						"Expected a boolean value.",
+						"Several html fields contain string values."
+					}))
+				{
+					a_error = "Could not register repeated fake diagnostics.";
+					return false;
+				}
+			}
+			if (!mcmClient->ReportDiagnostic({
+					DMUI_STATUS_SEVERITY_ERROR,
+					"General",
+					"ModSetting source requires a setting id.",
+					"The affected control cannot read or write its value."
+				}))
+			{
+				a_error = "Could not register the fake diagnostic error.";
+				return false;
+			}
 			for (auto& mcmPage : mcm.pages)
 			{
 				DearModdingUI::MCM::BindPage(
@@ -699,6 +722,22 @@ namespace DearModdingUIPreview
 				a_error);
 			if (!addictol || !AddPages(*addictol, addictolPages, a_error))
 				return false;
+			if (!addictol->ReportDiagnostic({
+					DMUI_STATUS_SEVERITY_INFO,
+					"Addictol.toml",
+					"Configuration loaded successfully.",
+					"All declared runtime fixes were recognized."
+				}) ||
+				!addictol->ReportDiagnostic({
+					DMUI_STATUS_SEVERITY_INFO,
+					"Addictol.toml",
+					"No compatibility overrides are active.",
+					nullptr
+				}))
+			{
+				a_error = "Could not register info-only fake diagnostics.";
+				return false;
+			}
 			if (!addictol->AddSettingsPage(
 					{
 						.id = "settings",
@@ -759,6 +798,7 @@ namespace DearModdingUIPreview
 			}
 
 			dmui::Client* buffout{};
+			dmui::Client* fallui{};
 			for (const auto& clientSpec : additionalClients)
 			{
 				auto* client = m_impl->AddClient(
@@ -775,6 +815,136 @@ namespace DearModdingUIPreview
 					return false;
 				if (std::string_view{ clientSpec.id } == "buffout4")
 					buffout = client;
+				else if (std::string_view{ clientSpec.id } == "fallui")
+					fallui = client;
+			}
+
+			static constexpr std::array falluiDiagnostics{
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					"FallUI/config.json",
+					"An HTML field is not boolean.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					nullptr,
+					"Unsupported control type.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					nullptr,
+					"Value source unresolved.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					"Sorting",
+					"Setting is not declared.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					nullptr,
+					"Action target unavailable.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					"FallUI/keybinds.json",
+					"Invalid keybind definition.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					"FallUI/user-keybinds.json",
+					"Saved keybind could not be parsed.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					nullptr,
+					"Visibility condition could not be evaluated.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					nullptr,
+					"Property unavailable before loading a save.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					nullptr,
+					"Choice default is outside its options.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					nullptr,
+					"Slider step is invalid for its range.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					"FallUI/config.json",
+					"Duplicate control identifier.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					nullptr,
+					"Page has no display name.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					nullptr,
+					"Markup contains an unterminated tag.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					"Actions",
+					"External action plugin is not registered.",
+					nullptr
+				},
+				dmui::Diagnostic{
+					DMUI_STATUS_SEVERITY_WARNING,
+					nullptr,
+					"Image asset cannot be rendered.",
+					nullptr
+				}
+			};
+			if (!fallui)
+			{
+				a_error = "Could not find the FallUI preview client.";
+				return false;
+			}
+			for (const auto& diagnostic : falluiDiagnostics)
+			{
+				if (!fallui->ReportDiagnostic(diagnostic))
+				{
+					a_error = "Could not fill the FallUI diagnostic cap.";
+					return false;
+				}
+			}
+			if (!fallui->ReportDiagnostic({
+					DMUI_STATUS_SEVERITY_WARNING,
+					"Maps",
+					"A map marker texture is missing.",
+					"The marker preview cannot be shown."
+				}) ||
+				!fallui->ReportDiagnostic({
+					DMUI_STATUS_SEVERITY_WARNING,
+					"Favorites",
+					"A favorites-menu action has no target.",
+					"The action remains disabled."
+				}))
+			{
+				a_error = "Could not register FallUI diagnostic overflow.";
+				return false;
 			}
 
 			if (!communityShaders->SetStatus(

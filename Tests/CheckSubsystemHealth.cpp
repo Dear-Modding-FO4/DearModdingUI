@@ -77,5 +77,32 @@ namespace vmm_tests
 					health.Snapshot().state == HealthState::kProgressing,
 				"recovery after deadline was not reported");
 		});
+
+		runner.test("health registry returns each subsystem's live observation", [] {
+			CapturingHealthReporter reporter;
+			SubsystemHealthRegistry registry;
+			SubsystemHealth health{ "fixture", reporter, registry, start };
+			require(registry.Snapshots().empty(),
+				"an unobserved subsystem exposed a guessed state");
+
+			health.Observe(
+				HealthState::kWaiting,
+				"dependency is unavailable",
+				start);
+			auto snapshots = registry.Snapshots();
+			require(
+				snapshots.size() == 1 &&
+					snapshots.front().state == HealthState::kWaiting &&
+					snapshots.front().reason == "dependency is unavailable",
+				"the registry did not return the waiting observation");
+
+			health.Observe(HealthState::kReady, {}, start + 5s);
+			snapshots = registry.Snapshots();
+			require(
+				snapshots.size() == 1 &&
+					snapshots.front().state == HealthState::kReady &&
+					snapshots.front().enteredAt == start + 5s,
+				"the registry returned a stale subsystem observation");
+		});
 	}
 }

@@ -27,7 +27,7 @@ valid; hyphens, spaces, underscores, and PascalCase normalize to the same slug. 
 value falls back through category and whole-word display-name concepts, then the question glyph. Set only documented
 `DMUI_ClientDescriptor::capabilities`; unknown bits reject the descriptor. Client origin defaults to
 `DMUI_CLIENT_ORIGIN_NATIVE`. A bridge sets `DMUI_CLIENT_ORIGIN_BRIDGED` and may provide a copied
-`bridgeSourceLabel`; the Home page groups bridged clients under `<source> mods`, or `Bridged mods`
+`bridgeSourceLabel`; the Health page groups bridged clients under `<source> mods`, or `Bridged mods`
 when no source label is supplied. Native clients must not provide a bridge source label.
 
 Settings pages draw only inside the common modal menu. Overlay pages draw without input capture while
@@ -38,9 +38,11 @@ game-input suppression; overlay demand never suppresses input.
 ## Shared menu
 
 The Evil Modding window owns all navigation chrome. Its header shows the host and selected client as a
-breadcrumb with the undocked close control. While host interface settings are open, the breadcrumb
-names that view instead of the selected client. Its mod dropdown is built from registered client
-display names. The sidebar places uncategorized settings pages first without a heading, then groups
+breadcrumb with the undocked close control. Home, Health, and Settings are host-owned sidebar pages
+and name themselves in that breadcrumb. Home shows host identity, registration counts, and one overall
+health summary derived from live subsystem and client status. Health owns the detailed host subsystem
+observations and full client registry. Its mod dropdown is built from registered client display names.
+The sidebar places uncategorized client settings pages first without a heading, then groups
 categorized pages under their category headings. Pages order by category, `sortKey`, display name,
 and ID. Switching mods selects that client's first page. Overlay pages never
 appear there. `selectPage` accepts settings pages, switches both the active mod and page, opens the
@@ -59,10 +61,11 @@ rounded title-bar highlights, footer, docking, and background blur around the ne
 Layout is saved to `Data\F4SE\Plugins\DearModdingUI\imgui.ini`. Fonts, icons, and blur shaders load
 only from that neutral root. Explicit names select from the complete Phosphor Fill catalog before
 semantic concepts are considered. Icons use the accent tint by default. The footer gear
-toggles a host-only settings view inside the existing scrolling content pane without changing the
-active client page or adding an entry to the mod dropdown. The view closes from its title-row control,
-the gear, Escape, or a mod selection. It exposes an accent picker with color-vision-friendly presets,
-colored or monochrome icon tint, host-window opacity, command-palette color and opacity, background
+navigates to the same host-owned Settings page exposed beside Home and Health in the sidebar; there is no
+second dismissible settings panel. Navigating away or closing the menu discards unapplied previews,
+matching the former panel dismissal behavior. The page exposes an accent picker with
+color-vision-friendly presets, colored or monochrome icon tint, host-window opacity,
+command-palette color and opacity, background
 blur and safe per-frame strength, accessibility UI scale, and body-font family. It also reports
 resolved typography size and effective UI scale as read-only facts. Appearance options preview from
 a local draft; Apply persists all editable values once to
@@ -98,14 +101,17 @@ warning, error, info, and muted colors plus every status color. `pushFont` accep
 Heading, Subheading, or Subtext role; balance every successful push with `popFont`. The C++ wrapper
 provides `dmui::FontGuard` and converts `DMUI_Vec4` to `ImVec4` with `dmui::ToImVec4`.
 
-`drawSectionHeader`, `drawCollapsingSectionHeader`, `drawSearchInput`,
+`drawSectionHeader`, `drawCollapsingSectionHeader`, `drawLinkRow`, `drawFaq`, `drawSearchInput`,
 `drawSettingsActionButton`, `settingsActionButtonWidth`, and `settingsActionButtonExtent` are thin
-calls into the same helpers used by the host. The sizing calls return live host font and style
-measurements through `float` output parameters. Search buffers must have a nonzero capacity and
-contain a NUL terminator within that capacity. A successful call always leaves the buffer
-NUL-terminated, truncates edited output to `capacity - 1`, and reports whether the text changed
-through the fixed-width output flag. The C++ wrapper marshals this contract to `std::string&` and
-returns sizing results through `std::optional<float>`.
+calls into the same helpers used by the host. Link rows evenly divide the available width and copy
+enabled URLs to the clipboard without launching a browser; disabled links remain hoverable so their
+note or URL can explain the state. FAQ rows use host-owned disclosure state keyed by the widget ID
+and question. The sizing calls return live host font and style measurements through `float` output
+parameters. Search buffers must have a nonzero capacity and contain a NUL terminator within that
+capacity. A successful call always leaves the buffer NUL-terminated, truncates edited output to
+`capacity - 1`, and reports whether the text changed through the fixed-width output flag. The C++
+wrapper marshals this contract to `std::string&` and returns sizing results through
+`std::optional<float>`.
 
 `beginSettingsTable`, `beginSettingsRow`, `beginSettingsRowEx`, `endSettingsRow`, and `endSettingsTable` form the
 host-owned label/value geometry bracket for settings pages. Both begin calls report clipping through
@@ -235,6 +241,18 @@ host or client message globally, attributed to the host name or registered clien
 when another client's page is selected. Info and success messages expire after four seconds. Warning
 and error messages persist until a newer message supersedes them or the user dismisses them. Long
 messages are truncated with an ellipsis, and hovering shows the full attributed text.
+
+## Client diagnostics
+
+Clients may retain actionable problems through the optional appended `reportDiagnostic` entry. Check
+`DMUI_HostAPI::structSize >= DMUI_HOST_API_REPORT_DIAGNOSTIC_SIZE` and that the pointer is non-null
+before using it. Reports accept the shared status severity values, an optional scope, a required
+one-line summary, and optional detail. The host copies all strings before returning.
+
+`reportDiagnostic` may be called from any thread. Matching client, severity, scope, and summary values
+aggregate into one retained record with an occurrence count; the first detail is preserved. Retention
+is bounded per client, and the Health page and copied diagnostics report disclose how many additional
+distinct records could not be retained.
 
 ```cpp
 if (api->structSize >= DMUI_HOST_API_SET_STATUS_SIZE && api->setStatus)

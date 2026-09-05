@@ -1,8 +1,12 @@
 #include <DearModdingUI/CarrierMenu.h>
+#include <DearModdingUI/Diagnostics.h>
+#include <DearModdingUI/Faq.h>
 #include <DearModdingUI/FontCatalog.h>
+#include <DearModdingUI/Health.h>
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/HostSettingsView.h>
 #include <DearModdingUI/Home.h>
+#include <DearModdingUI/LinkRow.h>
 #include <DearModdingUI/MenuToggleKey.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/Registry.h>
@@ -53,6 +57,15 @@ namespace vmm_tests
 		struct PageActivityState
 		{
 			std::vector<DMUI_PageActivityInfo> events;
+		};
+
+		class SilentHealthReporter final : public HealthReporter
+		{
+		public:
+			void Report(
+				HealthEvent,
+				const HealthSnapshot&) noexcept override
+			{}
 		};
 
 		[[nodiscard]] DMUI_ImGuiFingerprint Fingerprint() noexcept
@@ -326,8 +339,14 @@ namespace vmm_tests
 						DMUI_HOST_API_END_SETTINGS_TABLE_SIZE &&
 					DMUI_HOST_API_BEGIN_SETTINGS_ROW_EX_SIZE <
 						DMUI_HOST_API_REGISTER_PAGE_ACTIVITY_OBSERVER_SIZE &&
+					DMUI_HOST_API_REGISTER_PAGE_ACTIVITY_OBSERVER_SIZE <
+						DMUI_HOST_API_DRAW_LINK_ROW_SIZE &&
+					DMUI_HOST_API_DRAW_LINK_ROW_SIZE <
+						DMUI_HOST_API_DRAW_FAQ_SIZE &&
+					DMUI_HOST_API_DRAW_FAQ_SIZE <
+						DMUI_HOST_API_REPORT_DIAGNOSTIC_SIZE &&
 					sizeof(DMUI_HostAPI) ==
-						DMUI_HOST_API_REGISTER_PAGE_ACTIVITY_OBSERVER_SIZE,
+						DMUI_HOST_API_REPORT_DIAGNOSTIC_SIZE,
 				"the versioned host API prefix moved");
 		});
 
@@ -1610,7 +1629,7 @@ namespace vmm_tests
 				"a native client carried a bridge source label");
 		});
 
-		runner.test("Home groups native and bridged clients separately", [] {
+		runner.test("Health groups native and bridged clients separately", [] {
 			const std::vector<RegisteredClient> clients{
 				{ .handle = 1, .id = "z.native", .displayName = "Zulu Native" },
 				{
@@ -1623,7 +1642,7 @@ namespace vmm_tests
 				{ .handle = 3, .id = "a.native", .displayName = "Alpha Native" }
 			};
 
-			const auto sections = BuildHomeClientSections(clients);
+			const auto sections = BuildHealthClientSections(clients);
 			require(
 				sections.size() == 2 &&
 					sections[0].heading == "Registered mods" &&
@@ -1633,16 +1652,16 @@ namespace vmm_tests
 					sections[1].heading == "MCM mods" &&
 					sections[1].clients.size() == 1 &&
 					sections[1].clients[0]->id == "bridge",
-				"native and bridged Home clients were not split stably");
+				"native and bridged Health clients were not split stably");
 		});
 
-		runner.test("Home preserves native-only rendering", [] {
+		runner.test("Health preserves native-only rendering", [] {
 			const std::vector<RegisteredClient> clients{
 				{ .handle = 1, .id = "z", .displayName = "Zulu" },
 				{ .handle = 2, .id = "a", .displayName = "Alpha" }
 			};
 
-			const auto sections = BuildHomeClientSections(clients);
+			const auto sections = BuildHealthClientSections(clients);
 			require(
 				sections.size() == 1 &&
 					sections.front().heading == "Registered mods" &&
@@ -1650,10 +1669,10 @@ namespace vmm_tests
 					sections.front().clients.size() == 2 &&
 					sections.front().clients[0]->id == "a" &&
 					sections.front().clients[1]->id == "z",
-				"native-only Home presentation changed");
+				"native-only Health presentation changed");
 		});
 
-		runner.test("Home creates a section for each bridge source", [] {
+		runner.test("Health creates a section for each bridge source", [] {
 			const std::vector<RegisteredClient> clients{
 				{ .handle = 1, .id = "native", .displayName = "Native" },
 				{
@@ -1679,7 +1698,7 @@ namespace vmm_tests
 				}
 			};
 
-			const auto sections = BuildHomeClientSections(clients);
+			const auto sections = BuildHealthClientSections(clients);
 			require(
 				sections.size() == 3 &&
 					sections[0].heading == "Registered mods" &&
@@ -1700,11 +1719,582 @@ namespace vmm_tests
 					.origin = DMUI_CLIENT_ORIGIN_BRIDGED
 				}
 			};
-			const auto fallback = BuildHomeClientSections(unnamedBridge);
+			const auto fallback = BuildHealthClientSections(unnamedBridge);
 			require(
 				fallback.size() == 1 &&
 					fallback.front().heading == "Bridged mods",
 				"an unnamed bridge did not receive the generic heading");
+		});
+
+		runner.test("Health shows a waiting host subsystem with its observed reason", [] {
+			const auto now = HealthClock::time_point{} +
+				std::chrono::seconds{ 75 };
+			SilentHealthReporter reporter;
+			SubsystemHealthRegistry registry;
+			SubsystemHealth health{
+				"dmui.render.reconciliation",
+				reporter,
+				registry,
+				now - std::chrono::seconds{ 65 }
+			};
+			health.Observe(
+				HealthState::kWaiting,
+				"renderer data is not initialized",
+				now - std::chrono::seconds{ 65 });
+
+			const auto rows = BuildHealthSubsystemRows(
+				registry.Snapshots(),
+				now);
+			require(
+				rows.size() == 1 &&
+					rows.front().identity == "dmui.render.reconciliation" &&
+					rows.front().state == HealthState::kWaiting &&
+					rows.front().stateLabel == "Waiting" &&
+					rows.front().durationLabel == "1m 5s" &&
+					rows.front().reason == "renderer data is not initialized",
+				"waiting host health did not preserve its live state and reason");
+		});
+
+		runner.test("client diagnostics aggregate by severity scope and summary", [] {
+			DiagnosticStore store;
+			DMUI_DiagnosticDescriptor diagnostic{
+				DMUI_DIAGNOSTIC_DESCRIPTOR_0_1_SIZE,
+				DMUI_STATUS_SEVERITY_WARNING,
+				"General",
+				"Expected a boolean value.",
+				"First location"
+			};
+			require(
+				store.Report(7, diagnostic) == DMUI_RESULT_OK &&
+					store.Report(7, diagnostic) == DMUI_RESULT_OK,
+				"matching diagnostics were rejected");
+			diagnostic.detail = "Later location";
+			diagnostic.scope = "Advanced";
+			require(
+				store.Report(7, diagnostic) == DMUI_RESULT_OK,
+				"a distinct diagnostic scope was rejected");
+			diagnostic.scope = "General";
+			diagnostic.severity = DMUI_STATUS_SEVERITY_ERROR;
+			require(
+				store.Report(7, diagnostic) == DMUI_RESULT_OK,
+				"a distinct diagnostic severity was rejected");
+
+			const auto snapshot = store.Snapshot(7);
+			require(
+				snapshot &&
+					snapshot->records.size() == 3 &&
+					snapshot->records[0].occurrenceCount == 2 &&
+					snapshot->records[0].detail == "First location",
+				"diagnostic aggregation or first-detail retention changed");
+		});
+
+		runner.test("client diagnostic retention stays bounded", [] {
+			DiagnosticStore store;
+			std::vector<std::string> summaries;
+			summaries.reserve(kDiagnosticRecordLimitPerClient + 2);
+			for (size_t index = 0;
+				index < kDiagnosticRecordLimitPerClient + 2;
+				++index)
+			{
+				summaries.push_back(
+					"Diagnostic " + std::to_string(index));
+				const DMUI_DiagnosticDescriptor diagnostic{
+					DMUI_DIAGNOSTIC_DESCRIPTOR_0_1_SIZE,
+					DMUI_STATUS_SEVERITY_WARNING,
+					"General",
+					summaries.back().c_str(),
+					nullptr
+				};
+				require(
+					store.Report(9, diagnostic) == DMUI_RESULT_OK,
+					"a bounded diagnostic report was rejected");
+			}
+			const DMUI_DiagnosticDescriptor repeated{
+				DMUI_DIAGNOSTIC_DESCRIPTOR_0_1_SIZE,
+				DMUI_STATUS_SEVERITY_WARNING,
+				"General",
+				summaries.front().c_str(),
+				nullptr
+			};
+			require(
+				store.Report(9, repeated) == DMUI_RESULT_OK,
+				"an existing diagnostic stopped incrementing at the cap");
+
+			const auto snapshot = store.Snapshot(9);
+			require(
+				snapshot &&
+					snapshot->records.size() ==
+						kDiagnosticRecordLimitPerClient &&
+					snapshot->droppedDistinctCount == 2 &&
+					snapshot->records.front().occurrenceCount == 2,
+				"bounded diagnostic retention lost counts or admitted overflow");
+		});
+
+		runner.test("Health diagnostic summaries count occurrences", [] {
+			const std::vector<RegisteredClient> clients{
+				{
+					.handle = 3,
+					.id = "fallui",
+					.displayName = "FallUI"
+				}
+			};
+			const std::array diagnostics{
+				ClientDiagnosticSnapshot{
+					3,
+					{
+						ClientDiagnosticRecord{
+							3,
+							DMUI_STATUS_SEVERITY_ERROR,
+							"General",
+							"Missing setting id.",
+							{},
+							1
+						},
+						ClientDiagnosticRecord{
+							3,
+							DMUI_STATUS_SEVERITY_WARNING,
+							"config.json",
+							"Expected a boolean.",
+							{},
+							17
+						},
+						ClientDiagnosticRecord{
+							3,
+							DMUI_STATUS_SEVERITY_INFO,
+							"Runtime",
+							"Loaded defaults.",
+							{},
+							8
+						}
+					}
+				}
+			};
+
+			const auto sections =
+				BuildHealthDiagnosticSections(clients, diagnostics);
+			require(
+				sections.size() == 1 &&
+					sections.front().severitySummary ==
+						"1 error, 17 warnings, 8 info" &&
+					sections.front().disclosureLabel ==
+						"FallUI \xE2\x80\x94 1 error, 17 warnings, 8 info",
+				"Health diagnostic summaries counted records instead of occurrences");
+		});
+
+		runner.test("Health diagnostic clients sort by worst severity", [] {
+			const std::vector<RegisteredClient> clients{
+				{ .handle = 1, .id = "alpha", .displayName = "Alpha" },
+				{ .handle = 2, .id = "beta", .displayName = "Beta" },
+				{ .handle = 3, .id = "zeta", .displayName = "Zeta" }
+			};
+			const std::array diagnostics{
+				ClientDiagnosticSnapshot{
+					1,
+					{ ClientDiagnosticRecord{
+						1,
+						DMUI_STATUS_SEVERITY_INFO,
+						{},
+						"Info",
+						{},
+						1 } }
+				},
+				ClientDiagnosticSnapshot{
+					2,
+					{ ClientDiagnosticRecord{
+						2,
+						DMUI_STATUS_SEVERITY_WARNING,
+						{},
+						"Warning",
+						{},
+						1 } }
+				},
+				ClientDiagnosticSnapshot{
+					3,
+					{ ClientDiagnosticRecord{
+						3,
+						DMUI_STATUS_SEVERITY_ERROR,
+						{},
+						"Error",
+						{},
+						1 } }
+				}
+			};
+
+			const auto sections =
+				BuildHealthDiagnosticSections(clients, diagnostics);
+			require(
+				sections.size() == 3 &&
+					sections[0].client == 3 &&
+					sections[1].client == 2 &&
+					sections[2].client == 1,
+				"Health diagnostic clients were not ordered by worst severity");
+		});
+
+		runner.test("Health diagnostic expansion defaults follow severity", [] {
+			const std::vector<RegisteredClient> clients{
+				{ .handle = 1, .id = "error", .displayName = "Error" },
+				{ .handle = 2, .id = "warning", .displayName = "Warning" },
+				{ .handle = 3, .id = "info", .displayName = "Info" }
+			};
+			const std::array diagnostics{
+				ClientDiagnosticSnapshot{
+					1,
+					{ ClientDiagnosticRecord{
+						1,
+						DMUI_STATUS_SEVERITY_ERROR,
+						{},
+						"Error",
+						{},
+						1 } }
+				},
+				ClientDiagnosticSnapshot{
+					2,
+					{ ClientDiagnosticRecord{
+						2,
+						DMUI_STATUS_SEVERITY_WARNING,
+						{},
+						"Warning",
+						{},
+						1 } }
+				},
+				ClientDiagnosticSnapshot{
+					3,
+					{ ClientDiagnosticRecord{
+						3,
+						DMUI_STATUS_SEVERITY_INFO,
+						{},
+						"Info",
+						{},
+						1 } }
+				}
+			};
+
+			const auto sections =
+				BuildHealthDiagnosticSections(clients, diagnostics);
+			const auto error = std::ranges::find(
+				sections,
+				DMUI_ClientHandle{ 1 },
+				&HealthDiagnosticSection::client);
+			const auto warning = std::ranges::find(
+				sections,
+				DMUI_ClientHandle{ 2 },
+				&HealthDiagnosticSection::client);
+			const auto info = std::ranges::find(
+				sections,
+				DMUI_ClientHandle{ 3 },
+				&HealthDiagnosticSection::client);
+			require(
+				error != sections.end() && error->defaultExpanded &&
+					warning != sections.end() &&
+					warning->defaultExpanded &&
+					info != sections.end() &&
+					!info->defaultExpanded,
+				"Health diagnostic expansion defaults ignored severity");
+		});
+
+		runner.test("Health diagnostics report includes support context", [] {
+			const std::vector<RegisteredClient> clients{
+				{
+					.handle = 4,
+					.id = "example.mod",
+					.displayName = "Example Mod",
+					.version = DMUI_MAKE_VERSION(2, 5)
+				}
+			};
+			const std::array statuses{
+				ClientStatus{
+					4,
+					DMUI_STATUS_SEVERITY_WARNING
+				}
+			};
+			const std::array subsystems{
+				HealthSnapshot{
+					"dmui.render.reconciliation",
+					HealthState::kReady,
+					{},
+					{},
+					"renderer attached"
+				}
+			};
+			const std::array diagnostics{
+				ClientDiagnosticSnapshot{
+					4,
+					{
+						ClientDiagnosticRecord{
+							4,
+							DMUI_STATUS_SEVERITY_ERROR,
+							"General",
+							"Value could not be loaded.",
+							"Missing setting id.",
+							3
+						}
+					},
+					2
+				}
+			};
+
+			const auto report = BuildHealthDiagnosticsReport(
+				"Evil Modding",
+				"1.0.0",
+				subsystems,
+				clients,
+				statuses,
+				diagnostics);
+			require(
+				report.find("Evil Modding 1.0.0") != std::string::npos &&
+					report.find("dmui.render.reconciliation: Ready") !=
+						std::string::npos &&
+					report.find("Example Mod 2.5 [Warning]") !=
+						std::string::npos &&
+					report.find("Value could not be loaded. (x3)") !=
+						std::string::npos &&
+					report.find("2 additional distinct diagnostics") !=
+						std::string::npos,
+				"the copied Health report omitted required support context");
+		});
+
+		runner.test("Home summarizes healthy host and client state", [] {
+			const auto now = HealthClock::time_point{} +
+				std::chrono::seconds{ 75 };
+			SilentHealthReporter reporter;
+			SubsystemHealthRegistry registry;
+			SubsystemHealth health{
+				"dmui.render.reconciliation",
+				reporter,
+				registry,
+				now - std::chrono::seconds{ 65 }
+			};
+			health.Observe(
+				HealthState::kWaiting,
+				"renderer data is not initialized",
+				now - std::chrono::seconds{ 65 });
+			health.Observe(
+				HealthState::kReady,
+				{},
+				now - std::chrono::seconds{ 10 });
+
+			require(
+				BuildHomeHealthSummary(registry.Snapshots(), 0) ==
+					"All systems ready",
+				"healthy live state did not produce the quiet Home summary");
+		});
+
+		runner.test("Home summarizes degraded host and client state", [] {
+			const auto now = HealthClock::time_point{} +
+				std::chrono::seconds{ 75 };
+			SilentHealthReporter reporter;
+			SubsystemHealthRegistry registry;
+			SubsystemHealth health{
+				"dmui.render.reconciliation",
+				reporter,
+				registry,
+				now - std::chrono::seconds{ 65 }
+			};
+			health.Observe(
+				HealthState::kWaiting,
+				"renderer data is not initialized",
+				now - std::chrono::seconds{ 65 });
+
+			require(
+				BuildHomeHealthSummary(registry.Snapshots(), 2) ==
+					"1 host subsystem and 2 mods need attention",
+				"degraded live state did not produce the combined Home summary");
+		});
+
+		runner.test("Home FAQ composes the configured menu toggle key", [] {
+			const auto endFaq = BuildHomeFaq("End");
+			const auto f11Faq = BuildHomeFaq("F11");
+			require(
+				endFaq.front().answer.find("End") != std::string::npos,
+				"Home FAQ did not use the configured End key");
+			require(
+				f11Faq.front().answer.find("F11") != std::string::npos,
+				"Home FAQ hardcoded a different toggle key");
+		});
+
+		runner.test("Home quick links preserve enabled-link invariants", [] {
+			const auto links = HomeQuickLinks();
+			const auto github = std::ranges::find(
+				links,
+				std::string_view{ "GitHub" },
+				&HomeQuickLink::label);
+			require(
+				std::ranges::all_of(
+					links,
+					[](const HomeQuickLink& a_link) {
+						return !a_link.enabled || !a_link.url.empty();
+					}),
+				"an enabled Home link had no URL");
+			require(
+				std::ranges::all_of(
+					links,
+					[](const HomeQuickLink& a_link) {
+						return a_link.enabled || !a_link.note.empty();
+					}),
+				"a disabled Home link had no explanatory note");
+			require(
+				github != links.end() && github->enabled,
+				"the GitHub Home link was not enabled");
+		});
+
+		runner.test("link-row API arguments reject malformed descriptors", [] {
+			const DMUI_DrawLinkRowFn drawLinkRow =
+				&ValidateLinkRowArguments;
+			DMUI_LinkDescriptor link{
+				DMUI_LINK_DESCRIPTOR_0_1_SIZE,
+				"GitHub",
+				"https://github.com/Dear-Modding-FO4/DearModdingUI",
+				nullptr,
+				0,
+				1
+			};
+			require(
+				drawLinkRow(
+					DMUI_INVALID_CLIENT_HANDLE,
+					nullptr,
+					&link,
+					1) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"a null link-row ID was accepted");
+			require(
+				drawLinkRow(
+					DMUI_INVALID_CLIENT_HANDLE,
+					"links",
+					nullptr,
+					1) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"a null non-empty link array was accepted");
+			link.label = "";
+			require(
+				drawLinkRow(
+					DMUI_INVALID_CLIENT_HANDLE,
+					"links",
+					&link,
+					1) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"an empty link label was accepted");
+			link.label = "GitHub";
+			link.url = "";
+			require(
+				drawLinkRow(
+					DMUI_INVALID_CLIENT_HANDLE,
+					"links",
+					&link,
+					1) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"an enabled link without a URL was accepted");
+			link.url = "https://github.com/Dear-Modding-FO4/DearModdingUI";
+			link.structSize = DMUI_LINK_DESCRIPTOR_0_1_SIZE - 1;
+			require(
+				drawLinkRow(
+					DMUI_INVALID_CLIENT_HANDLE,
+					"links",
+					&link,
+					1) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"a short link descriptor was accepted");
+			require(
+				drawLinkRow(
+					DMUI_INVALID_CLIENT_HANDLE,
+					"links",
+					nullptr,
+					0) ==
+					DMUI_RESULT_OK,
+				"an empty link row was rejected");
+		});
+
+		runner.test("FAQ API arguments reject malformed entries", [] {
+			const DMUI_DrawFaqFn drawFaq = &ValidateFaqArguments;
+			DMUI_FaqEntry entry{
+				DMUI_FAQ_ENTRY_0_1_SIZE,
+				"How do I open the menu?",
+				"Press End."
+			};
+			require(
+				drawFaq(
+					DMUI_INVALID_CLIENT_HANDLE,
+					nullptr,
+					&entry,
+					1) == DMUI_RESULT_INVALID_ARGUMENT,
+				"a null FAQ ID was accepted");
+			require(
+				drawFaq(
+					DMUI_INVALID_CLIENT_HANDLE,
+					"faq",
+					nullptr,
+					1) == DMUI_RESULT_INVALID_ARGUMENT,
+				"a null non-empty FAQ array was accepted");
+			entry.question = "";
+			require(
+				drawFaq(
+					DMUI_INVALID_CLIENT_HANDLE,
+					"faq",
+					&entry,
+					1) == DMUI_RESULT_INVALID_ARGUMENT,
+				"an empty FAQ question was accepted");
+			entry.question = "How do I open the menu?";
+			entry.answer = "";
+			require(
+				drawFaq(
+					DMUI_INVALID_CLIENT_HANDLE,
+					"faq",
+					&entry,
+					1) == DMUI_RESULT_INVALID_ARGUMENT,
+				"an empty FAQ answer was accepted");
+			entry.answer = "Press End.";
+			entry.structSize = DMUI_FAQ_ENTRY_0_1_SIZE - 1;
+			require(
+				drawFaq(
+					DMUI_INVALID_CLIENT_HANDLE,
+					"faq",
+					&entry,
+					1) == DMUI_RESULT_INVALID_ARGUMENT,
+				"a short FAQ entry was accepted");
+			require(
+				drawFaq(
+					DMUI_INVALID_CLIENT_HANDLE,
+					"faq",
+					nullptr,
+					0) == DMUI_RESULT_OK,
+				"an empty FAQ was rejected");
+		});
+
+		runner.test("diagnostic API arguments reject malformed descriptors", [] {
+			const DMUI_ReportDiagnosticFn reportDiagnostic =
+				&ValidateDiagnosticArguments;
+			DMUI_DiagnosticDescriptor diagnostic{
+				DMUI_DIAGNOSTIC_DESCRIPTOR_0_1_SIZE,
+				DMUI_STATUS_SEVERITY_WARNING,
+				nullptr,
+				"Expected a boolean value.",
+				nullptr
+			};
+			require(
+				reportDiagnostic(
+					DMUI_INVALID_CLIENT_HANDLE,
+					nullptr) == DMUI_RESULT_INVALID_ARGUMENT,
+				"a null diagnostic descriptor was accepted");
+			diagnostic.summary = "";
+			require(
+				reportDiagnostic(
+					DMUI_INVALID_CLIENT_HANDLE,
+					&diagnostic) == DMUI_RESULT_INVALID_ARGUMENT,
+				"an empty diagnostic summary was accepted");
+			diagnostic.summary = "Expected a boolean value.";
+			diagnostic.severity = 99;
+			require(
+				reportDiagnostic(
+					DMUI_INVALID_CLIENT_HANDLE,
+					&diagnostic) == DMUI_RESULT_INVALID_ARGUMENT,
+				"an unknown diagnostic severity was accepted");
+			diagnostic.severity = DMUI_STATUS_SEVERITY_WARNING;
+			diagnostic.structSize =
+				DMUI_DIAGNOSTIC_DESCRIPTOR_0_1_SIZE - 1;
+			require(
+				reportDiagnostic(
+					DMUI_INVALID_CLIENT_HANDLE,
+					&diagnostic) == DMUI_RESULT_INVALID_ARGUMENT,
+				"a short diagnostic descriptor was accepted");
 		});
 
 		runner.test("forwarding clients register without a fingerprint", [] {
@@ -2935,61 +3525,33 @@ namespace vmm_tests
 				"dirty settings exposed the wrong title actions");
 		});
 
-		runner.test("host settings panel follows menu visibility", [] {
-			auto open = DecideHostSettingsPanelOpen(
-				false,
-				false,
-				HostSettingsPanelEvent::kToggleRequested);
-			require(!open, "settings opened while the menu was closed");
+		runner.test("Home Health and Settings are first-class host destinations", [] {
+			require(
+				kHostNavigationPages.size() == 3 &&
+					kHostNavigationPages[0].kind == HostPageKind::kHome &&
+					kHostNavigationPages[0].iconName == "house" &&
+					kHostNavigationPages[1].kind == HostPageKind::kHealth &&
+					kHostNavigationPages[1].iconName == "stethoscope" &&
+					kHostNavigationPages[2].kind == HostPageKind::kSettings &&
+					kHostNavigationPages[2].iconName == "sliders-horizontal" &&
+					FindPhosphorIconGlyphOrZero(
+						kHostNavigationPages[2].iconName) == 0xE434,
+				"the three host pages or their distinct icons changed");
 
-			open = DecideHostSettingsPanelOpen(
-				open,
-				true,
-				HostSettingsPanelEvent::kToggleRequested);
-			require(open, "settings did not open from the visible menu");
-			require(DecideHostSettingsPanelOpen(
-							open,
-							true,
-							HostSettingsPanelEvent::kNone),
-				"settings did not remain open");
-
-			open = DecideHostSettingsPanelOpen(
-				open,
-				true,
-				HostSettingsPanelEvent::kDismissed);
-			require(!open, "settings did not dismiss");
-			open = DecideHostSettingsPanelOpen(
-				open,
-				true,
-				HostSettingsPanelEvent::kToggleRequested);
-			open = DecideHostSettingsPanelOpen(
-				open,
-				true,
-				HostSettingsPanelEvent::kModSelected);
-			require(!open, "settings remained open after mod selection");
-			open = DecideHostSettingsPanelOpen(
-				open,
-				true,
-				HostSettingsPanelEvent::kToggleRequested);
-			open = DecideHostSettingsPanelOpen(
-				open,
-				true,
-				HostSettingsPanelEvent::kToggleRequested);
-			require(!open, "settings gear did not toggle the view off");
-			open = DecideHostSettingsPanelOpen(
-				open,
-				true,
-				HostSettingsPanelEvent::kToggleRequested);
-			open = DecideHostSettingsPanelOpen(
-				open,
-				false,
-				HostSettingsPanelEvent::kMenuClosed);
-			require(!open, "settings remained open after the menu closed");
-			require(!DecideHostSettingsPanelOpen(
-							open,
-							true,
-							HostSettingsPanelEvent::kNone),
-				"settings reopened with the menu");
+			for (const auto& page : kHostNavigationPages)
+			{
+				ClientSelectionState selection;
+				selection.activeClient = 7;
+				selection.activePage = 9;
+				selection.search = "renderer";
+				SelectHostPage(page.kind, selection);
+				require(
+					selection.activeHostPage == page.kind &&
+						selection.activeClient == DMUI_INVALID_CLIENT_HANDLE &&
+						selection.activePage == DMUI_INVALID_PAGE_HANDLE &&
+						selection.search.empty(),
+					"navigating to a host page retained client navigation state");
+			}
 		});
 
 		runner.test("menu toggle keys parse and round trip", [] {

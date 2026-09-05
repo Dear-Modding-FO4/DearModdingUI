@@ -1,10 +1,12 @@
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/BackgroundBlur.h>
+#include <DearModdingUI/Health.h>
 #include <DearModdingUI/Host.h>
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/HostSettingsView.h>
 #include <DearModdingUI/Home.h>
 #include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/MenuToggleKey.h>
 #include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Status.h>
 #include <DearModdingUI/Theme.h>
@@ -43,6 +45,8 @@ namespace DearModdingUI
 		struct ShellState : ClientSelectionState
 		{
 			std::map<std::string, bool> categoryExpansion;
+			std::map<std::string, bool> diagnosticExpansion;
+			std::map<std::string, bool> faqExpansion;
 			std::map<std::string, bool> modExpansion;
 			std::optional<std::vector<std::string>> previewExpandedClients;
 			std::optional<SidebarLayoutKind> previewSidebarLayoutOverride;
@@ -1038,15 +1042,16 @@ namespace DearModdingUI
 			bool a_drawClose) noexcept
 		{
 			const auto* client = a_model.FindClient(a_state.activeClient);
+			const auto* hostPage = a_state.activeHostPage ?
+				FindHostNavigationPage(*a_state.activeHostPage) :
+				nullptr;
 			const auto breadcrumb = BuildHostBreadcrumb(
 				"Evil Modding",
-				HostSettings::IsPanelOpen() ?
-					std::string_view{ "Interface Settings" } :
-					(a_state.activeHostPage == HostPageKind::kHome ?
-							kHostHomePage.displayName :
-						client ?
-							std::string_view{ client->displayName } :
-							std::string_view{}));
+				hostPage ?
+					hostPage->displayName :
+					client ?
+						std::string_view{ client->displayName } :
+						std::string_view{});
 			const auto textScale = Theme::kHeaderFallbackTextScale;
 			constexpr auto extentPolicy =
 				TitleRowButtonExtentPolicy::kHostChrome;
@@ -1257,7 +1262,7 @@ namespace DearModdingUI
 			const auto* page = a_model.FindPage(a_page);
 			if (!page)
 				return;
-			HostSettings::NotifyModSelected();
+			HostSettings::SetPageActive(false);
 			a_state.activeClient = page->client;
 			a_state.activePage = page->handle;
 			a_state.activeHostPage.reset();
@@ -1277,7 +1282,8 @@ namespace DearModdingUI
 			HostPageKind a_page,
 			ShellState& a_state) noexcept
 		{
-			HostSettings::NotifyModSelected();
+			HostSettings::SetPageActive(
+				a_page == HostPageKind::kSettings);
 			SelectHostPage(a_page, a_state);
 			if (a_state.sidebarLayout == SidebarLayoutKind::DrillDown &&
 				a_state.drillDownInitialized)
@@ -1386,24 +1392,29 @@ namespace DearModdingUI
 			return row;
 		}
 
-		void DrawHostNavigationRow(ShellState& a_state) noexcept
+		void DrawHostNavigationRows(ShellState& a_state) noexcept
 		{
 			const Theme::FontGuard font{
 				Theme::FontRole::kTitle,
 				kSidebarModFontScale
 			};
 			const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
-			const auto row = DrawSelectableRow({
-				.id = "##DearModdingHostHome",
-				.label = kHostHomePage.displayName.data(),
-				.selected = a_state.activeHostPage == HostPageKind::kHome,
-				.leadingAffordance = RowLeadingAffordance::kIcon,
-				.glyph = PhosphorGlyph::kAppWindow,
-				.textColor = textColor,
-				.hoveredTextColor = textColor
-			});
-			if (row.pressed)
-				NavigateToHostPage(HostPageKind::kHome, a_state);
+			for (const auto& page : kHostNavigationPages)
+			{
+				ImGui::PushID(page.id.data());
+				const auto row = DrawSelectableRow({
+					.id = "##DearModdingHostPage",
+					.label = page.displayName.data(),
+					.selected = a_state.activeHostPage == page.kind,
+					.leadingAffordance = RowLeadingAffordance::kIcon,
+					.glyph = FindPhosphorIconGlyphOrZero(page.iconName),
+					.textColor = textColor,
+					.hoveredTextColor = textColor
+				});
+				ImGui::PopID();
+				if (row.pressed)
+					NavigateToHostPage(page.kind, a_state);
+			}
 		}
 
 		void DrawPageRows(
@@ -1836,7 +1847,7 @@ namespace DearModdingUI
 					{ -FLT_MIN, -FLT_MIN }))
 			{
 				DrawSectionHeader("Host", PhosphorGlyph::kAppWindow);
-				DrawHostNavigationRow(a_state);
+				DrawHostNavigationRows(a_state);
 				ImGui::Spacing();
 				DrawSectionHeader("Mods", PhosphorGlyph::kSquaresFour);
 				DrawPaletteAffordance(a_state);
@@ -2187,7 +2198,7 @@ namespace DearModdingUI
 		}
 
 		template <class DrawValue>
-		void DrawHostHomeRow(
+		void DrawHostDetailRow(
 			const char* a_id,
 			const char* a_label,
 			const char* a_description,
@@ -2245,6 +2256,35 @@ namespace DearModdingUI
 		[[nodiscard]] const ImVec4& StatusTextColor(
 			DMUI_StatusSeverity a_severity) noexcept;
 
+		[[nodiscard]] size_t CountClientsNeedingAttention(
+			const std::vector<RegisteredClient>& a_clients,
+			const std::vector<ClientStatus>& a_statuses) noexcept
+		{
+			return static_cast<size_t>(std::ranges::count_if(
+				a_clients,
+				[&](const RegisteredClient& a_client) {
+					const auto severity = ClientStatusSeverity(
+						a_client,
+						FindClientStatus(a_statuses, a_client.handle));
+					return severity == DMUI_STATUS_SEVERITY_WARNING ||
+						severity == DMUI_STATUS_SEVERITY_ERROR;
+				}));
+		}
+
+		[[nodiscard]] DMUI_StatusSeverity HealthStatusSeverity(
+			HealthState a_state) noexcept
+		{
+			switch (a_state)
+			{
+			case HealthState::kReady:
+				return DMUI_STATUS_SEVERITY_SUCCESS;
+			case HealthState::kWaiting:
+				return DMUI_STATUS_SEVERITY_WARNING;
+			default:
+				return DMUI_STATUS_SEVERITY_INFO;
+			}
+		}
+
 		void DrawHostHome() noexcept
 		{
 			(void)DrawTitleRow({
@@ -2258,45 +2298,281 @@ namespace DearModdingUI
 			const auto& actions = OrderedActions();
 			const auto statusSnapshot = CurrentClientStatuses();
 			const auto statuses = RollupClientStatuses(statusSnapshot);
+			const auto healthSnapshots =
+				HostSubsystemHealthRegistry().Snapshots();
+			const auto clientsNeedingAttention =
+				CountClientsNeedingAttention(clients, statuses);
+			const auto healthSummary = BuildHomeHealthSummary(
+				healthSnapshots,
+				clientsNeedingAttention);
+			const auto healthy =
+				clientsNeedingAttention == 0 &&
+				std::ranges::all_of(
+					healthSnapshots,
+					[](const HealthSnapshot& a_health) {
+						return a_health.state == HealthState::kReady;
+					});
 
-			DrawSectionHeader("Host overview", PhosphorGlyph::kAppWindow);
-			if (const auto table = SettingsTable::Begin(
+			DrawSectionHeader(
+				"About",
+				FindPhosphorIconGlyphOrZero("info"));
+			{
+				const Theme::FontGuard font{ Theme::FontRole::kSubtext };
+				ImGui::TextWrapped("%s", HomeAboutText().data());
+			}
+			ImGui::Spacing();
+
+			DrawSectionHeader(
+				"Overview",
+				FindPhosphorIconGlyphOrZero(kHostHomePage.iconName));
+			char identity[128]{};
+			std::snprintf(
+				identity,
+				sizeof(identity),
+				"%.*s %.*s",
+				static_cast<int>(kHostDisplayName.size()),
+				kHostDisplayName.data(),
+				static_cast<int>(kHostVersion.size()),
+				kHostVersion.data());
+			DrawBulletText(identity);
+
+			char registrySummary[128]{};
+			std::snprintf(
+				registrySummary,
+				sizeof(registrySummary),
+				"%zu mods | %zu pages | %zu actions",
+				clients.size(),
+				pages.size(),
+				actions.size());
+			DrawBulletText(registrySummary);
+			ImGui::PushStyleColor(
+				ImGuiCol_Text,
+				StatusTextColor(
+					healthy ?
+						DMUI_STATUS_SEVERITY_SUCCESS :
+						DMUI_STATUS_SEVERITY_WARNING));
+			DrawBulletText(healthSummary.c_str());
+			ImGui::PopStyleColor();
+
+			ImGui::Spacing();
+			DrawSectionHeader(
+				"Quick Links",
+				FindPhosphorIconGlyphOrZero("link"));
+			std::vector<LinkRowEntry> quickLinks;
+			const auto homeQuickLinks = HomeQuickLinks();
+			quickLinks.reserve(homeQuickLinks.size());
+			for (const auto& link : homeQuickLinks)
+			{
+				quickLinks.push_back({
+					link.label,
+					link.url,
+					link.note,
+					FindPhosphorIconGlyphOrZero(link.iconName),
+					link.enabled
+				});
+			}
+			DrawLinkRow("##DearModdingUI.HomeQuickLinks", quickLinks);
+
+			ImGui::Spacing();
+			DrawSectionHeader(
+				"FAQ",
+				FindPhosphorIconGlyphOrZero("question"));
+			const auto faq = BuildHomeFaq(MenuToggleKeyName(
+				HostSettings::MenuToggleVirtualKey()));
+			std::vector<FaqRowEntry> faqEntries;
+			faqEntries.reserve(faq.size());
+			for (const auto& entry : faq)
+			{
+				faqEntries.push_back({
+					entry.question.data(),
+					entry.answer
+				});
+			}
+			DrawFaq("##DearModdingUI.HomeFaq", faqEntries);
+		}
+
+		void DrawHostHealth() noexcept
+		{
+			const auto& clients = RegisteredClients();
+			const auto& pages = OrderedPages();
+			const auto& actions = OrderedActions();
+			const auto statusSnapshot = CurrentClientStatuses();
+			const auto statuses = RollupClientStatuses(statusSnapshot);
+			const auto healthSnapshots =
+				HostSubsystemHealthRegistry().Snapshots();
+			const auto diagnosticSnapshots = CurrentClientDiagnostics();
+			constexpr auto extentPolicy =
+				TitleRowButtonExtentPolicy::kTitleBar;
+			const auto buttonExtent = ResolveTitleRowButtonExtent(
+				extentPolicy,
+				ImGui::GetFontSize(),
+				TitleBarButtonPadding());
+			const std::array titleButtons{
+				TitleRowButton{
+					"##DearModdingUI.CopyHealthReport",
+					buttonExtent,
+					FindPhosphorIconGlyphOrZero("clipboard-text"),
+					"Copy report",
+					"Copy a diagnostics report to the clipboard."
+				}
+			};
+			const auto pressed = DrawTitleRow({
+				.title = kHostHealthPage.displayName.data(),
+				.titleScale = Theme::kFeatureTitleScale,
+				.buttons = titleButtons,
+				.buttonExtentPolicy = extentPolicy,
+				.summary = kHostHealthPage.summary.data()
+			});
+			if (pressed)
+			{
+				const auto report = BuildHealthDiagnosticsReport(
+					kHostDisplayName,
+					kHostVersion,
+					healthSnapshots,
+					clients,
+					statuses,
+					diagnosticSnapshots);
+				ImGui::SetClipboardText(report.c_str());
+			}
+			const auto healthRows = BuildHealthSubsystemRows(
+				healthSnapshots);
+
+			DrawSectionHeader(
+				"Host subsystems",
+				FindPhosphorIconGlyphOrZero(kHostHealthPage.iconName));
+			if (healthRows.empty())
+			{
+				DrawBulletText("No host subsystem observations are available.");
+			}
+			else if (const auto table = SettingsTable::Begin(
 					DMUI_INVALID_CLIENT_HANDLE,
-					"##DearModdingUI.HostHomeOverview");
+					"##DearModdingUI.HostHealthSubsystems");
 				table.result == DMUI_RESULT_OK && table.visible)
 			{
-				DrawHostHomeRow(
-					"Host",
-					"Host",
-					"Shared menu owner and plugin version.",
-					[]() noexcept {
-						ImGui::Text(
-							"%.*s %.*s",
-							static_cast<int>(kHostDisplayName.size()),
-							kHostDisplayName.data(),
-							static_cast<int>(kHostVersion.size()),
-							kHostVersion.data());
-					});
-				char registrySummary[128]{};
-				std::snprintf(
-					registrySummary,
-					sizeof(registrySummary),
-					"%zu mods | %zu pages | %zu actions",
-					clients.size(),
-					pages.size(),
-					actions.size());
-				DrawHostHomeRow(
-					"Registry",
-					"Client registry",
-					"Live registrations available during this game session.",
-					[&]() noexcept {
-						ImGui::TextUnformatted(registrySummary);
-					});
+				for (const auto& health : healthRows)
+				{
+					std::string rowId{ "Subsystem/" };
+					rowId.append(health.identity);
+					DrawHostDetailRow(
+						rowId.c_str(),
+						health.identity.c_str(),
+						health.state == HealthState::kReady ?
+							"" :
+							health.reason.c_str(),
+						[&]() noexcept {
+							ImGui::TextColored(
+								StatusTextColor(
+									HealthStatusSeverity(health.state)),
+								"Status: %s | %s in state",
+								health.stateLabel.c_str(),
+								health.durationLabel.c_str());
+						});
+				}
 				(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
 			}
 
 			ImGui::Spacing();
-			const auto sections = BuildHomeClientSections(clients);
+			DrawSectionHeader(
+				"Reported problems",
+				FindPhosphorIconGlyphOrZero("warning-circle"));
+			const auto diagnosticSections =
+				BuildHealthDiagnosticSections(
+					clients,
+					diagnosticSnapshots);
+			if (diagnosticSections.empty())
+			{
+				DrawBulletText("No client diagnostics have been reported.");
+			}
+			else
+			{
+				auto& expansion = State().diagnosticExpansion;
+				const auto textColor =
+					ImGui::GetColorU32(ImGuiCol_Text);
+				ImGui::Indent();
+				for (const auto& section : diagnosticSections)
+				{
+					{
+						auto expanded = expansion.try_emplace(
+							section.clientId,
+							section.defaultExpanded).first;
+						const Theme::FontGuard font{
+							Theme::FontRole::kBody
+						};
+						(void)DrawSelectableRow({
+							.id = section.clientId.c_str(),
+							.label = section.disclosureLabel.c_str(),
+							.leadingAffordance =
+								RowLeadingAffordance::kArrow,
+							.expanded = &expanded->second,
+							.textColor = textColor,
+							.hoveredTextColor = textColor,
+							.highlightStyle =
+								RowHighlightStyle::kRoundedFill,
+							.clickBehavior =
+								RowClickBehavior::kToggle
+						});
+						if (!expanded->second)
+							continue;
+					}
+
+					ImGui::Indent();
+					ImGui::PushID(section.clientId.c_str());
+					if (!section.rows.empty())
+					{
+						const auto table = SettingsTable::Begin(
+							DMUI_INVALID_CLIENT_HANDLE,
+							"##DearModdingUI.HostReportedProblems");
+						if (table.result == DMUI_RESULT_OK &&
+							table.visible)
+						{
+							for (size_t rowIndex = 0;
+								rowIndex < section.rows.size();
+								++rowIndex)
+							{
+								const auto& row =
+									section.rows[rowIndex];
+								const auto rowId = std::format(
+									"Diagnostic/{}",
+									rowIndex);
+								DrawHostDetailRow(
+									rowId.c_str(),
+									row.summary.c_str(),
+									row.description.c_str(),
+									[&]() noexcept {
+										ImGui::TextColored(
+											StatusTextColor(
+												row.severity),
+											"%s",
+											row.occurrenceLabel.c_str());
+									});
+							}
+							(void)SettingsTable::End(
+								DMUI_INVALID_CLIENT_HANDLE);
+						}
+					}
+					if (!section.droppedLabel.empty())
+					{
+						const Theme::FontGuard font{
+							Theme::FontRole::kSubtext
+						};
+						ImGui::PushStyleColor(
+							ImGuiCol_Text,
+							ImGui::GetStyleColorVec4(
+								ImGuiCol_TextDisabled));
+						ImGui::TextWrapped(
+							"%s",
+							section.droppedLabel.c_str());
+						ImGui::PopStyleColor();
+					}
+					ImGui::PopID();
+					ImGui::Unindent();
+					ImGui::Spacing();
+				}
+				ImGui::Unindent();
+			}
+
+			ImGui::Spacing();
+			const auto sections = BuildHealthClientSections(clients);
 			for (size_t sectionIndex = 0;
 				sectionIndex < sections.size();
 				++sectionIndex)
@@ -2316,7 +2592,7 @@ namespace DearModdingUI
 					ImGui::PushID(static_cast<int>(sectionIndex));
 				const auto table = SettingsTable::Begin(
 					DMUI_INVALID_CLIENT_HANDLE,
-					"##DearModdingUI.HostHomeClients");
+					"##DearModdingUI.HostHealthClients");
 				if (table.result != DMUI_RESULT_OK || !table.visible)
 				{
 					if (scopeTableId)
@@ -2353,7 +2629,7 @@ namespace DearModdingUI
 					const auto severity = ClientStatusSeverity(*client, status);
 					std::string rowId{ "Client/" };
 					rowId.append(client->id);
-					DrawHostHomeRow(
+					DrawHostDetailRow(
 						rowId.c_str(),
 						client->displayName.c_str(),
 						description,
@@ -2372,6 +2648,81 @@ namespace DearModdingUI
 			}
 		}
 
+		void DrawHostSettingsPage() noexcept
+		{
+			constexpr auto extentPolicy =
+				TitleRowButtonExtentPolicy::kTitleBar;
+			const auto buttonExtent = ResolveTitleRowButtonExtent(
+				extentPolicy,
+				ImGui::GetFontSize(),
+				TitleBarButtonPadding());
+			const std::array actions{
+				HostSettingsTitleButton{
+					SettingsAction::kReset,
+					"##DearModdingUI.HostSettingsResetButton",
+					"Reset",
+					"Reset saves the default sidebar layout immediately and "
+					"loads other shipped interface defaults into the draft. "
+					"Use Apply to save those.",
+					SettingsActionButtonWidth(
+						SettingsAction::kReset,
+						"Reset",
+						buttonExtent) },
+				HostSettingsTitleButton{
+					SettingsAction::kRevert,
+					"##DearModdingUI.HostSettingsRevertButton",
+					"Revert",
+					"Revert discards pending interface edits and restores "
+					"saved settings. Sidebar layout changes are already saved.",
+					SettingsActionButtonWidth(
+						SettingsAction::kRevert,
+						"Revert",
+						buttonExtent) },
+				HostSettingsTitleButton{
+					SettingsAction::kApply,
+					"##DearModdingUI.HostSettingsApplyButton",
+					"Apply",
+					"Apply saves host settings to DearModdingUI.toml. "
+					"Sidebar layout changes save immediately; appearance "
+					"previews update live, and typography rebuilds once if needed.",
+					SettingsActionButtonWidth(
+						SettingsAction::kApply,
+						"Apply",
+						buttonExtent) }
+			};
+			const auto dirty =
+				HostSettingsTitleActionEnabled(SettingsAction::kApply);
+			std::array<TitleRowButton, actions.size()> titleButtons{};
+			for (size_t index = 0; index < actions.size(); ++index)
+			{
+				const auto& action = actions[index];
+				const auto presentation =
+					ResolveSettingsActionButtonPresentation(
+						action.action,
+						HasIconGlyph(SettingsActionGlyph(action.action)));
+				const auto enabled =
+					SettingsActionEnabled(action.action, dirty);
+				titleButtons[index] = {
+					action.id,
+					action.width,
+					presentation.glyph,
+					action.label,
+					action.tooltip,
+					enabled
+				};
+			}
+			const auto pressed = DrawTitleRow({
+				.title = kHostSettingsPage.displayName.data(),
+				.titleScale = Theme::kFeatureTitleScale,
+				.buttons = titleButtons,
+				.buttonExtentPolicy = extentPolicy,
+				.summary = kHostSettingsPage.summary.data()
+			});
+			if (pressed)
+				InvokeHostSettingsTitleAction(actions[*pressed].action);
+			DrawHostSettingsControls();
+		}
+
 		void DrawContent(
 			const NavigationModel& a_model,
 			ShellState& a_state) noexcept
@@ -2386,112 +2737,21 @@ namespace DearModdingUI
 				return;
 			}
 
-			if (HostSettings::IsPanelOpen())
-			{
-				constexpr auto extentPolicy =
-					TitleRowButtonExtentPolicy::kTitleBar;
-				const auto buttonExtent = ResolveTitleRowButtonExtent(
-					extentPolicy,
-					ImGui::GetFontSize(),
-					TitleBarButtonPadding());
-				const auto hasCloseGlyph = HasIconGlyph(PhosphorGlyph::kX);
-				constexpr const char* fallbackLabel{ "Back" };
-				const auto closeButtonWidth = ActionButtonWidth(
-					hasCloseGlyph,
-					ImGui::CalcTextSize(fallbackLabel).x,
-					buttonExtent,
-					ImGui::GetStyle().FramePadding.x);
-				const std::array actions{
-					HostSettingsTitleButton{
-						SettingsAction::kReset,
-						"##DearModdingUI.HostSettingsResetButton",
-						"Reset",
-						"Reset saves the default sidebar layout immediately and "
-						"loads other shipped interface defaults into the draft. "
-						"Use Apply to save those.",
-						SettingsActionButtonWidth(
-							SettingsAction::kReset,
-							"Reset",
-							buttonExtent) },
-					HostSettingsTitleButton{
-						SettingsAction::kRevert,
-						"##DearModdingUI.HostSettingsRevertButton",
-						"Revert",
-						"Revert discards pending interface edits and restores "
-						"saved settings. Sidebar layout changes are already saved.",
-						SettingsActionButtonWidth(
-							SettingsAction::kRevert,
-							"Revert",
-							buttonExtent) },
-					HostSettingsTitleButton{
-						SettingsAction::kApply,
-						"##DearModdingUI.HostSettingsApplyButton",
-						"Apply",
-						"Apply saves host settings to DearModdingUI.toml. "
-						"Sidebar layout changes save immediately; appearance "
-						"previews update live, and typography rebuilds once if needed.",
-						SettingsActionButtonWidth(
-							SettingsAction::kApply,
-							"Apply",
-							buttonExtent) }
-				};
-				const auto dirty =
-					HostSettingsTitleActionEnabled(SettingsAction::kApply);
-				std::array<TitleRowButton, actions.size() + 1> titleButtons{};
-				for (size_t index = 0; index < actions.size(); ++index)
-				{
-					const auto& action = actions[index];
-					const auto presentation =
-						ResolveSettingsActionButtonPresentation(
-							action.action,
-							HasIconGlyph(SettingsActionGlyph(action.action)));
-					const auto enabled =
-						SettingsActionEnabled(action.action, dirty);
-					titleButtons[index] = {
-						action.id,
-						action.width,
-						presentation.glyph,
-						action.label,
-						action.tooltip,
-						enabled
-					};
-				}
-				titleButtons.back() = {
-					"##DearModdingUI.HostSettingsBackButton",
-					closeButtonWidth,
-					hasCloseGlyph ? PhosphorGlyph::kX : char32_t{},
-					fallbackLabel,
-					"Back to the current mod page"
-				};
-				const auto pressed = DrawTitleRow({
-					.title = "Interface Settings",
-					.titleScale = Theme::kFeatureTitleScale,
-					.buttons = titleButtons,
-					.buttonExtentPolicy = extentPolicy
-				});
-				auto dismiss = false;
-				if (pressed)
-				{
-					if (*pressed < actions.size())
-					{
-						InvokeHostSettingsTitleAction(
-							actions[*pressed].action);
-					}
-					else
-					{
-						dismiss = true;
-					}
-				}
-				DrawHostSettingsControls();
-				if (dismiss)
-					HostSettings::DismissPanel();
-				ImGui::EndChild();
-				return;
-			}
-
 			if (a_state.activeHostPage == HostPageKind::kHome)
 			{
 				DrawHostHome();
+				ImGui::EndChild();
+				return;
+			}
+			if (a_state.activeHostPage == HostPageKind::kHealth)
+			{
+				DrawHostHealth();
+				ImGui::EndChild();
+				return;
+			}
+			if (a_state.activeHostPage == HostPageKind::kSettings)
+			{
+				DrawHostSettingsPage();
 				ImGui::EndChild();
 				return;
 			}
@@ -2617,7 +2877,7 @@ namespace DearModdingUI
 
 		void DrawFooter(
 			const NavigationModel& a_model,
-			const ShellState& a_state) noexcept
+			ShellState& a_state) noexcept
 		{
 			const auto status = CurrentStatus();
 			const auto start = ImGui::GetCursorScreenPos();
@@ -2730,10 +2990,10 @@ namespace DearModdingUI
 					hasGearGlyph ?
 						IconColor(ImGui::GetColorU32(ImGuiCol_Text)) :
 						ImGui::GetColorU32(ImGuiCol_Text),
-					HostSettings::IsPanelOpen(),
+					a_state.activeHostPage == HostPageKind::kSettings,
 					iconSize))
 			{
-				HostSettings::TogglePanel(true);
+				NavigateToHostPage(HostPageKind::kSettings, a_state);
 			}
 			ImGui::SetCursorScreenPos(start);
 			ImGui::Dummy({ contentMaxX - start.x, rowHeight });
@@ -2915,6 +3175,11 @@ namespace DearModdingUI
 		}
 	}
 
+	void ConfigurePreviewHostPage(HostPageKind a_page) noexcept
+	{
+		NavigateToHostPage(a_page, State());
+	}
+
 	void ConfigurePreviewSidebarComparison(
 		std::optional<SidebarLayoutKind> a_layoutOverride,
 		bool a_overrideExpandedClients,
@@ -3082,6 +3347,126 @@ namespace DearModdingUI
 		DrawBulletTextEntry(a_text);
 	}
 
+	void DrawLinkRow(
+		const char* a_id,
+		std::span<const LinkRowEntry> a_links) noexcept
+	{
+		if (a_links.empty())
+			return;
+
+		const auto& style = ImGui::GetStyle();
+		const auto buttonWidth =
+			(ImGui::GetContentRegionAvail().x -
+				style.ItemSpacing.x *
+					static_cast<float>(a_links.size() - 1)) /
+			static_cast<float>(a_links.size());
+		ImGui::PushID(a_id);
+		for (size_t index = 0; index < a_links.size(); ++index)
+		{
+			const auto& link = a_links[index];
+			ImGui::PushID(static_cast<int>(index));
+			ImGui::BeginDisabled(!link.enabled);
+			const auto clicked =
+				ImGui::Button("##DearModdingUI.Link", { buttonWidth, 0.0f });
+			const ImRect bounds{
+				ImGui::GetItemRectMin(),
+				ImGui::GetItemRectMax()
+			};
+			const auto textSize = ImGui::CalcTextSize(link.label.data());
+			const auto layout = DecideInlineIconLayout(
+				HasIconGlyph(link.glyph),
+				textSize.x,
+				textSize.y,
+				ImGui::GetFontSize(),
+				style.ItemSpacing.x);
+			const ImVec4 clip{
+				bounds.Min.x,
+				bounds.Min.y,
+				bounds.Max.x,
+				bounds.Max.y
+			};
+			(void)DrawIconText(
+				{
+					bounds.GetCenter().x - layout.contentWidth * 0.5f,
+					bounds.Min.y
+				},
+				bounds.GetHeight(),
+				link.glyph,
+				link.label.data(),
+				ImGui::GetColorU32(ImGuiCol_Text),
+				&clip);
+			ImGui::EndDisabled();
+
+			if (link.enabled && clicked)
+				ImGui::SetClipboardText(link.url.data());
+			const auto hoverFlags =
+				ImGuiHoveredFlags_DelayNormal |
+				(link.enabled ?
+						ImGuiHoveredFlags_None :
+						ImGuiHoveredFlags_AllowWhenDisabled);
+			const auto tooltip =
+				link.note.empty() ? link.url : link.note;
+			if (ImGui::IsItemHovered(hoverFlags))
+			{
+				(void)ImGui::BeginTooltip();
+				ImGui::TextUnformatted(
+					tooltip.data(),
+					tooltip.data() + tooltip.size());
+				ImGui::EndTooltip();
+			}
+			ImGui::PopID();
+			if (index + 1 < a_links.size())
+				ImGui::SameLine();
+		}
+		ImGui::PopID();
+	}
+
+	void DrawFaq(
+		const char* a_id,
+		std::span<const FaqRowEntry> a_entries) noexcept
+	{
+		if (a_entries.empty())
+			return;
+
+		auto& expansion = State().faqExpansion;
+		const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
+		ImGui::PushID(a_id);
+		ImGui::Indent();
+		for (const auto& entry : a_entries)
+		{
+			std::string key{ a_id };
+			key.push_back('\x1F');
+			key.append(entry.question);
+			auto expanded = expansion.try_emplace(std::move(key), false).first;
+			{
+				const Theme::FontGuard font{ Theme::FontRole::kBody };
+				(void)DrawSelectableRow({
+					.id = entry.question.data(),
+					.label = entry.question.data(),
+					.leadingAffordance = RowLeadingAffordance::kArrow,
+					.expanded = &expanded->second,
+					.textColor = textColor,
+					.hoveredTextColor = textColor,
+					.highlightStyle = RowHighlightStyle::kRoundedFill,
+					.clickBehavior = RowClickBehavior::kToggle
+				});
+			}
+			if (!expanded->second)
+				continue;
+
+			const Theme::FontGuard font{ Theme::FontRole::kSubtext };
+			ImGui::Indent();
+			ImGui::TextWrapped(
+				"%.*s",
+				static_cast<int>(entry.answer.size()),
+				entry.answer.data());
+			ImGui::Unindent();
+			ImGui::Spacing();
+		}
+		ImGui::Unindent();
+		ImGui::PopID();
+	}
+
 	void DrawSectionHeader(const char* a_text, char32_t a_glyph) noexcept
 	{
 		DrawRuledHeading({
@@ -3093,11 +3478,8 @@ namespace DearModdingUI
 	void DrawShell() noexcept
 	{
 		auto& state = State();
-		if (HostSettings::IsPanelOpen() &&
-			!state.paletteVisible &&
-			!state.paletteOpenRequested &&
-			ImGui::IsKeyPressed(ImGuiKey_Escape, false))
-			HostSettings::DismissPanel();
+		HostSettings::SetPageActive(
+			state.activeHostPage == HostPageKind::kSettings);
 		Theme::ApplyStyle();
 		const auto sidebarLayout = ResolveSidebarLayout(
 			HostSettings::EffectivePreview().sidebarLayout,

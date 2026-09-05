@@ -2,8 +2,9 @@
 
 #include <DearModdingUI/API.h>
 
-#include <cstdint>
+#include <array>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -104,7 +105,9 @@ namespace DearModdingUI
 
 	enum class HostPageKind : uint32_t
 	{
-		kHome
+		kHome,
+		kHealth,
+		kSettings
 	};
 
 	struct HostNavigationPage
@@ -112,6 +115,7 @@ namespace DearModdingUI
 		HostPageKind kind{ HostPageKind::kHome };
 		std::string_view id;
 		std::string_view displayName;
+		std::string_view iconName;
 		std::string_view summary;
 	};
 
@@ -119,8 +123,42 @@ namespace DearModdingUI
 		HostPageKind::kHome,
 		"home",
 		"Home",
-		"Session overview for the shared menu host and its registered mods."
+		"house",
+		"At-a-glance status for the shared menu host."
 	};
+
+	inline constexpr HostNavigationPage kHostHealthPage{
+		HostPageKind::kHealth,
+		"health",
+		"Health",
+		"stethoscope",
+		"Detailed host subsystem and registered mod status."
+	};
+
+	inline constexpr HostNavigationPage kHostSettingsPage{
+		HostPageKind::kSettings,
+		"settings",
+		"Settings",
+		"sliders-horizontal",
+		"Configure the shared menu interface, readability, and input."
+	};
+
+	inline constexpr std::array kHostNavigationPages{
+		kHostHomePage,
+		kHostHealthPage,
+		kHostSettingsPage
+	};
+
+	[[nodiscard]] constexpr const HostNavigationPage* FindHostNavigationPage(
+		HostPageKind a_kind) noexcept
+	{
+		for (const auto& page : kHostNavigationPages)
+		{
+			if (page.kind == a_kind)
+				return &page;
+		}
+		return nullptr;
+	}
 
 	struct ClientSelectionState
 	{

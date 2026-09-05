@@ -64,12 +64,28 @@
     "message": "close button geometry changed"
   },
   {
-    "name": "host settings require visible menu",
-    "target": "include/DearModdingUI/HostSettings.h",
-    "find": "if (!a_menuVisible ||",
-    "replace": "if (false ||",
-    "check": "host settings panel follows menu visibility",
-    "message": "settings opened while the menu was closed"
+    "name": "host health remains a distinct navigation page",
+    "target": "include/DearModdingUI/Navigation.h",
+    "find": "kHostHomePage,\n\t\tkHostHealthPage,\n\t\tkHostSettingsPage",
+    "replace": "kHostHomePage,\n\t\tkHostHomePage,\n\t\tkHostSettingsPage",
+    "check": "Home Health and Settings are first-class host destinations",
+    "message": "the three host pages or their distinct icons changed"
+  },
+  {
+    "name": "Home FAQ uses the configured toggle key",
+    "target": "src/DearModdingUI/Home.cpp",
+    "find": "toggleAnswer.append(a_toggleKeyName);",
+    "replace": "toggleAnswer.append(\"F11\");",
+    "check": "Home FAQ composes the configured menu toggle key",
+    "message": "Home FAQ did not use the configured End key"
+  },
+  {
+    "name": "Home keeps the GitHub quick link enabled",
+    "target": "src/DearModdingUI/Home.cpp",
+    "find": "\"github-logo\",\r\n\t\t\t\ttrue },",
+    "replace": "\"github-logo\",\r\n\t\t\t\tfalse },",
+    "check": "Home quick links preserve enabled-link invariants",
+    "message": "a disabled Home link had no explanatory note"
   },
   {
     "name": "host icon setting preserves monochrome value",
@@ -190,5 +206,53 @@
     "replace": "return 0.0f;",
     "check": "header title aligns with the footer bullet run",
     "message": "header title inset did not match the bullet ink edge"
+  },
+  {
+    "name": "client diagnostics increment matching records",
+    "target": "src/DearModdingUI/Diagnostics.cpp",
+    "find": "++record->occurrenceCount;",
+    "replace": "record->occurrenceCount += 0;",
+    "check": "client diagnostics aggregate by severity scope and summary",
+    "message": "diagnostic aggregation or first-detail retention changed"
+  },
+  {
+    "name": "client diagnostics count dropped identities",
+    "target": "src/DearModdingUI/Diagnostics.cpp",
+    "find": "++client->droppedDistinctCount;",
+    "replace": "client->droppedDistinctCount += 0;",
+    "check": "client diagnostic retention stays bounded",
+    "message": "bounded diagnostic retention lost counts or admitted overflow"
+  },
+  {
+    "name": "Health diagnostics report includes occurrence counts",
+    "target": "src/DearModdingUI/Health.cpp",
+    "find": "\" (x{})\",",
+    "replace": "\" (count {})\",",
+    "check": "Health diagnostics report includes support context",
+    "message": "the copied Health report omitted required support context"
+  },
+  {
+    "name": "Health diagnostic summaries count occurrences",
+    "target": "src/DearModdingUI/Health.cpp",
+    "find": "warnings += record.occurrenceCount;",
+    "replace": "++warnings;",
+    "check": "Health diagnostic summaries count occurrences",
+    "message": "Health diagnostic summaries counted records instead of occurrences"
+  },
+  {
+    "name": "Health diagnostic clients sort by severity",
+    "target": "src/DearModdingUI/Health.cpp",
+    "find": "case DMUI_STATUS_SEVERITY_ERROR:\r\n\t\t\t\treturn 0;",
+    "replace": "case DMUI_STATUS_SEVERITY_ERROR:\r\n\t\t\t\treturn 3;",
+    "check": "Health diagnostic clients sort by worst severity",
+    "message": "Health diagnostic clients were not ordered by worst severity"
+  },
+  {
+    "name": "Health diagnostic warnings expand by default",
+    "target": "src/DearModdingUI/Health.cpp",
+    "find": "errors != 0 || warnings != 0;",
+    "replace": "errors != 0 && warnings != 0;",
+    "check": "Health diagnostic expansion defaults follow severity",
+    "message": "Health diagnostic expansion defaults ignored severity"
   }
 ]
