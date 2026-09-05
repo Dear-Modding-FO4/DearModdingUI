@@ -117,6 +117,7 @@ target("dmui-tests", function()
     add_deps("imgui", "dmui-mcm")
     add_files(
         "Tests/**.cpp",
+        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileHostAPILayout.cpp",
         "src/DearModdingUI/Diagnostics.cpp",
         "src/DearModdingUI/FontCatalog.cpp",
         "src/DearModdingUI/Health.cpp",
