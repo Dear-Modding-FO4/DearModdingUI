@@ -276,8 +276,10 @@ namespace DearModdingUI
 								"##Value",
 								selectedLayout->label.data()))
 						{
-							for (const auto& layout : USER_SIDEBAR_LAYOUTS)
+							for (const auto& layout : SIDEBAR_LAYOUTS)
 							{
+								if (!layout.production)
+									continue;
 								const auto selected =
 									layout.kind == settings.sidebarLayout;
 								if (ImGui::Selectable(

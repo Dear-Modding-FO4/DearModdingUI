@@ -1,7 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/MenuToggleKey.h>
-#include <DearModdingUI/SidebarComparison.h>
+#include <DearModdingUI/Sidebar.h>
 #include <DearModdingUI/ThemeDefaults.h>
 
 #include <algorithm>

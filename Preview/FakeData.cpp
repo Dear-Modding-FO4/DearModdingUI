@@ -482,7 +482,9 @@ namespace DearModdingUIPreview
 
 	FakeData::~FakeData() = default;
 
-	bool FakeData::Register(std::string& a_error) noexcept
+	bool FakeData::Register(
+		std::string& a_error,
+		bool a_includeNavigationComparisonFixtures) noexcept
 	{
 		try
 		{
@@ -957,6 +959,109 @@ namespace DearModdingUIPreview
 			{
 				a_error = "Could not register fake client statuses.";
 				return false;
+			}
+			if (a_includeNavigationComparisonFixtures)
+			{
+				static constexpr std::array navigationPages{
+					PageSpec{
+						"overview",
+						"Overview",
+						nullptr,
+						"Synthetic navigation-only bridge fixture."
+					},
+					PageSpec{
+						"tuning",
+						"Tuning",
+						"Configuration",
+						"Generic bridged configuration controls."
+					},
+					PageSpec{
+						"diagnostics",
+						"Diagnostics",
+						"Diagnostics",
+						"A category intentionally matching its page name."
+					}
+				};
+				struct NavigationFixtureClient
+				{
+					const char* id;
+					const char* displayName;
+					const char* source;
+				};
+				static constexpr std::array navigationClients{
+					NavigationFixtureClient{
+						"preview.navigation.unnamed-a",
+						"Navigation Preview: Unnamed Alpha",
+						""
+					},
+					NavigationFixtureClient{
+						"preview.navigation.unnamed-b",
+						"Navigation Preview: Unnamed Beta",
+						""
+					},
+					NavigationFixtureClient{
+						"preview.navigation.long-a",
+						"Navigation Preview: Long Source Alpha",
+						"A Very Long Navigation Bridge Source Label for Layout Stress"
+					},
+					NavigationFixtureClient{
+						"preview.navigation.long-b",
+						"Navigation Preview: Long Source Beta",
+						"A Very Long Navigation Bridge Source Label for Layout Stress"
+					},
+					NavigationFixtureClient{
+						"preview.navigation.long-c",
+						"Navigation Preview: Long Source Gamma",
+						"A Very Long Navigation Bridge Source Label for Layout Stress"
+					},
+					NavigationFixtureClient{
+						"preview.navigation.long-d",
+						"Navigation Preview: Long Source Delta",
+						"A Very Long Navigation Bridge Source Label for Layout Stress"
+					},
+					NavigationFixtureClient{
+						"preview.navigation.papyrus-a",
+						"Navigation Preview: Papyrus Alpha",
+						"Papyrus Configuration Bridge"
+					},
+					NavigationFixtureClient{
+						"preview.navigation.papyrus-b",
+						"Navigation Preview: Papyrus Beta",
+						"Papyrus Configuration Bridge"
+					},
+					NavigationFixtureClient{
+						"preview.navigation.papyrus-c",
+						"Navigation Preview: Papyrus Gamma",
+						"Papyrus Configuration Bridge"
+					},
+					NavigationFixtureClient{
+						"preview.navigation.papyrus-d",
+						"Navigation Preview: Papyrus Delta",
+						"Papyrus Configuration Bridge"
+					},
+					NavigationFixtureClient{
+						"preview.navigation.papyrus-e",
+						"Navigation Preview: Papyrus Epsilon",
+						"Papyrus Configuration Bridge"
+					}
+				};
+				for (const auto& fixture : navigationClients)
+				{
+					auto* client = m_impl->AddClient(
+						fixture.id,
+						fixture.displayName,
+						{ 0, 1 },
+						"share-network",
+						a_error,
+						ClientConnection::kLockstep,
+						{
+							dmui::ClientOriginKind::kBridged,
+							fixture.source
+						});
+					if (!client ||
+						!AddPages(*client, navigationPages, a_error))
+						return false;
+				}
 			}
 			return true;
 		}

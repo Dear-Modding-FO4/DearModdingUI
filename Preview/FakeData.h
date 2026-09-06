@@ -16,7 +16,9 @@ namespace DearModdingUIPreview
 		FakeData& operator=(const FakeData&) = delete;
 		FakeData& operator=(FakeData&&) = delete;
 
-		[[nodiscard]] bool Register(std::string& a_error) noexcept;
+		[[nodiscard]] bool Register(
+			std::string& a_error,
+			bool a_includeNavigationComparisonFixtures = false) noexcept;
 
 	private:
 		struct Impl;

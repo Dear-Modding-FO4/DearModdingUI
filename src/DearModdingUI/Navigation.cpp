@@ -3,6 +3,7 @@
 #include <DearModdingUI/Registry.h>
 
 #include <algorithm>
+#include <cassert>
 #include <cctype>
 #include <optional>
 #include <string_view>
@@ -141,6 +142,21 @@ namespace DearModdingUI
 		return nullptr;
 	}
 
+	const NavigationClientSection* NavigationModel::FindSectionForClient(
+		DMUI_ClientHandle a_client) const noexcept
+	{
+		for (const auto& section : sections)
+		{
+			for (const auto index : section.clientIndices)
+			{
+				assert(index < clients.size());
+				if (clients[index].handle == a_client)
+					return &section;
+			}
+		}
+		return nullptr;
+	}
+
 	DMUI_PageHandle NavigationModel::FirstPage() const noexcept
 	{
 		for (const auto& client : clients)
@@ -191,7 +207,9 @@ namespace DearModdingUI
 				client->displayName,
 				client->version,
 				{},
-				client->iconName
+				client->iconName,
+				client->origin,
+				client->bridgeSourceLabel
 			};
 
 			std::vector<const RegisteredPage*> orderedPages;
@@ -231,7 +249,61 @@ namespace DearModdingUI
 			}
 			model.clients.push_back(std::move(navigationClient));
 		}
+		for (size_t clientIndex = 0; clientIndex < model.clients.size();
+			++clientIndex)
+		{
+			const auto& client = model.clients[clientIndex];
+			if (client.origin == DMUI_CLIENT_ORIGIN_NATIVE)
+			{
+				auto native = std::ranges::find_if(
+					model.sections,
+					[](const auto& a_section) {
+						return a_section.origin == DMUI_CLIENT_ORIGIN_NATIVE;
+					});
+				if (native == model.sections.end())
+				native = model.sections.insert(
+					model.sections.begin(),
+					{ DMUI_CLIENT_ORIGIN_NATIVE, {}, {} });
+				native->clientIndices.push_back(clientIndex);
+			}
+			else
+			{
+				auto section = std::ranges::find_if(
+					model.sections,
+					[&](const auto& a_section) {
+						return a_section.origin == client.origin &&
+							a_section.bridgeSourceLabel ==
+								client.bridgeSourceLabel;
+					});
+				if (section == model.sections.end())
+				model.sections.push_back({
+					client.origin,
+					client.bridgeSourceLabel,
+					{ clientIndex }
+				});
+				else
+					section->clientIndices.push_back(clientIndex);
+			}
+		}
+		std::ranges::stable_sort(
+			model.sections,
+			[](const auto& a_left, const auto& a_right) {
+				if (a_left.origin != a_right.origin)
+					return a_left.origin == DMUI_CLIENT_ORIGIN_NATIVE;
+				return a_left.bridgeSourceLabel < a_right.bridgeSourceLabel;
+			});
 		return model;
+	}
+
+	std::string NavigationClientSectionLabel(
+		DMUI_ClientOrigin a_origin,
+		std::string_view a_bridgeSourceLabel)
+	{
+		if (a_origin == DMUI_CLIENT_ORIGIN_NATIVE)
+			return "Native";
+		return a_bridgeSourceLabel.empty() ?
+			"Bridged" :
+			std::string{ a_bridgeSourceLabel };
 	}
 
 	std::vector<NavigationSearchEntry> BuildNavigationSearchIndex(

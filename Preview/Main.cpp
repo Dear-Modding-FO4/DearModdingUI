@@ -67,6 +67,8 @@ namespace DearModdingUIPreview
 			std::optional<HostPageKind> hostPage;
 			std::optional<std::vector<std::string>> expandedMods;
 			std::optional<SidebarLayoutKind> sidebarOverride;
+			std::optional<NavigationPresentationKind> navigationOverride;
+			std::optional<DMUI_ClientOrigin> navigationOrigin;
 			bool help{};
 		};
 
@@ -150,6 +152,8 @@ namespace DearModdingUIPreview
 				<< L"  --page <client-id/page-id>  Open a registered settings page\n"
 				<< L"  --host-page <home|health|settings>  Open a host page\n"
 				<< L"  --sidebar <tree|twopane|drilldown|iconrail>  Select the sidebar layout\n"
+				<< L"  --navigation <grouped|destinations>  Enable a preview-only navigation comparison\n"
+				<< L"  --origin <native|bridged>  Select the destinations comparison tab\n"
 				<< L"  --expand <client-id>      Expand a tree mod or enter a drill-down mod\n"
 				<< L"  --collapse-all            Collapse the tree or show the drill-down root\n"
 				<< L"  --help                    Show this help\n";
@@ -265,6 +269,43 @@ namespace DearModdingUIPreview
 					}
 					a_options.sidebarOverride = *layout;
 				}
+				else if (argument == L"--navigation")
+				{
+					const auto name = WideToUtf8(value);
+					const auto navigation = name ?
+						ParsePreviewNavigationKind(*name) :
+						std::nullopt;
+					if (!navigation)
+					{
+						a_error =
+							L"Navigation comparison must be grouped or destinations.";
+						return false;
+					}
+					if (a_options.navigationOverride)
+					{
+						a_error = L"Navigation comparison was specified more than once.";
+						return false;
+					}
+					a_options.navigationOverride = *navigation;
+				}
+				else if (argument == L"--origin")
+				{
+					const auto name = WideToUtf8(value);
+					const auto origin = name ?
+						ParsePreviewNavigationOrigin(*name) :
+						std::nullopt;
+					if (!origin)
+					{
+						a_error = L"Navigation origin must be native or bridged.";
+						return false;
+					}
+					if (a_options.navigationOrigin)
+					{
+						a_error = L"Navigation origin was specified more than once.";
+						return false;
+					}
+					a_options.navigationOrigin = *origin;
+				}
 				else if (argument == L"--expand")
 				{
 					const auto client = WideToUtf8(value);
@@ -282,6 +323,22 @@ namespace DearModdingUIPreview
 					a_error = L"Unknown option " + std::wstring{ argument } + L".";
 					return false;
 				}
+			}
+			if (a_options.navigationOrigin &&
+				a_options.navigationOverride !=
+					NavigationPresentationKind::Destinations)
+			{
+				a_error =
+					L"--origin requires --navigation destinations.";
+				return false;
+			}
+			if (a_options.navigationOverride ==
+					NavigationPresentationKind::Destinations &&
+				!a_options.navigationOrigin)
+			{
+				a_error =
+					L"--navigation destinations requires --origin native or bridged.";
+				return false;
 			}
 			return true;
 		}
@@ -862,7 +919,9 @@ namespace DearModdingUIPreview
 				DearModdingUI::Initialize();
 				m_fakeData = std::make_unique<FakeData>();
 				std::string registrationError;
-				if (!m_fakeData->Register(registrationError))
+				if (!m_fakeData->Register(
+						registrationError,
+						m_options.navigationOverride.has_value()))
 				{
 					a_error.assign(
 						registrationError.begin(),
@@ -924,7 +983,10 @@ namespace DearModdingUIPreview
 					m_options.expandedMods.has_value(),
 					m_options.expandedMods ?
 						std::span<const std::string>{ *m_options.expandedMods } :
-						std::span<const std::string>{});
+						std::span<const std::string>{},
+					m_options.navigationOverride,
+					m_options.navigationOrigin.value_or(
+						DMUI_CLIENT_ORIGIN_NATIVE));
 				return true;
 			}
 
@@ -962,6 +1024,42 @@ namespace DearModdingUIPreview
 					{
 						if (m_options.hostPage)
 							ConfigurePreviewHostPage(*m_options.hostPage);
+						else if (m_options.navigationOrigin)
+						{
+							const auto presentation =
+								BuildNavigationPresentation(
+									NavigationPresentationKind::Destinations,
+									Navigation(),
+									{
+										{},
+										{ *m_options.navigationOrigin }
+									});
+							if (presentation.sections.empty())
+							{
+								a_error =
+									L"No settings client matched the requested origin.";
+								return false;
+							}
+							const auto& section = Navigation().sections[
+								presentation.sections.front().sectionIndex];
+							if (section.clientIndices.empty())
+							{
+								a_error =
+									L"No settings client matched the requested origin.";
+								return false;
+							}
+							const auto* client = &Navigation().clients[
+								section.clientIndices.front()];
+							const auto page = ResolveLandingPage(*client);
+							if (HostAPI().selectPage(
+									client->handle,
+									page) != DMUI_RESULT_OK)
+							{
+								a_error =
+									L"Could not select the requested origin's initial page.";
+								return false;
+							}
+						}
 						return true;
 					}
 					a_error = L"Could not open the host menu.";
@@ -988,6 +1086,18 @@ namespace DearModdingUIPreview
 				{
 					a_error = L"Requested page was not registered.";
 					return false;
+				}
+				if (m_options.navigationOrigin)
+				{
+					const auto* client =
+						Navigation().FindClient(page->client);
+					if (!client ||
+						client->origin != *m_options.navigationOrigin)
+					{
+						a_error =
+							L"Requested page does not match --origin.";
+						return false;
+					}
 				}
 				const auto result = HostAPI().selectPage(
 					page->client,

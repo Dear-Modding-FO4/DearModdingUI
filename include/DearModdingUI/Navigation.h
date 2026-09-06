@@ -46,18 +46,30 @@ namespace DearModdingUI
 		uint32_t version{ 0 };
 		std::vector<NavigationCategory> categories;
 		std::string iconName;
+		DMUI_ClientOrigin origin{ DMUI_CLIENT_ORIGIN_NATIVE };
+		std::string bridgeSourceLabel;
 	};
 
 	[[nodiscard]] char32_t ResolveNavigationClientIconGlyph(
 		const NavigationClient& a_client) noexcept;
 
+	struct NavigationClientSection
+	{
+		DMUI_ClientOrigin origin{ DMUI_CLIENT_ORIGIN_NATIVE };
+		std::string bridgeSourceLabel;
+		std::vector<size_t> clientIndices;
+	};
+
 	struct NavigationModel
 	{
 		std::vector<NavigationClient> clients;
+		std::vector<NavigationClientSection> sections;
 
 		[[nodiscard]] const NavigationClient* FindClient(DMUI_ClientHandle a_client) const noexcept;
 		[[nodiscard]] const NavigationClient* FindClientForPage(DMUI_PageHandle a_page) const noexcept;
 		[[nodiscard]] const NavigationPage* FindPage(DMUI_PageHandle a_page) const noexcept;
+		[[nodiscard]] const NavigationClientSection* FindSectionForClient(
+			DMUI_ClientHandle a_client) const noexcept;
 		[[nodiscard]] DMUI_PageHandle FirstPage() const noexcept;
 	};
 
@@ -199,6 +211,9 @@ namespace DearModdingUI
 	[[nodiscard]] NavigationModel BuildNavigationModel(
 		const std::vector<RegisteredClient>& a_clients,
 		const std::vector<RegisteredPage>& a_pages);
+	[[nodiscard]] std::string NavigationClientSectionLabel(
+		DMUI_ClientOrigin a_origin,
+		std::string_view a_bridgeSourceLabel);
 	[[nodiscard]] std::vector<NavigationSearchEntry> BuildNavigationSearchIndex(
 		const NavigationModel& a_model,
 		const std::vector<RegisteredAction>& a_actions);

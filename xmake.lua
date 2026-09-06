@@ -124,6 +124,8 @@ target("dmui-tests", function()
         "src/DearModdingUI/Home.cpp",
         "src/DearModdingUI/Hotkeys.cpp",
         "src/DearModdingUI/Navigation.cpp",
+        "src/DearModdingUI/NavigationController.cpp",
+        "src/DearModdingUI/NavigationPresentation.cpp",
         "src/DearModdingUI/Registry.cpp",
         "src/DearModdingUI/SettingsTable.cpp",
         "src/DearModdingUI/Status.cpp"
@@ -177,6 +179,8 @@ target("dmui-preview", function()
         "src/DearModdingUI/HostSettingsView.cpp",
         "src/DearModdingUI/Hotkeys.cpp",
         "src/DearModdingUI/Navigation.cpp",
+        "src/DearModdingUI/NavigationController.cpp",
+        "src/DearModdingUI/NavigationPresentation.cpp",
         "src/DearModdingUI/Registry.cpp",
         "src/DearModdingUI/SettingsTable.cpp",
         "src/DearModdingUI/Shell.cpp",

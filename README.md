@@ -6,6 +6,14 @@ The host owns the ImGui context, D3D11 and Win32 backends, common shell, navigat
 
 The host-owned Home page is the landing page for each game launch and gives a concise host identity, registration counts, and overall live-health summary. The peer Health page owns detailed host subsystem observations and the full client registry with per-mod status. Settings is the third host page, and the footer gear navigates to that same authoritative settings surface. Closing and reopening the menu within that launch returns to the last selected host or client page; active-page selection is not persisted across launches.
 
+## Navigation
+
+The sidebar groups settings clients under Native and each declared bridge-source label. Source names come from client metadata, not host-specific bridge rules. Empty page categories have no heading; named categories remain visible even when their names match a page or client.
+
+The internal navigation model owns source membership independently of presentation. Section presentations describe visible sections and source controls; sidebar layouts arrange those sections and own their browsing state. A shared controller handles page selection from clicks, search, and client requests, then asks the presentation and layout to reveal that selection. This also keeps explicit same-page requests distinct from browsing back to a client list.
+
+New source presentations implement the presentation contract in `NavigationPresentation.h`; new layouts implement activation, selection-reveal, and drawing through the sidebar contract. Layouts consume read-only navigation data and return navigation requests rather than changing the active page themselves. The sidebar descriptor catalog owns persisted layout IDs and production/preview availability. Grouped sections are the normal presentation; Native/Bridged destinations and the icon rail remain standalone-preview options, not additional production settings.
+
 ## Client registration
 
 The ABI, lifecycle, compatibility fingerprint, and registration examples are documented in [`include/DearModdingUI/README.md`](include/DearModdingUI/README.md). Public client headers live in the standalone DearModdingUI API repository and arrive through CommonLibF4's `lib/dearmoddingui-api` public dependency.

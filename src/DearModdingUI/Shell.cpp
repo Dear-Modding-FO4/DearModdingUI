@@ -8,6 +8,9 @@
 #include <DearModdingUI/Home.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/MenuToggleKey.h>
+#include <DearModdingUI/NavigationController.h>
+#include <DearModdingUI/NavigationPresentation.h>
+#include <DearModdingUI/Sidebar.h>
 #include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Status.h>
 #include <DearModdingUI/Theme.h>
@@ -20,6 +23,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cfloat>
 #include <cmath>
 #include <cstdio>
@@ -43,19 +47,23 @@ namespace DearModdingUI
 		inline constexpr float kSidebarModFontScale{ 0.8f };
 		inline constexpr size_t kMinimumVisiblePageRows{ 3 };
 
+		struct SidebarState : SidebarBrowsingState
+		{
+			std::optional<std::vector<std::string>> previewExpandedClients;
+		};
+
 		struct ShellState : ClientSelectionState
 		{
-			std::map<std::string, bool> categoryExpansion;
 			std::map<std::string, bool> diagnosticExpansion;
 			std::map<std::string, bool> faqExpansion;
-			std::map<std::string, bool> modExpansion;
-			std::optional<std::vector<std::string>> previewExpandedClients;
+			SidebarState sidebar;
 			std::optional<SidebarLayoutKind> previewSidebarLayoutOverride;
+			std::optional<NavigationPresentationKind>
+				previewPresentationOverride;
+			NavigationPresentationState presentation;
 			std::string paletteQuery;
 			size_t paletteSelection{ 0 };
 			SidebarLayoutKind sidebarLayout{ DEFAULT_SIDEBAR_LAYOUT };
-			DrillDownState drillDown;
-			bool drillDownInitialized{ false };
 			bool paletteOpenRequested{ false };
 			bool paletteFocusRequested{ false };
 			bool paletteVisible{ false };
@@ -1184,115 +1192,107 @@ namespace DearModdingUI
 				a_state.paletteOpenRequested = true;
 		}
 
-		[[nodiscard]] std::string CategoryKey(
-			const NavigationClient& a_client,
-			std::string_view a_category)
+		[[nodiscard]] NavigationPresentationKind ActivePresentationKind(
+			const ShellState& a_state) noexcept
 		{
-			return a_client.id + "/" + std::string{ a_category };
+			return a_state.previewPresentationOverride.value_or(
+				NavigationPresentationKind::Grouped);
 		}
 
-		void ExpandPageAncestors(
+		[[nodiscard]] NavigationResult ApplyShellNavigationRequest(
 			const NavigationModel& a_model,
-			DMUI_PageHandle a_page,
-			ShellState& a_state)
+			const NavigationRequest& a_request,
+			ClientSelectionState& a_selection,
+			NavigationPresentationKind a_presentationKind,
+			NavigationPresentationState& a_presentation,
+			SidebarLayoutKind a_layout,
+			SidebarState& a_sidebar)
 		{
-			const auto* page = a_model.FindPage(a_page);
-			const auto* client = page ?
-				a_model.FindClient(page->client) :
-				nullptr;
-			if (!page || !client)
-				return;
-			a_state.modExpansion[client->id] = true;
-			a_state.categoryExpansion[CategoryKey(*client, page->category)] = true;
-		}
+			auto result =
+				ApplyNavigationRequest(a_model, a_request, a_selection);
+			if (!result.accepted)
+			{
+				(void)SetHostStatus(
+					DMUI_STATUS_SEVERITY_WARNING,
+					"Navigation request was rejected.");
+				return result;
+			}
 
-		void NavigateToPage(
-			const NavigationModel& a_model,
-			DMUI_PageHandle a_page,
-			ShellState& a_state) noexcept;
+			HostSettings::SetPageActive(
+				result.hostPage == HostPageKind::kSettings);
+			if (result.revealSelection &&
+				result.client != DMUI_INVALID_CLIENT_HANDLE)
+			{
+				RevealNavigationClient(
+					a_presentationKind,
+					a_model,
+					result.client,
+					a_presentation);
+			}
+			RevealSidebarSelection(
+				a_layout,
+				a_model,
+				a_selection,
+				a_sidebar);
+			return result;
+		}
 
 		void ApplyPreviewExpandedClients(
 			const NavigationModel& a_model,
 			ShellState& a_state)
 		{
-			if (!a_state.previewExpandedClients)
+			if (!a_state.sidebar.previewExpandedClients)
 				return;
 			for (const auto& client : a_model.clients)
 			{
-				a_state.modExpansion[client.id] =
+				a_state.sidebar.modExpansion[client.id] =
 					std::ranges::find(
-						*a_state.previewExpandedClients,
-						client.id) != a_state.previewExpandedClients->end();
+						*a_state.sidebar.previewExpandedClients,
+						client.id) !=
+						a_state.sidebar.previewExpandedClients->end();
 			}
 			if (a_state.sidebarLayout == SidebarLayoutKind::DrillDown)
 			{
-				a_state.drillDownInitialized = true;
-				if (a_state.previewExpandedClients->empty())
+				if (a_state.sidebar.previewExpandedClients->empty())
 				{
-					a_state.drillDown = TransitionDrillDown(
-						a_state.drillDown,
+					a_state.sidebar.drillDown = TransitionDrillDown(
+						a_state.sidebar.drillDown,
 						DrillDownEvent::Back);
 				}
 				else
 				{
 					const auto client = std::ranges::find(
 						a_model.clients,
-						a_state.previewExpandedClients->front(),
+						a_state.sidebar.previewExpandedClients->front(),
 						&NavigationClient::id);
 					if (client != a_model.clients.end())
 					{
-						a_state.drillDown = TransitionDrillDown(
-							a_state.drillDown,
-							DrillDownEvent::SelectClient,
-							client->handle);
-						NavigateToPage(
+						(void)ApplyShellNavigationRequest(
 							a_model,
-							ResolveLandingPage(*client),
-							a_state);
+							NavigationRequest::Client(client->handle),
+							a_state,
+							ActivePresentationKind(a_state),
+							a_state.presentation,
+							a_state.sidebarLayout,
+							a_state.sidebar);
 					}
 				}
 			}
-			a_state.previewExpandedClients.reset();
-		}
-
-		void NavigateToPage(
-			const NavigationModel& a_model,
-			DMUI_PageHandle a_page,
-			ShellState& a_state) noexcept
-		{
-			const auto* page = a_model.FindPage(a_page);
-			if (!page)
-				return;
-			HostSettings::SetPageActive(false);
-			a_state.activeClient = page->client;
-			a_state.activePage = page->handle;
-			a_state.activeHostPage.reset();
-			RecordRecentPage(a_model, page->handle, a_state);
-			ExpandPageAncestors(a_model, page->handle, a_state);
-			if (a_state.sidebarLayout == SidebarLayoutKind::DrillDown &&
-				a_state.drillDownInitialized)
-			{
-				a_state.drillDown = TransitionDrillDown(
-					a_state.drillDown,
-					DrillDownEvent::SelectClient,
-					page->client);
-			}
+			a_state.sidebar.previewExpandedClients.reset();
 		}
 
 		void NavigateToHostPage(
 			HostPageKind a_page,
 			ShellState& a_state) noexcept
 		{
-			HostSettings::SetPageActive(
-				a_page == HostPageKind::kSettings);
-			SelectHostPage(a_page, a_state);
-			if (a_state.sidebarLayout == SidebarLayoutKind::DrillDown &&
-				a_state.drillDownInitialized)
-			{
-				a_state.drillDown = TransitionDrillDown(
-					a_state.drillDown,
-					DrillDownEvent::Back);
-			}
+			(void)ApplyShellNavigationRequest(
+				Navigation(),
+				NavigationRequest::Host(a_page),
+				a_state,
+				ActivePresentationKind(a_state),
+				a_state.presentation,
+				a_state.sidebarLayout,
+				a_state.sidebar);
 		}
 
 		[[nodiscard]] const ClientStatus* FindClientStatus(
@@ -1353,7 +1353,7 @@ namespace DearModdingUI
 		[[nodiscard]] RowResult DrawClientNavigationRow(
 			const NavigationClient& a_client,
 			const ClientStatus* a_status,
-			ShellState& a_state,
+			const ClientSelectionState& a_selection,
 			ClientRowKind a_kind,
 			bool* a_expanded = nullptr) noexcept
 		{
@@ -1365,7 +1365,7 @@ namespace DearModdingUI
 			const auto row = DrawSelectableRow({
 				.id = a_client.id.c_str(),
 				.label = a_client.displayName.c_str(),
-				.selected = a_client.handle == a_state.activeClient,
+				.selected = a_client.handle == a_selection.activeClient,
 				.leadingAffordance =
 					a_kind == ClientRowKind::Tree ?
 						RowLeadingAffordance::kArrow :
@@ -1389,11 +1389,68 @@ namespace DearModdingUI
 				a_kind == ClientRowKind::Rail);
 			if (a_kind == ClientRowKind::Rail &&
 				ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
-				ImGui::SetTooltip("%s", a_client.displayName.c_str());
+			{
+				const auto section = NavigationClientSectionLabel(
+					a_client.origin,
+					a_client.bridgeSourceLabel);
+				ImGui::SetTooltip(
+					"%s\n%s",
+					a_client.displayName.c_str(),
+					section.c_str());
+			}
 			return row;
 		}
 
-		void DrawHostNavigationRows(ShellState& a_state) noexcept
+		void DrawNavigationSectionHeading(
+			const NavigationClientSection& a_section) noexcept
+		{
+			const auto label = NavigationClientSectionLabel(
+				a_section.origin,
+				a_section.bridgeSourceLabel);
+			ImGui::PushID(static_cast<int>(a_section.origin));
+			ImGui::PushID(a_section.bridgeSourceLabel.c_str());
+			{
+				const Theme::FontGuard font{ Theme::FontRole::kHeading };
+				DrawRuledHeading({
+					.text = label.c_str(),
+					.glyph =
+						a_section.origin == DMUI_CLIENT_ORIGIN_NATIVE ?
+							PhosphorGlyph::kPuzzlePiece :
+							FindPhosphorIconGlyphOrZero("share-network"),
+					.ruleStyle = RuledHeadingRuleStyle::kSubordinate
+				});
+			}
+			ImGui::PopID();
+			ImGui::PopID();
+		}
+
+		void DrawNavigationClientContext(
+			const NavigationClient& a_client) noexcept
+		{
+			const auto label = NavigationClientSectionLabel(
+				a_client.origin,
+				a_client.bridgeSourceLabel);
+			ImGui::TextWrapped(
+				a_client.origin == DMUI_CLIENT_ORIGIN_NATIVE ?
+					"Origin: %s" :
+					"Source: %s",
+				label.c_str());
+		}
+
+		struct SidebarNavigationIntent
+		{
+			std::optional<NavigationRequest> request;
+
+			void Offer(NavigationRequest a_request) noexcept
+			{
+				if (!request)
+					request = a_request;
+			}
+		};
+
+		void DrawHostNavigationRows(
+			const ClientSelectionState& a_selection,
+			SidebarNavigationIntent& a_intent) noexcept
 		{
 			const Theme::FontGuard font{
 				Theme::FontRole::kTitle,
@@ -1406,7 +1463,7 @@ namespace DearModdingUI
 				const auto row = DrawSelectableRow({
 					.id = "##DearModdingHostPage",
 					.label = page.displayName.data(),
-					.selected = a_state.activeHostPage == page.kind,
+					.selected = a_selection.activeHostPage == page.kind,
 					.leadingAffordance = RowLeadingAffordance::kIcon,
 					.glyph = FindPhosphorIconGlyphOrZero(page.iconName),
 					.textColor = textColor,
@@ -1414,21 +1471,61 @@ namespace DearModdingUI
 				});
 				ImGui::PopID();
 				if (row.pressed)
-					NavigateToHostPage(page.kind, a_state);
+					a_intent.Offer(NavigationRequest::Host(page.kind));
 			}
 		}
 
+		struct SidebarLayoutContext;
+		void DrawTreeNavigation(
+			const SidebarLayoutContext& a_context) noexcept;
+		void DrawTwoPaneNavigation(
+			const SidebarLayoutContext& a_context) noexcept;
+		void DrawDrillDownNavigation(
+			const SidebarLayoutContext& a_context) noexcept;
+		void DrawIconRailNavigation(
+			const SidebarLayoutContext& a_context) noexcept;
+
+		struct SidebarLayoutContext
+		{
+			const NavigationModel& model;
+			const std::vector<ClientStatus>& statuses;
+			const NavigationPresentation& presentation;
+			const ClientSelectionState& selection;
+			SidebarState& browsing;
+			SidebarNavigationIntent& intent;
+
+			void DrawTree() const noexcept
+			{
+				DrawTreeNavigation(*this);
+			}
+
+			void DrawTwoPane() const noexcept
+			{
+				DrawTwoPaneNavigation(*this);
+			}
+
+			void DrawDrillDown() const noexcept
+			{
+				DrawDrillDownNavigation(*this);
+			}
+
+			void DrawIconRail() const noexcept
+			{
+				DrawIconRailNavigation(*this);
+			}
+		};
+
 		void DrawPageRows(
-			const NavigationModel& a_model,
+			const SidebarLayoutContext& a_context,
 			const NavigationClient& a_client,
-			const NavigationCategory& a_category,
-			ShellState& a_state) noexcept
+			const NavigationCategory& a_category) noexcept
 		{
 			const Theme::FontGuard font{ Theme::FontRole::kSubtext };
 			for (const auto& page : a_category.pages)
 			{
 				const auto failed = PageFailed(page.handle);
-				const auto selected = page.handle == a_state.activePage;
+				const auto selected =
+					page.handle == a_context.selection.activePage;
 				const auto id = PageRowLabel(a_client, page);
 				const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
 				const auto row = DrawSelectableRow({
@@ -1444,14 +1541,15 @@ namespace DearModdingUI
 						std::nullopt
 				});
 				if (row.pressed)
-					NavigateToPage(a_model, page.handle, a_state);
+					a_context.intent.Offer(
+						NavigationRequest::Page(page.handle));
 			}
 		}
 
 		void DrawPageList(
-			const NavigationModel& a_model,
+			const SidebarLayoutContext& a_context,
 			const NavigationClient& a_client,
-			ShellState& a_state) noexcept
+			bool a_indented = true) noexcept
 		{
 			const auto pageIndent =
 				ImGui::GetFontSize() + ImGui::GetStyle().ItemInnerSpacing.x;
@@ -1460,9 +1558,12 @@ namespace DearModdingUI
 				auto expanded = true;
 				if (category.HasHeading())
 				{
-					const auto key = CategoryKey(a_client, category.displayName);
+					const auto key =
+						SidebarCategoryKey(a_client, category.displayName);
 					auto state =
-						a_state.categoryExpansion.try_emplace(key, true).first;
+						a_context.browsing.categoryExpansion
+							.try_emplace(key, true)
+							.first;
 					{
 						const Theme::FontGuard font{ Theme::FontRole::kHeading };
 						DrawCategoryHeader(
@@ -1477,23 +1578,24 @@ namespace DearModdingUI
 				if (!expanded)
 					continue;
 
-				ImGui::Indent(pageIndent);
-				DrawPageRows(a_model, a_client, category, a_state);
-				ImGui::Unindent(pageIndent);
+				if (a_indented)
+					ImGui::Indent(pageIndent);
+				DrawPageRows(a_context, a_client, category);
+				if (a_indented)
+					ImGui::Unindent(pageIndent);
 			}
 		}
 
 		void DrawExpandedClientPages(
-			const NavigationModel& a_model,
-			const NavigationClient& a_client,
-			ShellState& a_state) noexcept
+			const SidebarLayoutContext& a_context,
+			const NavigationClient& a_client) noexcept
 		{
 			const auto start = ImGui::GetCursorScreenPos();
 			const auto& style = ImGui::GetStyle();
 			const auto contentIndent =
 				ImGui::GetFrameHeight() + style.ItemInnerSpacing.x;
 			ImGui::Indent(contentIndent);
-			DrawPageList(a_model, a_client, a_state);
+			DrawPageList(a_context, a_client);
 			ImGui::Unindent(contentIndent);
 			const auto end = ImGui::GetCursorScreenPos();
 			const auto railBottom = end.y - style.ItemSpacing.y;
@@ -1516,40 +1618,70 @@ namespace DearModdingUI
 			}
 		}
 
-		void DrawTreeNavigation(
-			const NavigationModel& a_model,
-			const std::vector<ClientStatus>& a_statuses,
-			ShellState& a_state) noexcept
+		void DrawPresentedClients(
+			const SidebarLayoutContext& a_context,
+			ClientRowKind a_kind) noexcept
 		{
-			for (const auto& client : a_model.clients)
+			bool firstSection = true;
+			for (const auto& presented : a_context.presentation.sections)
 			{
-				auto expansion =
-					a_state.modExpansion.try_emplace(client.id, false).first;
-				const auto* status =
-					FindClientStatus(a_statuses, client.handle);
-				const auto row = DrawClientNavigationRow(
-					client,
-					status,
-					a_state,
-					ClientRowKind::Tree,
-					&expansion->second);
-				if (row.pressed)
+				assert(
+					presented.sectionIndex <
+					a_context.model.sections.size());
+				const auto& section =
+					a_context.model.sections[presented.sectionIndex];
+				if (a_kind == ClientRowKind::Rail)
 				{
-					expansion->second = true;
-					NavigateToPage(
-						a_model,
-						ResolveLandingPage(client),
-						a_state);
+					if (!firstSection)
+						ImGui::Separator();
 				}
-				if (expansion->second)
-					DrawExpandedClientPages(a_model, client, a_state);
+				else if (presented.showHeading)
+					DrawNavigationSectionHeading(section);
+				firstSection = false;
+				for (const auto clientIndex : section.clientIndices)
+				{
+					assert(clientIndex < a_context.model.clients.size());
+					const auto& client =
+						a_context.model.clients[clientIndex];
+					bool* expanded{};
+					if (a_kind == ClientRowKind::Tree)
+					{
+						expanded =
+							&a_context.browsing.modExpansion
+								.try_emplace(client.id, false)
+								.first->second;
+					}
+					const auto* status =
+						FindClientStatus(a_context.statuses, client.handle);
+					const auto row = DrawClientNavigationRow(
+						client,
+						status,
+						a_context.selection,
+						a_kind,
+						expanded);
+					if (row.pressed)
+					{
+						if (expanded)
+							*expanded = true;
+						a_context.intent.Offer(
+							NavigationRequest::Client(client.handle));
+					}
+					if (expanded && *expanded)
+						DrawExpandedClientPages(
+							a_context,
+							client);
+				}
 			}
 		}
 
+		void DrawTreeNavigation(
+			const SidebarLayoutContext& a_context) noexcept
+		{
+			DrawPresentedClients(a_context, ClientRowKind::Tree);
+		}
+
 		void DrawTwoPaneNavigation(
-			const NavigationModel& a_model,
-			const std::vector<ClientStatus>& a_statuses,
-			ShellState& a_state) noexcept
+			const SidebarLayoutContext& a_context) noexcept
 		{
 			const auto& style = ImGui::GetStyle();
 			const auto compactSpacing = style.ItemSpacing.y * 0.5f;
@@ -1570,10 +1702,15 @@ namespace DearModdingUI
 				ImGui::GetTextLineHeightWithSpacing() +
 				ImGui::GetFrameHeightWithSpacing() *
 					static_cast<float>(kMinimumVisiblePageRows);
+			const auto headingStride =
+				ImGui::GetTextLineHeightWithSpacing() + compactSpacing;
 			const auto panes = ResolveSidebarPaneHeights(
 				availableHeight,
 				rowStride,
-				a_model.clients.size(),
+				a_context.presentation.ClientCount(a_context.model),
+				headingStride,
+				a_context.presentation.HeadingCount(),
+				0.0f,
 				minimumPagesHeight);
 
 			if (panes.mods > 0.0f)
@@ -1585,23 +1722,9 @@ namespace DearModdingUI
 					ImGui::PushStyleVar(
 						ImGuiStyleVar_ItemSpacing,
 						{ style.ItemSpacing.x, compactSpacing });
-					for (const auto& client : a_model.clients)
-					{
-						const auto* status =
-							FindClientStatus(a_statuses, client.handle);
-						const auto row = DrawClientNavigationRow(
-							client,
-							status,
-							a_state,
-							ClientRowKind::List);
-						if (row.pressed)
-						{
-							NavigateToPage(
-								a_model,
-								ResolveLandingPage(client),
-								a_state);
-						}
-					}
+					DrawPresentedClients(
+						a_context,
+						ClientRowKind::List);
 					ImGui::PopStyleVar();
 				}
 				ImGui::EndChild();
@@ -1615,8 +1738,9 @@ namespace DearModdingUI
 				DrawSectionHeader("Pages", PhosphorGlyph::kFiles);
 				ImGui::Spacing();
 				if (const auto* client =
-						a_model.FindClient(a_state.activeClient))
-					DrawPageList(a_model, *client, a_state);
+						a_context.model.FindClient(
+							a_context.selection.activeClient))
+					DrawPageList(a_context, *client);
 				else
 					ImGui::TextDisabled("Select a mod to browse its pages.");
 			}
@@ -1624,40 +1748,38 @@ namespace DearModdingUI
 		}
 
 		void DrawDrillDownNavigation(
-			const NavigationModel& a_model,
-			const std::vector<ClientStatus>& a_statuses,
-			ShellState& a_state) noexcept
+			const SidebarLayoutContext& a_context) noexcept
 		{
 			const auto* selectedClient =
-				a_state.drillDown.level == DrillDownLevel::Pages ?
-					a_model.FindClient(a_state.drillDown.client) :
+				a_context.browsing.drillDown.level ==
+						DrillDownLevel::Pages ?
+					a_context.model.FindClient(
+						a_context.browsing.drillDown.client) :
 					nullptr;
+			const auto* section = selectedClient ?
+				a_context.model.FindSectionForClient(
+					selectedClient->handle) :
+				nullptr;
+			const auto visible = section &&
+				std::ranges::any_of(
+					a_context.presentation.sections,
+					[&](const auto& a_presented) {
+						assert(
+							a_presented.sectionIndex <
+							a_context.model.sections.size());
+						return &a_context.model.sections[
+							a_presented.sectionIndex] == section;
+					});
+			if (!visible)
+				selectedClient = nullptr;
 			if (!selectedClient)
 			{
-				a_state.drillDown = TransitionDrillDown(
-					a_state.drillDown,
+				a_context.browsing.drillDown = TransitionDrillDown(
+					a_context.browsing.drillDown,
 					DrillDownEvent::Back);
-				for (const auto& client : a_model.clients)
-				{
-					const auto* status =
-						FindClientStatus(a_statuses, client.handle);
-					const auto row = DrawClientNavigationRow(
-						client,
-						status,
-						a_state,
-						ClientRowKind::List);
-					if (row.pressed)
-					{
-						a_state.drillDown = TransitionDrillDown(
-							a_state.drillDown,
-							DrillDownEvent::SelectClient,
-							client.handle);
-						NavigateToPage(
-							a_model,
-							ResolveLandingPage(client),
-							a_state);
-					}
-				}
+				DrawPresentedClients(
+					a_context,
+					ClientRowKind::List);
 				return;
 			}
 
@@ -1676,24 +1798,24 @@ namespace DearModdingUI
 				});
 				if (row.pressed)
 				{
-					a_state.drillDown = TransitionDrillDown(
-						a_state.drillDown,
+					a_context.browsing.drillDown = TransitionDrillDown(
+						a_context.browsing.drillDown,
 						DrillDownEvent::Back);
 					return;
 				}
 			}
 			ImGui::Spacing();
+			DrawNavigationClientContext(*selectedClient);
+			ImGui::Spacing();
 			DrawSectionHeader(
 				selectedClient->displayName.c_str(),
 				ResolveNavigationClientIconGlyph(*selectedClient));
 			ImGui::Spacing();
-			DrawPageList(a_model, *selectedClient, a_state);
+			DrawPageList(a_context, *selectedClient);
 		}
 
 		void DrawIconRailNavigation(
-			const NavigationModel& a_model,
-			const std::vector<ClientStatus>& a_statuses,
-			ShellState& a_state) noexcept
+			const SidebarLayoutContext& a_context) noexcept
 		{
 			const auto& style = ImGui::GetStyle();
 			float iconFontSize{};
@@ -1715,23 +1837,9 @@ namespace DearModdingUI
 						"##DearModdingIconRail",
 						{ geometry.railWidth, -FLT_MIN }))
 				{
-					for (const auto& client : a_model.clients)
-					{
-						const auto* status =
-							FindClientStatus(a_statuses, client.handle);
-						const auto row = DrawClientNavigationRow(
-							client,
-							status,
-							a_state,
-							ClientRowKind::Rail);
-						if (row.pressed)
-						{
-							NavigateToPage(
-								a_model,
-								ResolveLandingPage(client),
-								a_state);
-						}
-					}
+					DrawPresentedClients(
+						a_context,
+						ClientRowKind::Rail);
 				}
 				ImGui::EndChild();
 			}
@@ -1744,13 +1852,16 @@ namespace DearModdingUI
 					{ geometry.panelWidth, -FLT_MIN }))
 			{
 				if (const auto* client =
-						a_model.FindClient(a_state.activeClient))
+						a_context.model.FindClient(
+							a_context.selection.activeClient))
 				{
+					DrawNavigationClientContext(*client);
+					ImGui::Spacing();
 					DrawSectionHeader(
 						client->displayName.c_str(),
 						ResolveNavigationClientIconGlyph(*client));
 					ImGui::Spacing();
-					DrawPageList(a_model, *client, a_state);
+					DrawPageList(a_context, *client);
 				}
 				else
 					ImGui::TextDisabled("Select a mod to browse its pages.");
@@ -1758,88 +1869,73 @@ namespace DearModdingUI
 			ImGui::EndChild();
 		}
 
-		struct SidebarLayoutContext
+		void DrawNavigationSourceControls(
+			const NavigationModel& a_model,
+			const NavigationPresentation& a_presentation,
+			ShellState& a_state,
+			SidebarNavigationIntent& a_intent) noexcept
 		{
-			const NavigationModel& model;
-			const std::vector<ClientStatus>& statuses;
-			ShellState& state;
-		};
+			if (a_presentation.sourceControls.empty())
+				return;
 
-		struct TreeSidebarLayout
-		{
-			inline static constexpr auto kind = SidebarLayoutKind::Tree;
-
-			static void Draw(const SidebarLayoutContext& a_context) noexcept
+			if (ImGui::BeginTable(
+					"##DearModdingNavigationDestinations",
+					static_cast<int>(
+						a_presentation.sourceControls.size()),
+					ImGuiTableFlags_SizingStretchSame))
 			{
-				DrawTreeNavigation(
-					a_context.model,
-					a_context.statuses,
-					a_context.state);
+				for (const auto& control : a_presentation.sourceControls)
+				{
+					ImGui::TableNextColumn();
+					ImGui::PushID(control.id.value);
+					const auto userActivated = ImGui::Selectable(
+						control.label.data(),
+						control.selected,
+						ImGuiSelectableFlags_None,
+						{
+							ImGui::GetContentRegionAvail().x,
+							ImGui::GetFrameHeight()
+						});
+					if (control.selected)
+					{
+						const auto minimum = ImGui::GetItemRectMin();
+						const auto maximum = ImGui::GetItemRectMax();
+						ImGui::GetWindowDrawList()->AddLine(
+							{ minimum.x, maximum.y },
+							maximum,
+							ImGui::GetColorU32(
+								ImGuiCol_TabSelectedOverline),
+							(std::max)(
+								ImGui::GetStyle().WindowBorderSize,
+								1.0f));
+					}
+					ImGui::PopID();
+					if (ResolveControlledNavigationControlDecision(
+							control.selected,
+							userActivated) !=
+						ControlledNavigationControlDecision::Activate)
+						continue;
+					const auto transition =
+						ActivateNavigationSourceControl(
+							ActivePresentationKind(a_state),
+							a_model,
+							control.id,
+							a_state,
+							a_state.presentation);
+					assert(transition.accepted);
+					if (transition.navigation)
+						a_intent.Offer(*transition.navigation);
+				}
+				ImGui::EndTable();
 			}
-		};
-
-		struct TwoPaneSidebarLayout
-		{
-			inline static constexpr auto kind = SidebarLayoutKind::TwoPane;
-
-			static void Draw(const SidebarLayoutContext& a_context) noexcept
-			{
-				DrawTwoPaneNavigation(
-					a_context.model,
-					a_context.statuses,
-					a_context.state);
-			}
-		};
-
-		struct DrillDownSidebarLayout
-		{
-			inline static constexpr auto kind = SidebarLayoutKind::DrillDown;
-
-			static void Draw(const SidebarLayoutContext& a_context) noexcept
-			{
-				DrawDrillDownNavigation(
-					a_context.model,
-					a_context.statuses,
-					a_context.state);
-			}
-		};
-
-		struct IconRailSidebarLayout
-		{
-			inline static constexpr auto kind = SidebarLayoutKind::IconRail;
-
-			static void Draw(const SidebarLayoutContext& a_context) noexcept
-			{
-				DrawIconRailNavigation(
-					a_context.model,
-					a_context.statuses,
-					a_context.state);
-			}
-		};
-
-		template<class F>
-		decltype(auto) VisitSidebarLayout(
-			SidebarLayoutKind a_kind,
-			F&& a_fn)
-		{
-			auto fn = std::forward<F>(a_fn);
-			switch (a_kind)
-			{
-			case SidebarLayoutKind::TwoPane:
-				return fn.template operator()<TwoPaneSidebarLayout>();
-			case SidebarLayoutKind::DrillDown:
-				return fn.template operator()<DrillDownSidebarLayout>();
-			case SidebarLayoutKind::IconRail:
-				return fn.template operator()<IconRailSidebarLayout>();
-			default:
-				return fn.template operator()<TreeSidebarLayout>();
-			}
+			ImGui::Spacing();
 		}
 
-		void DrawNavigation(
+		[[nodiscard]] std::optional<NavigationRequest> DrawNavigation(
 			const NavigationModel& a_model,
 			ShellState& a_state) noexcept
 		{
+			SidebarNavigationIntent intent;
 			ImGui::TableNextColumn();
 			ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 			ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4());
@@ -1848,22 +1944,44 @@ namespace DearModdingUI
 					{ -FLT_MIN, -FLT_MIN }))
 			{
 				DrawSectionHeader("Host", PhosphorGlyph::kAppWindow);
-				DrawHostNavigationRows(a_state);
+				DrawHostNavigationRows(a_state, intent);
 				ImGui::Spacing();
 				DrawSectionHeader("Mods", PhosphorGlyph::kSquaresFour);
 				DrawPaletteAffordance(a_state);
 				ImGui::Spacing();
+				auto presentation = BuildNavigationPresentation(
+					ActivePresentationKind(a_state),
+					a_model,
+					a_state.presentation);
+				DrawNavigationSourceControls(
+					a_model,
+					presentation,
+					a_state,
+					intent);
+				presentation = BuildNavigationPresentation(
+					ActivePresentationKind(a_state),
+					a_model,
+					a_state.presentation);
 				const auto statusSnapshot = CurrentClientStatuses();
 				const auto statuses = RollupClientStatuses(statusSnapshot);
 				VisitSidebarLayout(
 					a_state.sidebarLayout,
 					[&]<class Layout>() noexcept {
-						Layout::Draw({ a_model, statuses, a_state });
+						const SidebarLayoutContext context{
+							a_model,
+							statuses,
+							presentation,
+							a_state,
+							a_state.sidebar,
+							intent
+						};
+						Layout::Draw(context);
 					});
 				ImGui::EndListBox();
 			}
 			ImGui::PopStyleVar();
 			ImGui::PopStyleColor();
+			return intent.request;
 		}
 
 		[[nodiscard]] std::vector<NavigationSearchEntry> BuildPaletteResults(
@@ -1965,14 +2083,26 @@ namespace DearModdingUI
 		{
 			if (a_entry.kind == NavigationItemKind::kClient)
 			{
-				if (const auto* client = a_model.FindClient(a_entry.client))
-				NavigateToPage(
-					a_model,
-					ResolveLandingPage(*client),
-					a_state);
+				(void)ApplyShellNavigationRequest(
+				a_model,
+				NavigationRequest::Client(a_entry.client),
+				a_state,
+				ActivePresentationKind(a_state),
+				a_state.presentation,
+				a_state.sidebarLayout,
+				a_state.sidebar);
 			}
 			else if (a_entry.kind == NavigationItemKind::kPage)
-				NavigateToPage(a_model, a_entry.page, a_state);
+			{
+				(void)ApplyShellNavigationRequest(
+				a_model,
+				NavigationRequest::Page(a_entry.page),
+				a_state,
+				ActivePresentationKind(a_state),
+				a_state.presentation,
+				a_state.sidebarLayout,
+				a_state.sidebar);
+			}
 			else
 				(void)InvokeAction(a_entry.action);
 		}
@@ -3184,20 +3314,24 @@ namespace DearModdingUI
 	void ConfigurePreviewSidebarComparison(
 		std::optional<SidebarLayoutKind> a_layoutOverride,
 		bool a_overrideExpandedClients,
-		std::span<const std::string> a_expandedClients)
+		std::span<const std::string> a_expandedClients,
+		std::optional<NavigationPresentationKind> a_presentationOverride,
+		DMUI_ClientOrigin a_destinationOrigin)
 	{
 		auto& state = State();
 		state.previewSidebarLayoutOverride = a_layoutOverride;
-		state.drillDown = {};
-		state.drillDownInitialized = false;
+		state.previewPresentationOverride = a_presentationOverride;
+		state.presentation.destinations.selectedOrigin =
+			a_destinationOrigin;
+		state.sidebar.drillDown = {};
 		if (a_overrideExpandedClients)
 		{
-			state.previewExpandedClients.emplace(
+			state.sidebar.previewExpandedClients.emplace(
 				a_expandedClients.begin(),
 				a_expandedClients.end());
 		}
 		else
-			state.previewExpandedClients.reset();
+			state.sidebar.previewExpandedClients.reset();
 	}
 
 	float SettingsActionButtonExtent() noexcept
@@ -3493,56 +3627,48 @@ namespace DearModdingUI
 		if (state.sidebarLayout != sidebarLayout)
 		{
 			state.sidebarLayout = sidebarLayout;
-			state.drillDown = {};
-			state.drillDownInitialized = false;
+			state.sidebar.drillDown = {};
+			ActivateSidebarLayout(
+				state.sidebarLayout,
+				Navigation(),
+				state,
+				state.sidebar);
 		}
 		const auto& model = Navigation();
 		PruneRecentPages(model, state);
 		const auto requested = SelectedPage();
-		const auto previousPage = state.activePage;
-		state.activePage =
-			ResolvePageSelection(
-				model,
-				requested,
-				state.activePage,
-				state.activeHostPage.has_value());
-		if (requested != DMUI_INVALID_PAGE_HANDLE &&
-			state.activePage == requested)
-			state.activeHostPage.reset();
-		if (state.activePage != previousPage)
-		{
-			RecordRecentPage(model, state.activePage, state);
-			ExpandPageAncestors(model, state.activePage, state);
-		}
 		if (requested != DMUI_INVALID_PAGE_HANDLE)
+		{
+			(void)ApplyShellNavigationRequest(
+				model,
+				NavigationRequest::Page(requested),
+				state,
+				ActivePresentationKind(state),
+				state.presentation,
+				state.sidebarLayout,
+				state.sidebar);
 			ClearPageSelection(requested);
-		if (const auto* client =
-				model.FindClientForPage(state.activePage))
-			state.activeClient = client->handle;
-		else if (state.activeHostPage)
-			state.activeClient = DMUI_INVALID_CLIENT_HANDLE;
+		}
+		else if (!state.activeHostPage &&
+			!model.FindPage(state.activePage))
+		{
+			const auto fallback = model.FirstPage();
+			if (fallback != DMUI_INVALID_PAGE_HANDLE)
+			{
+				(void)ApplyShellNavigationRequest(
+					model,
+					NavigationRequest::Page(fallback),
+					state,
+					ActivePresentationKind(state),
+					state.presentation,
+					state.sidebarLayout,
+					state.sidebar);
+			}
+		}
 		SetActivePage(
 			state.activeHostPage ?
 				DMUI_INVALID_PAGE_HANDLE :
 				state.activePage);
-		if (state.sidebarLayout == SidebarLayoutKind::DrillDown)
-		{
-			if (!state.drillDownInitialized)
-			{
-				state.drillDown = TransitionDrillDown(
-					state.drillDown,
-					DrillDownEvent::Open,
-					state.activeClient);
-				state.drillDownInitialized = true;
-			}
-			else if (requested != DMUI_INVALID_PAGE_HANDLE)
-			{
-				state.drillDown = TransitionDrillDown(
-					state.drillDown,
-					DrillDownEvent::SelectClient,
-					state.activeClient);
-			}
-		}
 		ApplyPreviewExpandedClients(model, state);
 
 		const auto* viewport = ImGui::GetMainViewport();
@@ -3626,7 +3752,21 @@ namespace DearModdingUI
 					"##DearModdingPage",
 					ImGuiTableColumnFlags_None,
 					6.5f);
-				DrawNavigation(model, state);
+				if (const auto request = DrawNavigation(model, state))
+				{
+					(void)ApplyShellNavigationRequest(
+						model,
+						*request,
+						state,
+						ActivePresentationKind(state),
+						state.presentation,
+						state.sidebarLayout,
+						state.sidebar);
+					SetActivePage(
+						state.activeHostPage ?
+							DMUI_INVALID_PAGE_HANDLE :
+							state.activePage);
+				}
 				DrawContent(model, state);
 				ImGui::EndTable();
 			}
