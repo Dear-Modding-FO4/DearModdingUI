@@ -1,4 +1,5 @@
 #include <DearModdingUI/Hotkeys.h>
+#include <DearModdingUI/RenderExecution.h>
 
 #include <algorithm>
 #include <cstring>
@@ -114,13 +115,6 @@ namespace DearModdingUI
 				return false;
 		}
 		return namespaced && !segmentStart;
-	}
-
-	void HotkeyRegistry::BindRenderThread() noexcept
-	{
-		const std::scoped_lock lock{ m_mutex };
-		if (m_renderThread == std::thread::id{})
-			m_renderThread = std::this_thread::get_id();
 	}
 
 	ParsedHotkeyChord ParseHotkeyChord(std::string_view a_value) noexcept
@@ -359,7 +353,7 @@ namespace DearModdingUI
 			return DMUI_RESULT_INVALID_ARGUMENT;
 
 		const std::scoped_lock lock{ m_mutex };
-		if (m_renderThread != std::this_thread::get_id())
+		if (!RenderExecution::IsActive())
 			return DMUI_RESULT_WRONG_THREAD;
 		const auto action = std::ranges::find(m_actions, a_action, &Action::handle);
 		if (action == m_actions.end() || !action->live || action->client != a_client)
@@ -659,11 +653,6 @@ namespace DearModdingUI
 
 	namespace Hotkeys
 	{
-		void BindRenderThread() noexcept
-		{
-			RegistryInstance().BindRenderThread();
-		}
-
 		void InitializeOverrides(std::map<std::string, std::string> a_overrides) noexcept
 		{
 			RegistryInstance().InitializeOverrides(std::move(a_overrides));

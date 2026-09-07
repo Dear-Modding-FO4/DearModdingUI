@@ -1,4 +1,5 @@
 #include <DearModdingUI/Hotkeys.h>
+#include <DearModdingUI/RenderExecution.h>
 #include "Harness.h"
 #include "../Tools/forwarding-smoke-client/HotkeyDescriptors.h"
 
@@ -324,7 +325,10 @@ namespace vmm_tests
 
 		runner.test("unregister stops hotkey dispatch", [] {
 			HotkeyRegistry registry;
-			registry.BindRenderThread();
+			RenderExecution::Guard execution{
+				RenderExecution::Phase::kFrameObservation
+			};
+			(void)execution.NoteBinding(1);
 			CallbackState state;
 			const auto action = Register(registry, 1, "Example.Toggle", "F10", state);
 			require(registry.Unregister(1, action) == DMUI_RESULT_OK,
@@ -348,7 +352,10 @@ namespace vmm_tests
 
 		runner.test("unregister rejects another client action", [] {
 			HotkeyRegistry registry;
-			registry.BindRenderThread();
+			RenderExecution::Guard execution{
+				RenderExecution::Phase::kFrameObservation
+			};
+			(void)execution.NoteBinding(1);
 			CallbackState state;
 			const auto action = Register(registry, 1, "Example.Toggle", "F10", state);
 			require(registry.Unregister(2, action) == DMUI_RESULT_ACTION_NOT_FOUND,
@@ -359,7 +366,10 @@ namespace vmm_tests
 
 		runner.test("unregister rejects a non-render thread", [] {
 			HotkeyRegistry registry;
-			registry.BindRenderThread();
+			RenderExecution::Guard execution{
+				RenderExecution::Phase::kFrameObservation
+			};
+			(void)execution.NoteBinding(1);
 			CallbackState state;
 			const auto action = Register(registry, 1, "Example.Toggle", "F10", state);
 			DMUI_Result result{ DMUI_RESULT_OK };
@@ -375,7 +385,10 @@ namespace vmm_tests
 
 		runner.test("unregister invalidates queued hotkey events", [] {
 			HotkeyRegistry registry;
-			registry.BindRenderThread();
+			RenderExecution::Guard execution{
+				RenderExecution::Phase::kFrameObservation
+			};
+			(void)execution.NoteBinding(1);
 			CallbackState state;
 			const auto action = Register(registry, 1, "Example.Toggle", "F10", state);
 			require(registry.HandleKey(0x79, 0, true, false) ==
@@ -394,7 +407,10 @@ namespace vmm_tests
 
 		runner.test("persisted override survives hotkey re-registration", [] {
 			HotkeyRegistry registry;
-			registry.BindRenderThread();
+			RenderExecution::Guard execution{
+				RenderExecution::Phase::kFrameObservation
+			};
+			(void)execution.NoteBinding(1);
 			CallbackState state;
 			auto action = Register(registry, 1, "Example.Toggle", "F10", state);
 			require(registry.SetOverride("Example.Toggle", "Shift+F11") == DMUI_RESULT_OK,
@@ -418,7 +434,10 @@ namespace vmm_tests
 
 		runner.test("unregister frees a conflicted chord", [] {
 			HotkeyRegistry registry;
-			registry.BindRenderThread();
+			RenderExecution::Guard execution{
+				RenderExecution::Phase::kFrameObservation
+			};
+			(void)execution.NoteBinding(1);
 			CallbackState state;
 			const auto winner = Register(registry, 1, "Alpha.Toggle", "F10", state);
 			const auto conflicted = Register(registry, 2, "Zulu.Toggle", "F10", state);

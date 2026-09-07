@@ -7,6 +7,7 @@
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/MenuDismissal.h>
 #include <DearModdingUI/PresentationServices.h>
+#include <DearModdingUI/RenderExecution.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
 #include <DearModdingUI/SidebarComparison.h>
@@ -1018,25 +1019,31 @@ namespace DearModdingUIPreview
 					return false;
 				}
 				g_imguiBackendReady = true;
-				PresentationServices::SetDevice(m_renderer.Device());
+				{
+					RenderExecution::Guard execution{
+						RenderExecution::Phase::kBackendInitialization
+					};
+					(void)execution.NoteBinding(1);
+					PresentationServices::SetDevice(m_renderer.Device());
 
-				if (!BeginBackendInitialization())
-				{
-					a_error = L"The host refused backend initialization.";
-					return false;
-				}
-				CompleteBackendInitialization(m_context);
-				if (m_presentationDemo)
-				{
-					std::string presentationError;
-					if (!m_presentationDemo->Activate(
-							m_renderer.Device(),
-							presentationError))
+					if (!BeginBackendInitialization())
 					{
-						a_error.assign(
-							presentationError.begin(),
-							presentationError.end());
+						a_error = L"The host refused backend initialization.";
 						return false;
+					}
+					CompleteBackendInitialization(m_context);
+					if (m_presentationDemo)
+					{
+						std::string presentationError;
+						if (!m_presentationDemo->Activate(
+								m_renderer.Device(),
+								presentationError))
+						{
+							a_error.assign(
+								presentationError.begin(),
+								presentationError.end());
+							return false;
+						}
 					}
 				}
 				if (!SelectInitialPage(a_error))
@@ -1217,40 +1224,52 @@ namespace DearModdingUIPreview
 
 			[[nodiscard]] bool RenderFrame(std::wstring& a_error)
 			{
-				if (!m_renderer.ApplyResize(a_error) ||
-					!Theme::PrepareFrame(m_renderer.Height()))
 				{
-					if (a_error.empty())
-						a_error = L"Theme::PrepareFrame failed.";
-					return false;
-				}
+					RenderExecution::Guard execution{
+						RenderExecution::Phase::kFrameDraw
+					};
+					(void)execution.NoteBinding(1);
+					if (!m_renderer.ApplyResize(a_error) ||
+						!Theme::PrepareFrame(m_renderer.Height()))
+					{
+						if (a_error.empty())
+							a_error = L"Theme::PrepareFrame failed.";
+						return false;
+					}
 
-				CursorLoader::PrepareFrame(IsMenuVisible());
-				BackgroundBlur::BeginFrame();
-				PresentationServices::BeginFrame();
-				ImGui_ImplDX11_NewFrame();
-				ImGui_ImplWin32_NewFrame();
-				ImGui::NewFrame();
-				DrawDemandedOverlays();
-				PresentationServices::DrawNotification();
-				if (IsMenuVisible())
+					CursorLoader::PrepareFrame(IsMenuVisible());
+					BackgroundBlur::BeginFrame();
+					PresentationServices::BeginFrame();
+					ImGui_ImplDX11_NewFrame();
+					ImGui_ImplWin32_NewFrame();
+					ImGui::NewFrame();
+					DrawDemandedOverlays();
+					PresentationServices::DrawNotification();
+					if (IsMenuVisible())
+					{
+						DrawShell();
+						PresentationServices::DrawDialog(true);
+						ApplyMenuEscapeDismissal();
+					}
+					ImGui::Render();
+
+					m_renderer.Clear();
+					BackgroundBlur::Render(
+						m_renderer.Device(),
+						m_renderer.Context(),
+						m_renderer.BackBuffer(),
+						m_renderer.BackBufferView());
+					m_renderer.BindBackBuffer();
+					ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+					PresentationServices::CompleteRenderSubmission();
+				}
 				{
-					DrawShell();
-					PresentationServices::DrawDialog(true);
-					ApplyMenuEscapeDismissal();
+					RenderExecution::Guard execution{
+						RenderExecution::Phase::kFrameObservation
+					};
+					(void)execution.NoteBinding(1);
+					ObserveFrame();
 				}
-				ImGui::Render();
-
-				m_renderer.Clear();
-				BackgroundBlur::Render(
-					m_renderer.Device(),
-					m_renderer.Context(),
-					m_renderer.BackBuffer(),
-					m_renderer.BackBufferView());
-				m_renderer.BindBackBuffer();
-				ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-				PresentationServices::CompleteRenderSubmission();
-				ObserveFrame();
 				return true;
 			}
 

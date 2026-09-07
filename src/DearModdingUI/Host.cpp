@@ -1975,7 +1975,6 @@ namespace DearModdingUI
 
 	void CompleteBackendInitialization(void* a_imguiContext) noexcept
 	{
-		Hotkeys::BindRenderThread();
 		auto& service = GetService();
 		auto expected = DMUI_HOST_STATE_INITIALIZING;
 		if (!service.state.compare_exchange_strong(
@@ -2069,7 +2068,6 @@ namespace DearModdingUI
 
 	bool DrawPage(DMUI_PageHandle a_page) noexcept
 	{
-		Hotkeys::BindRenderThread();
 		auto& service = GetService();
 		const auto& pages = service.registry.OrderedPages();
 		const auto page = std::ranges::find(
@@ -2113,7 +2111,6 @@ namespace DearModdingUI
 
 	bool InvokeAction(DMUI_ActionHandle a_action) noexcept
 	{
-		Hotkeys::BindRenderThread();
 		auto& service = GetService();
 		const auto& actions = service.registry.OrderedActions();
 		const auto action = std::ranges::find(
@@ -2153,7 +2150,6 @@ namespace DearModdingUI
 
 	void ObserveFrame() noexcept
 	{
-		Hotkeys::BindRenderThread();
 		auto& service = GetService();
 		auto& registry = service.registry;
 		if (!service.menuVisible.load(std::memory_order_acquire))

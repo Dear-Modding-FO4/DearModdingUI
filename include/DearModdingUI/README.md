@@ -186,16 +186,19 @@ conflict, never set, saved-override conflict, or invalid saved override. The hos
 overrides by stable action ID in the `[Hotkeys]` TOML table. Overrides for uninstalled clients remain
 visible as not-registered rows in the host hotkey manager until the user removes them.
 
-The appended `unregisterHotkeyAction` entry is render-thread-only and returns `WRONG_THREAD` otherwise.
+The appended `unregisterHotkeyAction` entry is render-execution-only and returns `WRONG_THREAD`
+otherwise. Authorization belongs to the serialized active-`Present` callback scope, not to the first
+OS thread that initialized the backend; a later `Present` may run on another thread. Client guards and
+direct service calls do not grant authorization to arbitrary workers.
 Successful removal tombstones the action; queued events resolve dead and are discarded during dispatch.
 No later callback for the action runs after unregister returns.
 It retains the saved override as a not-registered row, reapplies it on re-registration, and immediately
 recomputes bindings so another action can use the chord.
 
 The window procedure decides and swallows bound presses, repeats, and matching releases synchronously.
-It only queues callback events. Both press and release callbacks are dispatched FIFO on the render
-thread beside frame observers after a successful displayed `Present`, so client render state needs no
-cross-thread synchronization for hotkeys. Repeats are coalesced, events survive stalled presentation,
+It only queues callback events. Both press and release callbacks are dispatched FIFO in the serialized
+post-`Present` observer scope, so they cannot overlap page, action, or frame-observer callbacks even
+when the game migrates `Present` between OS threads. Repeats are coalesced, events survive stalled presentation,
 and the 512-event queue reserves release capacity for every accepted press. Overflow drops and logs a
 whole press/release pair rather than leaving a client in a held state. The C++ wrapper exposes
 `AddHotkeyAction`, `QueryHotkeyBinding`, and `UnregisterHotkeyAction` with appended-table guards.
@@ -203,8 +206,11 @@ whole press/release pair rather than leaving a client in a held state. The C++ w
 ## Frame observation and video memory
 
 The optional `registerFrameObserver` entry accepts a descriptor with a callback and user data. The host
-calls each observer on the render thread after every successful non-test active-swapchain `Present`,
-regardless of menu visibility. Registration is permanent for the process lifetime. The host
+calls each observer in a non-drawing execution scope after every successful non-test active-swapchain
+`Present`, regardless of menu visibility. The active attachment is revalidated after `Present`, so a
+retired or rebound swapchain does not dispatch stale observers. The scope permits render services such
+as image import before any UI frame is demanded, while drawing services still require a page draw
+callback. Registration is permanent for the process lifetime. The host
 contains C++ and Windows structured exceptions, recovers shared ImGui state, and permanently disables a
 faulting observer. The C++ wrapper stores capturing callables in stable storage and returns the observer
 handle from `AddFrameObserver`.

@@ -39,7 +39,6 @@ namespace DearModdingUI::PresentationServices
 		bool m_previousDrawing;
 	};
 
-	void BindRenderThread() noexcept;
 	void BindRenderer(ID3D11Device* a_device) noexcept;
 	void SetDevice(ID3D11Device* a_device) noexcept;
 	void InvalidateDevice() noexcept;

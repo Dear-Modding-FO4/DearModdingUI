@@ -176,6 +176,25 @@ namespace vmm_tests
 			require(!ObservesDisplayedFrame(kPresentTestFlag, false), "a failed test Present displays no frame");
 		});
 
+		runner.test("post-Present observers require the captured active attachment", [] {
+			constexpr PresentAttachmentToken presented{ 11, 7 };
+			require(MatchesActivePresentAttachment(
+						presented, 11, 7, AttachmentLifecycle::kActive),
+				"current displayed Present token was rejected");
+			require(!MatchesActivePresentAttachment(
+						presented, 12, 7, AttachmentLifecycle::kActive),
+				"replaced swapchain retained stale observer dispatch");
+			require(!MatchesActivePresentAttachment(
+						presented, 11, 8, AttachmentLifecycle::kActive),
+				"same-address attachment rebind retained stale observer dispatch");
+			require(!MatchesActivePresentAttachment(
+						presented, 11, 7, AttachmentLifecycle::kRetired),
+				"retired attachment retained observer dispatch");
+			require(!MatchesActivePresentAttachment(
+						{}, 11, 7, AttachmentLifecycle::kActive),
+				"uncaptured Present acquired observer dispatch");
+		});
+
 		runner.test("host initializes eagerly while overlays never suppress game input", [] {
 			require(ShouldInitializeHost(true),
 				"the host did not initialize on an active Present");

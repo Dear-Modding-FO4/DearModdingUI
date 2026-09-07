@@ -6,6 +6,7 @@
 #include <DearModdingUI/Hotkeys.h>
 #include "../DearModdingUI/MenuDismissal.h"
 #include <DearModdingUI/PresentationServices.h>
+#include <DearModdingUI/RenderExecution.h>
 #include <DearModdingUI/Theme.h>
 #include <Platform/GameInput.h>
 #include <Support/Detours.h>
@@ -169,6 +170,7 @@ namespace Addictol
 			DearModdingUI::HostSubsystemHealthRegistry()
 		};
 		static Attachment s_attachment{};
+		static uint64_t s_attachmentGeneration{ 1 };
 		static AttachmentLifecycle s_attachmentLifecycle{ AttachmentLifecycle::kVacant };
 		static AttachmentSource s_attachmentSource{ AttachmentSource::kRenderer };
 		static ID3D11Texture2D* s_backBuffer{ nullptr };
@@ -364,6 +366,31 @@ namespace Addictol
 			s_nextReconciliationAt.store(0, std::memory_order_release);
 		}
 
+		static void AdvanceAttachmentGenerationLocked() noexcept
+		{
+			++s_attachmentGeneration;
+			if (s_attachmentGeneration == 0)
+				s_attachmentGeneration = 1;
+		}
+
+		static void LogExecutionTransition(
+			const DearModdingUI::RenderExecution::ThreadTransition& a_transition) noexcept
+		{
+			if (!a_transition.changed)
+				return;
+			const auto phase =
+				a_transition.phase ==
+					DearModdingUI::RenderExecution::Phase::kFrameObservation ?
+				"observer"sv :
+				"draw"sv;
+			REX::INFO(
+				"Platform Imgui: active Present execution moved threads (old {}, new {}, phase {}, binding {})"sv,
+				a_transition.previousThread,
+				a_transition.currentThread,
+				phase,
+				a_transition.bindingId);
+		}
+
 		static void SetGameInputSuppressed(bool a_suppressed) noexcept
 		{
 			auto* controlMap = RE::ControlMap::GetSingleton();
@@ -545,6 +572,7 @@ namespace Addictol
 			s_activeWindow.store(nullptr, std::memory_order_release);
 			s_windowReady.store(false, std::memory_order_release);
 			ReleaseAttachment(s_attachment);
+			AdvanceAttachmentGenerationLocked();
 			s_attachmentLifecycle = AttachmentLifecycle::kRetired;
 			s_attachmentSource = AttachmentSource::kRenderer;
 			s_rendererHealth.InvalidateObservation();
@@ -1297,38 +1325,86 @@ namespace Addictol
 				return DXGI_ERROR_INVALID_CALL;
 			}
 
-			const auto active =
-				a_swapChain == s_activeSwapChain.load(std::memory_order_acquire);
-			if (active)
+			PresentAttachmentToken presented{};
+			if (a_swapChain == s_activeSwapChain.load(std::memory_order_acquire))
 			{
-				const ContextLock lock;
-				if (a_swapChain == s_attachment.swapChain)
+				if ((a_flags & DXGI_PRESENT_TEST) != 0)
 				{
-					const auto activeWindow = s_activeWindow.load(std::memory_order_acquire);
-					if (activeWindow &&
-						activeWindow == s_attachment.window &&
-						s_gameLoaded.load(std::memory_order_acquire) &&
-						!s_windowReady.load(std::memory_order_acquire))
+					const ContextLock lock;
+					if (a_swapChain == s_attachment.swapChain &&
+						s_attachmentLifecycle == AttachmentLifecycle::kActive)
 					{
-						if (!SubclassWindow(s_attachment.window))
-						{
-							CloseModalState(
-								DearModdingUI::CarrierMenu::Event::kBackendFailure);
-							DearModdingUI::FailBackendInitialization();
-						}
+						presented = {
+							reinterpret_cast<uintptr_t>(a_swapChain),
+							s_attachmentGeneration
+						};
 					}
-					if ((a_flags & DXGI_PRESENT_TEST) == 0)
+				}
+				else
+				{
+					DearModdingUI::RenderExecution::Guard execution{
+						DearModdingUI::RenderExecution::Phase::kFrameDraw
+					};
+					const ContextLock lock;
+					if (a_swapChain == s_attachment.swapChain &&
+						s_attachmentLifecycle == AttachmentLifecycle::kActive)
+					{
+						presented = {
+							reinterpret_cast<uintptr_t>(a_swapChain),
+							s_attachmentGeneration
+						};
+						LogExecutionTransition(
+							execution.NoteBinding(s_attachmentGeneration));
+						const auto activeWindow = s_activeWindow.load(std::memory_order_acquire);
+						if (activeWindow &&
+							activeWindow == s_attachment.window &&
+							s_gameLoaded.load(std::memory_order_acquire) &&
+							!s_windowReady.load(std::memory_order_acquire))
+						{
+							if (!SubclassWindow(s_attachment.window))
+							{
+								CloseModalState(
+									DearModdingUI::CarrierMenu::Event::kBackendFailure);
+								DearModdingUI::FailBackendInitialization();
+							}
+						}
 						DrawFrame(a_swapChain);
+					}
 				}
 			}
 
 			const auto result = original(a_swapChain, a_syncInterval, a_flags);
-			if (active && ObservesDisplayedFrame(a_flags, result == S_OK))
-				DearModdingUI::ObserveFrame();
-			if (active && IsDefinitiveSwapChainLoss(static_cast<uint32_t>(result)))
+			if (presented.Valid() &&
+				ObservesDisplayedFrame(a_flags, result == S_OK))
+			{
+				DearModdingUI::RenderExecution::Guard execution{
+					DearModdingUI::RenderExecution::Phase::kFrameObservation
+				};
+				bool observe{};
+				{
+					const ContextLock lock;
+					observe = MatchesActivePresentAttachment(
+						presented,
+						reinterpret_cast<uintptr_t>(s_attachment.swapChain),
+						s_attachmentGeneration,
+						s_attachmentLifecycle);
+					if (observe)
+						LogExecutionTransition(
+							execution.NoteBinding(s_attachmentGeneration));
+				}
+				if (observe)
+					DearModdingUI::ObserveFrame();
+			}
+			if (presented.Valid() &&
+				IsDefinitiveSwapChainLoss(static_cast<uint32_t>(result)))
 			{
 				const ContextLock lock;
-				RetireActiveAttachmentLocked(a_swapChain, nullptr);
+				if (MatchesActivePresentAttachment(
+						presented,
+						reinterpret_cast<uintptr_t>(s_attachment.swapChain),
+						s_attachmentGeneration,
+						s_attachmentLifecycle))
+					RetireActiveAttachmentLocked(a_swapChain, nullptr);
 			}
 			return result;
 		}
@@ -1600,6 +1676,7 @@ namespace Addictol
 
 			s_attachment = a_snapshot.attachment;
 			a_snapshot.attachment = {};
+			AdvanceAttachmentGenerationLocked();
 			s_attachmentLifecycle = AttachmentLifecycle::kActive;
 			s_attachmentSource = a_source;
 			s_activeWindow.store(s_attachment.window, std::memory_order_release);

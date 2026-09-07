@@ -163,6 +163,29 @@ namespace Addictol::ImguiPlatform
 		return a_presentSucceeded && (a_presentFlags & kPresentTestFlag) == 0;
 	}
 
+	struct PresentAttachmentToken
+	{
+		uintptr_t swapChain{};
+		uint64_t generation{};
+
+		[[nodiscard]] constexpr bool Valid() const noexcept
+		{
+			return swapChain && generation;
+		}
+	};
+
+	[[nodiscard]] constexpr bool MatchesActivePresentAttachment(
+		const PresentAttachmentToken& a_presented,
+		uintptr_t a_activeSwapChain,
+		uint64_t a_activeGeneration,
+		AttachmentLifecycle a_lifecycle) noexcept
+	{
+		return a_presented.Valid() &&
+			a_lifecycle == AttachmentLifecycle::kActive &&
+			a_presented.swapChain == a_activeSwapChain &&
+			a_presented.generation == a_activeGeneration;
+	}
+
 	[[nodiscard]] constexpr bool ShouldInitializeHost(
 		bool a_windowReady) noexcept
 	{

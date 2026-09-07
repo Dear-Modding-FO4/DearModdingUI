@@ -1,4 +1,5 @@
 #include <DearModdingUI/PresentationServices.h>
+#include <DearModdingUI/RenderExecution.h>
 #include "MenuDismissal.h"
 
 #include <d3d11.h>
@@ -96,7 +97,6 @@ namespace DearModdingUI::PresentationServices
 		struct Service
 		{
 			std::mutex mutex;
-			std::thread::id renderThread;
 			ID3D11Device* device{};
 			uint64_t deviceGeneration{ 1 };
 			DMUI_DialogHandle nextDialog{ 1 };
@@ -494,11 +494,6 @@ namespace DearModdingUI::PresentationServices
 			}
 		}
 
-		[[nodiscard]] bool IsRenderThread(const Service& a_service) noexcept
-		{
-			return a_service.renderThread != std::thread::id{} &&
-				a_service.renderThread == std::this_thread::get_id();
-		}
 	}
 
 	ClientExecutionGuard::ClientExecutionGuard(
@@ -517,17 +512,8 @@ namespace DearModdingUI::PresentationServices
 		s_drawingCallback = m_previousDrawing;
 	}
 
-	void BindRenderThread() noexcept
-	{
-		auto& service = GetService();
-		const std::scoped_lock lock{ service.mutex };
-		if (service.renderThread == std::thread::id{})
-			service.renderThread = std::this_thread::get_id();
-	}
-
 	void BindRenderer(ID3D11Device* a_device) noexcept
 	{
-		BindRenderThread();
 		SetDevice(a_device);
 	}
 
@@ -559,7 +545,6 @@ namespace DearModdingUI::PresentationServices
 
 	void BeginFrame() noexcept
 	{
-		BindRenderThread();
 		DiscardFrame();
 	}
 
@@ -583,7 +568,7 @@ namespace DearModdingUI::PresentationServices
 	{
 		auto& service = GetService();
 		const std::scoped_lock lock{ service.mutex };
-		return IsRenderThread(service) &&
+		return RenderExecution::IsActive() &&
 			s_activeClient == a_client &&
 			(!a_drawingRequired || s_drawingCallback);
 	}
@@ -611,7 +596,7 @@ namespace DearModdingUI::PresentationServices
 		{
 			auto& service = GetService();
 			const std::scoped_lock lock{ service.mutex };
-			if (!IsRenderThread(service))
+			if (!RenderExecution::IsActive())
 				return DMUI_RESULT_WRONG_THREAD;
 		}
 
@@ -706,7 +691,7 @@ namespace DearModdingUI::PresentationServices
 		{
 			auto& service = GetService();
 			const std::scoped_lock lock{ service.mutex };
-			if (!IsRenderThread(service))
+			if (!RenderExecution::IsActive())
 				return DMUI_RESULT_WRONG_THREAD;
 			if (!service.device)
 				return DMUI_RESULT_HOST_NOT_READY;
@@ -722,7 +707,7 @@ namespace DearModdingUI::PresentationServices
 
 		auto& service = GetService();
 		const std::scoped_lock lock{ service.mutex };
-		if (!IsRenderThread(service))
+		if (!RenderExecution::IsActive())
 			return DMUI_RESULT_WRONG_THREAD;
 		if (service.device != device.Get() ||
 			service.deviceGeneration != deviceGeneration)
@@ -761,7 +746,7 @@ namespace DearModdingUI::PresentationServices
 		{
 			auto& service = GetService();
 			const std::scoped_lock lock{ service.mutex };
-			if (!IsRenderThread(service))
+			if (!RenderExecution::IsActive())
 				return DMUI_RESULT_WRONG_THREAD;
 			auto* image = FindImage(service, a_image);
 			if (!image || image->owner != a_client ||
@@ -787,7 +772,7 @@ namespace DearModdingUI::PresentationServices
 		{
 			auto& service = GetService();
 			const std::scoped_lock lock{ service.mutex };
-			if (!IsRenderThread(service))
+			if (!RenderExecution::IsActive())
 				return DMUI_RESULT_WRONG_THREAD;
 			auto* image = FindImage(service, a_image);
 			if (!image || image->owner != a_client ||

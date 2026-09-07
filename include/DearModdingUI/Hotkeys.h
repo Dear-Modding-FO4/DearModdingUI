@@ -73,7 +73,6 @@ namespace DearModdingUI
 	class HotkeyRegistry
 	{
 	public:
-		void BindRenderThread() noexcept;
 		void InitializeOverrides(std::map<std::string, std::string> a_overrides) noexcept;
 		void SetReservedVirtualKey(uint32_t a_virtualKey) noexcept;
 		[[nodiscard]] DMUI_Result Register(
@@ -154,12 +153,10 @@ namespace DearModdingUI
 		DMUI_HotkeyActionHandle m_nextAction{ 1 };
 		uint32_t m_reservedVirtualKey{ 0 };
 		HotkeyContextState m_context;
-		std::thread::id m_renderThread;
 	};
 
 	namespace Hotkeys
 	{
-		void BindRenderThread() noexcept;
 		void InitializeOverrides(std::map<std::string, std::string> a_overrides) noexcept;
 		void SetReservedVirtualKey(uint32_t a_virtualKey) noexcept;
 		[[nodiscard]] DMUI_Result Register(
