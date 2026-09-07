@@ -57,10 +57,13 @@ launch the game from build tooling.
    and host menu are hidden. Try all anchors, free X/Y, scale, opacity, and
    arrangement. Free movement must work only while the host menu owns input;
    verify placement generation and arrangement-completed count.
-6. Verify the immutable checker/gradient appears. Use **Cycle / recreate
-   image**, then **Release after queued draw**; the queued draw should survive
-   release and one replacement should be imported. Renderer/device changes
-   should invalidate and recreate without growing resources.
+6. Verify both the host-owned CPU-pixel image and the existing imported
+   checker/gradient appear. Use **Update CPU image** repeatedly; the same
+   handle should alternate dimensions, colors, and alpha. Use **Cycle /
+   recreate image**, then **Release after queued draw** for the imported SRV;
+   the queued draw should survive release and one replacement should be
+   imported. Renderer/device changes should invalidate and recreate both
+   resources without growing slots.
 7. Edit native text, slider, and multiline controls. Verify live changed and
    completed counters, effective per-row reset, simulated-save counts only on
    completed changed edits, and no count increase from unchanged clicks.
@@ -82,9 +85,10 @@ The smoke client writes bounded, event-driven diagnostics to
 `Documents\My Games\Fallout4\F4SE\dmui-forwarding-smoke.log`. It records the
 one-time initialization and service preflight, each hotkey's registration and
 initial effective binding, hotkey edges, overlay frame-demand changes, image
-lifecycle transitions, notification scheduling/posting, completed edits and
-resets, and dialog state transitions. It never logs entered text and does not
-log ordinary per-frame queries or draws.
+lifecycle transitions and CPU create/update outcomes, notification
+scheduling/posting, completed edits and resets, and dialog state transitions.
+It never logs entered text and does not log ordinary per-frame queries or
+draws.
 
 Use **Log current results** on the smoke settings page for an on-demand compact
 snapshot. A second compact snapshot is written automatically on the active to

@@ -308,21 +308,28 @@ rejects unavailable requirements before assigning a handle. The C++ wrapper's
 
 The appended API provides official frame-demand and swapchain wrappers,
 contextual hotkey enablement, owner/generation-scoped D3D11 image resources,
-opt-in managed overlay windows, copied latest-message notifications, annotated
-plots, and single-active submission-aware dialogs. Previous table offsets and
-all existing `_0_1_SIZE` constants remain unchanged. See the nested public API
-README for exact image formats, logical overlay coordinates, notification
-duration limits, dialog state transitions, and per-call thread ownership.
+host-owned generic CPU-pixel images, opt-in managed overlay windows, copied
+latest-message notifications, annotated plots, and single-active
+submission-aware dialogs. CPU producers require
+`DMUI_HOST_SERVICE_PIXEL_IMAGES`; imported SRVs retain the distinct
+`DMUI_HOST_SERVICE_IMAGE_RESOURCES` promise. The original 400-byte table
+prefix, all previous offsets, and all existing `_0_1_SIZE` constants remain
+unchanged. See the nested public API README for exact image formats, row
+extent, transactional update, logical overlay coordinate, notification
+duration, dialog state, and per-call thread contracts.
 
 Forwarded `InputTextMultiline` and `IsItemDeactivatedAfterEdit` are generated
 from the curated allowlist. Declarative setting writes remain live through
 `binding.set`; `SettingDescriptor::onEdit` independently reports changed and
 completed state immediately after the widget. New image and plot draw calls
 are accepted only on the render thread during the owning page callback.
-Image import requires a ready backend and bound render thread, including frame
-observers, but no active draw callback. Image queries require no draw phase.
-Notifications and image release are any-thread. Queued image COM references
-remain leased through the actual `RenderDrawData` call.
+Image import and CPU create/update require a ready backend and bound render
+thread, including frame observers, but no active draw callback. CPU calls
+synchronously consume decoded RGBA8 bytes and retain no caller pointer.
+Updates replace the GPU resource transactionally on the same handle, so queued
+draws keep old pixels and later draws use the replacement. Image queries
+require no draw phase. Notifications and image release are any-thread. Queued
+image COM references remain leased through the actual `RenderDrawData` call.
 
 ## ImGui compatibility and callbacks
 

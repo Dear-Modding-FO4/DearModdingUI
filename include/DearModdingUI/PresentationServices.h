@@ -7,6 +7,7 @@
 #include <string_view>
 
 struct ID3D11Device;
+struct ID3D11ShaderResourceView;
 
 namespace DearModdingUI::PresentationServices
 {
@@ -18,7 +19,8 @@ namespace DearModdingUI::PresentationServices
 		DMUI_HOST_SERVICE_MANAGED_OVERLAYS |
 		DMUI_HOST_SERVICE_NOTIFICATIONS |
 		DMUI_HOST_SERVICE_ANNOTATED_PLOTS |
-		DMUI_HOST_SERVICE_DIALOGS
+		DMUI_HOST_SERVICE_DIALOGS |
+		DMUI_HOST_SERVICE_PIXEL_IMAGES
 	};
 
 	class ClientExecutionGuard
@@ -54,6 +56,14 @@ namespace DearModdingUI::PresentationServices
 		DMUI_ClientHandle a_client,
 		const DMUI_D3D11ImageDescriptor* a_descriptor,
 		DMUI_ImageHandle* a_image) noexcept;
+	[[nodiscard]] DMUI_Result CreateImage(
+		DMUI_ClientHandle a_client,
+		const DMUI_ImageDescriptor* a_descriptor,
+		DMUI_ImageHandle* a_image) noexcept;
+	[[nodiscard]] DMUI_Result UpdateImage(
+		DMUI_ClientHandle a_client,
+		DMUI_ImageHandle a_image,
+		const DMUI_ImageDescriptor* a_descriptor) noexcept;
 	[[nodiscard]] DMUI_Result DrawImage(
 		DMUI_ClientHandle a_client,
 		DMUI_ImageHandle a_image,
@@ -66,6 +76,9 @@ namespace DearModdingUI::PresentationServices
 		DMUI_ImageHandle a_image,
 		DMUI_ImageInfo* a_info) noexcept;
 	[[nodiscard]] size_t ImageSlotCount() noexcept;
+	[[nodiscard]] ID3D11ShaderResourceView* RetainImageViewForTests(
+		DMUI_ClientHandle a_client,
+		DMUI_ImageHandle a_image) noexcept;
 
 	[[nodiscard]] DMUI_Result ConfigureOverlay(
 		DMUI_ClientHandle a_client,

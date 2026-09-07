@@ -51,7 +51,8 @@ namespace DearModdingUIPreview
 						DMUI_HOST_SERVICE_MANAGED_OVERLAYS |
 						DMUI_HOST_SERVICE_NOTIFICATIONS |
 						DMUI_HOST_SERVICE_ANNOTATED_PLOTS |
-						DMUI_HOST_SERVICE_DIALOGS
+						DMUI_HOST_SERVICE_DIALOGS |
+						DMUI_HOST_SERVICE_PIXEL_IMAGES
 				})
 		{}
 
@@ -128,7 +129,7 @@ namespace DearModdingUIPreview
 			}
 			else if (kind == PresentationDemoKind::kImage)
 			{
-				if (!CreateImage(a_device))
+				if (!CreateImportedImage(a_device))
 				{
 					a_error = "could not create the synthetic image";
 					return false;
@@ -137,7 +138,7 @@ namespace DearModdingUIPreview
 			return true;
 		}
 
-		[[nodiscard]] bool CreateImage(ID3D11Device* a_device)
+		[[nodiscard]] bool CreateImportedImage(ID3D11Device* a_device)
 		{
 			if (!a_device)
 				return false;
@@ -181,25 +182,41 @@ namespace DearModdingUIPreview
 				DrawPlot("##overlay.plot", { 400.0f, 92.0f });
 				break;
 			case PresentationDemoKind::kImage:
+			{
 				ImGui::TextWrapped(
-					"The synthetic SRV is retained by an owner-scoped image "
-					"handle and drawn without CPU readback.");
-				if (!image && view)
-					image = client.ImportD3D11Image(view.Get(), 4, 4);
-				if (image)
+					"Decoded RGBA bytes use host-owned textures and transactional "
+					"updates. Imported SRVs remain supported beside them.");
+				EnsureCpuImages();
+				if (!importedImage && view)
+					importedImage = client.ImportD3D11Image(view.Get(), 4, 4);
+				const DMUI_ImageDrawOptions options{
+					sizeof(DMUI_ImageDrawOptions),
+					{ 220.0f, 160.0f },
+					{ 0.0f, 0.0f },
+					{ 1.0f, 1.0f },
+					{ 1.0f, 1.0f, 1.0f, 1.0f },
+					1,
+					0
+				};
+				ImGui::TextUnformatted("CPU create");
+				if (initialCpuImage)
+					(void)client.DrawImage(initialCpuImage->Handle(), options);
+				ImGui::SameLine();
+				ImGui::BeginGroup();
+				ImGui::TextUnformatted("CPU update (same handle, new size)");
+				if (updatedCpuImage)
+					(void)client.DrawImage(updatedCpuImage->Handle(), options);
+				ImGui::EndGroup();
+				ImGui::TextUnformatted("Existing imported SRV");
+				if (importedImage)
 				{
-					const DMUI_ImageDrawOptions options{
-						sizeof(DMUI_ImageDrawOptions),
-						{ 640.0f, 360.0f },
-						{ 0.0f, 0.0f },
-						{ 1.0f, 1.0f },
-						{ 1.0f, 1.0f, 1.0f, 1.0f },
-						1,
-						0
-					};
-					(void)client.DrawImage(image->Handle(), options);
+					auto importedOptions = options;
+					importedOptions.size = { 120.0f, 90.0f };
+					(void)client.DrawImage(
+						importedImage->Handle(), importedOptions);
 				}
 				break;
+			}
 			case PresentationDemoKind::kPlot:
 				ImGui::TextWrapped(
 					"Reference lines are clipped to the host-owned plot interior.");
@@ -228,6 +245,70 @@ namespace DearModdingUIPreview
 			default:
 				break;
 			}
+		}
+
+		void EnsureCpuImages()
+		{
+			if (initialCpuImage && updatedCpuImage)
+				return;
+			constexpr uint32_t initialWidth{ 8 };
+			constexpr uint32_t initialHeight{ 8 };
+			std::array<uint8_t, initialWidth * initialHeight * 4> initial{};
+			for (uint32_t y = 0; y < initialHeight; ++y)
+			{
+				for (uint32_t x = 0; x < initialWidth; ++x)
+				{
+					const auto offset = (y * initialWidth + x) * 4u;
+					const auto bright = ((x / 2u) + (y / 2u)) % 2u != 0;
+					initial[offset] = bright ? 219 : 37;
+					initial[offset + 1u] = bright ? 78 : 33;
+					initial[offset + 2u] = bright ? 121 : 63;
+					initial[offset + 3u] = bright ? 192 : 255;
+				}
+			}
+			const DMUI_ImageDescriptor initialDescriptor{
+				sizeof(DMUI_ImageDescriptor),
+				initialWidth,
+				initialHeight,
+				DMUI_PIXEL_FORMAT_RGBA8_UNORM,
+				0,
+				initialWidth * 4u,
+				initial.size(),
+				initial.data()
+			};
+			initialCpuImage = client.CreateImage(initialDescriptor);
+			updatedCpuImage = client.CreateImage(initialDescriptor);
+			if (!updatedCpuImage)
+				return;
+
+			constexpr uint32_t updatedWidth{ 12 };
+			constexpr uint32_t updatedHeight{ 6 };
+			std::array<uint8_t, updatedWidth * updatedHeight * 4> updated{};
+			for (uint32_t y = 0; y < updatedHeight; ++y)
+			{
+				for (uint32_t x = 0; x < updatedWidth; ++x)
+				{
+					const auto offset = (y * updatedWidth + x) * 4u;
+					updated[offset] = static_cast<uint8_t>(32u + x * 18u);
+					updated[offset + 1u] =
+						static_cast<uint8_t>(48u + y * 34u);
+					updated[offset + 2u] = 176;
+					updated[offset + 3u] =
+						static_cast<uint8_t>(96u + x * 12u);
+				}
+			}
+			const DMUI_ImageDescriptor updatedDescriptor{
+				sizeof(DMUI_ImageDescriptor),
+				updatedWidth,
+				updatedHeight,
+				DMUI_PIXEL_FORMAT_RGBA8_UNORM,
+				0,
+				updatedWidth * 4u,
+				updated.size(),
+				updated.data()
+			};
+			(void)client.UpdateImage(
+				updatedCpuImage->Handle(), updatedDescriptor);
 		}
 
 		void DrawPlot(const char* a_id, DMUI_Vec2 a_size)
@@ -267,7 +348,9 @@ namespace DearModdingUIPreview
 		std::optional<DMUI_PageHandle> page;
 		ComPtr<ID3D11Texture2D> texture;
 		ComPtr<ID3D11ShaderResourceView> view;
-		std::optional<dmui::ImageResource> image;
+		std::optional<dmui::ImageResource> importedImage;
+		std::optional<dmui::ImageResource> initialCpuImage;
+		std::optional<dmui::ImageResource> updatedCpuImage;
 		std::optional<DMUI_DialogHandle> dialog;
 	};
 

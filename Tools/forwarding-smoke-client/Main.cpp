@@ -49,7 +49,8 @@ namespace DmuiForwardingSmoke
 			DMUI_HOST_SERVICE_MANAGED_OVERLAYS |
 			DMUI_HOST_SERVICE_NOTIFICATIONS |
 			DMUI_HOST_SERVICE_ANNOTATED_PLOTS |
-			DMUI_HOST_SERVICE_DIALOGS
+			DMUI_HOST_SERVICE_DIALOGS |
+			DMUI_HOST_SERVICE_PIXEL_IMAGES
 		};
 		constexpr uint32_t kImageExtent{ 64 };
 		constexpr size_t kSampleCount{ 120 };
@@ -507,7 +508,8 @@ namespace DmuiForwardingSmoke
 				const auto imageEvents =
 					imageImportCount_ + imageReleaseCount_ +
 					imageCycleRequests_ + imageFailureCount_ +
-					deviceChangeCount_;
+					deviceChangeCount_ + cpuImageCreateCount_ +
+					cpuImageUpdateCount_;
 
 				++snapshotsLogged_;
 				REX::INFO(
@@ -515,7 +517,7 @@ namespace DmuiForwardingSmoke
 					"initialization={} stage={} result={} overall=not-evaluated "
 					"outcomes[hotkeys={},overlay={},image={},notifications={},"
 					"edits={},dialogs={}] counts[hotkey-edges={},frame-demand={}/{},"
-					"image={}/{}/{}/{},notifications={}/{}/{}/{},edits={}/{}/{},"
+					"image={}/{}/{}/{}/{}/{},notifications={}/{}/{}/{},edits={}/{}/{},"
 					"dialogs={}/{}/{}/{}/{}]"sv,
 					a_trigger,
 					snapshotsLogged_,
@@ -535,6 +537,8 @@ namespace DmuiForwardingSmoke
 					imageReleaseCount_,
 					imageCycleRequests_,
 					imageFailureCount_,
+					cpuImageCreateCount_,
+					cpuImageUpdateCount_,
 					pageNotifications_,
 					notificationSchedules_,
 					delayedNotifications_.load(),
@@ -644,6 +648,7 @@ namespace DmuiForwardingSmoke
 				}
 
 				RefreshImage();
+				RefreshCpuImage();
 				PollDialog();
 				QueryOverlay();
 				QueryHotkeys();
@@ -887,6 +892,146 @@ namespace DmuiForwardingSmoke
 				imageResult_ = client_.LastResult();
 			}
 
+			void FillCpuPixels(
+				std::array<uint8_t, 80u * 64u * 4u>& a_pixels,
+				uint32_t a_width,
+				uint32_t a_height,
+				uint32_t a_step) noexcept
+			{
+				for (uint32_t y = 0; y < a_height; ++y)
+				{
+					for (uint32_t x = 0; x < a_width; ++x)
+					{
+						const auto offset = (y * a_width + x) * 4u;
+						a_pixels[offset] = static_cast<uint8_t>(
+							32u + (x * 191u) / (a_width - 1u));
+						a_pixels[offset + 1u] = static_cast<uint8_t>(
+							32u + (y * 191u) / (a_height - 1u));
+						a_pixels[offset + 2u] =
+							a_step % 2u == 0 ? 64u : 224u;
+						a_pixels[offset + 3u] = static_cast<uint8_t>(
+							96u + ((x + y) % 2u) * 159u);
+					}
+				}
+			}
+
+			[[nodiscard]] DMUI_ImageDescriptor CpuImageDescriptor(
+				const std::array<uint8_t, 80u * 64u * 4u>& a_pixels,
+				uint32_t a_width,
+				uint32_t a_height) noexcept
+			{
+				return {
+					sizeof(DMUI_ImageDescriptor),
+					a_width,
+					a_height,
+					DMUI_PIXEL_FORMAT_RGBA8_UNORM,
+					0,
+					static_cast<uint64_t>(a_width) * 4u,
+					static_cast<uint64_t>(a_width) * a_height * 4u,
+					a_pixels.data()
+				};
+			}
+
+			void RefreshCpuImage() noexcept
+			{
+				if (cpuImage_)
+				{
+					const auto info = client_.QueryImage(cpuImage_->Handle());
+					cpuImageResult_ = client_.LastResult();
+					if (!info || info->status != DMUI_IMAGE_STATUS_READY)
+					{
+						cpuImage_.reset();
+						++cpuImageReleaseCount_;
+						REX::INFO(
+							"dmui-forwarding-smoke: CPU image recycle result={} "
+							"count={}"sv,
+							DMUI_ResultToString(cpuImageResult_),
+							cpuImageReleaseCount_);
+					}
+					else
+					{
+						cpuImageWidth_ = info->contentWidth;
+						cpuImageHeight_ = info->contentHeight;
+					}
+				}
+				if (cpuImage_)
+					return;
+
+				std::array<uint8_t, 80u * 64u * 4u> pixels{};
+				constexpr uint32_t width{ 48 };
+				constexpr uint32_t height{ 48 };
+				FillCpuPixels(pixels, width, height, cpuImageStep_);
+				auto image = client_.CreateImage(
+					CpuImageDescriptor(pixels, width, height));
+				cpuImageResult_ = client_.LastResult();
+				if (!image)
+				{
+					LogImageFailure("CPU image create", cpuImageResult_);
+					return;
+				}
+				cpuImage_ = std::move(*image);
+				cpuImageWidth_ = width;
+				cpuImageHeight_ = height;
+				++cpuImageCreateCount_;
+				imageFailureActive_ = false;
+				REX::INFO(
+					"dmui-forwarding-smoke: CPU image create result={} "
+					"dimensions={}x{} count={}"sv,
+					DMUI_ResultToString(cpuImageResult_),
+					width,
+					height,
+					cpuImageCreateCount_);
+			}
+
+			void UpdateCpuImage() noexcept
+			{
+				if (!cpuImage_)
+					return;
+				++cpuImageStep_;
+				const auto width = cpuImageStep_ % 2u == 0 ? 48u : 72u;
+				const auto height = cpuImageStep_ % 2u == 0 ? 48u : 40u;
+				std::array<uint8_t, 80u * 64u * 4u> pixels{};
+				FillCpuPixels(pixels, width, height, cpuImageStep_);
+				const auto updated = client_.UpdateImage(
+					cpuImage_->Handle(),
+					CpuImageDescriptor(pixels, width, height));
+				cpuImageResult_ = client_.LastResult();
+				if (!updated)
+				{
+					LogImageFailure("CPU image update", cpuImageResult_);
+					return;
+				}
+				cpuImageWidth_ = width;
+				cpuImageHeight_ = height;
+				++cpuImageUpdateCount_;
+				imageFailureActive_ = false;
+				REX::INFO(
+					"dmui-forwarding-smoke: CPU image update result={} "
+					"dimensions={}x{} count={}"sv,
+					DMUI_ResultToString(cpuImageResult_),
+					width,
+					height,
+					cpuImageUpdateCount_);
+			}
+
+			void QueueCpuImage() noexcept
+			{
+				if (!cpuImage_)
+					return;
+				const DMUI_ImageDrawOptions options{
+					sizeof(DMUI_ImageDrawOptions),
+					{ 112.0f, 80.0f },
+					{ 0.0f, 0.0f },
+					{ 1.0f, 1.0f },
+					{ 1.0f, 1.0f, 1.0f, 1.0f },
+					1,
+					0
+				};
+				if (client_.DrawImage(cpuImage_->Handle(), options))
+					++cpuImageDrawCount_;
+				cpuImageResult_ = client_.LastResult();
+			}
+
 			void ReleaseAfterQueuedDraw() noexcept
 			{
 				if (!image_)
@@ -978,6 +1123,7 @@ namespace DmuiForwardingSmoke
 					hiddenMenuObservations_);
 				ImGui::Text("timer=%.2f s", elapsedSeconds_);
 				QueueImage(false);
+				QueueCpuImage();
 
 				const DMUI_PlotReferenceLine references[]{
 					{ 16.67f, { 0.25f, 0.85f, 0.35f, 0.90f } },
@@ -1422,7 +1568,23 @@ namespace DmuiForwardingSmoke
 
 			void DrawImageControls() noexcept
 			{
-				(void)client_.DrawSectionHeader("D3D11 image resource");
+				(void)client_.DrawSectionHeader("Shared image resources");
+				ImGui::TextUnformatted("Host-owned CPU-pixel image");
+				QueueCpuImage();
+				ImGui::Text(
+					"creates=%llu updates=%llu draws=%llu dimensions=%ux%u result=%s",
+					cpuImageCreateCount_,
+					cpuImageUpdateCount_,
+					cpuImageDrawCount_,
+					cpuImageWidth_,
+					cpuImageHeight_,
+					DMUI_ResultToString(cpuImageResult_));
+				if (ImGui::Button("Update CPU image"))
+					UpdateCpuImage();
+				ImGui::TextDisabled(
+					"Expected: the same handle changes dimensions and pixels.");
+
+				ImGui::TextUnformatted("Existing imported D3D11 SRV");
 				QueueImage(true);
 				ImGui::Text(
 					"imports=%llu draws=%llu releases=%llu status=%u generation=%llu",
@@ -2006,6 +2168,15 @@ namespace DmuiForwardingSmoke
 			uint64_t imageGeneration_{};
 			DMUI_ImageStatus imageStatus_{ DMUI_IMAGE_STATUS_RELEASED };
 			DMUI_Result imageResult_{ DMUI_RESULT_OK };
+			std::optional<dmui::ImageResource> cpuImage_;
+			uint32_t cpuImageStep_{};
+			uint32_t cpuImageWidth_{};
+			uint32_t cpuImageHeight_{};
+			uint64_t cpuImageCreateCount_{};
+			uint64_t cpuImageUpdateCount_{};
+			uint64_t cpuImageDrawCount_{};
+			uint64_t cpuImageReleaseCount_{};
+			DMUI_Result cpuImageResult_{ DMUI_RESULT_OK };
 
 			std::array<char, 96> shortText_{
 				's', 'm', 'o', 'k', 'e', '\0'

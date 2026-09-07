@@ -10,10 +10,13 @@
 
 #include <DearModdingUI/Client.h>
 
+#include <array>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <thread>
+#include <vector>
 
 namespace vmm_tests
 {
@@ -165,6 +168,56 @@ namespace vmm_tests
 			(void)a_object->Release();
 			return incremented - 1;
 		}
+
+		[[nodiscard]] std::vector<uint8_t> ReadPixels(
+			ID3D11Device* a_device,
+			ID3D11DeviceContext* a_context,
+			ID3D11ShaderResourceView* a_view,
+			uint32_t& a_width,
+			uint32_t& a_height)
+		{
+			require(a_view != nullptr, "queued image view was null");
+			ComPtr<ID3D11Resource> resource;
+			a_view->GetResource(&resource);
+			ComPtr<ID3D11Texture2D> texture;
+			require(SUCCEEDED(resource.As(&texture)),
+				"queued image resource was not Texture2D");
+			D3D11_TEXTURE2D_DESC description{};
+			texture->GetDesc(&description);
+			require(description.Format == DXGI_FORMAT_R8G8B8A8_UNORM,
+				"CPU image did not use RGBA8 UNORM");
+			a_width = description.Width;
+			a_height = description.Height;
+			description.Usage = D3D11_USAGE_STAGING;
+			description.BindFlags = 0;
+			description.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+			description.MiscFlags = 0;
+			ComPtr<ID3D11Texture2D> staging;
+			require(SUCCEEDED(a_device->CreateTexture2D(
+						&description, nullptr, &staging)),
+				"staging texture creation failed");
+			a_context->CopyResource(staging.Get(), texture.Get());
+			D3D11_MAPPED_SUBRESOURCE mapped{};
+			require(SUCCEEDED(a_context->Map(
+						staging.Get(),
+						0,
+						D3D11_MAP_READ,
+						0,
+						&mapped)),
+				"staging texture map failed");
+			std::vector<uint8_t> result(
+				static_cast<size_t>(a_width) * a_height * 4u);
+			for (uint32_t row = 0; row < a_height; ++row)
+			{
+				std::memcpy(
+					result.data() + static_cast<size_t>(row) * a_width * 4u,
+					static_cast<const uint8_t*>(mapped.pData) +
+						static_cast<size_t>(row) * mapped.RowPitch,
+					static_cast<size_t>(a_width) * 4u);
+			}
+			a_context->Unmap(staging.Get(), 0);
+			return result;
+		}
 	}
 
 	void run_presentation_service_checks(Runner& runner)
@@ -179,7 +232,8 @@ namespace vmm_tests
 						DMUI_HOST_SERVICE_MANAGED_OVERLAYS |
 						DMUI_HOST_SERVICE_NOTIFICATIONS |
 						DMUI_HOST_SERVICE_ANNOTATED_PLOTS |
-						DMUI_HOST_SERVICE_DIALOGS),
+						DMUI_HOST_SERVICE_DIALOGS |
+						DMUI_HOST_SERVICE_PIXEL_IMAGES),
 				"advertised presentation services drifted");
 		});
 
@@ -201,6 +255,328 @@ namespace vmm_tests
 					DMUI_RESULT_OK,
 				"observer image release failed");
 			PresentationServices::InvalidateDevice();
+		});
+
+		runner.test("cold frame observers can create CPU images without UI demand", [] {
+			auto resources = CreateImageResources();
+			PresentationServices::BindRenderer(resources.device.Get());
+			const std::array<uint8_t, 4> pixels{ 1, 2, 3, 4 };
+			const DMUI_ImageDescriptor descriptor{
+				sizeof(DMUI_ImageDescriptor),
+				1,
+				1,
+				DMUI_PIXEL_FORMAT_RGBA8_UNORM,
+				0,
+				4,
+				4,
+				pixels.data()
+			};
+			DMUI_ImageHandle image{};
+			require(PresentationServices::CreateImage(
+						6, &descriptor, &image) == DMUI_RESULT_OK,
+				"ready observer could not create CPU pixels without UI demand");
+			require(PresentationServices::ReleaseImage(6, image) ==
+					DMUI_RESULT_OK,
+				"observer CPU image release failed");
+			PresentationServices::InvalidateDevice();
+		});
+
+		runner.test("CPU images consume pixels and replace resources transactionally", [] {
+			auto resources = CreateImageResources();
+			ImGuiFrame frame;
+			PresentationServices::BindRenderer(resources.device.Get());
+			PresentationServices::BeginFrame();
+
+			std::array<uint8_t, 20> padded{
+				1, 2, 3, 4, 5, 6, 7, 8,
+				91, 92, 93, 94,
+				9, 10, 11, 12, 13, 14, 15, 16
+			};
+			const std::vector<uint8_t> expectedOld{
+				1, 2, 3, 4, 5, 6, 7, 8,
+				9, 10, 11, 12, 13, 14, 15, 16
+			};
+			DMUI_ImageDescriptor descriptor{
+				sizeof(DMUI_ImageDescriptor),
+				2,
+				2,
+				DMUI_PIXEL_FORMAT_RGBA8_UNORM,
+				0,
+				12,
+				20,
+				padded.data()
+			};
+			DMUI_ImageHandle image{};
+			require(PresentationServices::CreateImage(
+						21, &descriptor, &image) == DMUI_RESULT_OK,
+				"padded CPU image creation failed");
+			padded.fill(0);
+
+			DMUI_ImageInfo info{};
+			info.structSize = sizeof(info);
+			require(PresentationServices::QueryImage(21, image, &info) ==
+						DMUI_RESULT_OK &&
+					info.contentWidth == 2 &&
+					info.contentHeight == 2,
+				"CPU image query did not report created dimensions");
+			const DMUI_ImageDrawOptions options{
+				sizeof(DMUI_ImageDrawOptions),
+				{ 32.0f, 32.0f },
+				{ 0.0f, 0.0f },
+				{ 1.0f, 1.0f },
+				{ 1.0f, 1.0f, 1.0f, 1.0f },
+				0,
+				0
+			};
+			ID3D11ShaderResourceView* oldView{};
+			{
+				const PresentationServices::ClientExecutionGuard callback{ 21, true };
+				require(PresentationServices::DrawImage(
+							21, image, &options) == DMUI_RESULT_OK,
+					"created CPU image could not be drawn");
+			}
+			oldView = PresentationServices::RetainImageViewForTests(21, image);
+			require(oldView != nullptr, "created CPU view was not retained");
+			oldView->Release();
+
+			auto rejected = descriptor;
+			rejected.accessibleByteCount = 19;
+			rejected.pixels = expectedOld.data();
+			require(PresentationServices::UpdateImage(
+						21, image, &rejected) == DMUI_RESULT_INVALID_ARGUMENT,
+				"short final-row extent was accepted");
+			info = {};
+			info.structSize = sizeof(info);
+			require(PresentationServices::QueryImage(21, image, &info) ==
+						DMUI_RESULT_OK &&
+					info.contentWidth == 2 &&
+					info.contentHeight == 2,
+				"rejected update changed image dimensions");
+
+			std::array<uint8_t, 12> updated{
+				21, 22, 23, 24,
+				31, 32, 33, 34,
+				41, 42, 43, 44
+			};
+			const auto expectedNew = std::vector<uint8_t>{
+				updated.begin(), updated.end()
+			};
+			descriptor.width = 3;
+			descriptor.height = 1;
+			descriptor.rowPitch = 12;
+			descriptor.accessibleByteCount = 12;
+			descriptor.pixels = updated.data();
+			require(PresentationServices::UpdateImage(
+						21, image, &descriptor) == DMUI_RESULT_OK,
+				"valid CPU image update failed");
+			updated.fill(0);
+			info = {};
+			info.structSize = sizeof(info);
+			require(PresentationServices::QueryImage(21, image, &info) ==
+						DMUI_RESULT_OK &&
+					info.contentWidth == 3 &&
+					info.contentHeight == 1,
+				"successful update did not retain the same handle with new dimensions");
+
+			ID3D11ShaderResourceView* newView{};
+			{
+				const PresentationServices::ClientExecutionGuard callback{ 21, true };
+				require(PresentationServices::DrawImage(
+							21, image, &options) == DMUI_RESULT_OK,
+					"updated CPU image could not be drawn");
+			}
+			newView = PresentationServices::RetainImageViewForTests(21, image);
+			require(newView != nullptr, "updated CPU view was not retained");
+			newView->Release();
+			require(oldView != newView,
+				"CPU update mutated the queued resource in place");
+			require(PresentationServices::ReleaseImage(21, image) ==
+					DMUI_RESULT_OK,
+				"CPU image release after queued draws failed");
+
+			uint32_t width{};
+			uint32_t height{};
+			const auto oldPixels = ReadPixels(
+				resources.device.Get(),
+				resources.context.Get(),
+				oldView,
+				width,
+				height);
+			require(width == 2 && height == 2 && oldPixels == expectedOld,
+				"queued old draw did not preserve original RGBA and alpha bytes");
+			const auto newPixels = ReadPixels(
+				resources.device.Get(),
+				resources.context.Get(),
+				newView,
+				width,
+				height);
+			require(width == 3 && height == 1 && newPixels == expectedNew,
+				"later draw did not expose updated RGBA and alpha bytes");
+			PresentationServices::CompleteRenderSubmission();
+			PresentationServices::InvalidateDevice();
+		});
+
+		runner.test("CPU image validation and provenance preserve live resources", [] {
+			auto resources = CreateImageResources();
+			PresentationServices::BindRenderer(resources.device.Get());
+			const std::array<uint8_t, 8> pixels{
+				10, 20, 30, 40, 50, 60, 70, 80
+			};
+			DMUI_ImageDescriptor descriptor{
+				sizeof(DMUI_ImageDescriptor),
+				2,
+				1,
+				DMUI_PIXEL_FORMAT_RGBA8_UNORM,
+				0,
+				8,
+				8,
+				pixels.data()
+			};
+			DMUI_ImageHandle image{};
+			auto invalid = descriptor;
+			invalid.structSize = DMUI_IMAGE_DESCRIPTOR_0_1_SIZE - 1u;
+			require(PresentationServices::CreateImage(
+						22, &invalid, &image) == DMUI_RESULT_STRUCT_TOO_SMALL,
+				"small CPU descriptor was accepted");
+			invalid = descriptor;
+			invalid.pixelFormat = 99;
+			require(PresentationServices::CreateImage(
+						22, &invalid, &image) == DMUI_RESULT_UNSUPPORTED_RESOURCE,
+				"unknown pixel format was accepted");
+			invalid = descriptor;
+			invalid.reserved = 1;
+			require(PresentationServices::CreateImage(
+						22, &invalid, &image) == DMUI_RESULT_INVALID_DESCRIPTOR,
+				"reserved pixel descriptor bits were accepted");
+			invalid = descriptor;
+			invalid.pixels = nullptr;
+			require(PresentationServices::CreateImage(
+						22, &invalid, &image) == DMUI_RESULT_INVALID_ARGUMENT,
+				"null CPU pixels were accepted");
+			invalid = descriptor;
+			invalid.width = 0;
+			require(PresentationServices::CreateImage(
+						22, &invalid, &image) == DMUI_RESULT_INVALID_ARGUMENT,
+				"zero CPU image width was accepted");
+			invalid = descriptor;
+			invalid.height = 0;
+			require(PresentationServices::CreateImage(
+						22, &invalid, &image) == DMUI_RESULT_INVALID_ARGUMENT,
+				"zero CPU image height was accepted");
+			invalid = descriptor;
+			invalid.rowPitch = 7;
+			require(PresentationServices::CreateImage(
+						22, &invalid, &image) == DMUI_RESULT_INVALID_ARGUMENT,
+				"short CPU image row pitch was accepted");
+			invalid = descriptor;
+			invalid.width = (std::numeric_limits<uint32_t>::max)();
+			invalid.rowPitch = (std::numeric_limits<uint64_t>::max)();
+			invalid.accessibleByteCount =
+				(std::numeric_limits<uint64_t>::max)();
+			invalid.pixels = reinterpret_cast<const void*>(1);
+			require(PresentationServices::CreateImage(
+						22, &invalid, &image) == DMUI_RESULT_INVALID_ARGUMENT,
+				"maximum-width stride overflow reached pixel memory");
+			invalid = descriptor;
+			invalid.width = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION + 1u;
+			invalid.rowPitch = static_cast<uint64_t>(invalid.width) * 4u;
+			invalid.accessibleByteCount = invalid.rowPitch;
+			invalid.pixels = reinterpret_cast<const void*>(1);
+			require(PresentationServices::CreateImage(
+						22, &invalid, &image) == DMUI_RESULT_INVALID_ARGUMENT,
+				"oversized CPU dimensions reached pixel memory");
+
+			DMUI_Result workerResult{};
+			std::thread worker{ [&] {
+				DMUI_ImageHandle workerImage{};
+				workerResult = PresentationServices::CreateImage(
+					22, &descriptor, &workerImage);
+			} };
+			worker.join();
+			require(workerResult == DMUI_RESULT_WRONG_THREAD,
+				"CPU image creation accepted a non-render thread");
+
+			require(PresentationServices::CreateImage(
+						22, &descriptor, &image) == DMUI_RESULT_OK,
+				"valid tight CPU image creation failed");
+			const auto stableSlots = PresentationServices::ImageSlotCount();
+			for (uint32_t update = 0; update < 512; ++update)
+			{
+				require(PresentationServices::UpdateImage(
+							22, image, &descriptor) == DMUI_RESULT_OK,
+					"repeated transactional CPU update failed");
+			}
+			require(PresentationServices::ImageSlotCount() == stableSlots,
+				"CPU updates consumed image slots");
+			workerResult = DMUI_RESULT_OK;
+			std::thread updateWorker{ [&] {
+				workerResult = PresentationServices::UpdateImage(
+					22, image, &descriptor);
+			} };
+			updateWorker.join();
+			require(workerResult == DMUI_RESULT_WRONG_THREAD,
+				"CPU image update accepted a non-render thread");
+			require(PresentationServices::UpdateImage(
+						23, image, &descriptor) == DMUI_RESULT_STALE_HANDLE,
+				"CPU image update ignored owner isolation");
+			require(PresentationServices::ReleaseImage(22, image) ==
+					DMUI_RESULT_OK &&
+					PresentationServices::UpdateImage(
+						22, image, &descriptor) == DMUI_RESULT_STALE_HANDLE,
+				"released CPU image accepted an update");
+
+			const DMUI_D3D11ImageDescriptor importedDescriptor{
+				sizeof(DMUI_D3D11ImageDescriptor),
+				resources.view.Get(),
+				0,
+				0
+			};
+			DMUI_ImageHandle imported{};
+			require(PresentationServices::ImportD3D11Image(
+						22, &importedDescriptor, &imported) == DMUI_RESULT_OK,
+				"import after CPU slot release failed");
+			DMUI_ImageInfo staleInfo{};
+			staleInfo.structSize = sizeof(staleInfo);
+			require(PresentationServices::QueryImage(
+						22, image, &staleInfo) == DMUI_RESULT_STALE_HANDLE,
+				"CPU handle aliased an imported slot reuse");
+			require(PresentationServices::UpdateImage(
+						22, imported, &descriptor) ==
+					DMUI_RESULT_UNSUPPORTED_RESOURCE,
+				"CPU update mutated an imported SRV");
+			require(PresentationServices::ReleaseImage(22, imported) ==
+					DMUI_RESULT_OK,
+				"imported image release failed");
+			DMUI_ImageHandle reusedCpu{};
+			require(PresentationServices::CreateImage(
+						22, &descriptor, &reusedCpu) == DMUI_RESULT_OK &&
+					PresentationServices::UpdateImage(
+						22, reusedCpu, &descriptor) == DMUI_RESULT_OK,
+				"import-to-CPU slot reuse retained imported provenance");
+			DMUI_ImageInfo info{};
+			info.structSize = sizeof(info);
+			PresentationServices::BindRenderer(resources.device.Get());
+			require(PresentationServices::QueryImage(
+						22, reusedCpu, &info) == DMUI_RESULT_OK &&
+					info.status == DMUI_IMAGE_STATUS_READY,
+				"same-device renderer binding invalidated CPU images");
+
+			auto replacement = CreateImageResources();
+			PresentationServices::SetDevice(replacement.device.Get());
+			info = {};
+			info.structSize = sizeof(info);
+			require(PresentationServices::QueryImage(
+						22, reusedCpu, &info) == DMUI_RESULT_OK &&
+					info.status == DMUI_IMAGE_STATUS_INVALIDATED &&
+					PresentationServices::UpdateImage(
+						22, reusedCpu, &descriptor) == DMUI_RESULT_STALE_HANDLE,
+				"device replacement did not invalidate CPU images");
+			PresentationServices::InvalidateDevice();
+			DMUI_ImageHandle unavailable{};
+			require(PresentationServices::CreateImage(
+						22, &descriptor, &unavailable) ==
+					DMUI_RESULT_HOST_NOT_READY,
+				"CPU image creation accepted a missing device");
 		});
 
 		runner.test("image handles retain queued draws and invalidate by device generation", [] {

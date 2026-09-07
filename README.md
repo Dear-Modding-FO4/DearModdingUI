@@ -22,11 +22,12 @@ Clients locate the `DMUI_GetHostAPI` export at F4SE `kPostPostLoad`, request the
 
 Forwarding-only clients can preflight additive presentation services before
 registration. The host now provides contextual hotkeys, retained D3D11 image
-handles, opt-in passive managed overlays, latest-message notifications,
-annotated plots, and submission-aware confirm/text dialogs without exposing
-ImGui context, draw-list, texture-ID, or IO types through the C ABI. Full
-ownership, thread, format, expiry, placement, and dialog-state contracts are
-documented in the nested public API README.
+handles, host-owned RGBA8 images created and transactionally updated from
+decoded CPU pixels, opt-in passive managed overlays, latest-message
+notifications, annotated plots, and submission-aware confirm/text dialogs
+without exposing ImGui context, draw-list, texture-ID, or IO types through the
+C ABI. Full ownership, thread, row-extent, format, update, expiry, placement,
+and dialog-state contracts are documented in the nested public API README.
 
 ## Building
 
@@ -65,7 +66,9 @@ Headless capture defaults to 3840x2160 and waits three frames before writing the
 Use `--presentation overlay|notification|image|plot|dialog` to capture a
 synthetic client exercising the corresponding forwarding-only host service.
 These fixtures create their resources locally and invoke the public client
-wrappers rather than duplicating the host presentation.
+wrappers rather than duplicating the host presentation. The `image` fixture
+shows a CPU-created checker, the same CPU handle after a deterministic
+dimension/color/alpha update, and the existing imported-SRV path together.
 
 Use `--sidebar tree|twopane|drilldown|iconrail` to explicitly override the persisted layout and render any sidebar without rebuilding.
 For deterministic tree captures, `--collapse-all` starts with every mod closed and repeatable

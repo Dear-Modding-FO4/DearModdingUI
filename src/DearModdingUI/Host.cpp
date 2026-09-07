@@ -1004,6 +1004,30 @@ namespace DearModdingUI
 				a_client, a_descriptor, a_image);
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiCreateImageCpp(
+			DMUI_ClientHandle a_client,
+			const DMUI_ImageDescriptor* a_descriptor,
+			DMUI_ImageHandle* a_image) noexcept
+		{
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			return PresentationServices::CreateImage(
+				a_client, a_descriptor, a_image);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiUpdateImageCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_ImageHandle a_image,
+			const DMUI_ImageDescriptor* a_descriptor) noexcept
+		{
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			return PresentationServices::UpdateImage(
+				a_client, a_image, a_descriptor);
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawImageCpp(
 			DMUI_ClientHandle a_client,
 			DMUI_ImageHandle a_image,
@@ -1575,6 +1599,26 @@ namespace DearModdingUI
 			});
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiCreateImage(
+			DMUI_ClientHandle a_client,
+			const DMUI_ImageDescriptor* a_descriptor,
+			DMUI_ImageHandle* a_image) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiCreateImageCpp(a_client, a_descriptor, a_image);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiUpdateImage(
+			DMUI_ClientHandle a_client,
+			DMUI_ImageHandle a_image,
+			const DMUI_ImageDescriptor* a_descriptor) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiUpdateImageCpp(a_client, a_image, a_descriptor);
+			});
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawImage(
 			DMUI_ClientHandle a_client,
 			DMUI_ImageHandle a_image,
@@ -1872,7 +1916,9 @@ namespace DearModdingUI
 			&ApiRequestDialog,
 			&ApiPollDialogEvent,
 			&ApiResolveDialogSubmission,
-			&ApiCancelDialog
+			&ApiCancelDialog,
+			&ApiCreateImage,
+			&ApiUpdateImage
 		};
 		return api;
 	}

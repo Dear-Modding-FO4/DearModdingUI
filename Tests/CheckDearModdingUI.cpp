@@ -86,6 +86,45 @@ namespace vmm_tests
 			return DMUI_RESULT_OK;
 		}
 
+		DMUI_Result DMUI_CALL MockCreateImage(
+			DMUI_ClientHandle,
+			const DMUI_ImageDescriptor*,
+			DMUI_ImageHandle*) noexcept
+		{
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL MockUpdateImage(
+			DMUI_ClientHandle,
+			DMUI_ImageHandle,
+			const DMUI_ImageDescriptor*) noexcept
+		{
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL MockDrawImage(
+			DMUI_ClientHandle,
+			DMUI_ImageHandle,
+			const DMUI_ImageDrawOptions*) noexcept
+		{
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL MockReleaseImage(
+			DMUI_ClientHandle,
+			DMUI_ImageHandle) noexcept
+		{
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL MockQueryImage(
+			DMUI_ClientHandle,
+			DMUI_ImageHandle,
+			DMUI_ImageInfo*) noexcept
+		{
+			return DMUI_RESULT_OK;
+		}
+
 		class SilentHealthReporter final : public HealthReporter
 		{
 		public:
@@ -404,8 +443,13 @@ namespace vmm_tests
 						DMUI_HOST_API_RESOLVE_DIALOG_SUBMISSION_SIZE &&
 					DMUI_HOST_API_RESOLVE_DIALOG_SUBMISSION_SIZE <
 						DMUI_HOST_API_CANCEL_DIALOG_SIZE &&
+					DMUI_HOST_API_CANCEL_DIALOG_SIZE == 400 &&
+					DMUI_HOST_API_CANCEL_DIALOG_SIZE <
+						DMUI_HOST_API_CREATE_IMAGE_SIZE &&
+					DMUI_HOST_API_CREATE_IMAGE_SIZE <
+						DMUI_HOST_API_UPDATE_IMAGE_SIZE &&
 					sizeof(DMUI_HostAPI) ==
-						DMUI_HOST_API_CANCEL_DIALOG_SIZE,
+						DMUI_HOST_API_UPDATE_IMAGE_SIZE,
 				"the versioned host API prefix moved");
 		});
 
@@ -1725,7 +1769,8 @@ namespace vmm_tests
 				Client("required.mod", "Required", fingerprint, state);
 			descriptor.requiredServices =
 				DMUI_HOST_SERVICE_IMAGE_RESOURCES |
-				DMUI_HOST_SERVICE_DIALOGS;
+				DMUI_HOST_SERVICE_DIALOGS |
+				DMUI_HOST_SERVICE_PIXEL_IMAGES;
 			descriptor.minimumForwardingVersion =
 				DMUI_FORWARDING_VERSION_CURRENT;
 			DMUI_ClientHandle handle{};
@@ -1795,6 +1840,43 @@ namespace vmm_tests
 						DMUI_RESULT_FORWARDING_VERSION_MISMATCH &&
 					s_mockRegistrations == 0,
 				"old forwarding surface reached client registration");
+		});
+
+		runner.test("pixel-image preflight requires create update and shared entries", [] {
+			s_mockServices = DMUI_HOST_SERVICE_PIXEL_IMAGES;
+			s_mockForwardingVersion = DMUI_FORWARDING_VERSION_CURRENT;
+			DMUI_HostAPI api{};
+			api.structSize = sizeof(api);
+			api.registerClient = &MockRegisterClient;
+			api.queryServices = &MockQueryServices;
+			const dmui::ClientOptions options{
+				.requiredServices = DMUI_HOST_SERVICE_PIXEL_IMAGES
+			};
+
+			require(dmui::PreflightHostAPI(&api, options) ==
+					DMUI_RESULT_SERVICE_UNAVAILABLE,
+				"advertised pixel images omitted all required entries");
+			api.createImage = &MockCreateImage;
+			api.updateImage = &MockUpdateImage;
+			require(dmui::PreflightHostAPI(&api, options) ==
+					DMUI_RESULT_SERVICE_UNAVAILABLE,
+				"pixel image preflight omitted shared handle entries");
+			api.drawImage = &MockDrawImage;
+			api.releaseImage = &MockReleaseImage;
+			api.queryImage = &MockQueryImage;
+			require(dmui::PreflightHostAPI(&api, options) == DMUI_RESULT_OK,
+				"complete pixel image surface failed preflight");
+			api.updateImage = nullptr;
+			require(dmui::PreflightHostAPI(&api, options) ==
+					DMUI_RESULT_SERVICE_UNAVAILABLE,
+				"pixel image preflight accepted a missing update entry");
+
+			const dmui::ClientOptions unknown{
+				.requiredServices = UINT64_C(1) << 63u
+			};
+			require(dmui::PreflightHostAPI(&api, unknown) ==
+					DMUI_RESULT_SERVICE_UNAVAILABLE,
+				"unknown service bit passed official preflight");
 		});
 
 		runner.test("client origin defaults to native", [] {
