@@ -6,6 +6,8 @@
 #include <DearModdingUI/ImGuiRecovery.h>
 #include <DearModdingUI/Faq.h>
 #include <DearModdingUI/LinkRow.h>
+#include "MenuDismissal.h"
+#include <DearModdingUI/PresentationServices.h>
 #include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
@@ -100,6 +102,11 @@ namespace DearModdingUI
 		void SetMenuVisibleState(Service& a_service, bool a_visible) noexcept
 		{
 			a_service.menuVisible.store(a_visible, std::memory_order_release);
+			if (!a_visible)
+			{
+				ResetMenuEscapeRequest();
+				PresentationServices::NotifyMenuClosed();
+			}
 			HostSettings::NotifyMenuVisible(a_visible);
 		}
 
@@ -961,6 +968,186 @@ namespace DearModdingUI
 				DMUI_RESULT_BACKEND_FAILED;
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryServicesCpp(
+			DMUI_HostServicesInfo* a_services) noexcept
+		{
+			if (!a_services)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			if (a_services->structSize < DMUI_HOST_SERVICES_INFO_0_1_SIZE)
+				return DMUI_RESULT_STRUCT_TOO_SMALL;
+			a_services->forwardingVersion = DMUI_FORWARDING_VERSION_CURRENT;
+			a_services->supportedServices =
+				PresentationServices::kSupportedServices;
+			return DMUI_RESULT_OK;
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiSetHotkeyActionEnabledCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_HotkeyActionHandle a_action,
+			uint32_t a_enabled) noexcept
+		{
+			const auto clientResult = GetService().registry.ValidateClient(a_client);
+			if (clientResult != DMUI_RESULT_OK)
+				return clientResult;
+			return Hotkeys::SetEnabled(a_client, a_action, a_enabled != 0);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiImportD3D11ImageCpp(
+			DMUI_ClientHandle a_client,
+			const DMUI_D3D11ImageDescriptor* a_descriptor,
+			DMUI_ImageHandle* a_image) noexcept
+		{
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			return PresentationServices::ImportD3D11Image(
+				a_client, a_descriptor, a_image);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawImageCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_ImageHandle a_image,
+			const DMUI_ImageDrawOptions* a_options) noexcept
+		{
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			return PresentationServices::DrawImage(
+				a_client, a_image, a_options);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiReleaseImageCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_ImageHandle a_image) noexcept
+		{
+			const auto clientResult = GetService().registry.ValidateClient(a_client);
+			if (clientResult != DMUI_RESULT_OK)
+				return clientResult;
+			return PresentationServices::ReleaseImage(a_client, a_image);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryImageCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_ImageHandle a_image,
+			DMUI_ImageInfo* a_info) noexcept
+		{
+			const auto clientResult = GetService().registry.ValidateClient(a_client);
+			if (clientResult != DMUI_RESULT_OK)
+				return clientResult;
+			return PresentationServices::QueryImage(a_client, a_image, a_info);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiConfigureOverlayCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_PageHandle a_page,
+			const DMUI_ManagedOverlayOptions* a_options) noexcept
+		{
+			auto& registry = GetService().registry;
+			const auto validation = registry.ValidatePage(
+				a_client, a_page, DMUI_PAGE_KIND_OVERLAY);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			return PresentationServices::ConfigureOverlay(
+				a_client, a_page, a_options);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryOverlayCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_PageHandle a_page,
+			DMUI_ManagedOverlayPlacement* a_placement) noexcept
+		{
+			auto& registry = GetService().registry;
+			const auto validation = registry.ValidatePage(
+				a_client, a_page, DMUI_PAGE_KIND_OVERLAY);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			return PresentationServices::QueryOverlay(
+				a_client, a_page, a_placement);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiPostNotificationCpp(
+			DMUI_ClientHandle a_client,
+			const DMUI_NotificationDescriptor* a_descriptor) noexcept
+		{
+			const auto clientResult = GetService().registry.ValidateClient(a_client);
+			if (clientResult != DMUI_RESULT_OK)
+				return clientResult;
+			return PresentationServices::PostNotification(a_client, a_descriptor);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawAnnotatedPlotCpp(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			const DMUI_AnnotatedPlotDescriptor* a_descriptor) noexcept
+		{
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			return PresentationServices::DrawAnnotatedPlot(
+				a_client, a_id, a_descriptor);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiRequestDialogCpp(
+			DMUI_ClientHandle a_client,
+			const DMUI_DialogDescriptor* a_descriptor,
+			DMUI_DialogHandle* a_dialog) noexcept
+		{
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			return PresentationServices::RequestDialog(
+				a_client,
+				a_descriptor,
+				a_dialog,
+				IsMenuVisible());
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiPollDialogEventCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_DialogHandle a_dialog,
+			DMUI_DialogEvent* a_event,
+			char* a_textBuffer,
+			uint32_t a_textCapacity) noexcept
+		{
+			const auto validation = ValidateDrawingClient(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			return PresentationServices::PollDialogEvent(
+				a_client,
+				a_dialog,
+				a_event,
+				a_textBuffer,
+				a_textCapacity);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiResolveDialogSubmissionCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_DialogHandle a_dialog,
+			uint64_t a_submissionId,
+			uint32_t a_accepted,
+			const char* a_error) noexcept
+		{
+			const auto clientResult = GetService().registry.ValidateClient(a_client);
+			if (clientResult != DMUI_RESULT_OK)
+				return clientResult;
+			return PresentationServices::ResolveDialogSubmission(
+				a_client,
+				a_dialog,
+				a_submissionId,
+				a_accepted,
+				a_error);
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiCancelDialogCpp(
+			DMUI_ClientHandle a_client,
+			DMUI_DialogHandle a_dialog) noexcept
+		{
+			const auto clientResult = GetService().registry.ValidateClient(a_client);
+			if (clientResult != DMUI_RESULT_OK)
+				return clientResult;
+			return PresentationServices::CancelDialog(a_client, a_dialog);
+		}
+
 		// No SEH guard: /EHsc would skip destructors and leak the registry mutex.
 		template <class Function>
 		[[nodiscard]] DMUI_Result GuardApiCall(Function&& a_function) noexcept
@@ -1359,6 +1546,156 @@ namespace DearModdingUI
 			});
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryServices(
+			DMUI_HostServicesInfo* a_services) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiQueryServicesCpp(a_services);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiSetHotkeyActionEnabled(
+			DMUI_ClientHandle a_client,
+			DMUI_HotkeyActionHandle a_action,
+			uint32_t a_enabled) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiSetHotkeyActionEnabledCpp(
+					a_client, a_action, a_enabled);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiImportD3D11Image(
+			DMUI_ClientHandle a_client,
+			const DMUI_D3D11ImageDescriptor* a_descriptor,
+			DMUI_ImageHandle* a_image) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiImportD3D11ImageCpp(a_client, a_descriptor, a_image);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawImage(
+			DMUI_ClientHandle a_client,
+			DMUI_ImageHandle a_image,
+			const DMUI_ImageDrawOptions* a_options) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiDrawImageCpp(a_client, a_image, a_options);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiReleaseImage(
+			DMUI_ClientHandle a_client,
+			DMUI_ImageHandle a_image) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiReleaseImageCpp(a_client, a_image);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryImage(
+			DMUI_ClientHandle a_client,
+			DMUI_ImageHandle a_image,
+			DMUI_ImageInfo* a_info) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiQueryImageCpp(a_client, a_image, a_info);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiConfigureOverlay(
+			DMUI_ClientHandle a_client,
+			DMUI_PageHandle a_page,
+			const DMUI_ManagedOverlayOptions* a_options) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiConfigureOverlayCpp(a_client, a_page, a_options);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryOverlay(
+			DMUI_ClientHandle a_client,
+			DMUI_PageHandle a_page,
+			DMUI_ManagedOverlayPlacement* a_placement) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiQueryOverlayCpp(a_client, a_page, a_placement);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiPostNotification(
+			DMUI_ClientHandle a_client,
+			const DMUI_NotificationDescriptor* a_descriptor) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiPostNotificationCpp(a_client, a_descriptor);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawAnnotatedPlot(
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			const DMUI_AnnotatedPlotDescriptor* a_descriptor) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiDrawAnnotatedPlotCpp(a_client, a_id, a_descriptor);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiRequestDialog(
+			DMUI_ClientHandle a_client,
+			const DMUI_DialogDescriptor* a_descriptor,
+			DMUI_DialogHandle* a_dialog) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiRequestDialogCpp(a_client, a_descriptor, a_dialog);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiPollDialogEvent(
+			DMUI_ClientHandle a_client,
+			DMUI_DialogHandle a_dialog,
+			DMUI_DialogEvent* a_event,
+			char* a_textBuffer,
+			uint32_t a_textCapacity) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiPollDialogEventCpp(
+					a_client,
+					a_dialog,
+					a_event,
+					a_textBuffer,
+					a_textCapacity);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiResolveDialogSubmission(
+			DMUI_ClientHandle a_client,
+			DMUI_DialogHandle a_dialog,
+			uint64_t a_submissionId,
+			uint32_t a_accepted,
+			const char* a_error) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiResolveDialogSubmissionCpp(
+					a_client,
+					a_dialog,
+					a_submissionId,
+					a_accepted,
+					a_error);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiCancelDialog(
+			DMUI_ClientHandle a_client,
+			DMUI_DialogHandle a_dialog) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiCancelDialogCpp(a_client, a_dialog);
+			});
+		}
+
 		// Pages and actions draw inside the frame, so isolate the host's frame state.
 		void LogImGuiRecovery(
 			const ClientCallbackIdentity& a_identity,
@@ -1521,7 +1858,21 @@ namespace DearModdingUI
 			&ApiRegisterPageActivityObserver,
 			&ApiDrawLinkRow,
 			&ApiDrawFaq,
-			&ApiReportDiagnostic
+			&ApiReportDiagnostic,
+			&ApiQueryServices,
+			&ApiSetHotkeyActionEnabled,
+			&ApiImportD3D11Image,
+			&ApiDrawImage,
+			&ApiReleaseImage,
+			&ApiQueryImage,
+			&ApiConfigureOverlay,
+			&ApiQueryOverlay,
+			&ApiPostNotification,
+			&ApiDrawAnnotatedPlot,
+			&ApiRequestDialog,
+			&ApiPollDialogEvent,
+			&ApiResolveDialogSubmission,
+			&ApiCancelDialog
 		};
 		return api;
 	}
@@ -1622,7 +1973,8 @@ namespace DearModdingUI
 	{
 		auto& service = GetService();
 		return service.menuVisible.load(std::memory_order_acquire) ||
-			service.registry.DemandedOverlayCount() != 0;
+			service.registry.DemandedOverlayCount() != 0 ||
+			PresentationServices::HasFrameDemand();
 	}
 
 	bool HasSettingsPages() noexcept
@@ -1684,6 +2036,10 @@ namespace DearModdingUI
 				page->client :
 				DMUI_INVALID_CLIENT_HANDLE
 		};
+		const PresentationServices::ClientExecutionGuard executionGuard{
+			page != pages.end() ? page->client : DMUI_INVALID_CLIENT_HANDLE,
+			true
+		};
 		const auto identity = page != pages.end() ?
 			ClientCallbackIdentity{
 				"page",
@@ -1728,6 +2084,12 @@ namespace DearModdingUI
 				action->clientDisplayName
 			} :
 			ClientCallbackIdentity{ "action", a_action };
+		const PresentationServices::ClientExecutionGuard executionGuard{
+			action != actions.end() ?
+			action->client :
+			DMUI_INVALID_CLIENT_HANDLE,
+			false
+		};
 		return InvokeClientCallback(
 			identity,
 			[&]() noexcept {
@@ -1778,6 +2140,10 @@ namespace DearModdingUI
 			(void)InvokeNonDrawingClientCallback(
 				identity,
 				[&]() noexcept {
+					const PresentationServices::ClientExecutionGuard executionGuard{
+						observer.client,
+						false
+					};
 					return registry.InvokeFrameObserver(observer.handle);
 				});
 		}
@@ -1790,7 +2156,24 @@ namespace DearModdingUI
 		{
 			if (page.kind == DMUI_PAGE_KIND_OVERLAY &&
 				registry.IsFrameDemanded(page.handle))
-				(void)DrawPage(page.handle);
+			{
+				const auto managed =
+					PresentationServices::BeginManagedOverlay(
+						page.client,
+						page.handle,
+						page.imguiLabel,
+						IsMenuVisible());
+				if (managed !=
+					PresentationServices::ManagedOverlayBeginResult::kNotConfigured)
+				{
+					if (managed ==
+						PresentationServices::ManagedOverlayBeginResult::kVisible)
+						(void)DrawPage(page.handle);
+					PresentationServices::EndManagedOverlay();
+				}
+				else
+					(void)DrawPage(page.handle);
+			}
 		}
 	}
 

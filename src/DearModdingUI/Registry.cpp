@@ -1,4 +1,5 @@
 #include <DearModdingUI/Registry.h>
+#include <DearModdingUI/PresentationServices.h>
 
 #include <algorithm>
 #include <cstring>
@@ -236,12 +237,30 @@ namespace DearModdingUI
 		if (a_descriptor->origin != DMUI_CLIENT_ORIGIN_NATIVE &&
 			a_descriptor->origin != DMUI_CLIENT_ORIGIN_BRIDGED)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
+		const auto hasServiceRequirements =
+			a_descriptor->structSize >= DMUI_CLIENT_DESCRIPTOR_SERVICES_SIZE;
+		if (hasServiceRequirements && a_descriptor->reserved != 0)
+			return DMUI_RESULT_INVALID_DESCRIPTOR;
+		if (hasServiceRequirements &&
+			(a_descriptor->requiredServices &
+				~PresentationServices::kSupportedServices) != 0)
+			return DMUI_RESULT_SERVICE_UNAVAILABLE;
+		if (hasServiceRequirements &&
+			a_descriptor->minimumForwardingVersion >
+				DMUI_FORWARDING_VERSION_CURRENT)
+			return DMUI_RESULT_FORWARDING_VERSION_MISMATCH;
 
 		try
 		{
 			RegisteredClient client{};
 			client.version = a_descriptor->version;
 			client.capabilities = a_descriptor->capabilities;
+			client.requiredServices = hasServiceRequirements ?
+				a_descriptor->requiredServices :
+				DMUI_HOST_SERVICE_NONE;
+			client.minimumForwardingVersion = hasServiceRequirements ?
+				a_descriptor->minimumForwardingVersion :
+				0u;
 			client.origin = a_descriptor->origin;
 			client.usesImGuiForwarding = a_descriptor->expectedImGui == nullptr;
 			client.onHostReady = a_descriptor->onHostReady;

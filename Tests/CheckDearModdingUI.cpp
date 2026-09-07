@@ -3,6 +3,7 @@
 #include <DearModdingUI/Faq.h>
 #include <DearModdingUI/FontCatalog.h>
 #include <DearModdingUI/Health.h>
+#include <DearModdingUI/Host.h>
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/HostSettingsView.h>
 #include <DearModdingUI/Home.h>
@@ -45,6 +46,8 @@
 
 namespace vmm_tests
 {
+	static_assert(DearModdingUI::kHostVersion == "0.1.0");
+
 	namespace
 	{
 		using namespace DearModdingUI;
@@ -62,6 +65,26 @@ namespace vmm_tests
 		{
 			std::vector<DMUI_PageActivityInfo> events;
 		};
+
+		uint32_t s_mockRegistrations{};
+		DMUI_HostServices s_mockServices{};
+		uint32_t s_mockForwardingVersion{};
+
+		DMUI_Result DMUI_CALL MockRegisterClient(
+			const DMUI_ClientDescriptor*,
+			DMUI_ClientHandle*) noexcept
+		{
+			++s_mockRegistrations;
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL MockQueryServices(
+			DMUI_HostServicesInfo* a_services) noexcept
+		{
+			a_services->supportedServices = s_mockServices;
+			a_services->forwardingVersion = s_mockForwardingVersion;
+			return DMUI_RESULT_OK;
+		}
 
 		class SilentHealthReporter final : public HealthReporter
 		{
@@ -353,8 +376,36 @@ namespace vmm_tests
 						DMUI_HOST_API_DRAW_FAQ_SIZE &&
 					DMUI_HOST_API_DRAW_FAQ_SIZE <
 						DMUI_HOST_API_REPORT_DIAGNOSTIC_SIZE &&
+					DMUI_HOST_API_REPORT_DIAGNOSTIC_SIZE ==
+						offsetof(DMUI_HostAPI, queryServices) &&
+					DMUI_HOST_API_QUERY_SERVICES_SIZE <
+						DMUI_HOST_API_SET_HOTKEY_ACTION_ENABLED_SIZE &&
+					DMUI_HOST_API_SET_HOTKEY_ACTION_ENABLED_SIZE <
+						DMUI_HOST_API_IMPORT_D3D11_IMAGE_SIZE &&
+					DMUI_HOST_API_IMPORT_D3D11_IMAGE_SIZE <
+						DMUI_HOST_API_DRAW_IMAGE_SIZE &&
+					DMUI_HOST_API_DRAW_IMAGE_SIZE <
+						DMUI_HOST_API_RELEASE_IMAGE_SIZE &&
+					DMUI_HOST_API_RELEASE_IMAGE_SIZE <
+						DMUI_HOST_API_QUERY_IMAGE_SIZE &&
+					DMUI_HOST_API_QUERY_IMAGE_SIZE <
+						DMUI_HOST_API_CONFIGURE_OVERLAY_SIZE &&
+					DMUI_HOST_API_CONFIGURE_OVERLAY_SIZE <
+						DMUI_HOST_API_QUERY_OVERLAY_SIZE &&
+					DMUI_HOST_API_QUERY_OVERLAY_SIZE <
+						DMUI_HOST_API_POST_NOTIFICATION_SIZE &&
+					DMUI_HOST_API_POST_NOTIFICATION_SIZE <
+						DMUI_HOST_API_DRAW_ANNOTATED_PLOT_SIZE &&
+					DMUI_HOST_API_DRAW_ANNOTATED_PLOT_SIZE <
+						DMUI_HOST_API_REQUEST_DIALOG_SIZE &&
+					DMUI_HOST_API_REQUEST_DIALOG_SIZE <
+						DMUI_HOST_API_POLL_DIALOG_EVENT_SIZE &&
+					DMUI_HOST_API_POLL_DIALOG_EVENT_SIZE <
+						DMUI_HOST_API_RESOLVE_DIALOG_SUBMISSION_SIZE &&
+					DMUI_HOST_API_RESOLVE_DIALOG_SUBMISSION_SIZE <
+						DMUI_HOST_API_CANCEL_DIALOG_SIZE &&
 					sizeof(DMUI_HostAPI) ==
-						DMUI_HOST_API_REPORT_DIAGNOSTIC_SIZE,
+						DMUI_HOST_API_CANCEL_DIALOG_SIZE,
 				"the versioned host API prefix moved");
 		});
 
@@ -743,6 +794,8 @@ namespace vmm_tests
 
 		runner.test("declarative defaults reset through accepted value bindings", [] {
 			int64_t draft = 18;
+			size_t setterCalls{};
+			std::vector<dmui::SettingEditEvent> editEvents;
 			auto setting = dmui::SettingDescriptor{
 				.id = "threads",
 				.label = "Worker threads",
@@ -751,9 +804,13 @@ namespace vmm_tests
 				.binding = dmui::BindSetting(
 					[&]() -> int64_t { return draft; },
 					[&](int64_t a_value) -> int64_t {
+						++setterCalls;
 						draft = (std::min)(a_value, int64_t{ 16 });
 						return draft;
-					})
+					}),
+				.onEdit = [&](const dmui::SettingEditEvent& a_event) {
+					editEvents.push_back(a_event);
+				}
 			};
 			static_assert(!std::is_nothrow_invocable_v<
 				decltype(setting.binding.get)&>);
@@ -770,15 +827,35 @@ namespace vmm_tests
 				reset &&
 					std::get<int64_t>(*reset) == 8 &&
 					draft == 8 &&
+					setterCalls == 1 &&
+					editEvents.size() == 1 &&
+					editEvents.front().changed &&
+					editEvents.front().completed &&
+					std::get<int64_t>(editEvents.front().value) == 8 &&
 					dmui::IsSettingDefault(
 						setting,
 						dmui::SettingValue{ draft }),
-				"per-control reset did not use the declared default");
+				"reset did not emit one completed effective edit");
+			require(
+				dmui::ResetSettingToDefault(setting) &&
+					setterCalls == 1 &&
+					editEvents.size() == 1,
+				"no-op reset wrote or emitted another completion");
 			const auto accepted =
 				setting.binding.set(dmui::SettingValue{ int64_t{ 99 } });
 			require(
-				std::get<int64_t>(accepted) == 16 && draft == 16,
+				std::get<int64_t>(accepted) == 16 &&
+					draft == 16 &&
+					setterCalls == 2 &&
+					editEvents.size() == 1,
 				"setter did not return the accepted clamped value");
+			setting.isEnabled = [] { return false; };
+			require(
+				!dmui::ResetSettingToDefault(setting) &&
+					draft == 16 &&
+					setterCalls == 2 &&
+					editEvents.size() == 1,
+				"disabled reset wrote or emitted completion");
 		});
 
 		runner.test("unknown declarative controls resolve to a disabled fallback", [] {
@@ -1638,6 +1715,86 @@ namespace vmm_tests
 				registry.Navigation().clients.size() == 1 &&
 					registry.Navigation().clients.front().iconName == "gauge",
 				"the client icon name was not deep-copied");
+		});
+
+		runner.test("client service requirements fail before registration", [] {
+			const auto fingerprint = Fingerprint();
+			CallbackState state;
+			Registry registry{ fingerprint };
+			auto descriptor =
+				Client("required.mod", "Required", fingerprint, state);
+			descriptor.requiredServices =
+				DMUI_HOST_SERVICE_IMAGE_RESOURCES |
+				DMUI_HOST_SERVICE_DIALOGS;
+			descriptor.minimumForwardingVersion =
+				DMUI_FORWARDING_VERSION_CURRENT;
+			DMUI_ClientHandle handle{};
+			require(registry.RegisterClient(&descriptor, &handle) ==
+						DMUI_RESULT_OK &&
+					handle != DMUI_INVALID_CLIENT_HANDLE,
+				"implemented service requirements were rejected");
+
+			Registry unavailable{ fingerprint };
+			auto unsupported =
+				Client("unsupported.mod", "Unsupported", fingerprint, state);
+			unsupported.requiredServices = UINT64_C(1) << 63u;
+			handle = DMUI_INVALID_CLIENT_HANDLE;
+			require(unavailable.RegisterClient(&unsupported, &handle) ==
+						DMUI_RESULT_SERVICE_UNAVAILABLE &&
+					handle == DMUI_INVALID_CLIENT_HANDLE &&
+					unavailable.ClientCount() == 0,
+				"unsupported service registered a partial client");
+
+			auto future =
+				Client("future.mod", "Future", fingerprint, state);
+			future.minimumForwardingVersion =
+				DMUI_MAKE_VERSION(99u, 0u);
+			require(unavailable.RegisterClient(&future, &handle) ==
+						DMUI_RESULT_FORWARDING_VERSION_MISMATCH &&
+					unavailable.ClientCount() == 0,
+				"future forwarding requirement registered a partial client");
+
+			auto reserved =
+				Client("reserved.mod", "Reserved", fingerprint, state);
+			reserved.reserved = 1;
+			require(unavailable.RegisterClient(&reserved, &handle) ==
+						DMUI_RESULT_INVALID_DESCRIPTOR &&
+					unavailable.ClientCount() == 0,
+				"nonzero service requirement reserved bits were accepted");
+		});
+
+		runner.test("official client preflight rejects incomplete host tables", [] {
+			s_mockRegistrations = 0;
+			s_mockServices = DMUI_HOST_SERVICE_IMAGE_RESOURCES;
+			s_mockForwardingVersion = DMUI_FORWARDING_VERSION_CURRENT;
+			DMUI_HostAPI api{};
+			api.structSize = sizeof(api);
+			api.registerClient = &MockRegisterClient;
+			const dmui::ClientOptions options{
+				.requiredServices = DMUI_HOST_SERVICE_IMAGE_RESOURCES,
+				.minimumForwardingVersion = DMUI_FORWARDING_VERSION_CURRENT
+			};
+
+			require(dmui::PreflightHostAPI(&api, options) ==
+						DMUI_RESULT_SERVICE_UNAVAILABLE &&
+					s_mockRegistrations == 0,
+				"missing queryServices reached client registration");
+			api.queryServices = &MockQueryServices;
+			s_mockServices = DMUI_HOST_SERVICE_NONE;
+			require(dmui::PreflightHostAPI(&api, options) ==
+						DMUI_RESULT_SERVICE_UNAVAILABLE &&
+					s_mockRegistrations == 0,
+				"missing semantic service reached client registration");
+			s_mockServices = DMUI_HOST_SERVICE_IMAGE_RESOURCES;
+			require(dmui::PreflightHostAPI(&api, options) ==
+						DMUI_RESULT_SERVICE_UNAVAILABLE &&
+					s_mockRegistrations == 0,
+				"advertised service with missing functions reached registration");
+			s_mockForwardingVersion = DMUI_FORWARDING_VERSION_1_0;
+			require(dmui::PreflightHostAPI(&api, options) ==
+						DMUI_RESULT_FORWARDING_VERSION_MISMATCH &&
+					s_mockRegistrations == 0,
+				"old forwarding surface reached client registration");
 		});
 
 		runner.test("client origin defaults to native", [] {

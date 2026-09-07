@@ -1,12 +1,24 @@
 includes("Depends/commonlibf4")
 
 local plugin_name = "DearModdingUI"
-local plugin_version = "1.0.0"
+local plugin_version = "0.1.0"
 
 local dev_mod_folder = "Dear Modding UI - Dev"
 
 local function project_dir(relative)
     return path.join(os.projectdir(), relative)
+end
+
+local function canonical_path(value)
+    return path.normalize(path.absolute(value))
+end
+
+local function path_is_within(root, candidate)
+    local canonical_root = canonical_path(root):lower()
+    local canonical_candidate = canonical_path(candidate):lower()
+    return canonical_candidate == canonical_root or
+        canonical_candidate:sub(1, #canonical_root + 1) ==
+            canonical_root .. path.sep()
 end
 
 set_project(plugin_name)
@@ -33,6 +45,18 @@ option("msvc_package_toolchain", function()
         option:enable(true)
     end)
 end)
+
+option("isolated_host_build")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Build and auto-install only the host plugin")
+option_end()
+
+option("forwarding_smoke")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Enable the development-only forwarding smoke-test client")
+option_end()
 
 target("imgui", function()
     set_kind("static")
@@ -111,21 +135,30 @@ target("dmui-tests", function()
     set_optimize("fastest")
     set_runtimes("MT")
     set_targetdir(project_dir(".Build/Tests"))
+    add_defines('DMUI_VERSION="' .. plugin_version .. '"')
     set_objectdir(".LinkConf/xmake/dmui-tests")
     set_dependir(".LinkConf/xmake/dmui-tests/deps")
 
     add_deps("imgui", "dmui-mcm")
     add_files(
         "Tests/**.cpp",
+        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileForwardingNoHost.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileHostAPILayout.cpp",
+        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileIconGlyphs.cpp",
+        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileImGuiForward.cpp",
+        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileNoWindowsMacros.cpp",
+        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileSettingsActions.cpp",
+        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileVisualDecisions.cpp",
         "src/DearModdingUI/Diagnostics.cpp",
         "src/DearModdingUI/FontCatalog.cpp",
         "src/DearModdingUI/Health.cpp",
         "src/DearModdingUI/Home.cpp",
         "src/DearModdingUI/Hotkeys.cpp",
+        "src/DearModdingUI/MenuDismissal.cpp",
         "src/DearModdingUI/Navigation.cpp",
         "src/DearModdingUI/NavigationController.cpp",
         "src/DearModdingUI/NavigationPresentation.cpp",
+        "src/DearModdingUI/PresentationServices.cpp",
         "src/DearModdingUI/Registry.cpp",
         "src/DearModdingUI/SettingsTable.cpp",
         "src/DearModdingUI/Status.cpp"
@@ -148,7 +181,7 @@ target("dmui-tests", function()
         "/Zc:preprocessor",
         { public = true }
     )
-    add_syslinks("bcrypt")
+    add_syslinks("bcrypt", "d3d11", "dxgi")
 end)
 
 target("dmui-preview", function()
@@ -160,6 +193,7 @@ target("dmui-preview", function()
     set_exceptions("cxx")
     set_runtimes("MT")
     set_targetdir(project_dir(".Build/Preview"))
+    add_defines('DMUI_VERSION="' .. plugin_version .. '"')
     set_objectdir(".LinkConf/xmake/dmui-preview")
     set_dependir(".LinkConf/xmake/dmui-preview/deps")
 
@@ -167,6 +201,7 @@ target("dmui-preview", function()
     add_files(
         "Preview/Main.cpp",
         "Preview/FakeData.cpp",
+        "Preview/PresentationDemo.cpp",
         "Preview/PlatformImguiStub.cpp",
         "src/DearModdingUI/BackgroundBlur.cpp",
         "src/DearModdingUI/CursorLoader.cpp",
@@ -178,9 +213,11 @@ target("dmui-preview", function()
         "src/DearModdingUI/HostSettings.cpp",
         "src/DearModdingUI/HostSettingsView.cpp",
         "src/DearModdingUI/Hotkeys.cpp",
+        "src/DearModdingUI/MenuDismissal.cpp",
         "src/DearModdingUI/Navigation.cpp",
         "src/DearModdingUI/NavigationController.cpp",
         "src/DearModdingUI/NavigationPresentation.cpp",
+        "src/DearModdingUI/PresentationServices.cpp",
         "src/DearModdingUI/Registry.cpp",
         "src/DearModdingUI/SettingsTable.cpp",
         "src/DearModdingUI/Shell.cpp",
@@ -233,10 +270,16 @@ target("dmui-preview", function()
 end)
 
 target(plugin_name, function()
+    add_options("forwarding_smoke")
+    if has_config("forwarding_smoke") then
+        set_default(false)
+    end
+    set_kind("shared")
     set_optimize("fastest")
     set_symbols("debug")
     set_exceptions("cxx")
     set_targetdir(project_dir(".Build/F4SE/Plugins"))
+    add_defines('DMUI_VERSION="' .. plugin_version .. '"')
     set_objectdir(".LinkConf/xmake/DearModdingUI")
     set_dependir(".LinkConf/xmake/DearModdingUI/deps")
 
@@ -245,6 +288,7 @@ target(plugin_name, function()
         author = "Dear Modding FO4",
         description = "Shared Dear ImGui menu host for Fallout 4"
     })
+    add_deps("commonlibf4")
 
     -- must land after the plugin rule's own installdir assignment
     on_config(function(target)
@@ -292,6 +336,10 @@ target(plugin_name, function()
 end)
 
 target("DearModdingUI-MCM", function()
+    add_options("isolated_host_build", "forwarding_smoke")
+    if has_config("isolated_host_build") or has_config("forwarding_smoke") then
+        set_default(false)
+    end
     set_optimize("fastest")
     set_symbols("debug")
     set_exceptions("cxx")
@@ -330,3 +378,90 @@ target("DearModdingUI-MCM", function()
     )
     set_pcxxheader("Depends/commonlibf4/include/F4SE/Impl/PCH.h")
 end)
+
+if has_config("forwarding_smoke") then
+target("dmui-forwarding-smoke", function()
+    add_options("forwarding_smoke")
+    set_default(false)
+    set_kind("shared")
+    set_version("0.1.0")
+    set_optimize("fastest")
+    set_symbols("debug")
+    set_exceptions("cxx")
+    set_targetdir(project_dir(".Build/ForwardingSmoke"))
+    set_objectdir(".LinkConf/xmake/dmui-forwarding-smoke")
+    set_dependir(".LinkConf/xmake/dmui-forwarding-smoke/deps")
+
+    add_rules("commonlibf4.plugin", {
+        name = "dmui-forwarding-smoke",
+        author = "Dear Modding FO4",
+        description = "Development-only DearModdingUI forwarding smoke-test client"
+    })
+    add_deps("commonlibf4")
+
+    -- The CommonLib rule can auto-install after a successful build. Keep that
+    -- development staging path inside this worktree and require the explicit
+    -- FO4_DEV_MODS isolation used by the smoke-test instructions.
+    on_config(function(target)
+        local mods_root = os.getenv("FO4_DEV_MODS")
+        if not mods_root then
+            raise("dmui-forwarding-smoke requires FO4_DEV_MODS")
+        end
+
+        local root = canonical_path(mods_root)
+        local project_root = canonical_path(os.projectdir())
+        if not path_is_within(project_root, root) then
+            raise("dmui-forwarding-smoke FO4_DEV_MODS must be inside this worktree")
+        end
+
+        target:set(
+            "installdir",
+            path.join(root, "Dear Modding UI - Forwarding Smoke Test")
+        )
+
+        -- commonlib.plugin normally describes the containing host project in
+        -- ProductName/ProductVersion. This standalone development artifact has
+        -- its own product identity without changing the host project version.
+        target:set(
+            "configvar",
+            "COMMONLIB_PROJECT_NAME",
+            "Dear Modding UI - Forwarding Smoke Test"
+        )
+        target:set("configvar", "COMMONLIB_PROJECT_VERSION", "0.1.0")
+        target:set("configvar", "COMMONLIB_PROJECT_VERSION_MAJOR", 0)
+        target:set("configvar", "COMMONLIB_PROJECT_VERSION_MINOR", 1)
+        target:set("configvar", "COMMONLIB_PROJECT_VERSION_PATCH", 0)
+    end)
+
+    add_files("Tools/forwarding-smoke-client/Main.cpp")
+    add_extrafiles(
+        "Tools/forwarding-smoke-client/HotkeyDescriptors.h",
+        "Tools/forwarding-smoke-client/README.md"
+    )
+    add_defines(
+        "NDEBUG",
+        "NOMINMAX",
+        "WIN32_LEAN_AND_MEAN"
+    )
+    add_cxxflags(
+        "/permissive-",
+        "/Zc:preprocessor",
+        { public = true }
+    )
+    add_syslinks("d3d11", "dxgi")
+    set_pcxxheader("Depends/commonlibf4/include/F4SE/Impl/PCH.h")
+
+    -- commonlib.plugin's global install task intentionally follows default
+    -- targets, while this harness must remain non-default. Stage only this
+    -- explicitly built target using the install mapping established above.
+    after_build(function(target)
+        local srcfiles, dstfiles = target:installfiles()
+        if srcfiles and dstfiles then
+            for index, srcfile in ipairs(srcfiles) do
+                os.mkdir(path.directory(dstfiles[index]))
+                os.cp(srcfile, dstfiles[index])
+            end
+        end
+    end)
+end)
+end

@@ -1,12 +1,16 @@
 #include "FakeData.h"
+#include "PresentationDemo.h"
 
 #include <DearModdingUI/BackgroundBlur.h>
 #include <DearModdingUI/CursorLoader.h>
 #include <DearModdingUI/Host.h>
 #include <DearModdingUI/HostSettings.h>
+#include <DearModdingUI/MenuDismissal.h>
+#include <DearModdingUI/PresentationServices.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
 #include <DearModdingUI/SidebarComparison.h>
+#include <Platform/ImguiPlatformTargets.h>
 #include <Support/Runtime.h>
 
 #include <Windows.h>
@@ -69,6 +73,7 @@ namespace DearModdingUIPreview
 			std::optional<SidebarLayoutKind> sidebarOverride;
 			std::optional<NavigationPresentationKind> navigationOverride;
 			std::optional<DMUI_ClientOrigin> navigationOrigin;
+			std::optional<PresentationDemoKind> presentationDemo;
 			bool help{};
 		};
 
@@ -154,6 +159,8 @@ namespace DearModdingUIPreview
 				<< L"  --sidebar <tree|twopane|drilldown|iconrail>  Select the sidebar layout\n"
 				<< L"  --navigation <grouped|destinations>  Enable a preview-only navigation comparison\n"
 				<< L"  --origin <native|bridged>  Select the destinations comparison tab\n"
+				<< L"  --presentation <overlay|notification|image|plot|dialog>\n"
+				<< L"                            Capture a synthetic service state\n"
 				<< L"  --expand <client-id>      Expand a tree mod or enter a drill-down mod\n"
 				<< L"  --collapse-all            Collapse the tree or show the drill-down root\n"
 				<< L"  --help                    Show this help\n";
@@ -305,6 +312,18 @@ namespace DearModdingUIPreview
 						return false;
 					}
 					a_options.navigationOrigin = *origin;
+				}
+				else if (argument == L"--presentation")
+				{
+					const auto name = WideToUtf8(value);
+					PresentationDemoKind kind{};
+					if (!name || !ParsePresentationDemo(*name, kind))
+					{
+						a_error =
+							L"Presentation must be overlay, notification, image, plot, or dialog.";
+						return false;
+					}
+					a_options.presentationDemo = kind;
 				}
 				else if (argument == L"--expand")
 				{
@@ -715,12 +734,45 @@ namespace DearModdingUIPreview
 			WPARAM a_wparam,
 			LPARAM a_lparam)
 		{
-			if (g_imguiBackendReady &&
+			static bool escapeConsumed{};
+			const auto escapeDecision =
+				Addictol::ImguiPlatform::DecideEscapeMessage(
+					a_message,
+					static_cast<uint32_t>(a_wparam),
+					static_cast<uint64_t>(a_lparam),
+					IsMenuVisible(),
+					escapeConsumed);
+			if (escapeDecision ==
+				Addictol::ImguiPlatform::EscapeMessageDecision::kCapture)
+			{
+				escapeConsumed = true;
+				CaptureMenuEscapePress(
+					IsMenuVisible(),
+					PresentationServices::HasActiveDialog(),
+					PresentationServices::ActiveDialogPopupId());
+			}
+			else if (escapeDecision ==
+					Addictol::ImguiPlatform::EscapeMessageDecision::
+						kConsumeAndRelease ||
+				escapeDecision ==
+					Addictol::ImguiPlatform::EscapeMessageDecision::
+						kReleaseAndForward)
+				escapeConsumed = false;
+
+			const auto imguiHandled =
+				g_imguiBackendReady &&
 				ImGui_ImplWin32_WndProcHandler(
 					a_window,
 					a_message,
 					a_wparam,
-					a_lparam))
+					a_lparam);
+			if (escapeDecision !=
+					Addictol::ImguiPlatform::EscapeMessageDecision::kForward &&
+				escapeDecision !=
+					Addictol::ImguiPlatform::EscapeMessageDecision::
+						kReleaseAndForward)
+				return 1;
+			if (imguiHandled)
 				return 1;
 
 			switch (a_message)
@@ -854,6 +906,7 @@ namespace DearModdingUIPreview
 
 			~Application()
 			{
+				PresentationServices::InvalidateDevice();
 				g_imguiBackendReady = false;
 				g_renderer = nullptr;
 				if (m_dx11Initialized)
@@ -928,6 +981,20 @@ namespace DearModdingUIPreview
 						registrationError.end());
 					return false;
 				}
+				if (m_options.presentationDemo)
+				{
+					m_presentationDemo =
+						std::make_unique<PresentationDemo>(
+							*m_options.presentationDemo);
+					std::string presentationError;
+					if (!m_presentationDemo->Register(presentationError))
+					{
+						a_error.assign(
+							presentationError.begin(),
+							presentationError.end());
+						return false;
+					}
+				}
 
 				Theme::Initialize(m_window.Handle());
 				CursorLoader::Initialize(m_window.Handle());
@@ -951,6 +1018,7 @@ namespace DearModdingUIPreview
 					return false;
 				}
 				g_imguiBackendReady = true;
+				PresentationServices::SetDevice(m_renderer.Device());
 
 				if (!BeginBackendInitialization())
 				{
@@ -958,6 +1026,19 @@ namespace DearModdingUIPreview
 					return false;
 				}
 				CompleteBackendInitialization(m_context);
+				if (m_presentationDemo)
+				{
+					std::string presentationError;
+					if (!m_presentationDemo->Activate(
+							m_renderer.Device(),
+							presentationError))
+					{
+						a_error.assign(
+							presentationError.begin(),
+							presentationError.end());
+						return false;
+					}
+				}
 				if (!SelectInitialPage(a_error))
 					return false;
 				return ConfigureSidebar(a_error);
@@ -1013,6 +1094,30 @@ namespace DearModdingUIPreview
 
 			[[nodiscard]] bool SelectInitialPage(std::wstring& a_error)
 			{
+				if (m_presentationDemo)
+				{
+					if (!m_presentationDemo->UsesMenu())
+					{
+						(void)SetMenuVisible(false);
+						return true;
+					}
+					const auto& pages = OrderedPages();
+					const auto page = std::ranges::find(
+						pages,
+						m_presentationDemo->Page(),
+						&RegisteredPage::handle);
+					if (SetMenuVisible(true) != DMUI_RESULT_OK ||
+						page == pages.end() ||
+						HostAPI().selectPage(
+							page->client,
+							m_presentationDemo->Page()) != DMUI_RESULT_OK)
+					{
+						a_error =
+							L"Could not open the presentation service page.";
+						return false;
+					}
+					return true;
+				}
 				if (m_options.page && m_options.hostPage)
 				{
 					a_error = L"Choose either --page or --host-page.";
@@ -1122,12 +1227,18 @@ namespace DearModdingUIPreview
 
 				CursorLoader::PrepareFrame(IsMenuVisible());
 				BackgroundBlur::BeginFrame();
+				PresentationServices::BeginFrame();
 				ImGui_ImplDX11_NewFrame();
 				ImGui_ImplWin32_NewFrame();
 				ImGui::NewFrame();
 				DrawDemandedOverlays();
+				PresentationServices::DrawNotification();
 				if (IsMenuVisible())
+				{
 					DrawShell();
+					PresentationServices::DrawDialog(true);
+					ApplyMenuEscapeDismissal();
+				}
 				ImGui::Render();
 
 				m_renderer.Clear();
@@ -1138,6 +1249,7 @@ namespace DearModdingUIPreview
 					m_renderer.BackBufferView());
 				m_renderer.BindBackBuffer();
 				ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+				PresentationServices::CompleteRenderSubmission();
 				ObserveFrame();
 				return true;
 			}
@@ -1198,6 +1310,7 @@ namespace DearModdingUIPreview
 			Renderer m_renderer;
 			ImGuiContext* m_context{};
 			std::unique_ptr<FakeData> m_fakeData;
+			std::unique_ptr<PresentationDemo> m_presentationDemo;
 			std::string m_iniPath;
 			bool m_win32Initialized{};
 			bool m_dx11Initialized{};

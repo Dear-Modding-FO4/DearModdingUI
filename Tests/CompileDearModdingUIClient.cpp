@@ -75,6 +75,12 @@ namespace
 								return g_enabled != g_committedEnabled;
 							},
 							.isModified = [] { return !g_enabled; }
+							,
+							.onEdit = [](const dmui::SettingEditEvent& a_event) {
+								(void)a_event.changed;
+								(void)a_event.completed;
+								(void)a_event.value;
+							}
 						}
 					}
 				}
@@ -186,5 +192,7 @@ namespace
 		(void)client.IsMenuVisible();
 		(void)client.QueryState();
 		(void)client.UnavailableReason();
+		(void)client.ResolveDialogSubmission(1, 1, false);
+		(void)client.ResolveDialogSubmission(1, 1, false, "");
 	}
 }

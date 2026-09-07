@@ -8,10 +8,14 @@
 #include <optional>
 #include <string_view>
 
+#ifndef DMUI_VERSION
+#error "DMUI_VERSION must be supplied by the host build."
+#endif
+
 namespace DearModdingUI
 {
 	inline constexpr std::string_view kHostDisplayName{ "Evil Modding" };
-	inline constexpr std::string_view kHostVersion{ "1.0.0" };
+	inline constexpr std::string_view kHostVersion{ DMUI_VERSION };
 
 	[[nodiscard]] const DMUI_ImGuiFingerprint& HostFingerprint() noexcept;
 	[[nodiscard]] const DMUI_HostAPI& HostAPI() noexcept;

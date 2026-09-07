@@ -37,6 +37,15 @@ namespace DearModdingUI
 		bool recognized{ false };
 	};
 
+	struct HotkeyContextState
+	{
+		bool hostMenuVisible{};
+		bool dialogVisible{};
+		bool textEditing{};
+		// True only when the platform can affirm that no engine menu mode is active.
+		bool gameplaySafe{};
+	};
+
 	enum class HotkeyMessageResult : uint32_t
 	{
 		kPassThrough,
@@ -78,6 +87,12 @@ namespace DearModdingUI
 		[[nodiscard]] DMUI_Result Unregister(
 			DMUI_ClientHandle a_client,
 			DMUI_HotkeyActionHandle a_action) noexcept;
+		[[nodiscard]] DMUI_Result SetEnabled(
+			DMUI_ClientHandle a_client,
+			DMUI_HotkeyActionHandle a_action,
+			bool a_enabled) noexcept;
+		void SetContext(HotkeyContextState a_context) noexcept;
+		void ReleaseActiveKeys() noexcept;
 		[[nodiscard]] DMUI_Result SetOverride(
 			std::string_view a_id,
 			std::string_view a_chord) noexcept;
@@ -104,6 +119,8 @@ namespace DearModdingUI
 			DMUI_HotkeyBindingState state{ DMUI_HOTKEY_BINDING_UNBOUND_NEVER_SET };
 			DMUI_HotkeyCallback callback{ nullptr };
 			void* userData{ nullptr };
+			DMUI_HotkeyContextPolicy contextPolicy{ DMUI_HOTKEY_CONTEXT_ALWAYS };
+			bool enabled{ true };
 			bool callbackFailed{ false };
 			// Erase invalidates references, so we do not erase action slots.
 			bool live{ true };
@@ -136,6 +153,7 @@ namespace DearModdingUI
 		size_t m_reservedReleaseCount{ 0 };
 		DMUI_HotkeyActionHandle m_nextAction{ 1 };
 		uint32_t m_reservedVirtualKey{ 0 };
+		HotkeyContextState m_context;
 		std::thread::id m_renderThread;
 	};
 
@@ -155,6 +173,12 @@ namespace DearModdingUI
 		[[nodiscard]] DMUI_Result Unregister(
 			DMUI_ClientHandle a_client,
 			DMUI_HotkeyActionHandle a_action) noexcept;
+		[[nodiscard]] DMUI_Result SetEnabled(
+			DMUI_ClientHandle a_client,
+			DMUI_HotkeyActionHandle a_action,
+			bool a_enabled) noexcept;
+		void SetContext(HotkeyContextState a_context) noexcept;
+		void ReleaseActiveKeys() noexcept;
 		[[nodiscard]] HotkeyMessageResult HandleKey(
 			uint32_t a_virtualKey,
 			uint32_t a_modifiers,

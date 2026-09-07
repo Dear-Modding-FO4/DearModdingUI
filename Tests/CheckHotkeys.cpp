@@ -1,5 +1,6 @@
 #include <DearModdingUI/Hotkeys.h>
 #include "Harness.h"
+#include "../Tools/forwarding-smoke-client/HotkeyDescriptors.h"
 
 #include <algorithm>
 #include <map>
@@ -77,6 +78,62 @@ namespace vmm_tests
 
 	void run_hotkey_checks(Runner& runner)
 	{
+		runner.test("forwarding smoke hotkeys register with exact defaults", [] {
+			using DmuiForwardingSmoke::kHotkeyDescriptors;
+
+			constexpr std::array expectedPolicies{
+				DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED,
+				DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED,
+				DMUI_HOTKEY_CONTEXT_HOST_INPUT_INACTIVE,
+				DMUI_HOTKEY_CONTEXT_ALWAYS,
+				DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED,
+				DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED
+			};
+			constexpr std::array expectedChords{
+				"Ctrl+Shift+F10",
+				"Ctrl+Shift+F11",
+				"none",
+				"none",
+				"none",
+				"none"
+			};
+
+			HotkeyRegistry registry;
+			CallbackState state;
+			for (size_t index = 0; index < kHotkeyDescriptors.size(); ++index)
+			{
+				const auto& smoke = kHotkeyDescriptors[index];
+				require(
+					smoke.policy == expectedPolicies[index],
+					std::string{ smoke.id } + " policy changed");
+				const DMUI_HotkeyActionDescriptor descriptor{
+					sizeof(DMUI_HotkeyActionDescriptor),
+					smoke.id,
+					smoke.name,
+					smoke.suggested,
+					&HotkeyCallback,
+					&state,
+					smoke.policy,
+					0
+				};
+				DMUI_HotkeyActionHandle handle{};
+				require(
+					registry.Register(1, &descriptor, &handle) == DMUI_RESULT_OK,
+					std::string{ smoke.id } + " failed registry validation");
+
+				const auto binding = Query(registry, 1, handle);
+				const auto expectedState = index < 2 ?
+					DMUI_HOTKEY_BINDING_BOUND :
+					DMUI_HOTKEY_BINDING_UNBOUND_NEVER_SET;
+				require(
+					binding.state == expectedState,
+					std::string{ smoke.id } + " default state changed");
+				require(
+					std::string{ binding.chord } == expectedChords[index],
+					std::string{ smoke.id } + " effective chord changed");
+			}
+		});
+
 		runner.test("hotkey action ids require a namespace and valid segments", [] {
 			require(ValidHotkeyActionId("Addictol.Telemetry.ToggleOverlay"),
 				"a valid namespaced id was rejected");
@@ -98,7 +155,13 @@ namespace vmm_tests
 		});
 
 		runner.test("hotkey chord strings round trip including none", [] {
-			for (const auto chord : { "F11", "Shift+F11", "Ctrl+Alt+Home", "none" })
+			for (const auto chord : {
+					 "F11",
+					 "Shift+F11",
+					 "Ctrl+Alt+Home",
+					 "A",
+					 "Ctrl+7",
+					 "none" })
 			{
 				const auto parsed = ParseHotkeyChord(chord);
 				require(parsed.recognized, std::string{ chord } + " was rejected");
@@ -108,6 +171,71 @@ namespace vmm_tests
 			}
 			require(!ParseHotkeyChord("Meta+F11").recognized, "an unknown modifier was accepted");
 			require(!ParseHotkeyChord("Shift+").recognized, "a missing key was accepted");
+		});
+
+		runner.test("hotkey contexts are checked before consuming presses", [] {
+			HotkeyRegistry registry;
+			CallbackState state;
+			auto descriptor = Descriptor("Example.Context", "Ctrl+P", state);
+			descriptor.contextPolicy =
+				DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED;
+			DMUI_HotkeyActionHandle action{};
+			require(registry.Register(1, &descriptor, &action) == DMUI_RESULT_OK,
+				"contextual hotkey registration failed");
+			registry.SetContext({ false, false, false, false });
+			require(registry.HandleKey('P', kHotkeyModifierControl, true, false) ==
+					HotkeyMessageResult::kPassThrough,
+				"unsafe gameplay context consumed a press");
+			registry.SetContext({ false, false, false, true });
+			require(registry.HandleKey('P', kHotkeyModifierControl, true, false) ==
+					HotkeyMessageResult::kConsumed,
+				"safe gameplay context did not consume a press");
+			registry.SetContext({ true, false, false, false });
+			require(registry.HandleKey('P', 0, false, false) ==
+					HotkeyMessageResult::kConsumed,
+				"an owned release was lost after the context changed");
+			registry.DispatchQueued();
+			require(state.pressed == 1 && state.released == 1,
+				"context transition broke the owned edge pair");
+		});
+
+		runner.test("disabled hotkeys yield but retain owned releases", [] {
+			HotkeyRegistry registry;
+			CallbackState state;
+			const auto action = Register(
+				registry, 1, "Example.Enabled", "G", state);
+			require(registry.HandleKey('G', 0, true, false) ==
+					HotkeyMessageResult::kConsumed,
+				"enabled alphanumeric action did not consume");
+			require(registry.SetEnabled(1, action, false) == DMUI_RESULT_OK,
+				"hotkey disable failed");
+			require(registry.HandleKey('G', 0, false, false) ==
+					HotkeyMessageResult::kConsumed,
+				"disable lost the owned release");
+			require(registry.HandleKey('G', 0, true, false) ==
+					HotkeyMessageResult::kPassThrough,
+				"disabled action consumed a new press");
+			registry.DispatchQueued();
+			require(state.pressed == 1 && state.released == 1,
+				"disable changed an already-owned pair");
+		});
+
+		runner.test("focus loss synthesizes ordered owned releases", [] {
+			HotkeyRegistry registry;
+			CallbackState state;
+			(void)Register(registry, 1, "Example.Focus", "H", state);
+			require(registry.HandleKey('H', 0, true, false) ==
+					HotkeyMessageResult::kConsumed,
+				"focus test press was not consumed");
+			registry.ReleaseActiveKeys();
+			require(registry.HandleKey('H', 0, false, false) ==
+					HotkeyMessageResult::kPassThrough,
+				"physical release after reconciliation was swallowed");
+			registry.DispatchQueued();
+			require(state.edgeCount == 2 &&
+					state.edges[0] &&
+					!state.edges[1],
+				"focus reconciliation did not preserve edge order");
 		});
 
 		runner.test("hotkey binding states track defaults and user clearing", [] {

@@ -8,6 +8,7 @@
 #include <DearModdingUI/Home.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/MenuToggleKey.h>
+#include "MenuDismissal.h"
 #include <DearModdingUI/NavigationController.h>
 #include <DearModdingUI/NavigationPresentation.h>
 #include <DearModdingUI/Sidebar.h>
@@ -2177,7 +2178,8 @@ namespace DearModdingUI
 			}
 
 			const auto escapePressed =
-				ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+				ImGui::IsKeyPressed(ImGuiKey_Escape, false) &&
+				ConsumeMenuEscapeTarget(MenuEscapeTarget::kPopup);
 			auto activatedIndex = results.size();
 			if (!escapePressed && !results.empty() &&
 				ImGui::IsKeyPressed(ImGuiKey_Enter, false))
@@ -3615,6 +3617,12 @@ namespace DearModdingUI
 		});
 	}
 
+	static void CloseShellAndSaveLayout() noexcept
+	{
+		(void)SetMenuVisible(false);
+		SaveLayout();
+	}
+
 	void DrawShell() noexcept
 	{
 		auto& state = State();
@@ -3789,9 +3797,18 @@ namespace DearModdingUI
 		ImGui::End();
 
 		if (!open)
-		{
-			(void)SetMenuVisible(false);
-			SaveLayout();
-		}
+			CloseShellAndSaveLayout();
+	}
+
+	void ApplyMenuEscapeDismissal() noexcept
+	{
+		if (ConsumeMenuEscapeTarget(MenuEscapeTarget::kInteraction))
+			return;
+		if (DismissCapturedMenuPopup())
+			return;
+		if (!ConsumeMenuEscapeTarget(MenuEscapeTarget::kHost))
+			return;
+
+		CloseShellAndSaveLayout();
 	}
 }

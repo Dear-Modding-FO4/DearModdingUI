@@ -4,6 +4,8 @@
 #include <DearModdingUI/CursorLoader.h>
 #include <DearModdingUI/Host.h>
 #include <DearModdingUI/Hotkeys.h>
+#include "../DearModdingUI/MenuDismissal.h"
+#include <DearModdingUI/PresentationServices.h>
 #include <DearModdingUI/Theme.h>
 #include <Platform/GameInput.h>
 #include <Support/Detours.h>
@@ -13,6 +15,7 @@
 #include <F4SE/Interfaces.h>
 #include <RE/B/BSGraphics.h>
 #include <RE/C/ControlMap.h>
+#include <RE/U/UI.h>
 
 #include <Windows.h>
 #include <d3d11.h>
@@ -55,6 +58,7 @@ namespace Addictol
 		static_assert(kKeyUpMessage == WM_KEYUP);
 		static_assert(kSysKeyDownMessage == WM_SYSKEYDOWN);
 		static_assert(kSysKeyUpMessage == WM_SYSKEYUP);
+		static_assert(kEscapeVirtualKey == VK_ESCAPE);
 		static_assert(kPresentTestFlag == DXGI_PRESENT_TEST);
 		static_assert(kWindowNcDestroyMessage == WM_NCDESTROY);
 		static_assert(kDxgiErrorDeviceRemoved == static_cast<uint32_t>(DXGI_ERROR_DEVICE_REMOVED));
@@ -152,6 +156,7 @@ namespace Addictol
 		static std::atomic<bool> s_gameLoaded{ false };
 		static std::atomic<Backend> s_backend{ Backend::kUninitialized };
 		static std::array<std::atomic<bool>, 256> s_consumedToggleKeys{};
+		static std::atomic<bool> s_consumedEscape{ false };
 		static std::atomic<bool> s_missingPresentOriginalLogged{ false };
 		static std::atomic<bool> s_missingResizeOriginalLogged{ false };
 		static std::atomic<int64_t> s_nextReconciliationAt{ 0 };
@@ -1001,6 +1006,7 @@ namespace Addictol
 
 		static void ShutdownBackend() noexcept
 		{
+			DearModdingUI::PresentationServices::InvalidateDevice();
 			CloseModalState(DearModdingUI::CarrierMenu::Event::kShutdown);
 			if (s_backend.load(std::memory_order_acquire) == Backend::kReady)
 			{
@@ -1071,6 +1077,8 @@ namespace Addictol
 				return false;
 			}
 
+			DearModdingUI::PresentationServices::BindRenderer(
+				s_attachment.device);
 			REX::INFO("Platform Imgui: ImGui initialized on the active swapchain"sv);
 			return true;
 		}
@@ -1252,6 +1260,7 @@ namespace Addictol
 			if (!DearModdingUI::Theme::PrepareFrame(s_backBufferIdentity.height))
 				return;
 			DearModdingUI::BackgroundBlur::BeginFrame();
+			DearModdingUI::PresentationServices::BeginFrame();
 
 			ImGui_ImplDX11_NewFrame();
 			ImGui_ImplWin32_NewFrame();
@@ -1272,6 +1281,7 @@ namespace Addictol
 			}
 			s_attachment.context->OMSetRenderTargets(1, &s_backBufferView, nullptr);
 			ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+			DearModdingUI::PresentationServices::CompleteRenderSubmission();
 		}
 
 		static HRESULT WINAPI HKPresent(
@@ -1391,12 +1401,47 @@ namespace Addictol
 			};
 
 			const auto keyIndex = static_cast<size_t>(a_wparam);
+			if (a_message == WM_KILLFOCUS)
+				DearModdingUI::Hotkeys::ReleaseActiveKeys();
 			const auto keyPressed =
 				a_message == WM_KEYDOWN || a_message == WM_SYSKEYDOWN;
 			const auto keyReleased =
 				a_message == WM_KEYUP || a_message == WM_SYSKEYUP;
-			if (keyPressed || keyReleased)
+			const auto escapeDecision = DecideEscapeMessage(
+				a_message,
+				static_cast<uint32_t>(a_wparam),
+				static_cast<uint64_t>(a_lparam),
+				DearModdingUI::IsMenuVisible(),
+				s_consumedEscape.load(std::memory_order_acquire));
+			if (escapeDecision == EscapeMessageDecision::kCapture)
 			{
+				s_consumedEscape.store(true, std::memory_order_release);
+				const ContextLock lock;
+				DearModdingUI::CaptureMenuEscapePress(
+					DearModdingUI::IsMenuVisible(),
+					DearModdingUI::PresentationServices::
+						HasActiveDialog(),
+					DearModdingUI::PresentationServices::
+						ActiveDialogPopupId());
+			}
+			else if (escapeDecision ==
+					EscapeMessageDecision::kConsumeAndRelease ||
+				escapeDecision ==
+					EscapeMessageDecision::kReleaseAndForward)
+				s_consumedEscape.store(false, std::memory_order_release);
+			const auto escapeConsumed =
+				escapeDecision != EscapeMessageDecision::kForward &&
+				escapeDecision !=
+					EscapeMessageDecision::kReleaseAndForward;
+			if (!escapeConsumed && (keyPressed || keyReleased))
+			{
+				const auto* ui = RE::UI::GetSingleton();
+				DearModdingUI::Hotkeys::SetContext({
+					DearModdingUI::IsMenuVisible(),
+					DearModdingUI::PresentationServices::HasActiveDialog(),
+					DearModdingUI::IsMenuVisible(),
+					ui && ui->menuMode == 0
+				});
 				uint32_t modifiers{ 0 };
 				if ((GetKeyState(VK_SHIFT) & 0x8000) != 0)
 					modifiers |= DearModdingUI::kHotkeyModifierShift;
@@ -1425,33 +1470,46 @@ namespace Addictol
 					DearModdingUI::HotkeyMessageResult::kPassThrough)
 					return 0;
 			}
-			const auto trackableKey = keyIndex < s_consumedToggleKeys.size();
-			const auto pressConsumed = trackableKey &&
-				s_consumedToggleKeys[keyIndex].load(std::memory_order_acquire);
-			const auto toggleDecision = DecideToggleMessage(
-				a_message,
-				static_cast<uint64_t>(a_lparam),
-				pressConsumed);
-			if (toggleDecision == ToggleMessageDecision::kConsume)
-				return 0;
-			if (toggleDecision == ToggleMessageDecision::kConsumeAndRelease)
+			if (!escapeConsumed)
 			{
-				s_consumedToggleKeys[keyIndex].store(false, std::memory_order_release);
-				return 0;
-			}
-			if (toggleDecision == ToggleMessageDecision::kDispatch)
-			{
-				bool consumed{ false };
-				for (size_t index = 0, count = s_toggleSinks.Size(); index < count; ++index)
-				{
-					if (s_toggleSinks.At(index)(static_cast<uint32_t>(a_wparam)))
-						consumed = true;
-				}
-				if (consumed)
-				{
-					if (trackableKey)
-						s_consumedToggleKeys[keyIndex].store(true, std::memory_order_release);
+				const auto trackableKey =
+					keyIndex < s_consumedToggleKeys.size();
+				const auto pressConsumed = trackableKey &&
+					s_consumedToggleKeys[keyIndex].load(
+						std::memory_order_acquire);
+				const auto toggleDecision = DecideToggleMessage(
+					a_message,
+					static_cast<uint64_t>(a_lparam),
+					pressConsumed);
+				if (toggleDecision == ToggleMessageDecision::kConsume)
 					return 0;
+				if (toggleDecision ==
+					ToggleMessageDecision::kConsumeAndRelease)
+				{
+					s_consumedToggleKeys[keyIndex].store(
+						false,
+						std::memory_order_release);
+					return 0;
+				}
+				if (toggleDecision == ToggleMessageDecision::kDispatch)
+				{
+					bool consumed{ false };
+					for (size_t index = 0, count = s_toggleSinks.Size();
+						index < count;
+						++index)
+					{
+						if (s_toggleSinks.At(index)(
+								static_cast<uint32_t>(a_wparam)))
+							consumed = true;
+					}
+					if (consumed)
+					{
+						if (trackableKey)
+							s_consumedToggleKeys[keyIndex].store(
+								true,
+								std::memory_order_release);
+						return 0;
+					}
 				}
 			}
 
@@ -1461,7 +1519,13 @@ namespace Addictol
 
 			if (!s_drawingEnabled.load(std::memory_order_acquire) ||
 				s_backend.load(std::memory_order_acquire) != Backend::kReady)
-				return CallPreviousWindowProc(a_window, a_message, a_wparam, a_lparam);
+				return escapeConsumed ?
+					0 :
+					CallPreviousWindowProc(
+						a_window,
+						a_message,
+						a_wparam,
+						a_lparam);
 
 			LRESULT handled{ 0 };
 			bool backendHandled{ false };
@@ -1486,7 +1550,7 @@ namespace Addictol
 						handled = ImGui_ImplWin32_WndProcHandlerEx(
 							a_window, a_message, a_wparam, backendLparam, io);
 					}
-					swallow = SwallowsMessage(
+					swallow = escapeConsumed || SwallowsMessage(
 						ClassifyMessage(a_message),
 						io.WantCaptureMouse,
 						io.WantCaptureKeyboard);

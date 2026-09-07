@@ -470,6 +470,46 @@ namespace Addictol::ImguiPlatform
 		return ToggleMessageDecision::kForward;
 	}
 
+	inline constexpr uint32_t kEscapeVirtualKey = 0x1B;
+
+	enum class EscapeMessageDecision : uint32_t
+	{
+		kForward,
+		kCapture,
+		kConsume,
+		kConsumeAndRelease,
+		kReleaseAndForward
+	};
+
+	[[nodiscard]] constexpr EscapeMessageDecision DecideEscapeMessage(
+		uint32_t a_message,
+		uint32_t a_virtualKey,
+		uint64_t a_lparam,
+		bool a_menuVisible,
+		bool a_pressConsumed) noexcept
+	{
+		if (a_virtualKey != kEscapeVirtualKey)
+			return EscapeMessageDecision::kForward;
+		if (a_message == kKeyDownMessage ||
+			a_message == kSysKeyDownMessage)
+		{
+			if (IsKeyRepeat(a_lparam))
+				return a_pressConsumed ?
+					EscapeMessageDecision::kConsume :
+					EscapeMessageDecision::kForward;
+			if (a_menuVisible)
+				return EscapeMessageDecision::kCapture;
+			return a_pressConsumed ?
+				EscapeMessageDecision::kReleaseAndForward :
+				EscapeMessageDecision::kForward;
+		}
+		if ((a_message == kKeyUpMessage ||
+				a_message == kSysKeyUpMessage) &&
+			a_pressConsumed)
+			return EscapeMessageDecision::kConsumeAndRelease;
+		return EscapeMessageDecision::kForward;
+	}
+
 	[[nodiscard]] constexpr bool HandlesWindowMessage(
 		bool a_activeWindow,
 		bool a_drawingRequested,

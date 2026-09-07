@@ -435,5 +435,88 @@ namespace vmm_tests
 					ToggleMessageDecision::kForward,
 				"an unrelated key-up must reach the game");
 		});
+
+		runner.test("Escape ownership follows the visible host press pair", [] {
+			require(
+				DecideEscapeMessage(
+					kKeyDownMessage,
+					kEscapeVirtualKey,
+					1,
+					false,
+					false) == EscapeMessageDecision::kForward,
+				"closed-host Escape must remain game-owned");
+			require(
+				DecideEscapeMessage(
+					kKeyDownMessage,
+					kEscapeVirtualKey,
+					1,
+					true,
+					false) == EscapeMessageDecision::kCapture,
+				"a fresh visible-host Escape must be captured");
+			require(
+				DecideEscapeMessage(
+					kKeyDownMessage,
+					kEscapeVirtualKey,
+					kKeyRepeatBit | 1,
+					false,
+					true) == EscapeMessageDecision::kConsume,
+				"a held captured Escape leaked after the host closed");
+			require(
+				DecideEscapeMessage(
+					kKeyUpMessage,
+					kEscapeVirtualKey,
+					1,
+					false,
+					true) ==
+					EscapeMessageDecision::kConsumeAndRelease,
+				"the captured Escape release leaked after host close");
+			require(
+				DecideEscapeMessage(
+					kKeyDownMessage,
+					kEscapeVirtualKey,
+					1,
+					false,
+					true) ==
+					EscapeMessageDecision::kReleaseAndForward,
+				"a new closed-host Escape inherited stale ownership");
+			require(
+				DecideEscapeMessage(
+					kKeyDownMessage,
+					kEscapeVirtualKey,
+					kKeyRepeatBit | 1,
+					true,
+					false) == EscapeMessageDecision::kForward,
+				"opening the host while Escape is held captured a repeat");
+			require(
+				DecideEscapeMessage(
+					kKeyUpMessage,
+					0x10,
+					1,
+					true,
+					true) == EscapeMessageDecision::kForward,
+				"captured Escape also consumed a modifier release");
+			require(
+				DecideEscapeMessage(
+					kKeyDownMessage,
+					0x23,
+					1,
+					true,
+					false) == EscapeMessageDecision::kForward,
+				"the existing End toggle was reclassified as Escape");
+			require(
+				DecideEscapeMessage(
+					0x0008,
+					kEscapeVirtualKey,
+					0,
+					false,
+					true) == EscapeMessageDecision::kForward &&
+				DecideEscapeMessage(
+					kKeyDownMessage,
+					kEscapeVirtualKey,
+					kKeyRepeatBit | 1,
+					false,
+					true) == EscapeMessageDecision::kConsume,
+				"focus loss discarded ownership before a held repeat");
+		});
 	}
 }

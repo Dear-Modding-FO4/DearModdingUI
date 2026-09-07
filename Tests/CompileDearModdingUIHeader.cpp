@@ -206,11 +206,11 @@ static_assert(DMUI_CLIENT_ORIGIN_BRIDGED == 1u);
 #if UINTPTR_MAX == UINT64_MAX
 static_assert(sizeof(DMUI_ImGuiFingerprint) == 216);
 static_assert(sizeof(DMUI_HostReadyInfo) == 40);
-static_assert(sizeof(DMUI_ClientDescriptor) == 96);
+static_assert(sizeof(DMUI_ClientDescriptor) == 112);
 static_assert(sizeof(DMUI_PageDescriptor) == 64);
 static_assert(sizeof(DMUI_ActionDescriptor) == 64);
 static_assert(sizeof(DMUI_FrameObserverDescriptor) == 24);
-static_assert(sizeof(DMUI_HotkeyActionDescriptor) == 48);
+static_assert(sizeof(DMUI_HotkeyActionDescriptor) == 56);
 static_assert(sizeof(DMUI_LinkDescriptor) == 40);
 static_assert(sizeof(DMUI_FaqEntry) == 24);
 static_assert(sizeof(DMUI_DiagnosticDescriptor) == 32);
@@ -231,7 +231,10 @@ static_assert(offsetof(DMUI_ClientDescriptor, capabilities) == 64);
 static_assert(offsetof(DMUI_ClientDescriptor, iconName) == 72);
 static_assert(offsetof(DMUI_ClientDescriptor, origin) == 80);
 static_assert(offsetof(DMUI_ClientDescriptor, bridgeSourceLabel) == 88);
-static_assert(DMUI_CLIENT_DESCRIPTOR_0_1_SIZE ==
+static_assert(DMUI_CLIENT_DESCRIPTOR_0_1_SIZE == 96);
+static_assert(offsetof(DMUI_ClientDescriptor, requiredServices) == 96);
+static_assert(offsetof(DMUI_ClientDescriptor, minimumForwardingVersion) == 104);
+static_assert(DMUI_CLIENT_DESCRIPTOR_SERVICES_SIZE ==
 	sizeof(DMUI_ClientDescriptor));
 static_assert(DMUI_PAGE_DESCRIPTOR_0_1_SIZE ==
 	sizeof(DMUI_PageDescriptor));
@@ -239,7 +242,9 @@ static_assert(DMUI_ACTION_DESCRIPTOR_0_1_SIZE ==
 	sizeof(DMUI_ActionDescriptor));
 static_assert(DMUI_FRAME_OBSERVER_DESCRIPTOR_0_1_SIZE ==
 	sizeof(DMUI_FrameObserverDescriptor));
-static_assert(DMUI_HOTKEY_ACTION_DESCRIPTOR_0_1_SIZE ==
+static_assert(DMUI_HOTKEY_ACTION_DESCRIPTOR_0_1_SIZE == 48);
+static_assert(offsetof(DMUI_HotkeyActionDescriptor, contextPolicy) == 48);
+static_assert(DMUI_HOTKEY_ACTION_DESCRIPTOR_CONTEXT_SIZE ==
 	sizeof(DMUI_HotkeyActionDescriptor));
 static_assert(offsetof(DMUI_LinkDescriptor, structSize) == 0);
 static_assert(offsetof(DMUI_LinkDescriptor, label) == 8);

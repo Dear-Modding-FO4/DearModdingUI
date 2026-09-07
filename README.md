@@ -18,7 +18,15 @@ New source presentations implement the presentation contract in `NavigationPrese
 
 The ABI, lifecycle, compatibility fingerprint, and registration examples are documented in [`include/DearModdingUI/README.md`](include/DearModdingUI/README.md). Public client headers live in the standalone DearModdingUI API repository and arrive through CommonLibF4's `lib/dearmoddingui-api` public dependency.
 
-Clients locate the `DMUI_GetHostAPI` export at F4SE `kPostPostLoad`, request the current API version, register the client and all pages, then wait for the host-ready callback before drawing. Clients may open a registered settings page through `selectPage`; the host opens and closes the shared menu with `[Additional] sMenuToggleKey`, which defaults to F11.
+Clients locate the `DMUI_GetHostAPI` export at F4SE `kPostPostLoad`, request the current API version, register the client and all pages, then wait for the host-ready callback before drawing. Clients may open a registered settings page through `selectPage`; the host opens and closes the shared menu with `[Additional] sMenuToggleKey`, which defaults to F11. Escape first cancels the active edit or drag, then dismisses the topmost popup or dialog, and closes the shared menu when neither remains.
+
+Forwarding-only clients can preflight additive presentation services before
+registration. The host now provides contextual hotkeys, retained D3D11 image
+handles, opt-in passive managed overlays, latest-message notifications,
+annotated plots, and submission-aware confirm/text dialogs without exposing
+ImGui context, draw-list, texture-ID, or IO types through the C ABI. Full
+ownership, thread, format, expiry, placement, and dialog-state contracts are
+documented in the nested public API README.
 
 ## Building
 
@@ -53,6 +61,11 @@ Headless capture defaults to 3840x2160 and waits three frames before writing the
 ```
 
 `--width`, `--height`, and `--frames` override the capture defaults. The build copies the theme, fonts, and shaders to `.Build/Preview/Data/F4SE/Plugins/`.
+
+Use `--presentation overlay|notification|image|plot|dialog` to capture a
+synthetic client exercising the corresponding forwarding-only host service.
+These fixtures create their resources locally and invoke the public client
+wrappers rather than duplicating the host presentation.
 
 Use `--sidebar tree|twopane|drilldown|iconrail` to explicitly override the persisted layout and render any sidebar without rebuilding.
 For deterministic tree captures, `--collapse-all` starts with every mod closed and repeatable

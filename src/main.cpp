@@ -3,6 +3,7 @@
 #include <DearModdingUI/Host.h>
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/MenuToggleKey.h>
+#include <DearModdingUI/PresentationServices.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
 #include <Platform/GameInput.h>
@@ -32,8 +33,13 @@ namespace Addictol
 		void DrawHost() noexcept
 		{
 			DearModdingUI::DrawDemandedOverlays();
+			DearModdingUI::PresentationServices::DrawNotification();
 			if (DearModdingUI::IsMenuVisible())
+			{
 				DearModdingUI::DrawShell();
+				DearModdingUI::PresentationServices::DrawDialog(true);
+				DearModdingUI::ApplyMenuEscapeDismissal();
+			}
 		}
 
 		[[nodiscard]] bool ToggleHost(uint32_t a_virtualKey) noexcept

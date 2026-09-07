@@ -13,6 +13,7 @@ int main()
 	run_dear_modding_ui_checks(runner);
 	run_settings_table_checks(runner);
 	run_hotkey_checks(runner);
+	run_presentation_service_checks(runner);
 	run_mcm_checks(runner);
 	run_mcm_availability_checks(runner);
 	run_mcm_binding_checks(runner);

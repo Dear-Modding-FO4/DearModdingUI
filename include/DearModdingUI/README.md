@@ -298,6 +298,32 @@ override remains authoritative while its engine device, context, and window are 
 generation change replaces it. Destruction of the active window or a definitive DXGI device loss
 retires the attachment, releases host-owned COM/resources, and requests immediate reconciliation.
 
+## Forwarding presentation services
+
+`queryServices` reports semantic host-service flags and a forwarding version
+separate from the 0.1 ABI and product version. Clients may append
+`requiredServices` and `minimumForwardingVersion` to their descriptor; the host
+rejects unavailable requirements before assigning a handle. The C++ wrapper's
+`ClientOptions` performs the same preflight before `registerClient`.
+
+The appended API provides official frame-demand and swapchain wrappers,
+contextual hotkey enablement, owner/generation-scoped D3D11 image resources,
+opt-in managed overlay windows, copied latest-message notifications, annotated
+plots, and single-active submission-aware dialogs. Previous table offsets and
+all existing `_0_1_SIZE` constants remain unchanged. See the nested public API
+README for exact image formats, logical overlay coordinates, notification
+duration limits, dialog state transitions, and per-call thread ownership.
+
+Forwarded `InputTextMultiline` and `IsItemDeactivatedAfterEdit` are generated
+from the curated allowlist. Declarative setting writes remain live through
+`binding.set`; `SettingDescriptor::onEdit` independently reports changed and
+completed state immediately after the widget. New image and plot draw calls
+are accepted only on the render thread during the owning page callback.
+Image import requires a ready backend and bound render thread, including frame
+observers, but no active draw callback. Image queries require no draw phase.
+Notifications and image release are any-thread. Queued image COM references
+remain leased through the actual `RenderDrawData` call.
+
 ## ImGui compatibility and callbacks
 
 The host publishes the immutable upstream commit, `IMGUI_VERSION_NUM`, explicit compile-configuration
@@ -314,7 +340,8 @@ Include the pinned `imgui.h` and `imgui_internal.h`, then `ImGuiFingerprint.h`, 
 math-operator, and vector-extension flags directly from the active preprocessor configuration.
 
 `onHostReady`, `onHostUnavailable`, page draw, action, hotkey, and frame callbacks run on the render thread.
-`setStatus` is the exception and may be called from any thread. The context and allocator functions
+`setStatus`, `postNotification`, image release, hotkey enablement, and dialog
+submission resolution are the any-thread exceptions. The context and allocator functions
 exist only in `DMUI_HostReadyInfo`; clients must not poll for a context. In the ready callback, set the
 client's statically linked ImGui globals:
 

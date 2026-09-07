@@ -62,4 +62,5 @@ namespace DearModdingUI
 		bool& a_expanded,
 		size_t a_count) noexcept;
 	void DrawShell() noexcept;
+	void ApplyMenuEscapeDismissal() noexcept;
 }

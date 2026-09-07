@@ -162,10 +162,22 @@ namespace DearModdingUI
 			{
 				if (chord.virtualKey)
 					return {};
-				const auto parsed = ParseMenuToggleKey(token);
-				if (!parsed.recognized)
-					return {};
-				chord.virtualKey = parsed.virtualKey;
+				if (token.size() == 1)
+				{
+					const auto key = AsciiUpper(token.front());
+					if ((key >= 'A' && key <= 'Z') ||
+						(key >= '0' && key <= '9'))
+						chord.virtualKey = static_cast<uint32_t>(key);
+					else
+						return {};
+				}
+				else
+				{
+					const auto parsed = ParseMenuToggleKey(token);
+					if (!parsed.recognized)
+						return {};
+					chord.virtualKey = parsed.virtualKey;
+				}
 			}
 			if (end == std::string_view::npos)
 				break;
@@ -185,7 +197,11 @@ namespace DearModdingUI
 			value += "Alt+";
 		if (a_chord.modifiers & kHotkeyModifierShift)
 			value += "Shift+";
-		value += MenuToggleKeyName(a_chord.virtualKey);
+		if ((a_chord.virtualKey >= 'A' && a_chord.virtualKey <= 'Z') ||
+			(a_chord.virtualKey >= '0' && a_chord.virtualKey <= '9'))
+			value.push_back(static_cast<char>(a_chord.virtualKey));
+		else
+			value += MenuToggleKeyName(a_chord.virtualKey);
 		return value;
 	}
 
@@ -217,6 +233,12 @@ namespace DearModdingUI
 			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->callback)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
+		const auto contextPolicy =
+			a_descriptor->structSize >= DMUI_HOTKEY_ACTION_DESCRIPTOR_CONTEXT_SIZE ?
+				a_descriptor->contextPolicy :
+				DMUI_HOTKEY_CONTEXT_ALWAYS;
+		if (contextPolicy > DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED)
+			return DMUI_RESULT_INVALID_DESCRIPTOR;
 
 		try
 		{
@@ -224,6 +246,7 @@ namespace DearModdingUI
 			action.client = a_client;
 			action.callback = a_descriptor->callback;
 			action.userData = a_descriptor->userData;
+			action.contextPolicy = contextPolicy;
 			if (!ReadString(a_descriptor->id, kActionIdCapacity, action.id) ||
 				!ValidHotkeyActionId(action.id))
 				return DMUI_RESULT_MALFORMED_ACTION_ID;
@@ -260,6 +283,47 @@ namespace DearModdingUI
 		catch (...)
 		{
 			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		}
+	}
+
+	DMUI_Result HotkeyRegistry::SetEnabled(
+		DMUI_ClientHandle a_client,
+		DMUI_HotkeyActionHandle a_action,
+		bool a_enabled) noexcept
+	{
+		if (a_client == DMUI_INVALID_CLIENT_HANDLE ||
+			a_action == DMUI_INVALID_HOTKEY_ACTION_HANDLE)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		const std::scoped_lock lock{ m_mutex };
+		auto* action = FindActionLocked(a_action);
+		if (!action || action->client != a_client)
+			return DMUI_RESULT_ACTION_NOT_FOUND;
+		action->enabled = a_enabled;
+		return DMUI_RESULT_OK;
+	}
+
+	void HotkeyRegistry::SetContext(HotkeyContextState a_context) noexcept
+	{
+		const std::scoped_lock lock{ m_mutex };
+		m_context = a_context;
+	}
+
+	void HotkeyRegistry::ReleaseActiveKeys() noexcept
+	{
+		const std::scoped_lock lock{ m_mutex };
+		for (auto& active : m_activeKeys)
+		{
+			if (active.action == DMUI_INVALID_HOTKEY_ACTION_HANDLE)
+				continue;
+			if (active.queued)
+			{
+				const auto tail =
+					(m_eventHead + m_eventCount) % m_events.size();
+				m_events[tail] = { active.action, false };
+				++m_eventCount;
+				--m_reservedReleaseCount;
+			}
+			active = {};
 		}
 	}
 
@@ -383,7 +447,20 @@ namespace DearModdingUI
 			return HotkeyMessageResult::kPassThrough;
 		const HotkeyChord pressed{ a_virtualKey, a_modifiers };
 		const auto found = std::ranges::find_if(m_actions, [&](const auto& a_action) {
+			const auto contextAllowed =
+				a_action.contextPolicy == DMUI_HOTKEY_CONTEXT_ALWAYS ||
+				(a_action.contextPolicy == DMUI_HOTKEY_CONTEXT_HOST_INPUT_INACTIVE &&
+					!m_context.hostMenuVisible &&
+					!m_context.dialogVisible &&
+					!m_context.textEditing) ||
+				(a_action.contextPolicy == DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED &&
+					!m_context.hostMenuVisible &&
+					!m_context.dialogVisible &&
+					!m_context.textEditing &&
+					m_context.gameplaySafe);
 			return a_action.live &&
+				a_action.enabled &&
+				contextAllowed &&
 				!a_action.callbackFailed &&
 				a_action.state == DMUI_HOTKEY_BINDING_BOUND &&
 				a_action.effective == pressed;
@@ -618,6 +695,24 @@ namespace DearModdingUI
 			DMUI_HotkeyActionHandle a_action) noexcept
 		{
 			return RegistryInstance().Unregister(a_client, a_action);
+		}
+
+		DMUI_Result SetEnabled(
+			DMUI_ClientHandle a_client,
+			DMUI_HotkeyActionHandle a_action,
+			bool a_enabled) noexcept
+		{
+			return RegistryInstance().SetEnabled(a_client, a_action, a_enabled);
+		}
+
+		void SetContext(HotkeyContextState a_context) noexcept
+		{
+			RegistryInstance().SetContext(a_context);
+		}
+
+		void ReleaseActiveKeys() noexcept
+		{
+			RegistryInstance().ReleaseActiveKeys();
 		}
 
 		HotkeyMessageResult HandleKey(
