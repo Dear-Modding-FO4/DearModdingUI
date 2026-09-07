@@ -337,6 +337,10 @@ draws keep old pixels and later draws use the replacement. Image queries
 require no draw phase. Notifications and image release are any-thread. Queued
 image COM references remain leased through the actual `RenderDrawData` call.
 
+Packed HDR color previews can import `R11G11B10_FLOAT` SRVs directly. The host
+retains the original view and performs no HDR tone mapping or color conversion;
+display mapping remains the producer's responsibility.
+
 Depth previews can import `R16_UNORM`, `R24_UNORM_X8_TYPELESS`, `R32_FLOAT`,
 or `R32_FLOAT_X8X24_TYPELESS` SRVs directly. Every imported format must also
 advertise `D3D11_FORMAT_SUPPORT_TEXTURE2D` and

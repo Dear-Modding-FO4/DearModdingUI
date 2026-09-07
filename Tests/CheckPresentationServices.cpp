@@ -881,6 +881,115 @@ namespace vmm_tests
 				"CPU image creation accepted a missing device");
 		});
 
+		runner.test("packed HDR SRVs preserve source dimensions and queued resource ownership", [] {
+			auto resources = CreateImageResources();
+			ImGuiFrame frame;
+			RenderExecution::Guard execution{
+				RenderExecution::Phase::kFrameDraw
+			};
+			(void)execution.NoteBinding(1);
+			PresentationServices::BindRenderer(resources.device.Get());
+			PresentationServices::BeginFrame();
+			UINT support{};
+			constexpr UINT requiredSupport =
+				D3D11_FORMAT_SUPPORT_TEXTURE2D |
+				D3D11_FORMAT_SUPPORT_SHADER_SAMPLE;
+			require(SUCCEEDED(resources.device->CheckFormatSupport(
+						DXGI_FORMAT_R11G11B10_FLOAT, &support)) &&
+					(support & requiredSupport) == requiredSupport,
+				"WARP packed HDR format lacks ordinary Texture2D sampling");
+
+			struct Dimensions
+			{
+				UINT width;
+				UINT height;
+			};
+			constexpr std::array dimensions{
+				Dimensions{ 3840, 2160 },
+				Dimensions{ 2259, 1271 }
+			};
+			for (const auto& size : dimensions)
+			{
+				const D3D11_TEXTURE2D_DESC description{
+					size.width, size.height, 1, 1,
+					DXGI_FORMAT_R11G11B10_FLOAT, { 1, 0 },
+					D3D11_USAGE_DEFAULT,
+					D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
+					0, 0
+				};
+				ComPtr<ID3D11Texture2D> texture;
+				require(SUCCEEDED(resources.device->CreateTexture2D(
+							&description, nullptr, &texture)),
+					"packed HDR render texture creation failed");
+				ComPtr<ID3D11RenderTargetView> target;
+				require(SUCCEEDED(resources.device->CreateRenderTargetView(
+							texture.Get(), nullptr, &target)),
+					"packed HDR render-target view creation failed");
+				constexpr float color[]{ 4.0f, 2.0f, 0.5f, 1.0f };
+				resources.context->ClearRenderTargetView(target.Get(), color);
+				ComPtr<ID3D11ShaderResourceView> view;
+				require(SUCCEEDED(resources.device->CreateShaderResourceView(
+							texture.Get(), nullptr, &view)),
+					"packed HDR shader-resource view creation failed");
+				auto* queuedView = view.Get();
+				const auto references = ReferenceCount(queuedView);
+				const DMUI_D3D11ImageDescriptor descriptor{
+					sizeof(DMUI_D3D11ImageDescriptor), view.Get(), 0, 0
+				};
+				DMUI_ImageHandle image{};
+				require(PresentationServices::ImportD3D11Image(
+							32, &descriptor, &image) == DMUI_RESULT_OK,
+					"sampleable R11G11B10_FLOAT SRV was rejected");
+				require(ReferenceCount(queuedView) == references + 1,
+					"packed HDR import did not retain the original SRV");
+				DMUI_ImageInfo info{};
+				info.structSize = sizeof(info);
+				require(PresentationServices::QueryImage(32, image, &info) ==
+							DMUI_RESULT_OK &&
+						info.contentWidth == size.width &&
+						info.contentHeight == size.height,
+					"packed HDR import changed the source dimensions");
+				ComPtr<ID3D11ShaderResourceView> retained;
+				retained.Attach(
+					PresentationServices::RetainImageViewForTests(32, image));
+				require(retained.Get() == queuedView,
+					"packed HDR import substituted a converted resource");
+				retained.Reset();
+
+				const DMUI_ImageDrawOptions options{
+					sizeof(DMUI_ImageDrawOptions),
+					{ 64.0f, 36.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f },
+					{ 1.0f, 1.0f, 1.0f, 1.0f }, 1, 0
+				};
+				{
+					const PresentationServices::ClientExecutionGuard callback{
+						32, true
+					};
+					require(PresentationServices::DrawImage(
+								32, image, &options) == DMUI_RESULT_OK,
+						"packed HDR image draw failed");
+				}
+				require(ReferenceCount(queuedView) == references + 2,
+					"packed HDR draw did not retain its submission lease");
+				require(PresentationServices::ReleaseImage(32, image) ==
+						DMUI_RESULT_OK,
+					"packed HDR handle release failed");
+				require(ReferenceCount(queuedView) == references + 1,
+					"packed HDR handle release discarded a queued draw");
+				view.Reset();
+				target.Reset();
+				texture.Reset();
+				D3D11_SHADER_RESOURCE_VIEW_DESC queuedDescription{};
+				queuedView->GetDesc(&queuedDescription);
+				require(queuedDescription.Format == DXGI_FORMAT_R11G11B10_FLOAT &&
+						queuedDescription.ViewDimension ==
+							D3D11_SRV_DIMENSION_TEXTURE2D,
+					"packed HDR view was lost or converted before submission");
+			}
+			PresentationServices::CompleteRenderSubmission();
+			PresentationServices::InvalidateDevice();
+		});
+
 		runner.test("sampleable depth SRVs retain their native views through submission", [] {
 			auto resources = CreateImageResources();
 			ImGuiFrame frame;
@@ -1013,6 +1122,9 @@ namespace vmm_tests
 				DXGI_FORMAT shaderView;
 			};
 			constexpr std::array formats{
+				UnsupportedFormat{
+					DXGI_FORMAT_R10G10B10A2_TYPELESS,
+					DXGI_FORMAT_R10G10B10A2_UINT },
 				UnsupportedFormat{
 					DXGI_FORMAT_R16_TYPELESS,
 					DXGI_FORMAT_R16_UINT },
