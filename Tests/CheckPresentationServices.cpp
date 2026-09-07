@@ -579,6 +579,177 @@ namespace vmm_tests
 				"CPU image creation accepted a missing device");
 		});
 
+		runner.test("sampleable depth SRVs retain their native views through submission", [] {
+			auto resources = CreateImageResources();
+			ImGuiFrame frame;
+			PresentationServices::BindRenderer(resources.device.Get());
+			PresentationServices::BeginFrame();
+			struct DepthFormat
+			{
+				DXGI_FORMAT texture;
+				DXGI_FORMAT depthView;
+				DXGI_FORMAT shaderView;
+			};
+			constexpr std::array formats{
+				DepthFormat{
+					DXGI_FORMAT_R16_TYPELESS,
+					DXGI_FORMAT_D16_UNORM,
+					DXGI_FORMAT_R16_UNORM },
+				DepthFormat{
+					DXGI_FORMAT_R24G8_TYPELESS,
+					DXGI_FORMAT_D24_UNORM_S8_UINT,
+					DXGI_FORMAT_R24_UNORM_X8_TYPELESS },
+				DepthFormat{
+					DXGI_FORMAT_R32_TYPELESS,
+					DXGI_FORMAT_D32_FLOAT,
+					DXGI_FORMAT_R32_FLOAT },
+				DepthFormat{
+					DXGI_FORMAT_R32G8X24_TYPELESS,
+					DXGI_FORMAT_D32_FLOAT_S8X24_UINT,
+					DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS }
+			};
+			for (const auto& format : formats)
+			{
+				UINT support{};
+				constexpr UINT requiredSupport =
+					D3D11_FORMAT_SUPPORT_TEXTURE2D |
+					D3D11_FORMAT_SUPPORT_SHADER_SAMPLE;
+				require(SUCCEEDED(resources.device->CheckFormatSupport(
+							format.shaderView, &support)) &&
+						(support & requiredSupport) == requiredSupport,
+					"WARP depth view lacks ordinary Texture2D sampling support");
+				const D3D11_TEXTURE2D_DESC textureDescription{
+					16, 8, 1, 1, format.texture, { 1, 0 },
+					D3D11_USAGE_DEFAULT,
+					D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_DEPTH_STENCIL,
+					0, 0
+				};
+				ComPtr<ID3D11Texture2D> texture;
+				require(SUCCEEDED(resources.device->CreateTexture2D(
+							&textureDescription, nullptr, &texture)),
+					"depth texture creation failed");
+				D3D11_DEPTH_STENCIL_VIEW_DESC depthDescription{};
+				depthDescription.Format = format.depthView;
+				depthDescription.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+				ComPtr<ID3D11DepthStencilView> depthView;
+				require(SUCCEEDED(resources.device->CreateDepthStencilView(
+							texture.Get(), &depthDescription, &depthView)),
+					"depth-stencil view creation failed");
+				resources.context->ClearDepthStencilView(
+					depthView.Get(), D3D11_CLEAR_DEPTH, 0.25f, 0);
+				D3D11_SHADER_RESOURCE_VIEW_DESC shaderDescription{};
+				shaderDescription.Format = format.shaderView;
+				shaderDescription.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+				shaderDescription.Texture2D.MipLevels = 1;
+				ComPtr<ID3D11ShaderResourceView> view;
+				require(SUCCEEDED(resources.device->CreateShaderResourceView(
+							texture.Get(), &shaderDescription, &view)),
+					"depth shader-resource view creation failed");
+				const DMUI_D3D11ImageDescriptor descriptor{
+					sizeof(DMUI_D3D11ImageDescriptor), view.Get(), 0, 0
+				};
+				DMUI_ImageHandle image{};
+				require(PresentationServices::ImportD3D11Image(
+							31, &descriptor, &image) == DMUI_RESULT_OK,
+					"sampleable depth SRV was rejected");
+				DMUI_ImageInfo info{};
+				info.structSize = sizeof(info);
+				require(PresentationServices::QueryImage(31, image, &info) ==
+							DMUI_RESULT_OK &&
+						info.contentWidth == 16 &&
+						info.contentHeight == 8,
+					"depth view dimensions changed during import");
+				const DMUI_ImageDrawOptions options{
+					sizeof(DMUI_ImageDrawOptions),
+					{ 32.0f, 16.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f },
+					{ 1.0f, 1.0f, 1.0f, 1.0f }, 1, 0
+				};
+				{
+					const PresentationServices::ClientExecutionGuard callback{
+						31, true
+					};
+					require(PresentationServices::DrawImage(
+								31, image, &options) == DMUI_RESULT_OK,
+						"depth image draw failed");
+				}
+				auto* queuedView = view.Get();
+				ComPtr<ID3D11ShaderResourceView> retained;
+				retained.Attach(
+					PresentationServices::RetainImageViewForTests(31, image));
+				require(retained.Get() == queuedView,
+					"depth drawing substituted a converted resource");
+				retained.Reset();
+				require(PresentationServices::ReleaseImage(31, image) ==
+						DMUI_RESULT_OK,
+					"queued depth image release failed");
+				view.Reset();
+				depthView.Reset();
+				texture.Reset();
+				D3D11_SHADER_RESOURCE_VIEW_DESC queuedDescription{};
+				queuedView->GetDesc(&queuedDescription);
+				require(queuedDescription.Format == format.shaderView,
+					"native depth view was lost before render submission");
+			}
+			PresentationServices::CompleteRenderSubmission();
+			PresentationServices::InvalidateDevice();
+		});
+
+		runner.test("integer and stencil-only SRVs are not accepted as sampled images", [] {
+			auto resources = CreateImageResources();
+			PresentationServices::BindRenderer(resources.device.Get());
+			struct UnsupportedFormat
+			{
+				DXGI_FORMAT texture;
+				DXGI_FORMAT shaderView;
+			};
+			constexpr std::array formats{
+				UnsupportedFormat{
+					DXGI_FORMAT_R16_TYPELESS,
+					DXGI_FORMAT_R16_UINT },
+				UnsupportedFormat{
+					DXGI_FORMAT_R24G8_TYPELESS,
+					DXGI_FORMAT_X24_TYPELESS_G8_UINT },
+				UnsupportedFormat{
+					DXGI_FORMAT_R32G8X24_TYPELESS,
+					DXGI_FORMAT_X32_TYPELESS_G8X24_UINT }
+			};
+			const auto slots = PresentationServices::ImageSlotCount();
+			for (const auto& format : formats)
+			{
+				const D3D11_TEXTURE2D_DESC description{
+					16, 8, 1, 1, format.texture, { 1, 0 },
+					D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0
+				};
+				ComPtr<ID3D11Texture2D> texture;
+				require(SUCCEEDED(resources.device->CreateTexture2D(
+							&description, nullptr, &texture)),
+					"unsupported-format texture creation failed");
+				D3D11_SHADER_RESOURCE_VIEW_DESC viewDescription{};
+				viewDescription.Format = format.shaderView;
+				viewDescription.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+				viewDescription.Texture2D.MipLevels = 1;
+				ComPtr<ID3D11ShaderResourceView> view;
+				require(SUCCEEDED(resources.device->CreateShaderResourceView(
+							texture.Get(), &viewDescription, &view)),
+					"unsupported-format SRV creation failed");
+				const auto references = ReferenceCount(view.Get());
+				const DMUI_D3D11ImageDescriptor descriptor{
+					sizeof(DMUI_D3D11ImageDescriptor), view.Get(), 0, 0
+				};
+				DMUI_ImageHandle image{ 1 };
+				require(PresentationServices::ImportD3D11Image(
+							31, &descriptor, &image) ==
+							DMUI_RESULT_UNSUPPORTED_RESOURCE &&
+						image == DMUI_INVALID_IMAGE_HANDLE,
+					"integer or stencil-only SRV was accepted");
+				require(ReferenceCount(view.Get()) == references,
+					"rejected SRV acquired a retained reference");
+			}
+			require(PresentationServices::ImageSlotCount() == slots,
+				"rejected SRVs allocated image slots");
+			PresentationServices::InvalidateDevice();
+		});
+
 		runner.test("image handles retain queued draws and invalidate by device generation", [] {
 			auto resources = CreateImageResources();
 			ImGuiFrame frame;

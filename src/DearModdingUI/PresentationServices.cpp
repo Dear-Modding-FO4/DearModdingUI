@@ -187,10 +187,13 @@ namespace DearModdingUI::PresentationServices
 			case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
 			case DXGI_FORMAT_B8G8R8X8_UNORM:
 			case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:
+			case DXGI_FORMAT_R16_UNORM:
 			case DXGI_FORMAT_R16_FLOAT:
 			case DXGI_FORMAT_R16G16_FLOAT:
 			case DXGI_FORMAT_R16G16B16A16_FLOAT:
+			case DXGI_FORMAT_R24_UNORM_X8_TYPELESS:
 			case DXGI_FORMAT_R32_FLOAT:
+			case DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS:
 			case DXGI_FORMAT_R32G32_FLOAT:
 			case DXGI_FORMAT_R32G32B32A32_FLOAT:
 				return true;
@@ -641,12 +644,21 @@ namespace DearModdingUI::PresentationServices
 
 		ID3D11Device* imageDevice{};
 		view->GetDevice(&imageDevice);
+		constexpr UINT requiredSupport =
+			D3D11_FORMAT_SUPPORT_TEXTURE2D |
+			D3D11_FORMAT_SUPPORT_SHADER_SAMPLE;
+		UINT formatSupport{};
+		const auto sampleable =
+			imageDevice &&
+			SUCCEEDED(imageDevice->CheckFormatSupport(
+				viewDescription.Format, &formatSupport)) &&
+			(formatSupport & requiredSupport) == requiredSupport;
 		auto& service = GetService();
 		const std::scoped_lock lock{ service.mutex };
 		const auto deviceMatches = imageDevice && imageDevice == service.device;
 		if (imageDevice)
 			imageDevice->Release();
-		if (!deviceMatches || !service.device)
+		if (!deviceMatches || !service.device || !sampleable)
 			return DMUI_RESULT_UNSUPPORTED_RESOURCE;
 		const auto mip = viewDescription.Texture2D.MostDetailedMip;
 		const auto derivedWidth = (std::max)(textureDescription.Width >> mip, 1u);

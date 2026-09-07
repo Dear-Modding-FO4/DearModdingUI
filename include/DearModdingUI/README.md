@@ -331,6 +331,13 @@ draws keep old pixels and later draws use the replacement. Image queries
 require no draw phase. Notifications and image release are any-thread. Queued
 image COM references remain leased through the actual `RenderDrawData` call.
 
+Depth previews can import `R16_UNORM`, `R24_UNORM_X8_TYPELESS`, `R32_FLOAT`,
+or `R32_FLOAT_X8X24_TYPELESS` SRVs directly. Every imported format must also
+advertise `D3D11_FORMAT_SUPPORT_TEXTURE2D` and
+`D3D11_FORMAT_SUPPORT_SHADER_SAMPLE` on the owning device. Integer and
+stencil-only views are rejected. The host samples the original SRV without
+copying, normalizing, or converting depth into another texture.
+
 ## ImGui compatibility and callbacks
 
 The host publishes the immutable upstream commit, `IMGUI_VERSION_NUM`, explicit compile-configuration
