@@ -13,10 +13,16 @@
 #include <DearModdingUI/MCM/TextRendering.h>
 #include <DearModdingUI/MCM/ValueSource.h>
 
+#include <GeneralTestSuite.h>
+
+#include <d3d11.h>
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <exception>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <span>
@@ -39,58 +45,52 @@ namespace DearModdingUIPreview
 			const char* summary;
 		};
 
-		struct ClientSpec
-		{
-			const char* id;
-			const char* displayName;
-			dmui::Version version;
-			const char* iconName;
-			PageSpec page;
-		};
-
 		enum class ClientConnection
 		{
 			kLockstep,
 			kForwarding
 		};
 
-		struct SettingsValues
+		class PreviewEnvironment final : public DmuiTests::Environment
 		{
-			bool fixesEnabled;
-			std::string preset;
-			std::string profileName;
-			int64_t workerThreads;
-			double animationSpeed;
-			double framePacingWindow;
+		public:
+			void SetDevice(ID3D11Device* a_device) noexcept
+			{
+				m_device = a_device;
+			}
 
-			bool operator==(const SettingsValues&) const = default;
-		};
+			[[nodiscard]] Microsoft::WRL::ComPtr<ID3D11Device>
+				AcquireRendererDevice() noexcept override
+			{
+				Microsoft::WRL::ComPtr<ID3D11Device> result;
+				if (m_device)
+					result = m_device;
+				return result;
+			}
 
-		struct SettingsState
-		{
-			SettingsValues defaults{
-				true,
-				"Balanced",
-				"Commonwealth",
-				4,
-				1.0,
-				2.0
-			};
+			[[nodiscard]] bool SupportsGameInputContexts() const noexcept override
+			{
+				return false;
+			}
 
-			SettingsValues committed{
-				true,
-				"Quality",
-				"4K Preview",
-				8,
-				1.15,
-				2.5
-			};
-			SettingsValues draft{ committed };
+			void Log(
+				DmuiTests::LogLevel a_level,
+				std::string_view a_message) noexcept override
+			{
+				const char* level = a_level == DmuiTests::LogLevel::kError ?
+					"error" : a_level == DmuiTests::LogLevel::kWarning ?
+					"warning" : "info";
+				std::fprintf(stderr, "[%s] %.*s\n", level,
+					static_cast<int>(a_message.size()), a_message.data());
+			}
+
+		private:
+			ID3D11Device* m_device{};
 		};
 
 		constexpr std::string_view kMcmConfig = R"json({
-			"modName": "PreviewMCM",
-			"displayName": "MCM Bridge Preview",
+			"modName": "DmuiSyntheticMCM",
+			"displayName": "[Fixture] Synthetic MCM Bridge",
 			"content": [
 				{"id":"bridge","type":"section","text":"MCM Bridge"},
 				{"id":"BridgeDescription","type":"text",
@@ -103,17 +103,17 @@ namespace DearModdingUIPreview
 				 "text":"Control-level centered text"},
 				{"id":"DisplaySlot","type":"dropdown","text":"Display slot",
 				 "valueOptions":{"sourceType":"GlobalValue",
-				 "sourceForm":"PreviewMCM.esp|800","default":0,
+				 "sourceForm":"DmuiSyntheticMCM.esp|800","default":0,
 				 "options":["59 (Utility) slot","60 (Animation) slot","61 (FX) slot"]}},
 				{"id":"QuantizedScale","type":"slider","text":"Quantized scale",
 				 "help":"Moves in 0.2 increments anchored at 0.1.",
 				 "valueOptions":{"sourceType":"GlobalValue",
-				 "sourceForm":"PreviewMCM.esp|802","default":0.5,
+				 "sourceForm":"DmuiSyntheticMCM.esp|802","default":0.5,
 				 "min":0.1,"max":0.9,"step":0.2,"format":"%.1f"}},
 				{"id":"divider","type":"section","text":""},
 				{"id":"FeatureEnabled","type":"switcher","text":"Enable feature",
 				 "valueOptions":{"sourceType":"GlobalValue",
-				 "sourceForm":"PreviewMCM.esp|801","default":false}}
+				 "sourceForm":"DmuiSyntheticMCM.esp|801","default":false}}
 			]
 		})json";
 
@@ -227,209 +227,6 @@ namespace DearModdingUIPreview
 			std::vector<DearModdingUI::MCM::Diagnostic> diagnostics;
 		};
 
-		void DrawFixturePage(
-			dmui::Client& a_client,
-			const std::string& a_name,
-			const std::string& a_summary) noexcept
-		{
-			ImGui::TextWrapped("%s", a_summary.c_str());
-			ImGui::Spacing();
-			ImGui::Separator();
-			ImGui::Spacing();
-			ImGui::TextDisabled("Standalone preview fixture");
-			ImGui::BulletText("%s is registered with the production host.", a_name.c_str());
-			ImGui::BulletText("Navigation, status, actions, typography, and shell layout are live.");
-			if (a_name == "Diagnostics")
-			{
-				const std::array links{
-					dmui::Link{
-						"Copy support URL",
-						{
-							DMUI_EXTERNAL_TARGET_URI,
-							"https://github.com/Dear-Modding-FO4/DearModdingUI"
-						},
-						"Copy the support URL.",
-						U'\0',
-						true,
-						dmui::LinkAction::kCopyTarget
-					},
-					dmui::Link{
-						"Open support page",
-						{
-							DMUI_EXTERNAL_TARGET_URI,
-							"https://github.com/Dear-Modding-FO4/DearModdingUI"
-						},
-						"Open with the operating system's associated handler.",
-						U'\0',
-						true,
-						dmui::LinkAction::kOpenExternal
-					}
-				};
-				(void)a_client.DrawLinkRow("preview-support", links);
-			}
-		}
-
-		template <dmui::SettingValueAlternative T>
-		[[nodiscard]] dmui::SettingDescriptor MakeBoundSetting(
-			SettingsState* a_state,
-			T SettingsValues::* a_member,
-			std::string a_id,
-			std::string a_label,
-			std::string a_description,
-			dmui::SettingControl a_control,
-			dmui::SettingApplyTiming a_timing = dmui::SettingApplyTiming::kNextLaunch)
-		{
-			dmui::SettingDescriptor setting;
-			setting.id = std::move(a_id);
-			setting.label = std::move(a_label);
-			setting.description = std::move(a_description);
-			setting.control = std::move(a_control);
-			setting.defaultValue = a_state->defaults.*a_member;
-			setting.binding = dmui::BindSetting(
-				[a_state, a_member]() -> T {
-					return a_state->draft.*a_member;
-				},
-				[a_state, a_member](T a_value) -> T {
-					a_state->draft.*a_member = std::move(a_value);
-					return a_state->draft.*a_member;
-				});
-			setting.applyTiming = a_timing;
-			setting.isDirty = [a_state, a_member]() {
-				return a_state->draft.*a_member !=
-					a_state->committed.*a_member;
-			};
-			setting.isModified = [a_state, a_member]() {
-				return a_state->draft.*a_member !=
-					a_state->defaults.*a_member;
-			};
-			return setting;
-		}
-
-		[[nodiscard]] dmui::SettingsPage MakeAddictolSettingsPage(
-			SettingsState* a_state)
-		{
-			dmui::SettingsPage page;
-			page.filterOptions.searchHint = "Search Addictol settings...";
-			page.notes.push_back({
-				"These controls are preview-only values rendered through dmui::SettingsPage.",
-				true
-			});
-			page.actions.showReset = true;
-			page.actions.reset = [a_state]() {
-				a_state->draft = a_state->defaults;
-			};
-			page.actions.revert = [a_state]() {
-				a_state->draft = a_state->committed;
-			};
-			page.actions.apply = [a_state]() {
-				a_state->committed = a_state->draft;
-			};
-
-			dmui::SettingGroup general{
-				"general",
-				"General",
-				0,
-				{},
-				true
-			};
-			general.settings.push_back(MakeBoundSetting(
-				a_state,
-				&SettingsValues::fixesEnabled,
-				"fixes-enabled",
-				"Enable fixes",
-				"Enables Addictol's runtime fixes.",
-				dmui::CheckboxSettingControl{},
-				dmui::SettingApplyTiming::kImmediate));
-			general.settings.push_back(MakeBoundSetting(
-				a_state,
-				&SettingsValues::preset,
-				"preset",
-				"Preset",
-				"Selects a balanced, quality, or performance profile.",
-				dmui::ChoiceSettingControl{
-					{
-						{ "Balanced", "Balanced" },
-						{ "Quality", "Quality" },
-						{ "Performance", "Performance" }
-					}
-				}));
-			general.settings.push_back(MakeBoundSetting(
-				a_state,
-				&SettingsValues::profileName,
-				"profile-name",
-				"Profile name",
-				"Names the local configuration profile.",
-				dmui::TextSettingControl{ 96 }));
-
-			dmui::SettingGroup performance{
-				"performance",
-				"Performance",
-				0,
-				{},
-				true
-			};
-			dmui::SignedSettingControl workerControl;
-			workerControl.range =
-				dmui::NumericSettingRange<int64_t>{ int64_t{ 1 }, int64_t{ 16 } };
-			workerControl.format = "%lld threads";
-			performance.settings.push_back(MakeBoundSetting(
-				a_state,
-				&SettingsValues::workerThreads,
-				"worker-threads",
-				"Worker threads",
-				"Controls the number of background workers.",
-				std::move(workerControl)));
-
-			dmui::DoubleSettingControl animationControl;
-			animationControl.range =
-				dmui::NumericSettingRange<double>{ 0.5, 2.0 };
-			animationControl.format = "%.2fx";
-			performance.settings.push_back(MakeBoundSetting(
-				a_state,
-				&SettingsValues::animationSpeed,
-				"animation-speed",
-				"Animation speed",
-				"Scales interface transition speed.",
-				std::move(animationControl),
-				dmui::SettingApplyTiming::kImmediate));
-
-			dmui::DoubleSettingControl pacingControl;
-			pacingControl.range = dmui::NumericSettingRange<double>{ 0.25, std::nullopt };
-			pacingControl.format = "%.2f ms";
-			pacingControl.dragSpeed = 0.05f;
-			performance.settings.push_back(MakeBoundSetting(
-				a_state,
-				&SettingsValues::framePacingWindow,
-				"frame-pacing-window",
-				"Frame pacing window",
-				"Adjusts the smoothing window with a drag control.",
-				std::move(pacingControl)));
-
-			dmui::SettingGroup information{
-				"information",
-				"Information",
-				0,
-				{},
-				true
-			};
-			dmui::SettingDescriptor runtime;
-			runtime.id = "runtime";
-			runtime.label = "Runtime";
-			runtime.description = "Read-only fixture information.";
-			runtime.control = dmui::ReadOnlySettingControl{
-				[]() {
-					ImGui::TextUnformatted("Fallout 4 1.10.163 (preview)");
-				}
-			};
-			runtime.showReset = false;
-			information.settings.push_back(std::move(runtime));
-
-			page.groups.push_back(std::move(general));
-			page.groups.push_back(std::move(performance));
-			page.groups.push_back(std::move(information));
-			return page;
-		}
-
 		[[nodiscard]] bool AddPages(
 			dmui::Client& a_client,
 			std::span<const PageSpec> a_pages,
@@ -471,7 +268,10 @@ namespace DearModdingUIPreview
 					[client = &a_client,
 					 name = std::string{ page.displayName },
 						summary = std::string{ page.summary }]() {
-						DrawFixturePage(*client, name, summary);
+						(void)client->DrawSectionHeader(name.c_str());
+						(void)client->DrawBulletText(summary.c_str());
+						(void)client->DrawBulletText(
+							"Dedicated preview-only navigation layout fixture.");
 					});
 				if (!handle)
 				{
@@ -488,11 +288,12 @@ namespace DearModdingUIPreview
 
 	struct FakeData::Impl
 	{
-		SettingsState settings;
 		PreviewValueSource mcmValues;
 		PreviewActionExecutor mcmActions;
 		PreviewDiagnosticReporter mcmDiagnostics;
 		std::vector<std::unique_ptr<dmui::Client>> clients;
+		PreviewEnvironment testEnvironment;
+		DmuiTests::GeneralTestSuite testSuite{ testEnvironment };
 
 		[[nodiscard]] dmui::Client* AddClient(
 			std::string_view a_id,
@@ -521,7 +322,7 @@ namespace DearModdingUIPreview
 			{
 				a_error = "Could not connect fake client " +
 					std::string{ a_id } + " (result " +
-					std::to_string(client->LastResult()) + ").";
+					DMUI_ResultToString(client->LastResult()) + ").";
 				return nullptr;
 			}
 			auto* result = client.get();
@@ -536,131 +337,25 @@ namespace DearModdingUIPreview
 
 	FakeData::~FakeData() = default;
 
+	void FakeData::Stop() noexcept
+	{
+		m_impl->testSuite.Stop();
+	}
+
 	bool FakeData::Register(
+		ID3D11Device* a_device,
 		std::string& a_error,
 		bool a_includeNavigationComparisonFixtures) noexcept
 	{
 		try
 		{
-			static constexpr std::array addictolPages{
-				PageSpec{
-					"overview",
-					"Overview",
-					nullptr,
-					nullptr,
-					"Runtime summary and active compatibility fixes."
-				},
-				PageSpec{
-					"fixes",
-					"Fixes",
-					nullptr,
-					nullptr,
-					"Individual engine fixes and their current state."
-				},
-				PageSpec{
-					"performance",
-					"Performance",
-					nullptr,
-					nullptr,
-					"Frame pacing, budgets, and background work."
-				},
-				PageSpec{
-					"rendering",
-					"Rendering",
-					nullptr,
-					nullptr,
-					"Renderer compatibility and presentation options."
-				},
-				PageSpec{
-					"camera",
-					"Camera",
-					nullptr,
-					nullptr,
-					"First-person and third-person camera behavior."
-				},
-				PageSpec{
-					"diagnostics",
-					"Diagnostics",
-					"diagnostics",
-					"Diagnostics",
-					"Runtime diagnostics and support information."
-				}
-			};
-			static constexpr std::array communityShadersPages{
-				PageSpec{ "overview", "Overview", "general", "General", "Renderer and feature status." },
-				PageSpec{ "screen-space-shadows", "Screen-Space Shadows", "lighting", "Lighting", "Contact shadow settings." },
-				PageSpec{ "grass-lighting", "Grass Lighting", "lighting", "Lighting", "Per-blade lighting controls." },
-				PageSpec{ "wetness", "Wetness Effects", "lighting", "Lighting", "Rain and surface wetness." },
-				PageSpec{ "subsurface-scattering", "Subsurface Scattering", "lighting", "Lighting", "Skin and foliage scattering." },
-				PageSpec{ "complex-parallax", "Complex Parallax", "visuals", "Visuals", "Material parallax controls." },
-				PageSpec{ "terrain-parallax", "Terrain Parallax", "visuals", "Visuals", "Terrain displacement options." },
-				PageSpec{ "water-caustics", "Water Caustics", "visuals", "Visuals", "Underwater light projection." },
-				PageSpec{ "skylighting", "Skylighting", "lighting", "Lighting", "Ambient sky illumination." },
-				PageSpec{ "cloud-shadows", "Cloud Shadows", "lighting", "Lighting", "Dynamic cloud shadowing." },
-				PageSpec{ "interior-shadows", "Interior Shadows", "lighting", "Lighting", "Interior shadow generation." },
-				PageSpec{ "upscaling", "Upscaling", "performance", "Performance", "Resolution scaling and sharpening." },
-				PageSpec{ "shader-cache", "Shader Cache", "performance", "Performance", "Compilation and cache status." },
-				PageSpec{ "debug-view", "Debug View", "diagnostics", "Diagnostics", "Renderer visualization modes." },
-				PageSpec{ "compatibility", "Compatibility", "compatibility", "Compatibility", "Detected patches and conflicts." }
-			};
-			static constexpr std::array additionalClients{
-				ClientSpec{
-					"buffout4",
-					"Buffout 4",
-					{ 1, 28 },
-					"terminal-window",
-					{ "diagnostics", "Crash Diagnostics", "diagnostics", "Diagnostics", "Crash logging and runtime checks." }
-				},
-				ClientSpec{
-					"highfpsphysicsfix",
-					"High FPS Physics Fix",
-					{ 0, 8 },
-					"",
-					{ "timing", "Frame Timing", "performance", "Performance", "Physics timing and loading controls." }
-				},
-				ClientSpec{
-					"xcell",
-					"X-Cell",
-					{ 1, 5 },
-					"squares-four",
-					{ "memory", "Memory", "performance", "Performance", "Memory allocation and reclamation." }
-				},
-				ClientSpec{
-					"prp",
-					"Previsibines Repair Pack",
-					{ 74, 0 },
-					"files",
-					{ "coverage", "Coverage", "compatibility", "Compatibility", "Loaded previs and precombine coverage." }
-				},
-				ClientSpec{
-					"nacx",
-					"NAC X",
-					{ 1, 0 },
-					"palette",
-					{ "weather", "Weather", "visuals", "Visuals", "Weather and post-process configuration." }
-				},
-				ClientSpec{
-					"longloadingtimesfix",
-					"Long Loading Times Fix",
-					{ 1, 0 },
-					"arrow-counter-clockwise",
-					{ "loading", "Loading", "performance", "Performance", "Loading-screen timing and diagnostics." }
-				},
-				ClientSpec{
-					"weapondebriscrashfix",
-					"Weapon Debris Crash Fix",
-					{ 1, 2 },
-					"shield-check",
-					{ "status", "Status", "stability", "Stability", "Debris patch status and compatibility." }
-				},
-				ClientSpec{
-					"fallui",
-					"FallUI",
-					{ 2, 3 },
-					"",
-					{ "interface", "Interface", "general", "General", "HUD and inventory interface settings." }
-				}
-			};
+			a_error.clear();
+			m_impl->testEnvironment.SetDevice(a_device);
+			if (!m_impl->testSuite.Initialize())
+			{
+				a_error = "Could not register the shared DMUI test fixture.";
+				return false;
+			}
 
 			const auto* configOverride =
 				std::getenv("DMUI_PREVIEW_MCM_CONFIG");
@@ -712,8 +407,8 @@ namespace DearModdingUIPreview
 			m_impl->mcmValues.Seed("bDisplayCondition:Misc", 1.0f);
 			m_impl->mcmValues.Seed("bDisplayConditionInvert:Misc", 1.0f);
 			auto* mcmClient = m_impl->AddClient(
-				"dearmodding.mcm-preview",
-				"MCM Bridge Preview",
+				"dearmodding.tests.synthetic.mcm",
+				"[Fixture] Synthetic MCM Bridge",
 				{ 1, 0 },
 				"plugs-connected",
 				a_error,
@@ -776,250 +471,6 @@ namespace DearModdingUIPreview
 				}
 			}
 
-			auto* addictol = m_impl->AddClient(
-				"dearmodding.addictol",
-				"Addictol",
-				{ 1, 4 },
-				"puzzle-piece",
-				a_error);
-			if (!addictol || !AddPages(*addictol, addictolPages, a_error))
-				return false;
-			if (!addictol->ReportDiagnostic({
-					DMUI_STATUS_SEVERITY_INFO,
-					"Addictol.toml",
-					"Configuration loaded successfully.",
-					"All declared runtime fixes were recognized."
-				}) ||
-				!addictol->ReportDiagnostic({
-					DMUI_STATUS_SEVERITY_INFO,
-					"Addictol.toml",
-					"No compatibility overrides are active.",
-					nullptr
-				}))
-			{
-				a_error = "Could not register info-only fake diagnostics.";
-				return false;
-			}
-			if (!addictol->AddSettingsPage(
-					{
-						.id = "settings",
-						.displayName = "Settings",
-						.summary =
-							"Declarative settings controls used by Addictol.",
-						.sortKey = 60
-					},
-					MakeAddictolSettingsPage(&m_impl->settings)))
-			{
-				a_error = "Could not register Addictol settings (result " +
-					std::to_string(addictol->LastResult()) + ").";
-				return false;
-			}
-			if (!addictol->AddAction(
-					"copy-diagnostics",
-					"Copy diagnostics",
-					"clipboard-text",
-					"Copy a diagnostic summary.",
-					[]() {}) ||
-				!addictol->AddAction(
-					"reload-configuration",
-					"Reload configuration",
-					"arrows-clockwise",
-					"Reload Addictol's configuration.",
-					[]() {},
-					10) ||
-				!addictol->AddAction(
-					"restore-settings",
-					"Restore settings",
-					"arrow-counter-clockwise",
-					"Restore Addictol's saved settings.",
-					[]() {},
-					20))
-			{
-				a_error = "Could not register Addictol actions.";
-				return false;
-			}
-
-			auto* communityShaders = m_impl->AddClient(
-				"dearmodding.communityshaders",
-				"Community Shaders",
-				{ 1, 3 },
-				"sun",
-				a_error);
-			if (!communityShaders ||
-				!AddPages(*communityShaders, communityShadersPages, a_error))
-				return false;
-			if (!communityShaders->AddAction(
-					"clear-cache",
-					"Clear shader cache",
-					"trash",
-					"Clear compiled shaders before the next launch.",
-					[]() {}))
-			{
-				a_error = "Could not register Community Shaders actions.";
-				return false;
-			}
-
-			dmui::Client* buffout{};
-			dmui::Client* fallui{};
-			for (const auto& clientSpec : additionalClients)
-			{
-				auto* client = m_impl->AddClient(
-					clientSpec.id,
-					clientSpec.displayName,
-					clientSpec.version,
-					clientSpec.iconName,
-					a_error);
-				if (!client ||
-					!AddPages(
-						*client,
-						std::span{ &clientSpec.page, size_t{ 1 } },
-						a_error))
-					return false;
-				if (std::string_view{ clientSpec.id } == "buffout4")
-					buffout = client;
-				else if (std::string_view{ clientSpec.id } == "fallui")
-					fallui = client;
-			}
-
-			static constexpr std::array falluiDiagnostics{
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					"FallUI/config.json",
-					"An HTML field is not boolean.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					nullptr,
-					"Unsupported control type.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					nullptr,
-					"Value source unresolved.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					"Sorting",
-					"Setting is not declared.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					nullptr,
-					"Action target unavailable.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					"FallUI/keybinds.json",
-					"Invalid keybind definition.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					"FallUI/user-keybinds.json",
-					"Saved keybind could not be parsed.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					nullptr,
-					"Visibility condition could not be evaluated.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					nullptr,
-					"Property unavailable before loading a save.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					nullptr,
-					"Choice default is outside its options.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					nullptr,
-					"Slider step is invalid for its range.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					"FallUI/config.json",
-					"Duplicate control identifier.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					nullptr,
-					"Page has no display name.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					nullptr,
-					"Markup contains an unterminated tag.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					"Actions",
-					"External action plugin is not registered.",
-					nullptr
-				},
-				dmui::Diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
-					nullptr,
-					"Image asset cannot be rendered.",
-					nullptr
-				}
-			};
-			if (!fallui)
-			{
-				a_error = "Could not find the FallUI preview client.";
-				return false;
-			}
-			for (const auto& diagnostic : falluiDiagnostics)
-			{
-				if (!fallui->ReportDiagnostic(diagnostic))
-				{
-					a_error = "Could not fill the FallUI diagnostic cap.";
-					return false;
-				}
-			}
-			if (!fallui->ReportDiagnostic({
-					DMUI_STATUS_SEVERITY_WARNING,
-					"Maps",
-					"A map marker texture is missing.",
-					"The marker preview cannot be shown."
-				}) ||
-				!fallui->ReportDiagnostic({
-					DMUI_STATUS_SEVERITY_WARNING,
-					"Favorites",
-					"A favorites-menu action has no target.",
-					"The action remains disabled."
-				}))
-			{
-				a_error = "Could not register FallUI diagnostic overflow.";
-				return false;
-			}
-
-			if (!communityShaders->SetStatus(
-					DMUI_STATUS_SEVERITY_WARNING,
-					"Shader cache is rebuilding after a driver update.") ||
-				!buffout ||
-				!buffout->SetStatus(
-					DMUI_STATUS_SEVERITY_ERROR,
-					"One incompatible runtime patch was detected."))
-			{
-				a_error = "Could not register fake client statuses.";
-				return false;
-			}
 			if (a_includeNavigationComparisonFixtures)
 			{
 				static constexpr std::array navigationPages{
@@ -1053,59 +504,59 @@ namespace DearModdingUIPreview
 				};
 				static constexpr std::array navigationClients{
 					NavigationFixtureClient{
-						"preview.navigation.unnamed-a",
-						"Navigation Preview: Unnamed Alpha",
+						"dearmodding.tests.synthetic.navigation.unnamed-a",
+						"[Fixture] Navigation Unnamed Alpha",
 						""
 					},
 					NavigationFixtureClient{
-						"preview.navigation.unnamed-b",
-						"Navigation Preview: Unnamed Beta",
+						"dearmodding.tests.synthetic.navigation.unnamed-b",
+						"[Fixture] Navigation Unnamed Beta",
 						""
 					},
 					NavigationFixtureClient{
-						"preview.navigation.long-a",
-						"Navigation Preview: Long Source Alpha",
+						"dearmodding.tests.synthetic.navigation.long-a",
+						"[Fixture] Navigation Long Source Alpha",
 						"A Very Long Navigation Bridge Source Label for Layout Stress"
 					},
 					NavigationFixtureClient{
-						"preview.navigation.long-b",
-						"Navigation Preview: Long Source Beta",
+						"dearmodding.tests.synthetic.navigation.long-b",
+						"[Fixture] Navigation Long Source Beta",
 						"A Very Long Navigation Bridge Source Label for Layout Stress"
 					},
 					NavigationFixtureClient{
-						"preview.navigation.long-c",
-						"Navigation Preview: Long Source Gamma",
+						"dearmodding.tests.synthetic.navigation.long-c",
+						"[Fixture] Navigation Long Source Gamma",
 						"A Very Long Navigation Bridge Source Label for Layout Stress"
 					},
 					NavigationFixtureClient{
-						"preview.navigation.long-d",
-						"Navigation Preview: Long Source Delta",
+						"dearmodding.tests.synthetic.navigation.long-d",
+						"[Fixture] Navigation Long Source Delta",
 						"A Very Long Navigation Bridge Source Label for Layout Stress"
 					},
 					NavigationFixtureClient{
-						"preview.navigation.papyrus-a",
-						"Navigation Preview: Papyrus Alpha",
-						"Papyrus Configuration Bridge"
+						"dearmodding.tests.synthetic.navigation.script-a",
+						"[Fixture] Navigation Script Alpha",
+						"Synthetic Configuration Bridge"
 					},
 					NavigationFixtureClient{
-						"preview.navigation.papyrus-b",
-						"Navigation Preview: Papyrus Beta",
-						"Papyrus Configuration Bridge"
+						"dearmodding.tests.synthetic.navigation.script-b",
+						"[Fixture] Navigation Script Beta",
+						"Synthetic Configuration Bridge"
 					},
 					NavigationFixtureClient{
-						"preview.navigation.papyrus-c",
-						"Navigation Preview: Papyrus Gamma",
-						"Papyrus Configuration Bridge"
+						"dearmodding.tests.synthetic.navigation.script-c",
+						"[Fixture] Navigation Script Gamma",
+						"Synthetic Configuration Bridge"
 					},
 					NavigationFixtureClient{
-						"preview.navigation.papyrus-d",
-						"Navigation Preview: Papyrus Delta",
-						"Papyrus Configuration Bridge"
+						"dearmodding.tests.synthetic.navigation.script-d",
+						"[Fixture] Navigation Script Delta",
+						"Synthetic Configuration Bridge"
 					},
 					NavigationFixtureClient{
-						"preview.navigation.papyrus-e",
-						"Navigation Preview: Papyrus Epsilon",
-						"Papyrus Configuration Bridge"
+						"dearmodding.tests.synthetic.navigation.script-e",
+						"[Fixture] Navigation Script Epsilon",
+						"Synthetic Configuration Bridge"
 					}
 				};
 				for (const auto& fixture : navigationClients)
@@ -1130,12 +581,8 @@ namespace DearModdingUIPreview
 		}
 		catch (const std::exception& a_exception)
 		{
-			a_error = a_exception.what();
-			return false;
-		}
-		catch (...)
-		{
-			a_error = "Unknown fake-data registration failure.";
+			a_error = "Preview fixture registration threw: ";
+			a_error += a_exception.what();
 			return false;
 		}
 	}

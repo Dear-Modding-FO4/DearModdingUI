@@ -9,6 +9,7 @@
 #include <DearModdingUI/MCM/PapyrusActionExecutor.h>
 #include <DearModdingUI/MCM/PropertyValueSource.h>
 #include <DearModdingUI/MCM/RexDiagnosticReporter.h>
+#include <DearModdingUI/MCM/ScaleformSpike.h>
 #include <DearModdingUI/MCM/SettingsIni.h>
 
 #include <DearModdingUI/MCM/Compatibility.h>
@@ -362,10 +363,11 @@ namespace DearModdingUI::MCM
 				mod->values->Add(s_globalValues);
 				mod->values->Add(*mod->modSettings);
 				mod->values->Add(*mod->properties);
+				const auto version = F4SE::GetPluginVersion();
 				mod->client = std::make_unique<dmui::Client>(
 					clientId,
 					displayName,
-					dmui::Version{ 1, 0 },
+					dmui::Version{ version.major(), version.minor() },
 					dmui::kForwardingClient,
 					// MCM configs carry no icon field, so bridged mods cannot declare one.
 					"plugs-connected",
@@ -662,10 +664,20 @@ namespace DearModdingUI::MCM
 			if (!a_message)
 				return;
 			if (a_message->type == F4SE::MessagingInterface::kPostPostLoad)
+			{
+#if defined(DMUI_MCM_SCALEFORM_SPIKE)
+				RegisterScaleformSpike();
+#endif
 				DiscoverAndRegister();
+			}
 			else if (a_message->type ==
 					F4SE::MessagingInterface::kPreLoadGame)
+			{
+#if defined(DMUI_MCM_SCALEFORM_SPIKE)
+				StopScaleformSpikeForGameTransition();
+#endif
 				s_runtimeReady.store(false, std::memory_order_release);
+			}
 			else if (a_message->type ==
 					F4SE::MessagingInterface::kGameDataReady)
 			{
@@ -677,6 +689,10 @@ namespace DearModdingUI::MCM
 					a_message->type == F4SE::MessagingInterface::kNewGame ||
 					a_message->type == F4SE::MessagingInterface::kGameLoaded)
 			{
+#if defined(DMUI_MCM_SCALEFORM_SPIKE)
+				if (a_message->type == F4SE::MessagingInterface::kNewGame)
+					StopScaleformSpikeForGameTransition();
+#endif
 				const auto wasReady =
 					s_runtimeReady.exchange(true, std::memory_order_acq_rel);
 				if (!wasReady)

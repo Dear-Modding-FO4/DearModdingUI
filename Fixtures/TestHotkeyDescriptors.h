@@ -4,7 +4,7 @@
 
 #include <array>
 
-namespace DmuiForwardingSmoke
+namespace DmuiTests
 {
 	struct HotkeyDescriptor
 	{
@@ -16,37 +16,37 @@ namespace DmuiForwardingSmoke
 
 	inline constexpr std::array<HotkeyDescriptor, 6> kHotkeyDescriptors{ {
 		{
-			"dearmodding.forwarding-smoke.toggle-overlay",
-			"Toggle forwarding smoke overlay",
+			"dearmodding.tests.general.toggle-overlay",
+			"Toggle DMUI test overlay",
 			"Ctrl+Shift+F10",
 			DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED
 		},
 		{
-			"dearmodding.forwarding-smoke.delayed-toast",
-			"Post delayed forwarding smoke notification",
+			"dearmodding.tests.general.delayed-toast",
+			"Post delayed DMUI test notification",
 			"Ctrl+Shift+F11",
 			DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED
 		},
 		{
-			"dearmodding.forwarding-smoke.host-input-inactive-probe",
+			"dearmodding.tests.general.host-input-inactive-probe",
 			"HOST_INPUT_INACTIVE probe",
 			"NONE",
 			DMUI_HOTKEY_CONTEXT_HOST_INPUT_INACTIVE
 		},
 		{
-			"dearmodding.forwarding-smoke.always-probe",
+			"dearmodding.tests.general.always-probe",
 			"Optional ALWAYS probe",
 			"NONE",
 			DMUI_HOTKEY_CONTEXT_ALWAYS
 		},
 		{
-			"dearmodding.forwarding-smoke.letter-probe",
+			"dearmodding.tests.general.letter-probe",
 			"Letter A parser probe",
 			"NONE",
 			DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED
 		},
 		{
-			"dearmodding.forwarding-smoke.digit-probe",
+			"dearmodding.tests.general.digit-probe",
 			"Digit 7 parser probe",
 			"NONE",
 			DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED

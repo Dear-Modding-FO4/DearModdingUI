@@ -78,4 +78,6 @@ namespace vmm_tests
 	void run_mcm_keybind_checks(Runner& runner);
 	void run_mcm_runtime_checks(Runner& runner);
 	void run_mcm_action_checks(Runner& runner);
+	void run_scaleform_spike_state_checks(Runner& runner);
+	void run_general_test_fixture_checks(Runner& runner);
 }

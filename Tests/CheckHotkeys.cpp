@@ -1,7 +1,7 @@
 #include <DearModdingUI/Hotkeys.h>
 #include <DearModdingUI/RenderExecution.h>
 #include "Harness.h"
-#include "../Tools/forwarding-smoke-client/HotkeyDescriptors.h"
+#include <TestHotkeyDescriptors.h>
 
 #include <algorithm>
 #include <map>
@@ -79,8 +79,8 @@ namespace vmm_tests
 
 	void run_hotkey_checks(Runner& runner)
 	{
-		runner.test("forwarding smoke hotkeys register with exact defaults", [] {
-			using DmuiForwardingSmoke::kHotkeyDescriptors;
+		runner.test("DMUI test hotkeys register with exact defaults", [] {
+			using DmuiTests::kHotkeyDescriptors;
 
 			constexpr std::array expectedPolicies{
 				DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED,
@@ -103,24 +103,24 @@ namespace vmm_tests
 			CallbackState state;
 			for (size_t index = 0; index < kHotkeyDescriptors.size(); ++index)
 			{
-				const auto& smoke = kHotkeyDescriptors[index];
+				const auto& test = kHotkeyDescriptors[index];
 				require(
-					smoke.policy == expectedPolicies[index],
-					std::string{ smoke.id } + " policy changed");
+					test.policy == expectedPolicies[index],
+					std::string{ test.id } + " policy changed");
 				const DMUI_HotkeyActionDescriptor descriptor{
 					sizeof(DMUI_HotkeyActionDescriptor),
-					smoke.id,
-					smoke.name,
-					smoke.suggested,
+					test.id,
+					test.name,
+					test.suggested,
 					&HotkeyCallback,
 					&state,
-					smoke.policy,
+					test.policy,
 					0
 				};
 				DMUI_HotkeyActionHandle handle{};
 				require(
 					registry.Register(1, &descriptor, &handle) == DMUI_RESULT_OK,
-					std::string{ smoke.id } + " failed registry validation");
+					std::string{ test.id } + " failed registry validation");
 
 				const auto binding = Query(registry, 1, handle);
 				const auto expectedState = index < 2 ?
@@ -128,10 +128,10 @@ namespace vmm_tests
 					DMUI_HOTKEY_BINDING_UNBOUND_NEVER_SET;
 				require(
 					binding.state == expectedState,
-					std::string{ smoke.id } + " default state changed");
+					std::string{ test.id } + " default state changed");
 				require(
 					std::string{ binding.chord } == expectedChords[index],
-					std::string{ smoke.id } + " effective chord changed");
+					std::string{ test.id } + " effective chord changed");
 			}
 		});
 

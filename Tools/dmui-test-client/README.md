@@ -1,57 +1,51 @@
-# DearModdingUI forwarding smoke client
+# DearModdingUI test client
 
-**Development-only manual harness.** It is not part of the normal build or
-release package. It registers nothing when the DearModdingUI host is absent or
+**Test-release manual harness.** It is not part of the release build or package.
+It registers nothing when the DearModdingUI host is absent or
 does not provide the required forwarding version/services, and logs that
 outcome once. It has no standalone UI, fallback menu, automation, game launch,
 input injection, or disk persistence.
 
-## Isolated opt-in build
+## Test-release build
 
-Run this block from the root of your checkout in one PowerShell process. Resolve
-the absolute project path explicitly and keep CommonLib's automatic install
-destination inside that checkout:
+Run this block from the root of the checkout:
 
 ```powershell
 $projectRoot = (Resolve-Path -LiteralPath '.').Path
-$env:FO4_DEV_MODS = Join-Path $projectRoot '.Build\isolated-mods'
-Remove-Item Env:XSE_FO4_MODS_PATH -ErrorAction SilentlyContinue
-Remove-Item Env:XSE_FO4_GAME_PATH -ErrorAction SilentlyContinue
-xmake f -P "$projectRoot" -m release --forwarding_smoke=y
-xmake build -P "$projectRoot" -y dmui-forwarding-smoke
+xmake f -P "$projectRoot" -m release --test-release=y
+xmake build -P "$projectRoot" -y
+xmake package-release -P "$projectRoot"
 ```
 
-Artifacts are limited to:
+The installable outputs are:
 
-- `.Build\ForwardingSmoke\dmui-forwarding-smoke.dll`
-- `.Build\ForwardingSmoke\dmui-forwarding-smoke.pdb`
-- local linker support files in `.Build\ForwardingSmoke` (`.lib`, `.exp`,
-  `.ilk`, and the compile PDB)
-- `.Build\isolated-mods\Dear Modding UI - Forwarding Smoke Test\F4SE\Plugins\`
-  containing the staged DLL/PDB
+- `.Build\packages\test\DearModdingUI\`
+- `.Build\packages\DearModdingUI-0.1.0-test.zip`
 
-Do not run `xmake install`, point an XSE variable at a game/live mod manager, or
-launch the game from build tooling.
+The project removes CommonLib automatic install mappings. Build and package
+write only below this checkout. PDBs remain beside `.Build\test` binaries and
+are not included in the installable package.
 
 ## Manual setup and checklist
 
-1. Copy or enable the isolated staged smoke-test folder in a disposable manual
-   development profile. Enable the separately built DearModdingUI host before
-   startup. The smoke client performs its single host discovery/registration
+1. Install or enable the assembled test package in a disposable manual
+   development profile. The test client performs its single host discovery/registration
    attempt at F4SE `kPostPostLoad`, after all plugins have loaded; it does not
    retry later or on Present.
-2. Start the game manually. Open the host and select **Forwarding Smoke Test
-   (Development Only)**. Verify host state is ready, API is 0.1, forwarding is
+2. Start the game manually. Open the host and select **DMUI Tests**, then use
+   its **Exercises** pages. Verify host state is ready, API is 0.1, forwarding is
    1.1, and all required service bits are reported. If the host was absent or
-   incompatible at `kPostPostLoad`, verify the smoke client logged once and
-   registered nothing.
+   incompatible at `kPostPostLoad`, verify the test client logged once and
+   registered nothing. Also inspect the three clearly labeled `[Fixture]`
+   navigation, status, and in-memory configuration clients. MCM coverage in
+   game comes from the packaged real MCM bridge, not a synthetic runtime copy.
 3. With the host menu closed, use `Ctrl+Shift+F10` to toggle the overlay and
    `Ctrl+Shift+F11` to schedule the bounded delayed toast. Verify movement and
    gameplay input remain unaffected.
 4. Exercise menu, console, text-entry, focus-loss, and other obstructed
    contexts. The gameplay defaults must yield. Bind the default-NONE
    `HOST_INPUT_INACTIVE`, optional `ALWAYS`, letter `A`, and digit `7` probes
-   in the host hotkey manager; toggle their enable state on the smoke page and
+   in the host hotkey manager; toggle their enable state on the exercise page and
    verify effective binding/conflict plus press/release counters.
 5. Verify the overlay timer and observer samples continue while the overlay
    and host menu are hidden. Try all anchors, free X/Y, scale, opacity, and
@@ -81,24 +75,29 @@ launch the game from build tooling.
 
 ## Diagnostic logging
 
-The smoke client writes bounded, event-driven diagnostics to
-`Documents\My Games\Fallout4\F4SE\dmui-forwarding-smoke.log`. It records the
+The test client writes bounded, event-driven diagnostics to
+`Documents\My Games\Fallout4\F4SE\dmui-test-client.log`. It records the
 one-time initialization and service preflight, each hotkey's registration and
 initial effective binding, hotkey edges, overlay frame-demand changes, image
 lifecycle transitions and CPU create/update outcomes, notification
 scheduling/posting, completed edits and resets, and dialog state transitions.
 It never logs entered text and does not log ordinary per-frame queries or
 draws.
+The standalone preview sends the same fixture diagnostics to standard error.
 
-Use **Log current results** on the smoke settings page for an on-demand compact
-snapshot. A second compact snapshot is written automatically on the active to
-inactive edge when that exact settings page is left or closed. Snapshot outcomes
-are labeled `observed` or `unexercised`; unexercised probes remain unexercised,
-and a snapshot never treats the absence of errors as an overall pass.
+The shared fixture translation units use isolated forwarding namespaces, so
+the preview cannot substitute its lockstep client or real ImGui inline bodies.
+Only the thin environment adapters differ between preview and F4SE.
+
+Use **Log current results** on the results page for an on-demand compact
+snapshot. Another compact snapshot is written whenever any exercise page is
+left, including switches to another exercise and closing the menu. Snapshot
+outcomes are labeled `observed`, `failed`, or `unexercised`; unexercised probes
+remain unexercised, and a snapshot never treats the absence of errors as an
+overall pass.
 
 These checks validate the forwarding API harness. They do **not** validate a
 consumer's proxy-swapchain attachment or renderer-replacement integration.
 
-After the manual test, remove or disable all installed smoke-test artifacts but
-retain this source. Track that operational step under coordinator TODO
-`forwarding-smoke-cleanup`.
+After the manual test, remove or disable the installed test package. No cleanup
+or deployment action is performed by the build.

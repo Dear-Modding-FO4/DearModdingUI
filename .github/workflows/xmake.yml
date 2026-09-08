@@ -28,18 +28,48 @@ jobs:
       with:
         xmake-version: latest
 
-    - name: Configure
-      run: xmake config --yes
+    - name: Check package verifier
+      run: python Tests/check_package_layout.py --self-test
 
-    - name: Build
-      run: xmake build -P . -y
+    - name: Configure release
+      shell: pwsh
+      run: |
+        $projectRoot = (Resolve-Path -LiteralPath '.').Path
+        $env:FO4_DEV_MODS = Join-Path $projectRoot '.Build\ci-no-deploy'
+        $env:XSE_FO4_MODS_PATH = $env:FO4_DEV_MODS
+        Remove-Item Env:XSE_FO4_GAME_PATH -ErrorAction SilentlyContinue
+        xmake f -P "$projectRoot" -m release --test-release=n -y
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        xmake verify-no-auto-install -P "$projectRoot"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    - name: Build and package release
+      shell: pwsh
+      run: |
+        $projectRoot = (Resolve-Path -LiteralPath '.').Path
+        $env:FO4_DEV_MODS = Join-Path $projectRoot '.Build\ci-no-deploy'
+        $env:XSE_FO4_MODS_PATH = $env:FO4_DEV_MODS
+        Remove-Item Env:XSE_FO4_GAME_PATH -ErrorAction SilentlyContinue
+        xmake build -P "$projectRoot" -y
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        xmake package-release -P "$projectRoot"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        python Tests/check_package_layout.py `
+          --variant release `
+          --folder .Build/packages/release/DearModdingUI `
+          --archive .Build/packages/DearModdingUI-0.1.0-release.zip
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        if (Test-Path '.Build/ci-no-deploy') {
+          $written = Get-ChildItem '.Build/ci-no-deploy' -Recurse -File
+          if ($written) { throw "build wrote through an install path: $($written.FullName -join ', ')" }
+        }
 
     - name: Check ImGui forwarding header
       shell: pwsh
       run: |
         $generated = Join-Path $env:RUNNER_TEMP 'ImGuiForward.h'
         $committed = 'Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/ImGuiForward.h'
-        $dll = '.Build/F4SE/Plugins/DearModdingUI.dll'
+        $dll = '.Build/release/F4SE/Plugins/DearModdingUI.dll'
 
         python Tools/generate_imgui_forward.py `
           --definitions Depends/cimgui/generator/output/definitions.json `
@@ -81,25 +111,114 @@ jobs:
     - name: Check plugin exports
       shell: pwsh
       run: |
-        $dll = '.Build/F4SE/Plugins/DearModdingUI.dll'
+        $dll = '.Build/release/F4SE/Plugins/DearModdingUI.dll'
         if (-not (Test-Path $dll)) { throw "$dll was not produced" }
 
         $exports = (dumpbin /exports $dll) -join "`n"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         $missing = @('DMUI_GetHostAPI','F4SEPlugin_Load','F4SEPlugin_Query','F4SEPlugin_Version') |
           Where-Object { $exports -notmatch [regex]::Escape($_) }
 
         if ($missing) { throw "missing DearModdingUI exports: $($missing -join ', ')" }
         Write-Host "all four DearModdingUI exports present"
 
+    - name: Check shared forwarding isolation
+      shell: pwsh
+      run: |
+        foreach ($name in @('GeneralTestFixtures.cpp.obj', 'GeneralTestSuite.cpp.obj')) {
+          $objects = @(Get-ChildItem '.LinkConf/xmake/dmui-preview' -Recurse -File -Filter $name)
+          if ($objects.Count -ne 1) { throw "expected one preview fixture object: $name" }
+          $symbols = (dumpbin /symbols $objects[0].FullName) -join "`n"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($symbols -match 'External.*@(dmui|ImGui)@@') {
+            throw "$name shares API symbols with lockstep preview clients"
+          }
+          if ($symbols -notmatch '@DmuiFixtureClient@@') {
+            throw "$name did not emit the isolated forwarding client"
+          }
+        }
+
     - name: Run checks
       run: .Build/Tests/dmui-tests.exe
 
-    - name: Upload build output
+    - name: Configure test release
+      shell: pwsh
+      run: |
+        $projectRoot = (Resolve-Path -LiteralPath '.').Path
+        $env:FO4_DEV_MODS = Join-Path $projectRoot '.Build\ci-no-deploy'
+        $env:XSE_FO4_MODS_PATH = $env:FO4_DEV_MODS
+        Remove-Item Env:XSE_FO4_GAME_PATH -ErrorAction SilentlyContinue
+        xmake f -P "$projectRoot" -m release --test-release=y -y
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        xmake verify-no-auto-install -P "$projectRoot"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    - name: Build and package test release
+      shell: pwsh
+      run: |
+        $projectRoot = (Resolve-Path -LiteralPath '.').Path
+        $env:FO4_DEV_MODS = Join-Path $projectRoot '.Build\ci-no-deploy'
+        $env:XSE_FO4_MODS_PATH = $env:FO4_DEV_MODS
+        Remove-Item Env:XSE_FO4_GAME_PATH -ErrorAction SilentlyContinue
+        xmake build -P "$projectRoot" -y
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        xmake package-release -P "$projectRoot"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        python Tests/check_package_layout.py `
+          --variant test `
+          --folder .Build/packages/test/DearModdingUI `
+          --archive .Build/packages/DearModdingUI-0.1.0-test.zip
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        $hostDll = '.Build/test/F4SE/Plugins/DearModdingUI.dll'
+        $client = '.Build/test/F4SE/Plugins/dmui-test-client.dll'
+        $hostExports = (dumpbin /exports $hostDll) -join "`n"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        if ($hostExports -notmatch 'DMUI_GetHostAPI') {
+          throw 'test host is missing DMUI_GetHostAPI'
+        }
+        $clientImports = (dumpbin /imports $client) -join "`n"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        if ($clientImports -match '(?i)(DearModdingUI|cimgui|imgui)\.dll') {
+          throw 'test client linked against a UI binary instead of using host discovery'
+        }
+        $clientExports = (dumpbin /exports $client) -join "`n"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        foreach ($symbol in @('F4SEPlugin_Load','F4SEPlugin_Query','F4SEPlugin_Version')) {
+          if ($clientExports -notmatch [regex]::Escape($symbol)) {
+            throw "test client is missing $symbol"
+          }
+        }
+        $releaseMcm = [Text.Encoding]::ASCII.GetString(
+          [IO.File]::ReadAllBytes('.Build/release/F4SE/Plugins/DearModdingUI-MCM.dll'))
+        $testMcm = [Text.Encoding]::ASCII.GetString(
+          [IO.File]::ReadAllBytes('.Build/test/F4SE/Plugins/DearModdingUI-MCM.dll'))
+        if ($releaseMcm.Contains('Scaleform Context Spike')) {
+          throw 'release MCM bridge contains the diagnostic probe marker'
+        }
+        if (-not $testMcm.Contains('Scaleform Context Spike')) {
+          throw 'test MCM bridge is missing the diagnostic probe marker'
+        }
+        if (Test-Path '.Build/ci-no-deploy') {
+          $written = Get-ChildItem '.Build/ci-no-deploy' -Recurse -File
+          if ($written) { throw "test build wrote through an install path: $($written.FullName -join ', ')" }
+        }
+
+    - name: Run test-release checks
+      run: .Build/Tests/dmui-tests.exe
+
+    - name: Upload release
       uses: actions/upload-artifact@v6
       with:
-        name: dearmoddingui-xmake-${{ github.sha }}
+        name: dearmoddingui-0.1.0-release-${{ github.sha }}
+        if-no-files-found: error
         path: |
-          .Build/F4SE/Plugins/DearModdingUI.dll
-          .Build/F4SE/Plugins/DearModdingUI.pdb
-          .Build/F4SE/Plugins/DearModdingUI.toml
-          .Build/F4SE/Plugins/DearModdingUI
+          .Build/packages/DearModdingUI-0.1.0-release.zip
+
+    - name: Upload test release
+      uses: actions/upload-artifact@v6
+      with:
+        name: dearmoddingui-0.1.0-test-${{ github.sha }}
+        if-no-files-found: error
+        path: |
+          .Build/packages/DearModdingUI-0.1.0-test.zip

@@ -2,6 +2,8 @@
 
 DearModdingUI is a standalone F4SE plugin that hosts one shared Dear ImGui menu for Fallout 4 mods. Client plugins discover `DearModdingUI.dll` at runtime and register settings or overlay pages through a versioned C ABI, so clients do not link against the host binary.
 
+The project is pre-release (0.x); API-breaking changes are expected as the interfaces are simplified and improved. The host identity and plugin metadata use the version declared in `xmake.lua`.
+
 The host owns the ImGui context, D3D11 and Win32 backends, common shell, navigation, fonts, theme, cursor, background blur, menu toggle key, and host appearance settings. Window layout is stored in `Data/F4SE/Plugins/DearModdingUI/imgui.ini`; host settings are stored in `Data/F4SE/Plugins/DearModdingUI.toml`. The `tree`, `twopane`, or `drilldown` sidebar selected by `[Additional] sMenuSidebarLayout` saves immediately, while cosmetic changes remain previews until Apply.
 
 The host-owned Home page is the landing page for each game launch and gives a concise host identity, registration counts, and overall live-health summary. The peer Health page owns detailed host subsystem observations and the full client registry with per-mod status. Settings is the third host page, and the footer gear navigates to that same authoritative settings surface. Closing and reopening the menu within that launch returns to the last selected host or client page; active-page selection is not persisted across launches.
@@ -35,7 +37,7 @@ New source presentations implement the presentation contract in `NavigationPrese
 
 The ABI, lifecycle, compatibility fingerprint, and registration examples are documented in [`include/DearModdingUI/README.md`](include/DearModdingUI/README.md). Public client headers live in the standalone DearModdingUI API repository and arrive through CommonLibF4's `lib/dearmoddingui-api` public dependency.
 
-Clients locate the `DMUI_GetHostAPI` export at F4SE `kPostPostLoad`, request the current API version, register the client and all pages, then wait for the host-ready callback before drawing. Clients may open a registered settings page through `selectPage`; the host opens and closes the shared menu with `[Additional] sMenuToggleKey`, which defaults to F11. Escape first cancels the active edit or drag, then dismisses the topmost popup or dialog, and closes the shared menu when neither remains.
+Clients locate the `DMUI_GetHostAPI` export at F4SE `kPostPostLoad`, request the current API version, register the client and all pages, then wait for the host-ready callback before drawing. Clients may open a registered settings page through `selectPage`; the host opens and closes the shared menu with `[Additional] sMenuToggleKey`, which defaults to End. Escape first cancels the active edit or drag, then dismisses the topmost popup or dialog, and closes the shared menu when neither remains.
 
 Forwarding-only clients can preflight additive presentation services before
 registration. The host now provides contextual hotkeys, retained D3D11 image
@@ -58,24 +60,51 @@ git clone <repository-url>
 cd DearModdingUI
 git submodule update --init
 git -C Depends/commonlibf4 submodule update --init --recursive
-xmake build -y
+$projectRoot = (Resolve-Path -LiteralPath '.').Path
+xmake f -P "$projectRoot" -m release --test-release=n
+xmake build -P "$projectRoot" -y
+xmake package-release -P "$projectRoot"
 ```
 
-The build writes the deployable payload to `.Build/F4SE/Plugins/`, including `DearModdingUI.dll`, `DearModdingUI.toml`, fonts, and blur shaders.
+The release binaries are written to `.Build/release/F4SE/Plugins/`. The explicit
+package task creates `.Build/packages/release/DearModdingUI/` and
+`.Build/packages/DearModdingUI-0.1.0-release.zip` with only the two production
+plugins and the standard assets. CommonLib automatic install mappings are removed
+from all DMUI plugin targets, so configure and build never copy to a game or mod
+manager path. PDBs remain beside local build outputs and are not included in
+installable archives.
+
+For the diagnostic distribution, configure the same checkout with
+`--test-release=y`, build, and run `package-release`. Its separate
+`.Build/test/` output and `DearModdingUI-0.1.0-test.zip` contain the same host,
+the real MCM bridge with its manually invoked Scaleform probe, and one
+`dmui-test-client.dll`. The release distribution excludes both diagnostics.
+The standalone preview and test client use the same `DMUI Tests` page and state
+implementation, including editable synthetic configuration and image, overlay,
+dialog, notification, and input exercises. Game-only input-context observations
+remain explicitly unexercised in the preview.
+
+Enable the test package instead of the release package, not alongside it: both
+supply the same host and bridge DLL names. Disable the older standalone
+forwarding smoke mod when switching to this package. Preserve your existing
+`DearModdingUI.toml` and window layout rather than replacing them with packaged
+defaults. Switch back to the release package after testing; fixture source stays
+in the repository.
 
 ## Standalone preview
 
 The `dmui-preview` target runs the production menu renderer in its own Win32/D3D11 window with representative fake clients:
 
 ```powershell
-xmake build -y dmui-preview
+$projectRoot = (Resolve-Path -LiteralPath '.').Path
+xmake build -P "$projectRoot" -y dmui-preview
 .\.Build\Preview\dmui-preview.exe
 ```
 
 Headless capture defaults to 3840x2160 and waits three frames before writing the PNG. Use `--page` to select a registered settings page:
 
 ```powershell
-.\.Build\Preview\dmui-preview.exe --screenshot out.png --page dearmodding.addictol/settings
+.\.Build\Preview\dmui-preview.exe --screenshot out.png --page dearmodding.tests.general/results
 ```
 
 `--width`, `--height`, and `--frames` override the capture defaults. The build copies the theme, fonts, and shaders to `.Build/Preview/Data/F4SE/Plugins/`.
@@ -97,7 +126,7 @@ shows the mod root and `--expand <client-id>` opens that mod.
 The forwarding surface is curated in `Tools/imgui_forward_allowlist.json`. Generate the API repository header and validate every referenced symbol against the built host with:
 
 ```powershell
-python Tools/generate_imgui_forward.py --definitions Depends/cimgui/generator/output/definitions.json --allowlist Tools/imgui_forward_allowlist.json --output ../DearModdingUI-API/include/DearModdingUI/ImGuiForward.h --dll .Build/F4SE/Plugins/DearModdingUI.dll --dumpbin <path-to-dumpbin.exe>
+python Tools/generate_imgui_forward.py --definitions Depends/cimgui/generator/output/definitions.json --allowlist Tools/imgui_forward_allowlist.json --output ../DearModdingUI-API/include/DearModdingUI/ImGuiForward.h --dll .Build/release/F4SE/Plugins/DearModdingUI.dll --dumpbin <path-to-dumpbin.exe>
 ```
 
 ## License

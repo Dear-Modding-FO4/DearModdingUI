@@ -514,6 +514,11 @@ namespace vmm_tests
 
 	void run_dear_modding_ui_checks(Runner& runner)
 	{
+		runner.test("host reports the 0.1.0 development version", [] {
+			require(kHostVersion == "0.1.0",
+				"host identity does not match the development version");
+		});
+
 		runner.test("DearModdingUI reports and negotiates the 0.1 ABI", [] {
 			require(
 				DMUI_API_VERSION_CURRENT == DMUI_MAKE_VERSION(0u, 1u) &&

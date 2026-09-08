@@ -148,3 +148,48 @@ errors. Unsupported images retain their metadata, warning, and counts but emit n
 load-bearing unsupported controls remain visible and disabled. The preview accepts
 `DMUI_PREVIEW_MCM_INSTALLED=0` and `DMUI_PREVIEW_GAME_LOADED=0` to inspect the missing-MCM and
 main-menu states without adding command-line surface.
+
+## Test-release Scaleform context gate
+
+The test release registers a private diagnostic client at F4SE `kPostPostLoad`.
+The release package excludes the probe implementation. The page never starts a
+probe automatically.
+
+```powershell
+$projectRoot = (Resolve-Path -LiteralPath '.').Path
+xmake f -P "$projectRoot" -m release --test-release=y
+xmake build -P "$projectRoot" -y DearModdingUI-MCM
+```
+
+To return to the standard build:
+
+```powershell
+xmake f -P "$projectRoot" -m release --test-release=n
+xmake build -P "$projectRoot" -y DearModdingUI-MCM
+```
+
+After launching the game with the opt-in build:
+
+1. Open the DearModdingUI menu and select **Scaleform Context Spike**.
+2. Open the real PauseMenu/MCM, leave it open, and open DearModdingUI over it. Choose
+   **Inspect real PauseMenu** to capture a read-only reference.
+3. Close DearModdingUI and the real PauseMenu, then reopen the spike page. Choose
+   **Start isolated context**, and watch the bounded five-second
+   run. The private `MainMenu` movie is loaded through the engine `LoadMovie` path but is never
+   registered in `UI::menuMap`, inserted into the menu stack, rendered by this probe, or given input.
+4. Choose **Stop** at any time. Teardown requests nonblocking rendering shutdown and retains the
+   movie until the UI task thread confirms that shutdown completed.
+
+   A context verdict is recorded before rendering shutdown and survives a later Stop or game-load
+   request. Cleanup status remains separate, so a retained movie cannot appear successfully released.
+
+   `PauseMode` is diagnostic metadata, not a pass/fail requirement: even the working real menu did not
+   return a Boolean through the original probe. The page and log now retain its raw type/value from
+   both path and member lookups, distinguishing lookup failure from a non-Boolean value. Reference
+   inspection is a single snapshot; it does not measure advancement or advance the real movie.
+
+   A pass requires the private movie to advance and expose the genuine MainMenu, F4SE, MCM document,
+PauseMenu code-object, and read-only `GetMCMVersionCode` callback path. A blocked result is a valid
+spike outcome and reports the missing context instead of fabricating it. Even a pass proves only
+context/bootstrap and lifetime behavior. It does not prove pixel rendering, input delivery, real
+settings writes, or embedded MCM compatibility, and it does not generate screenshots.

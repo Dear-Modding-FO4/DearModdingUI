@@ -957,6 +957,8 @@ namespace DearModdingUIPreview
 
 			~Application()
 			{
+				if (m_fakeData)
+					m_fakeData->Stop();
 				PresentationServices::InvalidateDevice();
 				g_imguiBackendReady = false;
 				g_renderer = nullptr;
@@ -1024,6 +1026,7 @@ namespace DearModdingUIPreview
 				m_fakeData = std::make_unique<FakeData>();
 				std::string registrationError;
 				if (!m_fakeData->Register(
+						m_renderer.Device(),
 						registrationError,
 						m_options.navigationOverride.has_value()))
 				{

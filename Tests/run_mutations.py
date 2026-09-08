@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = Path(__file__).with_name("mutations.json")
-BUILD_COMMAND = ["xmake", "build", "-P", ".", "-r", "-y", "dmui-tests"]
+BUILD_COMMAND = ["xmake", "build", "-P", str(ROOT), "-r", "-y", "dmui-tests"]
 TEST_COMMAND = [str(ROOT / ".Build/Tests/dmui-tests.exe")]
 SUMMARY_PATTERN = re.compile(r"^(\d+)/(\d+) checks passed$")
 REQUIRED_FIELDS = {"name", "target", "find", "replace", "check", "message"}

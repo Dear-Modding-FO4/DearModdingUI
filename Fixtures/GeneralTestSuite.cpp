@@ -1,14 +1,9 @@
-#include <DearModdingUI/Client.h>
+#include "GeneralTestSuite.h"
 
-#include "HotkeyDescriptors.h"
+#include <GeneralTestFixtures.h>
+#include "TestHotkeyDescriptors.h"
 
-#if defined(IMGUI_VERSION) || defined(IMGUI_VERSION_NUM)
-#error "dmui-forwarding-smoke must use forwarding declarations, never real Dear ImGui headers"
-#endif
-
-#include <F4SE/F4SE.h>
-#include <RE/B/BSGraphics.h>
-#include <REX/REX.h>
+namespace ImGui = DmuiFixtureImGui;
 
 #include <Windows.h>
 #include <d3d11.h>
@@ -31,10 +26,35 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
-namespace DmuiForwardingSmoke
+namespace DmuiTestFixtures
 {
+	void DrawExerciseIntro(
+		dmui::Client& a_client,
+		ExerciseKind a_kind,
+		Outcome a_outcome,
+		std::string_view a_observed) noexcept
+	{
+		const auto& page = Page(a_kind);
+		(void)a_client.DrawSectionHeader(page.displayName);
+		ImGui::TextWrapped("How to: %s", page.howTo);
+		ImGui::TextWrapped("Expected: %s", page.expected);
+		ImGui::Text(
+			"Observed: %s%s%.*s",
+			OutcomeName(a_outcome),
+			a_observed.empty() ? "" : " - ",
+			static_cast<int>(a_observed.size()),
+			a_observed.data());
+		ImGui::Separator();
+	}
+}
+
+namespace DmuiTests
+{
+	namespace dmui = DmuiFixtureClient;
+
 	using namespace std::chrono_literals;
 	using namespace std::literals;
 	using Microsoft::WRL::ComPtr;
@@ -190,34 +210,14 @@ namespace DmuiForwardingSmoke
 			}
 		}
 
-		class RendererDataLock
-		{
-		public:
-			explicit RendererDataLock(RE::BSGraphics::RendererData& a_data) noexcept :
-				lock_(std::addressof(a_data.rendererLock.criticalSection))
-			{
-				REX::W32::EnterCriticalSection(lock_);
-			}
-
-			~RendererDataLock() noexcept
-			{
-				REX::W32::LeaveCriticalSection(lock_);
-			}
-
-			RendererDataLock(const RendererDataLock&) = delete;
-			RendererDataLock& operator=(const RendererDataLock&) = delete;
-
-		private:
-			REX::W32::CRITICAL_SECTION* lock_;
-		};
-
 		class State
 		{
 		public:
-			State() :
+			explicit State(Environment& a_environment) :
+				environment_(a_environment),
 				client_(
-					"dearmodding.forwarding-smoke",
-					"Forwarding Smoke Test",
+					DmuiTestFixtures::kClientId,
+					DmuiTestFixtures::kClientDisplayName,
 					dmui::Version{ 0, 1 },
 					dmui::kForwardingClient,
 					"test-tube",
@@ -256,8 +256,8 @@ namespace DmuiForwardingSmoke
 			{
 				const auto connected = client_.Connect();
 				initializationResult_ = client_.LastResult();
-				REX::INFO(
-					"dmui-forwarding-smoke: preflight connect={} result={} "
+				LogInfo(
+					"dmui-test-client: preflight connect={} result={} "
 					"host-present={} unavailable-reason={} required-services=0x{:X} "
 					"minimum-forwarding={}.{}"sv,
 					connected,
@@ -279,8 +279,8 @@ namespace DmuiForwardingSmoke
 				{
 					services_ = *services;
 					servicesResult_ = client_.LastResult();
-					REX::INFO(
-						"dmui-forwarding-smoke: service preflight result={} "
+					LogInfo(
+						"dmui-test-client: service preflight result={} "
 						"forwarding={}.{} supported=0x{:X} required=0x{:X}"sv,
 						DMUI_ResultToString(servicesResult_),
 						DMUI_VERSION_MAJOR(services_.forwardingVersion),
@@ -291,71 +291,61 @@ namespace DmuiForwardingSmoke
 				else
 				{
 					servicesResult_ = client_.LastResult();
-					REX::ERROR(
-						"dmui-forwarding-smoke: service preflight result={}"sv,
+					LogError(
+						"dmui-test-client: service preflight result={}"sv,
 						DMUI_ResultToString(servicesResult_));
 					return RegistrationFailure("service preflight");
 				}
-				if (!client_.AddCategory({
-						.id = "development",
-						.displayName = "Development"
-					}))
-					return RegistrationFailure("category");
-
 				// Register this before pages and before any frame demand. Image
 				// import is attempted only by this observer.
 				if (!client_.AddFrameObserver([this] { ObserveFrame(); }))
 					return RegistrationFailure("frame observer");
-				REX::INFO(
-					"dmui-forwarding-smoke: registration frame-observer result={}"sv,
+				LogInfo(
+					"dmui-test-client: registration frame-observer result={}"sv,
 					DMUI_ResultToString(client_.LastResult()));
 
-				const auto settings = client_.AddPage(
-						{
-							.id = "forwarding-smoke",
-							.displayName = "Forwarding Smoke Test (Development Only)",
-							.categoryId = "development",
-							.summary =
-								"Manual verification of layout-independent forwarding services.",
-							.sortKey = 9900
-						},
-						[this] { DrawSettings(); });
-				if (!settings)
-					return RegistrationFailure("settings page");
-				settingsPage_ = *settings;
-				REX::INFO(
-					"dmui-forwarding-smoke: registration settings-page "
-					"result={} handle={}"sv,
+				const auto exercises = DmuiTestFixtures::RegisterExercises(
+					client_,
+					[this](DmuiTestFixtures::ExerciseKind a_kind) {
+						DrawExercise(a_kind);
+					});
+				if (!exercises)
+					return RegistrationFailure("exercise pages");
+				exercisePages_ = exercises->pages;
+				LogInfo(
+					"dmui-test-client: registration exercise-pages "
+					"result={} count={}"sv,
 					DMUI_ResultToString(client_.LastResult()),
-					settingsPage_);
+					exercisePages_.size());
 
 				const auto overlay = client_.AddPage(
 					{
-						.id = "forwarding-smoke-overlay",
-						.displayName = "Forwarding Smoke Overlay",
-						.categoryId = "development",
-						.summary = "Managed non-interactive smoke-test overlay.",
-						.sortKey = 9901,
+						.id = "managed-overlay",
+						.displayName = "DMUI Test Overlay",
+						.categoryId = DmuiTestFixtures::kCategoryId.data(),
+						.summary = "Managed non-interactive test overlay.",
+						.sortKey = 100,
 						.kind = DMUI_PAGE_KIND_OVERLAY
 					},
 					[this] { DrawOverlay(); });
 				if (!overlay)
 					return RegistrationFailure("overlay page");
 				overlayPage_ = *overlay;
-				REX::INFO(
-					"dmui-forwarding-smoke: registration overlay-page "
+				LogInfo(
+					"dmui-test-client: registration overlay-page "
 					"result={} handle={}"sv,
 					DMUI_ResultToString(client_.LastResult()),
 					overlayPage_);
-				ApplyOverlayConfiguration();
+				if (!ApplyOverlayConfiguration())
+					return RegistrationFailure("overlay configuration");
 
 				if (!client_.AddPageActivityObserver(
 						[this](const dmui::PageActivity& a_activity) {
 							OnPageActivity(a_activity);
 						}))
 					return RegistrationFailure("page activity observer");
-				REX::INFO(
-					"dmui-forwarding-smoke: registration page-activity-observer "
+				LogInfo(
+					"dmui-test-client: registration page-activity-observer "
 					"result={}"sv,
 					DMUI_ResultToString(client_.LastResult()));
 
@@ -374,8 +364,8 @@ namespace DmuiForwardingSmoke
 					if (!handle)
 					{
 						const auto result = client_.LastResult();
-						REX::ERROR(
-							"dmui-forwarding-smoke: hotkey registration id={} "
+						LogError(
+							"dmui-test-client: hotkey registration id={} "
 							"result={} suggested={} policy={} effective=unavailable"sv,
 							probe.id,
 							DMUI_ResultToString(result),
@@ -392,8 +382,8 @@ namespace DmuiForwardingSmoke
 					probe.lastResult = client_.LastResult();
 					if (!binding)
 					{
-						REX::ERROR(
-							"dmui-forwarding-smoke: hotkey registration id={} "
+						LogError(
+							"dmui-test-client: hotkey registration id={} "
 							"result=OK suggested={} policy={} binding-result={} "
 							"effective=unavailable"sv,
 							probe.id,
@@ -407,8 +397,8 @@ namespace DmuiForwardingSmoke
 						continue;
 					}
 					probe.binding = *binding;
-					REX::INFO(
-						"dmui-forwarding-smoke: hotkey registration id={} "
+					LogInfo(
+						"dmui-test-client: hotkey registration id={} "
 						"result=OK suggested={} policy={} effective={} state={}"sv,
 						probe.id,
 						probe.suggested,
@@ -419,11 +409,26 @@ namespace DmuiForwardingSmoke
 				if (!allHotkeysRegistered)
 					return false;
 
+				std::string syntheticError;
+				if (!DmuiTestFixtures::RegisterSyntheticClients(
+						syntheticClients_,
+						syntheticSettings_,
+						syntheticError))
+				{
+					LogError(
+						"dmui-test-client: synthetic fixtures failed: {}"sv,
+						syntheticError);
+					MarkInitializationIncomplete(
+						"synthetic fixture clients",
+						DMUI_RESULT_CALLBACK_FAILED);
+					return false;
+				}
+
 				initializationStatus_ = InitializationStatus::kComplete;
 				initializationStage_ = "complete";
 				initializationResult_ = DMUI_RESULT_OK;
-				REX::INFO(
-					"dmui-forwarding-smoke: initialization complete; "
+				LogInfo(
+					"dmui-test-client: initialization complete; "
 					"registered forwarding client (API {}.{})"sv,
 					DMUI_VERSION_MAJOR(DMUI_API_VERSION_CURRENT),
 					DMUI_VERSION_MINOR(DMUI_API_VERSION_CURRENT));
@@ -448,6 +453,56 @@ namespace DmuiForwardingSmoke
 			}
 
 		private:
+			template <class... Args>
+			void Log(
+				LogLevel a_level,
+				std::string_view a_format,
+				Args&&... a_args) noexcept
+			{
+				try
+				{
+					environment_.Log(
+						a_level,
+						std::vformat(
+							a_format,
+							std::make_format_args(a_args...)));
+				}
+				catch (const std::format_error&)
+				{
+					environment_.Log(
+						LogLevel::kError,
+						"dmui-test-client: invalid internal log format follows");
+					environment_.Log(LogLevel::kError, a_format);
+				}
+			}
+
+			template <class... Args>
+			void LogInfo(std::string_view a_format, Args&&... a_args) noexcept
+			{
+				Log(
+					LogLevel::kInfo,
+					a_format,
+					std::forward<Args>(a_args)...);
+			}
+
+			template <class... Args>
+			void LogWarning(std::string_view a_format, Args&&... a_args) noexcept
+			{
+				Log(
+					LogLevel::kWarning,
+					a_format,
+					std::forward<Args>(a_args)...);
+			}
+
+			template <class... Args>
+			void LogError(std::string_view a_format, Args&&... a_args) noexcept
+			{
+				Log(
+					LogLevel::kError,
+					a_format,
+					std::forward<Args>(a_args)...);
+			}
+
 			void MarkInitializationIncomplete(
 				std::string_view a_scope,
 				DMUI_Result a_result) noexcept
@@ -465,12 +520,12 @@ namespace DmuiForwardingSmoke
 			{
 				const auto result = client_.LastResult();
 				MarkInitializationIncomplete(a_scope, result);
-				REX::ERROR(
-					"dmui-forwarding-smoke: initialization incomplete; "
+				LogError(
+					"dmui-test-client: initialization incomplete; "
 					"registration={} result={} partial-registration={}"sv,
 					a_scope,
 					DMUI_ResultToString(result),
-					settingsPage_ != DMUI_INVALID_PAGE_HANDLE);
+					exercisePages_.front() != DMUI_INVALID_PAGE_HANDLE);
 				return false;
 			}
 
@@ -480,14 +535,14 @@ namespace DmuiForwardingSmoke
 					return;
 				if (!client_.HostPresent())
 				{
-					REX::WARN(
-						"dmui-forwarding-smoke: DearModdingUI host absent; "
+					LogWarning(
+						"dmui-test-client: DearModdingUI host absent; "
 						"registered nothing"sv);
 				}
 				else
 				{
-					REX::WARN(
-						"dmui-forwarding-smoke: host incompatible ({}); "
+					LogWarning(
+						"dmui-test-client: host incompatible ({}); "
 						"registered nothing"sv,
 						DMUI_ResultToString(client_.LastResult()));
 				}
@@ -519,8 +574,8 @@ namespace DmuiForwardingSmoke
 					cpuImageUpdateCount_;
 
 				++snapshotsLogged_;
-				REX::INFO(
-					"dmui-forwarding-smoke: snapshot trigger={} sequence={} "
+				LogInfo(
+					"dmui-test-client: snapshot trigger={} sequence={} "
 					"initialization={} stage={} result={} overall=not-evaluated "
 					"outcomes[hotkeys={},overlay={},image={},notifications={},"
 					"edits={},dialogs={}] counts[hotkey-edges={},frame-demand={}/{},"
@@ -562,8 +617,8 @@ namespace DmuiForwardingSmoke
 				{
 					const auto exercised =
 						probe.presses.load() || probe.releases.load();
-					REX::INFO(
-						"dmui-forwarding-smoke: snapshot-hotkey sequence={} "
+					LogInfo(
+						"dmui-test-client: snapshot-hotkey sequence={} "
 						"id={} outcome={} enabled={} effective={} state={} "
 						"result={} down={} up={}"sv,
 						snapshotsLogged_,
@@ -582,22 +637,19 @@ namespace DmuiForwardingSmoke
 
 			void OnPageActivity(const dmui::PageActivity& a_activity) noexcept
 			{
-				if (settingsPage_ == DMUI_INVALID_PAGE_HANDLE)
+				const auto isExercise = [this](DMUI_PageHandle a_page) {
+					return a_page != DMUI_INVALID_PAGE_HANDLE &&
+						std::ranges::find(exercisePages_, a_page) !=
+							exercisePages_.end();
+				};
+				if (!isExercise(a_activity.previousPage) ||
+					a_activity.previousPage == a_activity.activePage)
 					return;
 
-				const auto active =
-					a_activity.activePage == settingsPage_;
-				if (active)
-				{
-					settingsPageActive_ = true;
-					return;
-				}
-				if (settingsPageActive_ &&
-					a_activity.previousPage == settingsPage_)
-				{
-					settingsPageActive_ = false;
-					LogSnapshot("settings-page-deactivated");
-				}
+				LogSnapshot(
+					a_activity.activePage == DMUI_INVALID_PAGE_HANDLE ?
+						"exercise-menu-deactivated" :
+						"exercise-page-left");
 			}
 
 			void SetHotkey(
@@ -663,25 +715,7 @@ namespace DmuiForwardingSmoke
 
 			[[nodiscard]] ComPtr<ID3D11Device> AcquireRendererDevice() noexcept
 			{
-				auto* rendererData = RE::BSGraphics::GetRendererData();
-				if (!rendererData)
-					return {};
-
-				// Match PlatformImgui::CaptureRendererSnapshot: lock the
-				// published RendererData, revalidate its identity, and retain the
-				// COM object before the protected scope can end.
-				const RendererDataLock rendererLock{ *rendererData };
-				if (RE::BSGraphics::GetRendererData() != rendererData ||
-					!rendererData->initialized ||
-					!rendererData->device)
-					return {};
-
-				auto* device =
-					reinterpret_cast<ID3D11Device*>(rendererData->device);
-				device->AddRef();
-				ComPtr<ID3D11Device> result;
-				result.Attach(device);
-				return result;
+				return environment_.AcquireRendererDevice();
 			}
 
 			void RefreshImage() noexcept
@@ -692,8 +726,8 @@ namespace DmuiForwardingSmoke
 					if (!deviceWaitingLogged_)
 					{
 						deviceWaitingLogged_ = true;
-						REX::INFO(
-							"dmui-forwarding-smoke: waiting for the game D3D11 device"sv);
+						LogInfo(
+							"dmui-test-client: waiting for the renderer D3D11 device"sv);
 					}
 					return;
 				}
@@ -713,8 +747,8 @@ namespace DmuiForwardingSmoke
 						if (imageStatus_ != info->status ||
 							imageGeneration_ != info->deviceGeneration)
 						{
-							REX::INFO(
-								"dmui-forwarding-smoke: image status transition "
+							LogInfo(
+								"dmui-test-client: image status transition "
 								"status={}->{} generation={}->{}"sv,
 								static_cast<uint32_t>(imageStatus_),
 								static_cast<uint32_t>(info->status),
@@ -733,8 +767,8 @@ namespace DmuiForwardingSmoke
 				if (deviceChanged)
 				{
 					++deviceChangeCount_;
-					REX::INFO(
-						"dmui-forwarding-smoke: renderer device transition "
+					LogInfo(
+						"dmui-test-client: renderer device transition "
 						"count={}"sv,
 						deviceChangeCount_);
 				}
@@ -770,8 +804,8 @@ namespace DmuiForwardingSmoke
 				{
 					imageStatus_ = DMUI_IMAGE_STATUS_RELEASED;
 					++imageReleaseCount_;
-					REX::INFO(
-						"dmui-forwarding-smoke: image release reason={} "
+					LogInfo(
+						"dmui-test-client: image release reason={} "
 						"status={} count={}"sv,
 						a_reason,
 						static_cast<uint32_t>(imageStatus_),
@@ -792,8 +826,8 @@ namespace DmuiForwardingSmoke
 				lastImageFailureScope_ = a_scope;
 				lastImageFailureResult_ = a_result;
 				++imageFailureCount_;
-				REX::ERROR(
-					"dmui-forwarding-smoke: image failure scope={} result={} "
+				LogError(
+					"dmui-test-client: image failure scope={} result={} "
 					"count={}"sv,
 					a_scope,
 					DMUI_ResultToString(a_result),
@@ -871,8 +905,8 @@ namespace DmuiForwardingSmoke
 				image_ = std::move(*image);
 				++imageImportCount_;
 				imageFailureActive_ = false;
-				REX::INFO(
-					"dmui-forwarding-smoke: image import result={} count={}"sv,
+				LogInfo(
+					"dmui-test-client: image import result={} count={}"sv,
 					DMUI_ResultToString(imageResult_),
 					imageImportCount_);
 			}
@@ -949,8 +983,8 @@ namespace DmuiForwardingSmoke
 					{
 						cpuImage_.reset();
 						++cpuImageReleaseCount_;
-						REX::INFO(
-							"dmui-forwarding-smoke: CPU image recycle result={} "
+						LogInfo(
+							"dmui-test-client: CPU image recycle result={} "
 							"count={}"sv,
 							DMUI_ResultToString(cpuImageResult_),
 							cpuImageReleaseCount_);
@@ -981,8 +1015,8 @@ namespace DmuiForwardingSmoke
 				cpuImageHeight_ = height;
 				++cpuImageCreateCount_;
 				imageFailureActive_ = false;
-				REX::INFO(
-					"dmui-forwarding-smoke: CPU image create result={} "
+				LogInfo(
+					"dmui-test-client: CPU image create result={} "
 					"dimensions={}x{} count={}"sv,
 					DMUI_ResultToString(cpuImageResult_),
 					width,
@@ -1012,8 +1046,8 @@ namespace DmuiForwardingSmoke
 				cpuImageHeight_ = height;
 				++cpuImageUpdateCount_;
 				imageFailureActive_ = false;
-				REX::INFO(
-					"dmui-forwarding-smoke: CPU image update result={} "
+				LogInfo(
+					"dmui-test-client: CPU image update result={} "
 					"dimensions={}x{} count={}"sv,
 					DMUI_ResultToString(cpuImageResult_),
 					width,
@@ -1043,14 +1077,14 @@ namespace DmuiForwardingSmoke
 			{
 				if (!image_)
 				{
-					REX::INFO(
-						"dmui-forwarding-smoke: release-after-queued-draw "
+					LogInfo(
+						"dmui-test-client: release-after-queued-draw "
 						"ignored; image=unexercised"sv);
 					return;
 				}
 				imageResult_ = image_->Release();
-				REX::INFO(
-					"dmui-forwarding-smoke: release-after-queued-draw result={}"sv,
+				LogInfo(
+					"dmui-test-client: release-after-queued-draw result={}"sv,
 					DMUI_ResultToString(imageResult_));
 				ReleaseOwnedImageResources("release-after-queued-draw");
 				recreateImage_.store(true, std::memory_order_release);
@@ -1061,20 +1095,22 @@ namespace DmuiForwardingSmoke
 				++imageCycleRequests_;
 				const auto owned =
 					image_.has_value() || imageView_ || imageTexture_ || imageDevice_;
-				REX::INFO(
-					"dmui-forwarding-smoke: image cycle requested count={} "
+				LogInfo(
+					"dmui-test-client: image cycle requested count={} "
 					"owned={}"sv,
 					imageCycleRequests_,
 					owned);
 				recreateImage_.store(true, std::memory_order_release);
 			}
 
-			void ApplyOverlayConfiguration() noexcept
+			[[nodiscard]] bool ApplyOverlayConfiguration() noexcept
 			{
 				if (overlayPage_ == DMUI_INVALID_PAGE_HANDLE)
-					return;
-				(void)client_.ConfigureOverlay(overlayPage_, overlayOptions_);
+					return false;
+				const auto configured =
+					client_.ConfigureOverlay(overlayPage_, overlayOptions_);
 				overlayResult_ = client_.LastResult();
+				return configured;
 			}
 
 			void SetOverlayEnabled(bool a_enabled) noexcept
@@ -1095,8 +1131,8 @@ namespace DmuiForwardingSmoke
 					else
 						++frameReleases_;
 				}
-				REX::INFO(
-					"dmui-forwarding-smoke: overlay demand enabled={} result={} "
+				LogInfo(
+					"dmui-test-client: overlay demand enabled={} result={} "
 					"requests={} releases={}"sv,
 					a_enabled,
 					DMUI_ResultToString(overlayResult_),
@@ -1121,7 +1157,7 @@ namespace DmuiForwardingSmoke
 			void DrawOverlay() noexcept
 			{
 				++overlayDraws_;
-				ImGui::TextUnformatted("FORWARDING SMOKE / MANAGED OVERLAY");
+				ImGui::TextUnformatted("DMUI TESTS / MANAGED OVERLAY");
 				ImGui::Separator();
 				ImGui::Text(
 					"observer=%llu  overlay=%llu  hidden-menu=%llu",
@@ -1173,8 +1209,8 @@ namespace DmuiForwardingSmoke
 						++simulatedSaves_;
 						a_counters.dirty = false;
 					}
-					REX::INFO(
-						"dmui-forwarding-smoke: edit id={} event=completed "
+					LogInfo(
+						"dmui-test-client: edit id={} event=completed "
 						"changed={} completed={} resets={} saves={} total-saves={}"sv,
 						a_id,
 						a_changed,
@@ -1213,8 +1249,8 @@ namespace DmuiForwardingSmoke
 					a_reset();
 					++a_counters.resets;
 					RecordEdit(a_counters, a_id, true, true);
-					REX::INFO(
-						"dmui-forwarding-smoke: edit id={} event=reset "
+					LogInfo(
+						"dmui-test-client: edit id={} event=reset "
 						"completed={} resets={} saves={} total-saves={}"sv,
 						a_id,
 						a_counters.completed,
@@ -1228,8 +1264,6 @@ namespace DmuiForwardingSmoke
 			void DrawSettings() noexcept
 			{
 				++settingsDraws_;
-				(void)client_.DrawSectionHeader(
-					"Development-only forwarding smoke harness");
 				ImGui::TextWrapped(
 					"This page uses only the official forwarding API. "
 					"Expected: host ready, all service bits present, and "
@@ -1268,12 +1302,6 @@ namespace DmuiForwardingSmoke
 				if (ImGui::Button("Log current results"))
 					LogSnapshot("manual-button");
 
-				DrawNativeEdits();
-				DrawOverlayControls();
-				DrawImageControls();
-				DrawNotificationAndDialogs();
-				DrawHotkeyControls();
-
 				(void)client_.DrawSectionHeader("Expected outcomes");
 				(void)client_.DrawBulletText(
 					"Unchanged clicks do not increment simulated saves; "
@@ -1287,6 +1315,111 @@ namespace DmuiForwardingSmoke
 				(void)client_.DrawBulletText(
 					"Rejected names preserve text. Confirm operations count "
 					"only after COMPLETED; cancellation never counts.");
+			}
+
+			void DrawExercise(
+				DmuiTestFixtures::ExerciseKind a_kind) noexcept
+			{
+				const auto outcome = OutcomeFor(a_kind);
+				DmuiTestFixtures::DrawExerciseIntro(
+					client_,
+					a_kind,
+					outcome,
+					OutcomeObservation(a_kind));
+				switch (a_kind)
+				{
+				case DmuiTestFixtures::ExerciseKind::kResults:
+					DrawSettings();
+					break;
+				case DmuiTestFixtures::ExerciseKind::kImages:
+					DrawImageControls();
+					break;
+				case DmuiTestFixtures::ExerciseKind::kOverlay:
+					DrawOverlayControls();
+					break;
+				case DmuiTestFixtures::ExerciseKind::kInteractions:
+					DrawNativeEdits();
+					DrawHotkeyControls();
+					break;
+				case DmuiTestFixtures::ExerciseKind::kNotificationsAndDialogs:
+					DrawNotificationAndDialogs();
+					break;
+				case DmuiTestFixtures::ExerciseKind::kPlot:
+					DrawOverlay();
+					break;
+				}
+			}
+
+			[[nodiscard]] DmuiTestFixtures::Outcome OutcomeFor(
+				DmuiTestFixtures::ExerciseKind a_kind) const noexcept
+			{
+				using DmuiTestFixtures::ExerciseKind;
+				using DmuiTestFixtures::Outcome;
+				switch (a_kind)
+				{
+				case ExerciseKind::kResults:
+					return initializationStatus_ == InitializationStatus::kComplete ?
+						Outcome::kObserved :
+						initializationStatus_ == InitializationStatus::kIncomplete ?
+							Outcome::kFailed :
+							Outcome::kUnexercised;
+				case ExerciseKind::kImages:
+					if (imageFailureCount_ > 0 ||
+						(cpuImageCreateCount_ > 0 &&
+						 cpuImageResult_ != DMUI_RESULT_OK))
+						return Outcome::kFailed;
+					return cpuImageUpdateCount_ > 0 || imageCycleRequests_ > 0 ?
+						Outcome::kObserved :
+						Outcome::kUnexercised;
+				case ExerciseKind::kOverlay:
+					if (overlayDemandAttempts_ > 0 &&
+						overlayResult_ != DMUI_RESULT_OK)
+						return Outcome::kFailed;
+					return frameRequests_ > 0 || arrangementCompletions_ > 0 ?
+						Outcome::kObserved :
+						Outcome::kUnexercised;
+				case ExerciseKind::kInteractions:
+					if (hotkeyResult_ != DMUI_RESULT_OK)
+						return Outcome::kFailed;
+					return simulatedSaves_ > 0 ||
+							std::ranges::any_of(hotkeys_, [](const auto& a_probe) {
+								return a_probe.presses.load() > 0 ||
+									a_probe.releases.load() > 0;
+							}) ?
+						Outcome::kObserved :
+						Outcome::kUnexercised;
+				case ExerciseKind::kNotificationsAndDialogs:
+					if ((notificationSchedules_ > 0 &&
+						 notificationResult_.load() != DMUI_RESULT_OK) ||
+						(dialogRequestAttempts_ > 0 &&
+						 dialogResult_ != DMUI_RESULT_OK))
+						return Outcome::kFailed;
+					return pageNotifications_ > 0 ||
+							delayedNotifications_.load() > 0 ||
+							dialogSubmissions_ > 0 ||
+							dialogCancellations_ > 0 ?
+						Outcome::kObserved :
+						Outcome::kUnexercised;
+				case ExerciseKind::kPlot:
+					if (plotDraws_ > 0 && plotResult_ != DMUI_RESULT_OK)
+						return Outcome::kFailed;
+					return plotDraws_ > 0 ?
+						Outcome::kObserved :
+						Outcome::kUnexercised;
+				default:
+					return Outcome::kUnexercised;
+				}
+			}
+
+			[[nodiscard]] std::string_view OutcomeObservation(
+				DmuiTestFixtures::ExerciseKind a_kind) const noexcept
+			{
+				if (a_kind == DmuiTestFixtures::ExerciseKind::kInteractions &&
+					!environment_.SupportsGameInputContexts())
+					return "edits are active; F4SE game-input contexts are unavailable in preview";
+				return OutcomeFor(a_kind) == DmuiTestFixtures::Outcome::kUnexercised ?
+					"no explicit action or observation recorded" :
+					"see the live counters and last-result fields below";
 			}
 
 			void DrawNativeEdits() noexcept
@@ -1444,7 +1577,7 @@ namespace DmuiForwardingSmoke
 											selected))
 									{
 										overlayOptions_.anchor = anchor;
-										ApplyOverlayConfiguration();
+										(void)ApplyOverlayConfiguration();
 									}
 									if (selected)
 										ImGui::SetItemDefaultFocus();
@@ -1495,7 +1628,7 @@ namespace DmuiForwardingSmoke
 							{
 								overlayOptions_.allowArrangement =
 									enabled ? 1u : 0u;
-								ApplyOverlayConfiguration();
+								(void)ApplyOverlayConfiguration();
 							}
 						}))
 				{
@@ -1551,7 +1684,7 @@ namespace DmuiForwardingSmoke
 								&a_maximum,
 								"%.2f",
 								ImGuiSliderFlags_AlwaysClamp))
-							ApplyOverlayConfiguration();
+							(void)ApplyOverlayConfiguration();
 					});
 			}
 
@@ -1617,15 +1750,15 @@ namespace DmuiForwardingSmoke
 				{
 					const auto posted = client_.PostNotification(
 						DMUI_STATUS_SEVERITY_SUCCESS,
-						"Forwarding smoke: page notification copied successfully.",
+						"DMUI Tests: page notification posted successfully.",
 						3500);
 					if (posted)
 						++pageNotifications_;
 					notificationResult_.store(
 						client_.LastResult(),
 						std::memory_order_release);
-					REX::INFO(
-						"dmui-forwarding-smoke: notification page-post={} "
+					LogInfo(
+						"dmui-test-client: notification page-post={} "
 						"result={} count={}"sv,
 						posted,
 						DMUI_ResultToString(notificationResult_.load()),
@@ -1675,15 +1808,15 @@ namespace DmuiForwardingSmoke
 				++dialogRequestAttempts_;
 				if (dialog_ != DMUI_INVALID_DIALOG_HANDLE)
 				{
-					REX::INFO(
-						"dmui-forwarding-smoke: dialog confirm request ignored; "
+					LogInfo(
+						"dmui-test-client: dialog confirm request ignored; "
 						"another dialog is pending"sv);
 					return;
 				}
 				const DMUI_DialogDescriptor descriptor{
 					sizeof(DMUI_DialogDescriptor),
 					DMUI_DIALOG_KIND_CONFIRM,
-					"Forwarding smoke confirmation",
+					"DMUI Tests confirmation",
 					"Accepting performs one harmless in-memory operation after "
 					"a short simulated in-flight delay.",
 					"Accept",
@@ -1706,16 +1839,16 @@ namespace DmuiForwardingSmoke
 				dialogResult_ = client_.LastResult();
 				if (requested)
 				{
-					REX::INFO(
-						"dmui-forwarding-smoke: dialog kind=confirm event=pending "
+					LogInfo(
+						"dmui-test-client: dialog kind=confirm event=pending "
 						"result={} requests={}"sv,
 						DMUI_ResultToString(dialogResult_),
 						dialogRequests_);
 				}
 				else
 				{
-					REX::ERROR(
-						"dmui-forwarding-smoke: dialog kind=confirm "
+					LogError(
+						"dmui-test-client: dialog kind=confirm "
 						"request-failed result={}"sv,
 						DMUI_ResultToString(dialogResult_));
 				}
@@ -1726,15 +1859,15 @@ namespace DmuiForwardingSmoke
 				++dialogRequestAttempts_;
 				if (dialog_ != DMUI_INVALID_DIALOG_HANDLE)
 				{
-					REX::INFO(
-						"dmui-forwarding-smoke: dialog text request ignored; "
+					LogInfo(
+						"dmui-test-client: dialog text request ignored; "
 						"another dialog is pending"sv);
 					return;
 				}
 				const DMUI_DialogDescriptor descriptor{
 					sizeof(DMUI_DialogDescriptor),
 					DMUI_DIALOG_KIND_TEXT_ENTRY,
-					"Forwarding smoke name",
+					"DMUI Tests name",
 					"Enter a unique in-memory name.",
 					"Validate",
 					"Cancel",
@@ -1756,16 +1889,16 @@ namespace DmuiForwardingSmoke
 				dialogResult_ = client_.LastResult();
 				if (requested)
 				{
-					REX::INFO(
-						"dmui-forwarding-smoke: dialog kind=text event=pending "
+					LogInfo(
+						"dmui-test-client: dialog kind=text event=pending "
 						"result={} requests={}"sv,
 						DMUI_ResultToString(dialogResult_),
 						dialogRequests_);
 				}
 				else
 				{
-					REX::ERROR(
-						"dmui-forwarding-smoke: dialog kind=text "
+					LogError(
+						"dmui-test-client: dialog kind=text "
 						"request-failed result={}"sv,
 						DMUI_ResultToString(dialogResult_));
 				}
@@ -1792,8 +1925,8 @@ namespace DmuiForwardingSmoke
 							{
 								lastDuplicateSubmission_ = event->submissionId;
 								++duplicateSubmissions_;
-								REX::INFO(
-									"dmui-forwarding-smoke: dialog event=duplicate "
+								LogInfo(
+									"dmui-test-client: dialog event=duplicate "
 									"submission={} duplicates={}"sv,
 									event->submissionId,
 									duplicateSubmissions_);
@@ -1806,8 +1939,8 @@ namespace DmuiForwardingSmoke
 						resolveAtFrame_ = frameCount_ + kDialogDelayFrames;
 						resolutionSent_ = false;
 						++dialogSubmissions_;
-						REX::INFO(
-							"dmui-forwarding-smoke: dialog event=submitted "
+						LogInfo(
+							"dmui-test-client: dialog event=submitted "
 							"submission={} submissions={}"sv,
 							activeSubmission_,
 							dialogSubmissions_);
@@ -1818,8 +1951,8 @@ namespace DmuiForwardingSmoke
 						{
 							lastDuplicateSubmission_ = event->submissionId;
 							++duplicateSubmissions_;
-							REX::INFO(
-								"dmui-forwarding-smoke: dialog event=duplicate "
+							LogInfo(
+								"dmui-test-client: dialog event=duplicate "
 								"submission={} duplicates={}"sv,
 								event->submissionId,
 								duplicateSubmissions_);
@@ -1831,8 +1964,8 @@ namespace DmuiForwardingSmoke
 					break;
 				case DMUI_DIALOG_EVENT_CANCELLED:
 					++dialogCancellations_;
-					REX::INFO(
-						"dmui-forwarding-smoke: dialog event=cancelled "
+					LogInfo(
+						"dmui-test-client: dialog event=cancelled "
 						"cancellations={}"sv,
 						dialogCancellations_);
 					ClearDialog();
@@ -1846,8 +1979,8 @@ namespace DmuiForwardingSmoke
 							acceptedNames_.push_back(submittedText_);
 						++textAccepts_;
 					}
-					REX::INFO(
-						"dmui-forwarding-smoke: dialog event=completed "
+					LogInfo(
+						"dmui-test-client: dialog event=completed "
 						"confirm-operations={} text-accepts={} text-rejects={} "
 						"cancellations={}"sv,
 						confirmOperations_,
@@ -1904,8 +2037,8 @@ namespace DmuiForwardingSmoke
 					}
 				}
 				dialogResult_ = client_.LastResult();
-				REX::INFO(
-					"dmui-forwarding-smoke: dialog event=resolution "
+				LogInfo(
+					"dmui-test-client: dialog event=resolution "
 					"submission={} accepted={} result={} rejects={}"sv,
 					submission,
 					accepted,
@@ -1929,8 +2062,8 @@ namespace DmuiForwardingSmoke
 					client_.UnavailableReason() != DMUI_UNAVAILABLE_NONE)
 				{
 					++workerSuppressed_;
-					REX::INFO(
-						"dmui-forwarding-smoke: delayed notification "
+					LogInfo(
+						"dmui-test-client: delayed notification "
 						"schedule=suppressed unavailable-reason={} count={}"sv,
 						static_cast<uint32_t>(client_.UnavailableReason()),
 						workerSuppressed_.load());
@@ -1944,15 +2077,15 @@ namespace DmuiForwardingSmoke
 						std::memory_order_acq_rel))
 				{
 					++workerBusyRejections_;
-					REX::INFO(
-						"dmui-forwarding-smoke: delayed notification "
+					LogInfo(
+						"dmui-test-client: delayed notification "
 						"schedule=busy-rejected count={}"sv,
 						workerBusyRejections_);
 					return;
 				}
 
-				REX::INFO(
-					"dmui-forwarding-smoke: delayed notification schedule=accepted"sv);
+				LogInfo(
+					"dmui-test-client: delayed notification schedule=accepted"sv);
 				++notificationSchedules_;
 				notificationWorker_ = std::jthread([this](std::stop_token a_stop) {
 					std::this_thread::sleep_for(650ms);
@@ -1965,8 +2098,8 @@ namespace DmuiForwardingSmoke
 								DMUI_UNAVAILABLE_NONE)
 						{
 							++workerSuppressed_;
-							REX::INFO(
-								"dmui-forwarding-smoke: delayed notification "
+							LogInfo(
+								"dmui-test-client: delayed notification "
 								"post=suppressed unavailable-reason={} count={}"sv,
 								static_cast<uint32_t>(
 									client_.UnavailableReason()),
@@ -1978,7 +2111,7 @@ namespace DmuiForwardingSmoke
 						}
 						const auto posted = client_.PostNotification(
 							DMUI_STATUS_SEVERITY_INFO,
-							"Forwarding smoke: delayed notification posted "
+							"DMUI Tests: delayed notification posted "
 							"from a bounded worker thread.",
 							4000);
 						notificationResult_.store(
@@ -1986,8 +2119,8 @@ namespace DmuiForwardingSmoke
 							std::memory_order_release);
 						if (posted)
 							++delayedNotifications_;
-						REX::INFO(
-							"dmui-forwarding-smoke: delayed notification "
+						LogInfo(
+							"dmui-test-client: delayed notification "
 							"post={} result={} count={}"sv,
 							posted,
 							DMUI_ResultToString(notificationResult_.load()),
@@ -2004,8 +2137,8 @@ namespace DmuiForwardingSmoke
 					++probe.presses;
 				else
 					++probe.releases;
-				REX::INFO(
-					"dmui-forwarding-smoke: hotkey id={} event={} down={} up={}"sv,
+				LogInfo(
+					"dmui-test-client: hotkey id={} event={} down={} up={}"sv,
 					probe.id,
 					a_pressed ? "press" : "release",
 					probe.presses.load(),
@@ -2036,8 +2169,8 @@ namespace DmuiForwardingSmoke
 						probe.lastResult = client_.LastResult();
 						if (changed)
 						{
-							REX::INFO(
-								"dmui-forwarding-smoke: hotkey binding "
+							LogInfo(
+								"dmui-test-client: hotkey binding "
 								"id={} effective={} state={} result={}"sv,
 								probe.id,
 								probe.binding.chord[0] ?
@@ -2080,8 +2213,8 @@ namespace DmuiForwardingSmoke
 									probe.lastResult = hotkeyResult_;
 									if (changed)
 										probe.enabled = enabled;
-									REX::INFO(
-										"dmui-forwarding-smoke: hotkey enable "
+									LogInfo(
+										"dmui-test-client: hotkey enable "
 										"id={} requested={} applied={} result={}"sv,
 										probe.id,
 										enabled,
@@ -2120,6 +2253,7 @@ namespace DmuiForwardingSmoke
 				std::memcpy(a_destination.data(), a_text.data(), length);
 			}
 
+			Environment& environment_;
 			dmui::Client client_;
 			std::atomic_bool unavailableLogged_{};
 			InitializationStatus initializationStatus_{
@@ -2132,9 +2266,10 @@ namespace DmuiForwardingSmoke
 			DMUI_HostStateInfo hostState_{};
 			DMUI_Result stateResult_{ DMUI_RESULT_OK };
 
-			DMUI_PageHandle settingsPage_{ DMUI_INVALID_PAGE_HANDLE };
+			std::array<
+				DMUI_PageHandle,
+				DmuiTestFixtures::kExercisePages.size()> exercisePages_{};
 			DMUI_PageHandle overlayPage_{ DMUI_INVALID_PAGE_HANDLE };
-			bool settingsPageActive_{};
 			uint64_t snapshotsLogged_{};
 			DMUI_ManagedOverlayOptions overlayOptions_{};
 			DMUI_ManagedOverlayPlacement overlayPlacement_{};
@@ -2234,99 +2369,37 @@ namespace DmuiForwardingSmoke
 			uint64_t dialogCancellations_{};
 			DMUI_Result dialogResult_{ DMUI_RESULT_OK };
 			DMUI_Result overlayResult_{ DMUI_RESULT_OK };
+			DmuiTestFixtures::SyntheticSettingsState syntheticSettings_;
+			std::vector<std::unique_ptr<dmui::Client>> syntheticClients_;
 		};
 
-		[[nodiscard]] State& GetState()
-		{
-			// F4SE plugins and registered callbacks are process-lived. Deliberately
-			// retain the state so callbacks, COM leases, and worker storage cannot
-			// be destructed before the host at executable shutdown.
-			static auto* state = new State;
-			static const auto teardownRegistered = std::atexit([]() noexcept {
-				state->StopWorker();
-			});
-			(void)teardownRegistered;
-			return *state;
-		}
-
-		enum class InitializationOutcome : uint8_t
-		{
-			kPending,
-			kCompleted,
-			kFailed
-		};
-
-		std::once_flag s_initializationOnce;
-		std::atomic<InitializationOutcome> s_initializationOutcome{
-			InitializationOutcome::kPending
-		};
-
-		void MessageListener(
-			F4SE::MessagingInterface::Message* a_message) noexcept
-		{
-			if (!a_message ||
-				a_message->type != F4SE::MessagingInterface::kPostPostLoad)
-				return;
-
-			std::call_once(s_initializationOnce, []() noexcept {
-				const auto initialized = GetState().Initialize();
-				s_initializationOutcome.store(
-					initialized ?
-						InitializationOutcome::kCompleted :
-						InitializationOutcome::kFailed,
-					std::memory_order_release);
-				if (!initialized)
-				{
-					REX::ERROR(
-						"dmui-forwarding-smoke: initialization failed at "
-						"kPostPostLoad"sv);
-				}
-			});
-		}
-
-		[[nodiscard]] bool Load(
-			const F4SE::LoadInterface* a_f4se) noexcept
-		{
-			if (!a_f4se)
-				return false;
-
-			F4SE::Init(a_f4se);
-			const auto* messaging = F4SE::GetMessagingInterface();
-			if (!messaging)
-			{
-				REX::ERROR(
-					"dmui-forwarding-smoke: F4SE messaging interface unavailable"sv);
-				return false;
-			}
-			if (!messaging->RegisterListener(MessageListener))
-			{
-				REX::ERROR(
-					"dmui-forwarding-smoke: F4SE message listener registration failed"sv);
-				return false;
-			}
-			return true;
-		}
 	}
-}
 
-F4SE_PLUGIN_QUERY(
-	const F4SE::QueryInterface* a_f4se,
-	F4SE::PluginInfo* a_info)
-{
-	if (!a_f4se || !a_info ||
-		a_f4se->RuntimeVersion() < REL::Version(F4SE::RUNTIME_1_10_163))
-		return false;
-
-	if (const auto* data = F4SE::PluginVersionData::GetSingleton())
+	struct GeneralTestSuite::Impl
 	{
-		a_info->infoVersion = F4SE::PluginInfo::kVersion;
-		a_info->name = data->GetPluginName().data();
-		a_info->version = data->GetPluginVersion().pack();
-	}
-	return true;
-}
+		explicit Impl(Environment& a_environment) :
+			state(a_environment)
+		{}
 
-F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* a_f4se)
-{
-	return DmuiForwardingSmoke::Load(a_f4se);
+		State state;
+	};
+
+	GeneralTestSuite::GeneralTestSuite(Environment& a_environment) :
+		m_impl(std::make_unique<Impl>(a_environment))
+	{}
+
+	GeneralTestSuite::~GeneralTestSuite()
+	{
+		Stop();
+	}
+
+	bool GeneralTestSuite::Initialize() noexcept
+	{
+		return m_impl->state.Initialize();
+	}
+
+	void GeneralTestSuite::Stop() noexcept
+	{
+		m_impl->state.StopWorker();
+	}
 }
