@@ -53,7 +53,10 @@ EXPORT_PATTERN = re.compile(
     r"^\s+\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+([A-Za-z_][A-Za-z0-9_]*)"
 )
 RESOLVED_SYMBOL_PATTERN = re.compile(r'Resolve<Function>\("([^"]+)"\)')
-SUPPORT_SYMBOLS = {"DMUI_GetImGuiVersionNum", "DMUI_GetStyleMetrics"}
+SUPPORT_SYMBOLS = {
+    "DMUI_GetImGuiVersionNum",
+    "DMUI_GetStyleMetrics",
+}
 
 
 class GenerationError(RuntimeError):
@@ -355,6 +358,8 @@ def render_header(
         "",
         "using ImVec2 = ImVec2_c;",
         "using ImVec4 = ImVec4_c;",
+        "",
+        "struct ImFont;",
         "",
     ]
     for name in TYPE_ORDER:

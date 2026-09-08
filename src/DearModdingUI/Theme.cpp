@@ -555,6 +555,49 @@ namespace DearModdingUI::Theme
 			kFullPalette[ImGuiCol_Text]);
 	}
 
+	DMUI_ThemeColors ColorSnapshot() noexcept
+	{
+		const auto convert = [](const ImVec4& a_color) {
+			return DMUI_Vec4{
+				a_color.x,
+				a_color.y,
+				a_color.z,
+				a_color.w
+			};
+		};
+		return {
+			sizeof(DMUI_ThemeColors),
+			convert(colors::kSuccess),
+			convert(colors::kWarning),
+			convert(colors::kError),
+			convert(colors::kInfo),
+			convert(colors::kMuted),
+			convert(colors::Accent()),
+			convert(colors::AccentMuted()),
+			convert(kStatusPaletteDefaults.disable),
+			convert(kStatusPaletteDefaults.error),
+			convert(kStatusPaletteDefaults.warning),
+			convert(kStatusPaletteDefaults.restartNeeded),
+			convert(kStatusPaletteDefaults.currentHotkey),
+			convert(kStatusPaletteDefaults.success),
+			convert(kStatusPaletteDefaults.info)
+		};
+	}
+
+	ImVec4 TextColor(dmui::TextTone a_tone) noexcept
+	{
+		const auto colors = ColorSnapshot();
+		const auto resolved = dmui::ResolveTextColor(colors, a_tone);
+		if (!resolved || !resolved.color)
+			return kFullPalette[ImGuiCol_Text];
+		return {
+			resolved.color->x,
+			resolved.color->y,
+			resolved.color->z,
+			resolved.color->w
+		};
+	}
+
 	const std::vector<std::string>& AvailableBodyFontFamilies() noexcept
 	{
 		return g_fontFamilyNames;

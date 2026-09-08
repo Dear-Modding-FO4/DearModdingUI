@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/ThemeDefaults.h>
+#include <DearModdingUI/Presentation.h>
 
 #include <array>
 #include <cstdint>
@@ -63,6 +64,8 @@ namespace DearModdingUI::Theme
 	[[nodiscard]] float Scale() noexcept;
 	[[nodiscard]] float SearchScale() noexcept;
 	[[nodiscard]] ImVec4 IconTint() noexcept;
+	[[nodiscard]] DMUI_ThemeColors ColorSnapshot() noexcept;
+	[[nodiscard]] ImVec4 TextColor(dmui::TextTone a_tone) noexcept;
 	[[nodiscard]] const std::vector<std::string>& AvailableBodyFontFamilies() noexcept;
 	[[nodiscard]] std::string_view ResolveBodyFontFamily(
 		std::string_view a_requested) noexcept;

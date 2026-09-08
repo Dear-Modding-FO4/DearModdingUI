@@ -140,11 +140,6 @@ namespace DearModdingUI
 			return service.registry.ValidateClient(a_client);
 		}
 
-		[[nodiscard]] constexpr DMUI_Vec4 ToDMUIVec4(const ImVec4& a_color) noexcept
-		{
-			return { a_color.x, a_color.y, a_color.z, a_color.w };
-		}
-
 		[[nodiscard]] void* AllocCpp(size_t a_size, void* a_userData) noexcept
 		{
 			auto* allocator = static_cast<AllocatorState*>(a_userData);
@@ -527,27 +522,7 @@ namespace DearModdingUI
 			if (validation != DMUI_RESULT_OK)
 				return validation;
 
-			a_colors->success = ToDMUIVec4(Theme::colors::kSuccess);
-			a_colors->warning = ToDMUIVec4(Theme::colors::kWarning);
-			a_colors->error = ToDMUIVec4(Theme::colors::kError);
-			a_colors->info = ToDMUIVec4(Theme::colors::kInfo);
-			a_colors->muted = ToDMUIVec4(Theme::colors::kMuted);
-			a_colors->accent = ToDMUIVec4(Theme::colors::Accent());
-			a_colors->accentMuted = ToDMUIVec4(Theme::colors::AccentMuted());
-			a_colors->statusDisable = ToDMUIVec4(
-				Theme::kStatusPaletteDefaults.disable);
-			a_colors->statusError = ToDMUIVec4(
-				Theme::kStatusPaletteDefaults.error);
-			a_colors->statusWarning = ToDMUIVec4(
-				Theme::kStatusPaletteDefaults.warning);
-			a_colors->statusRestartNeeded = ToDMUIVec4(
-				Theme::kStatusPaletteDefaults.restartNeeded);
-			a_colors->statusCurrentHotkey = ToDMUIVec4(
-				Theme::kStatusPaletteDefaults.currentHotkey);
-			a_colors->statusSuccess = ToDMUIVec4(
-				Theme::kStatusPaletteDefaults.success);
-			a_colors->statusInfo = ToDMUIVec4(
-				Theme::kStatusPaletteDefaults.info);
+			*a_colors = Theme::ColorSnapshot();
 			return DMUI_RESULT_OK;
 		}
 
@@ -2358,6 +2333,7 @@ DMUI_EXPORT DMUI_Result DMUI_CALL DMUI_GetStyleMetrics(
 	a_metrics->windowPadding = { style.WindowPadding.x, style.WindowPadding.y };
 	a_metrics->indentSpacing = style.IndentSpacing;
 	a_metrics->scrollbarSize = style.ScrollbarSize;
+	a_metrics->fontSizeBase = style.FontSizeBase;
 	return DMUI_RESULT_OK;
 }
 

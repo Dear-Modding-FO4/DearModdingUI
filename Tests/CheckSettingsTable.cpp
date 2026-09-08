@@ -2,6 +2,7 @@
 #include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
+#include <DearModdingUI/Client.h>
 #include "Harness.h"
 
 #include <imgui/imgui.h>
@@ -65,6 +66,11 @@ namespace vmm_tests
 				(void)ImGui::Begin("##SettingsTableTest");
 				ImGui::ErrorRecoveryStoreState(&m_recovery);
 				m_idDepth = ImGui::GetCurrentWindow()->IDStack.Size;
+				m_colorDepth = m_context->ColorStack.Size;
+				m_disabledDepth = m_context->DisabledStackSize;
+				m_wrapDepth =
+					ImGui::GetCurrentWindow()->DC.TextWrapPosStack.Size;
+				m_beginPopupDepth = m_context->BeginPopupStack.Size;
 			}
 
 			~ImGuiTestFrame()
@@ -85,19 +91,323 @@ namespace vmm_tests
 				const auto* context = ImGui::GetCurrentContext();
 				return context &&
 					context->CurrentTable == nullptr &&
-					context->CurrentWindow->IDStack.Size == m_idDepth;
+					context->CurrentWindow->IDStack.Size == m_idDepth &&
+					context->ColorStack.Size == m_colorDepth &&
+					context->DisabledStackSize == m_disabledDepth &&
+					context->CurrentWindow->DC.TextWrapPosStack.Size ==
+						m_wrapDepth &&
+					context->BeginPopupStack.Size == m_beginPopupDepth;
 			}
 
 		private:
 			ImGuiContext* m_context{ nullptr };
 			ImGuiErrorRecoveryState m_recovery;
 			int m_idDepth{ 0 };
+			int m_colorDepth{ 0 };
+			int m_disabledDepth{ 0 };
+			int m_wrapDepth{ 0 };
+			int m_beginPopupDepth{ 0 };
 			int m_errors{ 0 };
 		};
+
+		[[nodiscard]] DMUI_ThemeColors TestTheme() noexcept
+		{
+			return {
+				sizeof(DMUI_ThemeColors),
+				{ 1.0f, 0.0f, 0.0f, 1.0f },
+				{ 2.0f, 0.0f, 0.0f, 1.0f },
+				{ 3.0f, 0.0f, 0.0f, 1.0f },
+				{ 4.0f, 0.0f, 0.0f, 1.0f },
+				{ 5.0f, 0.0f, 0.0f, 1.0f },
+				{ 6.0f, 0.0f, 0.0f, 1.0f },
+				{ 7.0f, 0.0f, 0.0f, 1.0f },
+				{ 8.0f, 0.0f, 0.0f, 1.0f },
+				{ 9.0f, 0.0f, 0.0f, 1.0f },
+				{ 10.0f, 0.0f, 0.0f, 1.0f },
+				{ 11.0f, 0.0f, 0.0f, 1.0f },
+				{ 12.0f, 0.0f, 0.0f, 1.0f },
+				{ 13.0f, 0.0f, 0.0f, 1.0f },
+				{ 14.0f, 0.0f, 0.0f, 1.0f }
+			};
+		}
 	}
 
 	void run_settings_table_checks(Runner& runner)
 	{
+		runner.test("presentation tones resolve every theme role", [] {
+			const auto theme = TestTheme();
+			const dmui::TextTone tones[]{
+				dmui::TextTone::kSuccess,
+				dmui::TextTone::kWarning,
+				dmui::TextTone::kError,
+				dmui::TextTone::kInfo,
+				dmui::TextTone::kMuted,
+				dmui::TextTone::kAccent,
+				dmui::TextTone::kAccentMuted,
+				dmui::TextTone::kStatusDisable,
+				dmui::TextTone::kStatusError,
+				dmui::TextTone::kStatusWarning,
+				dmui::TextTone::kStatusRestartNeeded,
+				dmui::TextTone::kStatusCurrentHotkey,
+				dmui::TextTone::kStatusSuccess,
+				dmui::TextTone::kStatusInfo
+			};
+			for (size_t index = 0; index < std::size(tones); ++index)
+			{
+				const auto resolved =
+					dmui::ResolveTextColor(theme, tones[index]);
+				require(
+					resolved.result == DMUI_RESULT_OK &&
+						resolved.color &&
+						resolved.color->x == static_cast<float>(index + 1),
+					"theme tone selected the wrong field");
+			}
+			const auto inherited = dmui::ResolveTextColor(
+				DMUI_ThemeColors{},
+				dmui::TextTone::kInherit);
+			require(inherited && !inherited.color,
+				"inherit tone required a theme color");
+			auto truncated = theme;
+			truncated.structSize = DMUI_THEME_COLORS_0_1_SIZE - 1;
+			require(
+				dmui::ResolveTextColor(
+					truncated,
+					dmui::TextTone::kAccent).result ==
+					DMUI_RESULT_STRUCT_TOO_SMALL,
+				"truncated theme snapshot was accepted");
+			require(
+				dmui::ResolveTextColor(
+					theme,
+					static_cast<dmui::TextTone>(255)).result ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"unknown text tone was accepted");
+		});
+
+		runner.test("styled text balances color and wrapping stacks", [] {
+			ImGuiTestFrame frame;
+			auto text = std::string(4096, 'x');
+			text += " 100% ##literal ";
+			text += "\xE2\x98\x83";
+			require(
+				dmui::DrawStyledText(
+					text,
+					TestTheme(),
+					{
+						.tone = dmui::TextTone::kStatusRestartNeeded,
+						.wrapped = true
+					}) == DMUI_RESULT_OK,
+				"styled text draw failed");
+			require(
+				dmui::DrawStyledText(
+					{},
+					DMUI_ThemeColors{},
+					{}) == DMUI_RESULT_OK,
+				"empty inherited text required a theme");
+			require(
+				dmui::DrawStyledText(
+					"text",
+					TestTheme(),
+					{ .fontRole = DMUI_FONT_ROLE_BODY }) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"snapshot-only styled text accepted a client font role");
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"styled text changed the ImGui stack");
+		});
+
+		runner.test("client text helpers fail before drawing when disconnected", [] {
+			ImGuiTestFrame frame;
+			dmui::Client client{
+				"tests.presentation",
+				"Presentation tests",
+				{ 1, 0 }
+			};
+			const auto start = ImGui::GetCursorScreenPos();
+			require(
+				!dmui::DrawStyledText(
+					client,
+					"not drawn",
+					{ .tone = dmui::TextTone::kAccent }) &&
+					client.LastResult() == DMUI_RESULT_CLIENT_NOT_FOUND,
+				"disconnected styled text did not report its failure");
+			require(
+				!dmui::DrawLabeledValue(
+					client,
+					"Label",
+					"not drawn",
+					{
+						.valueStyle = {
+							.fontRole = DMUI_FONT_ROLE_BODY,
+							.tone = dmui::TextTone::kSuccess
+						}
+					}) &&
+					client.LastResult() == DMUI_RESULT_CLIENT_NOT_FOUND,
+				"disconnected labeled value did not preflight");
+			const auto end = ImGui::GetCursorScreenPos();
+			require(start.x == end.x && start.y == end.y,
+				"failed text helper drew a partial value");
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"failed text helper changed the ImGui stack");
+		});
+
+		runner.test("labeled value draws nothing when its font push fails", [] {
+			ImGuiTestFrame frame;
+			dmui::Client client{
+				"tests.presentation.font-failure",
+				"Presentation font failure",
+				{ 1, 0 }
+			};
+			require(client.Connect(), "fixture client did not connect");
+			const auto start = ImGui::GetCursorScreenPos();
+			require(
+				!dmui::DrawLabeledValue(
+					client,
+					"Must not render",
+					"Value",
+					{
+						.valueStyle = {
+							.fontRole = DMUI_FONT_ROLE_HEADING
+						}
+					}) &&
+					client.LastResult() == DMUI_RESULT_UNSUPPORTED_ABI,
+				"unsupported font push did not fail explicitly");
+			const auto end = ImGui::GetCursorScreenPos();
+			require(start.x == end.x && start.y == end.y,
+				"failed font acquisition drew a partial label");
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"failed labeled value changed the ImGui stack");
+
+			auto& style = ImGui::GetStyle();
+			const auto originalFontSizeBase = style.FontSizeBase;
+			style.FontSizeBase = 0.0f;
+			const auto missingMetricStart = ImGui::GetCursorScreenPos();
+			const auto missingMetricDrawn = dmui::DrawLabeledValue(
+				client,
+				"Must not render",
+				"Value",
+				{
+					.valueStyle = {
+						.fontRole = DMUI_FONT_ROLE_HEADING
+					}
+				});
+			const auto missingMetricResult = client.LastResult();
+			style.FontSizeBase = originalFontSizeBase;
+			require(
+				!missingMetricDrawn &&
+					missingMetricResult == DMUI_RESULT_BACKEND_FAILED,
+				"missing base font metric did not fail explicitly");
+			const auto missingMetricEnd = ImGui::GetCursorScreenPos();
+			require(
+				missingMetricStart.x == missingMetricEnd.x &&
+					missingMetricStart.y == missingMetricEnd.y,
+				"missing base font metric drew a partial label");
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"missing base font metric changed the ImGui stack");
+		});
+
+		runner.test("disabled and tooltip scopes end idempotently", [] {
+			ImGuiTestFrame frame;
+			{
+				const dmui::DisabledScope disabled{ false };
+				ImGui::TextUnformatted("enabled");
+			}
+			const auto start = ImGui::GetCursorScreenPos();
+			ImGui::GetIO().MousePos = { start.x + 1.0f, start.y + 1.0f };
+			ImGui::Dummy({ 40.0f, 20.0f });
+			{
+				dmui::TooltipScope tooltip{
+					ImGuiHoveredFlags_AllowWhenDisabled
+				};
+				if (tooltip.Visible())
+				ImGui::TextUnformatted("rich tooltip");
+				const auto ended = tooltip.End();
+				require(!tooltip.End(), "tooltip ended twice");
+				require(!tooltip.Visible(), "ended tooltip remained visible");
+				require(!tooltip.Hovered() || ended,
+					"hovered tooltip did not open");
+			}
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"presentation scope changed the ImGui stack");
+		});
+
+		runner.test("choice draw preserves unknown and empty values", [] {
+			ImGuiTestFrame frame;
+			const std::array options{
+				dmui::ChoiceOption<int>{
+					.value = 1,
+					.label = "100% ## duplicate",
+					.key = "first"
+				},
+				dmui::ChoiceOption<int>{
+					.value = 2,
+					.label = "100% ## duplicate",
+					.key = "second",
+					.enabled = false
+				}
+			};
+			ImGui::PushID("known");
+			ImGui::OpenPopup("##Choice");
+			ImGui::PopID();
+			ImGui::LogToBuffer();
+			const auto known = dmui::DrawChoice(
+				"known",
+				1,
+				options,
+				"Unavailable",
+				"Quality mode ## literal");
+			const std::string logged{
+				ImGui::GetCurrentContext()->LogBuffer.c_str()
+			};
+			ImGui::LogFinish();
+			require(
+				!known.changed && !known.completed && !known.selected,
+				"drawing a choice changed its current value");
+			require(
+				logged.contains("Quality mode ## literal"),
+				"choice display label was hidden or treated as identity");
+			const auto unknown = dmui::DrawChoice(
+				"unknown",
+				99,
+				options,
+				"Unknown selection");
+			require(
+				!unknown.changed && !unknown.completed && !unknown.selected,
+				"unknown choice was silently clamped");
+			const auto empty = dmui::DrawChoice(
+				"empty",
+				99,
+				{});
+			require(
+				!empty.changed && !empty.completed && !empty.selected,
+				"empty choice produced a selection");
+			const auto unchanged =
+				dmui::presentation_detail::ResolveChoiceActivation(
+					1,
+					options[0],
+					true);
+			const auto disabled =
+				dmui::presentation_detail::ResolveChoiceActivation(
+					1,
+					options[1],
+					true);
+			auto enabled = options[1];
+			enabled.enabled = true;
+			const auto changed =
+				dmui::presentation_detail::ResolveChoiceActivation(
+					1,
+					enabled,
+					true);
+			require(
+				!unchanged.changed && !unchanged.completed &&
+					!unchanged.selected &&
+					!disabled.changed && !disabled.completed &&
+					!disabled.selected &&
+					changed.changed && changed.completed &&
+					changed.selected == 2,
+				"choice activation return semantics changed");
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"choice draw changed the ImGui stack");
+		});
+
 		runner.test("ImGui recovery reports repaired stack depths", [] {
 			ImGuiTestFrame frame;
 			auto recovery = ImGuiRecoverySnapshot::Capture();

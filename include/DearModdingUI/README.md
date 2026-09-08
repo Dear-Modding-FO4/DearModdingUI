@@ -121,7 +121,26 @@ registered client and are available while the host is ready on the render thread
 `getThemeColors` fills a caller-sized `DMUI_ThemeColors` with the current accent, muted accent, success,
 warning, error, info, and muted colors plus every status color. `pushFont` accepts the Body, Title,
 Heading, Subheading, or Subtext role; balance every successful push with `popFont`. The C++ wrapper
-provides `dmui::FontGuard` and converts `DMUI_Vec4` to `ImVec4` with `dmui::ToImVec4`.
+provides `dmui::FontGuard`, `dmui::DrawStyledText`, `dmui::DrawLabeledValue`, and converts `DMUI_Vec4` to
+`ImVec4` with `dmui::ToImVec4`. `TextStyle` independently selects an optional font role, semantic
+`TextTone`, and wrapping. Semantic tones map directly to this theme snapshot; restart-needed and the
+other status tones remain distinct from general warning/error colors, and muted text does not enter
+ImGui's disabled-widget state. Drawing is length-delimited and unformatted, so long strings, `%`, and
+`##` remain literal. `DrawLabeledValue` resolves theme and live spacing before drawing, acquires its
+optional value font once, and preserves the caller's current font for the label. The existing
+`DMUI_StyleMetrics` snapshot includes `fontSizeBase` after `scrollbarSize`, so lockstep and forwarding
+clients use the same metrics path without a separate font-size export.
+
+The public `SettingsTableScope` and `SettingsRowScope` own only successful visible begin calls and
+preserve clipping as a successful invisible result. Their explicit ends are idempotent; row end
+returns the optional Reset result. `DisabledScope` balances both enabled and disabled calls, while
+`TooltipScope` owns rich tooltip content only after the requested hover test and a successful
+`BeginTooltip`. The generic `DrawChoice` helper separates stable values and keys from visible labels,
+supports disabled options, leaves unknown current values unchanged, and reports a completed change
+only after selection of a different enabled option. Its optional final display-label argument is
+drawn unformatted beside the combo and remains independent of the stable widget ID; omit it when a
+settings row already owns the label geometry. See the API repository README for complete C++ signatures
+and examples.
 
 `drawSectionHeader`, `drawCollapsingSectionHeader`, `drawLinkRow`, `drawFaq`, `drawSearchInput`,
 `drawSettingsActionButton`, `settingsActionButtonWidth`, and `settingsActionButtonExtent` are thin

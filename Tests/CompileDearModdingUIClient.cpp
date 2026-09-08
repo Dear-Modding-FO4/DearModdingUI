@@ -12,6 +12,10 @@ static_assert(!std::is_copy_constructible_v<dmui::Client>);
 static_assert(!std::is_move_constructible_v<dmui::Client>);
 static_assert(!std::is_copy_constructible_v<dmui::FontGuard>);
 static_assert(!std::is_move_constructible_v<dmui::FontGuard>);
+static_assert(!std::is_copy_constructible_v<dmui::DisabledScope>);
+static_assert(!std::is_move_constructible_v<dmui::TooltipScope>);
+static_assert(!std::is_copy_constructible_v<dmui::SettingsTableScope>);
+static_assert(!std::is_move_constructible_v<dmui::SettingsRowScope>);
 
 namespace
 {
@@ -137,6 +141,54 @@ namespace
 		if (colors)
 			(void)dmui::ToImVec4(colors->accent);
 		const dmui::FontGuard font{ client, DMUI_FONT_ROLE_BODY };
+		(void)font.Pushed();
+		(void)font.Result();
+		(void)dmui::DrawStyledText(
+			client,
+			"100% ## literal",
+			{
+				.fontRole = DMUI_FONT_ROLE_SUBTEXT,
+				.tone = dmui::TextTone::kAccentMuted,
+				.wrapped = true
+			});
+		(void)dmui::DrawLabeledValue(
+			client,
+			"Label",
+			"Value",
+			{
+				.valueStyle = {
+					.tone = dmui::TextTone::kStatusSuccess,
+					.wrapped = true
+				},
+				.spacingScale = 2.0f
+			});
+		const std::array qualityOptions{
+			dmui::ChoiceOption<int>{
+				.value = 0,
+				.label = "Low",
+				.key = "low"
+			},
+			dmui::ChoiceOption<int>{
+				.value = 1,
+				.label = "High",
+				.key = "high",
+				.enabled = false
+			}
+		};
+		(void)dmui::DrawChoice(
+			"quality",
+			0,
+			qualityOptions,
+			"Unavailable",
+			"Quality mode ## literal");
+		{
+			const dmui::TooltipScope tooltip{
+				ImGuiHoveredFlags_DelayNormal |
+					ImGuiHoveredFlags_AllowWhenDisabled
+			};
+			if (tooltip.Visible())
+				ImGui::TextUnformatted("Rich tooltip");
+		}
 		(void)client.DrawSectionHeader("Section");
 		std::string search;
 		(void)client.DrawSearchInput("search", "Search...", search);
@@ -198,22 +250,24 @@ namespace
 				"Apply",
 				*extent);
 		}
-		const auto settingsTable = client.BeginSettingsTable("settings");
-		if (settingsTable.value_or(false))
+		dmui::SettingsTableScope settingsTable{ client, "settings" };
+		if (settingsTable.Visible())
 		{
-			const auto row = client.BeginSettingsRow(
+			dmui::SettingsRowScope row{
+				client,
 				"enabled",
 				"Enabled",
 				"Enables the example.",
-				dmui::RowPresentation::Layout::kLabelValue);
-			if (row.value_or(false))
+				dmui::RowPresentation::Layout::kLabelValue
+			};
+			if (row.Visible())
 			{
 				bool enabled{};
 				(void)ImGui::Checkbox("##Value", &enabled);
-				(void)client.EndSettingsRow(true, enabled);
+				(void)row.End(true, enabled);
 			}
 			dmui::DrawDivider();
-			(void)client.EndSettingsTable();
+			(void)settingsTable.End();
 		}
 		(void)client.IsMenuVisible();
 		(void)client.QueryState();
