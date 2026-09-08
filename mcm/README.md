@@ -18,10 +18,13 @@ state.
 
 ## Text presentation
 
-`ResolveTextPresentation` leaves markup literal unless a text control declares `"html": true`.
-Opted-in text expands break and paragraph boundaries, strips tags, and decodes the five common named
-entities plus decimal and hexadecimal numeric entities. A control-level alignment is the default;
-the last valid paragraph alignment overrides it for the resolved read-only control.
+`ResolveTextPresentation` leaves markup literal unless a text control's `html` value is truthy under
+AVM2 semantics: nonzero numbers, nonempty strings, arrays, and objects opt in as well as `true`;
+zero, empty strings, `null`, and an absent field do not. This matches upstream
+`SettingsOptionItem.as` and the installed MCM text-control bytecode. Opted-in text expands break and
+paragraph boundaries, strips tags, and decodes the five common named entities plus decimal and
+hexadecimal numeric entities. A control-level alignment is the default; the last valid paragraph
+alignment overrides it for the resolved read-only control.
 The mapper stores presentations on mapped rows. Each final binary calls `AttachTextRendering` from
 the consumer adapter outside this pure module.
 
@@ -57,11 +60,15 @@ exceptions that would otherwise drop a completion or leave queued state unapplie
 binding failures continue to return durable `Diagnostic` or result values. The plugin implements
 the reporter with REX logging, while tests and the preview retain reported diagnostics in memory.
 A pending condition hides its dependent rows until the controller resolves and an all-pending page
-shows a loading note. A permanently inoperable mod-setting toggle owns page-local state only when its
-`groupControl` is referenced by a condition, restoring accordion interaction without inventing
-persistent state. Other inoperable controllers and missing or failed dependencies fail open, keep
-dependent content visible, and add a page compatibility diagnostic. No unresolved source state is
-replaced with the configured default.
+shows a loading note. A permanently inoperable mod-setting toggle owns page-local state only when
+its `groupControl` is referenced by a condition. An idless `ModSettingBool` switch uses the same
+route when referenced. The bridge initializes it false, matching MCM, and handles its disclosure
+state without persistent reads, writes, refreshes, resets, or setting-change events.
+This restores transient disclosure controls without
+inventing setting identifiers. Named declared or unknown settings remain source-backed. Other
+inoperable controllers and missing or failed dependencies fail open, keep dependent content visible,
+and add a page compatibility diagnostic. No unresolved source state is replaced with the configured
+default.
 
 Named MCM sections start collapsible groups. Unnamed sections inside a group preserve their source
 position as divider rows; a leading unnamed section retains an implicit divider-headed group.
@@ -142,9 +149,17 @@ does not produce false whole-menu close/open pairs. Accepted declared mod-settin
 `OnMCMSettingChange` and its mod-specific form with `(modName, controlId)`; event dispatch is
 separate from value storage.
 
-Settings declarations are applied before `SummarizeCompatibility`. The page exposes unsupported,
-unknown-source, undeclared-setting, action, image, and inert-reason counts, while logs include both warnings and
-errors. Unsupported images retain their metadata, warning, and counts but emit no descriptor;
+Settings declarations and action availability are resolved before registration diagnostics are
+classified. Detailed compatibility and inert-reason counts remain INFO-level debug logs. Durable
+Health warnings are limited to actionable faults discovered after parsing: unsupported runtime
+actions and undeclared persisted mod settings. Locally owned disclosure toggles are not persisted
+settings and therefore do not produce that warning. Supported action counts, false or pending
+conditions, optional unbound keys, pre-save runtime availability, and pending or unavailable value
+snapshots remain live page state rather than append-only startup diagnostics.
+
+Parser diagnostics continue to own unknown or unsupported controls, sources, and images, so their
+original warning severity, source location, and message reach Health without a duplicate page
+summary. Unsupported images retain their metadata, warning, and counts but emit no descriptor;
 load-bearing unsupported controls remain visible and disabled. The preview accepts
 `DMUI_PREVIEW_MCM_INSTALLED=0` and `DMUI_PREVIEW_GAME_LOADED=0` to inspect the missing-MCM and
 main-menu states without adding command-line surface.

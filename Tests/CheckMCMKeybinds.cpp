@@ -213,6 +213,8 @@ namespace vmm_tests
 						InertReason::kKeybindDefinitionMissing &&
 					Describe(missing.rowReason).scope == InertReasonScope::kRow,
 				"an undeclared key lost its distinct row-scoped state");
+			require(SummarizeActionableCompatibility(page).empty(),
+				"an optional unbound key created a permanent startup warning");
 		});
 
 		runner.test("MCM missing definitions are reported once per page", [] {

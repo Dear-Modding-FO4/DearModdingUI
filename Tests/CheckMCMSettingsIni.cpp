@@ -109,6 +109,10 @@ bDiagnostics=0
 			require(SummarizeCompatibility(result.pages.front())
 						.undeclaredModSettings == 6,
 				"compatibility summary lost undeclared settings");
+			require(
+				SummarizeActionableCompatibility(result.pages.front()) ==
+					"Compatibility: 6 undeclared persisted settings.",
+				"undeclared persisted settings lost their registration warning");
 		});
 
 		runner.test("MCM settings ini ignores comments and malformed lines", [] {

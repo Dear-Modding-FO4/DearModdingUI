@@ -258,65 +258,6 @@ namespace DearModdingUI::MCM
 			}
 		}
 
-		[[nodiscard]] std::string SurfaceCompatibility(
-			MappedPage& a_page,
-			const PageCompatibilitySummary& a_summary)
-		{
-			if (!a_summary.unsupported &&
-				!a_summary.unknownBindings &&
-				!a_summary.undeclaredModSettings &&
-				!a_summary.actions &&
-				!a_summary.images)
-				return {};
-			const auto text = std::format(
-				"Compatibility: {} unsupported, {} unknown sources, "
-				"{} undeclared settings, {} actions, {} images.",
-				a_summary.unsupported,
-				a_summary.unknownBindings,
-				a_summary.undeclaredModSettings,
-				a_summary.actions,
-				a_summary.images);
-			a_page.settings.notes.push_back({
-				text,
-				false
-			});
-			return text;
-		}
-
-		[[nodiscard]] std::string InertRowsSummary(
-			const InertRowsLogRecord& a_record)
-		{
-			std::string summary{ "Inert controls: " };
-			bool first{ true };
-			const auto append =
-				[&](size_t a_count, std::string_view a_label) {
-					if (a_count == 0)
-						return;
-					if (!first)
-						summary.append(", ");
-					summary.append(std::format("{} {}", a_count, a_label));
-					first = false;
-				};
-			append(a_record.conditionFalse, "condition false");
-			append(a_record.conditionPending, "condition pending");
-			append(a_record.unsupported, "unsupported");
-			append(a_record.undeclared, "undeclared setting");
-			append(a_record.keybindUnbound, "unbound keybind");
-			append(a_record.keybindUndeclared, "undeclared keybind");
-			append(a_record.keybindDefinitionsMissing, "missing keybind definitions");
-			append(a_record.keybindDefinitionsInvalid, "invalid keybind definitions");
-			append(a_record.userKeybindsInvalid, "invalid user keybinds");
-			append(a_record.mcmMissing, "missing compatibility runtime");
-			append(a_record.loadSaveRequired, "load or save required");
-			append(a_record.valuePending, "value pending");
-			append(a_record.valueUnavailable, "value unavailable");
-			append(a_record.valueFailed, "value failed");
-			if (first)
-				return {};
-			summary.push_back('.');
-			return summary;
-		}
-
 		void RegisterConfig(const std::filesystem::path& a_config) noexcept
 		{
 			try
@@ -424,9 +365,13 @@ namespace DearModdingUI::MCM
 					const auto summary =
 						SummarizeCompatibility(*page, *mod->values);
 					const auto compatibility =
-						SurfaceCompatibility(*page, summary);
+						SummarizeActionableCompatibility(*page);
 					if (!compatibility.empty())
 					{
+						page->settings.notes.push_back({
+							compatibility,
+							false
+						});
 						mod->diagnostics->ReportSummary(
 							DMUI_STATUS_SEVERITY_WARNING,
 							page->displayName,
@@ -480,15 +425,6 @@ namespace DearModdingUI::MCM
 							InertReason::kValueFailed)]
 					};
 					LogInertRows(inertRecord);
-					const auto inertSummary =
-						InertRowsSummary(inertRecord);
-					if (!inertSummary.empty())
-					{
-						mod->diagnostics->ReportSummary(
-							DMUI_STATUS_SEVERITY_WARNING,
-							page->displayName,
-							inertSummary);
-					}
 					descriptors += DescriptorCount(*page);
 					BindActions(
 						*page,

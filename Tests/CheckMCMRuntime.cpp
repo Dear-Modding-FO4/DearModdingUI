@@ -64,20 +64,24 @@ namespace vmm_tests
 
 			[[nodiscard]] uint64_t Refresh(const MappedBinding&) override
 			{
+				++refreshes;
 				return Generation(snapshot);
 			}
 
 			[[nodiscard]] ValueSnapshot Write(
-				const MappedBinding&,
+				const MappedBinding& a_binding,
 				const dmui::SettingValue&) override
 			{
 				++writes;
+				NotifyAcceptedModSettingWrite(events, "Fixture", a_binding);
 				return snapshot;
 			}
 
 			ValueSnapshot snapshot{ MissingValue{} };
 			mutable size_t reads{};
+			size_t refreshes{};
 			size_t writes{};
+			FakeEvents events;
 		};
 
 		[[nodiscard]] MappedPage ConditionPage()
@@ -106,6 +110,22 @@ namespace vmm_tests
 			return std::move(result.pages.front());
 		}
 
+		[[nodiscard]] MappedPage IdlessInteractiveConditionPage(
+			std::string_view a_modName = "IdlessConditionRuntimeFixture")
+		{
+			auto result = ParseConfig(
+				std::string{ R"json({"modName":")json" } +
+					std::string{ a_modName } +
+					R"json(","displayName":"Idless condition","content":[
+						{"type":"switcher","groupControl":9,
+						 "valueOptions":{"sourceType":"ModSettingBool","default":true}},
+						{"id":"dependent","type":"text","text":"Dependent",
+						 "groupCondition":{"AND":[{"OR":[9]}]}}
+					]})json",
+				"idless-condition-runtime.json");
+			return std::move(result.pages.front());
+		}
+
 		[[nodiscard]] dmui::SettingDescriptor& Controller(MappedPage& a_page)
 		{
 			for (auto& group : a_page.settings.groups)
@@ -128,6 +148,12 @@ namespace vmm_tests
 				}
 			}
 			throw Failure("missing dependent condition row");
+		}
+
+		[[nodiscard]] dmui::SettingDescriptor& IdlessController(
+			MappedPage& a_page)
+		{
+			return a_page.settings.groups.front().settings.front();
 		}
 
 		[[nodiscard]] bool HasConditionNote(const MappedPage& a_page)
@@ -361,6 +387,8 @@ namespace vmm_tests
 							return a_note.text.find("Loading") != std::string::npos;
 						}),
 				"an all-pending page still appeared empty");
+			require(SummarizeActionableCompatibility(page).empty(),
+				"a pending condition created a permanent startup warning");
 		});
 
 		runner.test("MCM inoperable visibility toggles use local state", [] {
@@ -389,11 +417,17 @@ namespace vmm_tests
 					summary.localUiStateRows == 1 &&
 					!HasConditionNote(page),
 				"a local visibility controller was not interactive and collapsed");
+			require(SummarizeActionableCompatibility(page).empty(),
+				"a locally owned undeclared toggle looked like a persisted fault");
 			(void)toggle.binding.set(dmui::SettingValue{ true });
 			require(Dependent(page).isVisible() &&
 					source.reads == 0 &&
-					source.writes == 0,
+					source.writes == 0 &&
+					source.events.changes.empty(),
 				"a local visibility controller used the source or stayed collapsed");
+			source.RefreshPage(page, { true, true });
+			require(source.refreshes == 0,
+				"a local visibility controller refreshed persistent storage");
 
 			auto otherPage = InteractiveConditionPage();
 			auto& otherController = *std::ranges::find_if(
@@ -406,6 +440,118 @@ namespace vmm_tests
 			BindPage(otherPage, source);
 			require(!Dependent(otherPage).isVisible(),
 				"local visibility state leaked between pages or mods");
+		});
+
+		runner.test("MCM idless visibility toggles are bindingless local state", [] {
+			auto page = IdlessInteractiveConditionPage();
+			SnapshotSource source;
+			source.snapshot = ReadyValue{ true, 3 };
+			auto state = McmState{};
+			BindPage(page, source, [&state] { return state; });
+			page.settings.prepareView(page.settings);
+
+			auto& toggle = IdlessController(page);
+			const auto& row = page.rows.front();
+			const auto summary = SummarizeCompatibility(page);
+			require(row.valueRoute == ValueRoute::kLocalUiState &&
+					!row.binding &&
+					!row.unmappedSource &&
+					toggle.binding.get &&
+					!std::get<bool>(toggle.binding.get()) &&
+					!toggle.showReset &&
+					Dependent(page).isVisible &&
+					!Dependent(page).isVisible() &&
+					summary.localUiStateRows == 1 &&
+					summary.bindings == 0 &&
+					summary.unknownBindings == 0,
+				"an idless local controller retained storage or its configured default");
+
+			for (const auto installed : { false, true })
+			{
+				for (const auto ready : { false, true })
+				{
+					state = { installed, ready };
+					const auto open = installed != ready;
+					(void)toggle.binding.set(dmui::SettingValue{ open });
+					require(toggle.isEnabled && toggle.isEnabled() &&
+							row.resolveInertState().governingReason ==
+								InertReason::kNone &&
+							std::get<bool>(toggle.binding.get()) == open &&
+							Dependent(page).isVisible() == open,
+						"idless local state depended on MCM readiness");
+					source.RefreshPage(page, state);
+				}
+			}
+
+			(void)toggle.binding.set(dmui::SettingValue{ true });
+			require(std::get<bool>(toggle.binding.get()) &&
+					Dependent(page).isVisible(),
+				"idless local state did not reveal its nested dependent");
+
+			auto otherPage = IdlessInteractiveConditionPage();
+			auto otherMod =
+				IdlessInteractiveConditionPage("OtherIdlessFixture");
+			BindPage(otherPage, source);
+			BindPage(otherMod, source);
+			otherPage.settings.prepareView(otherPage.settings);
+			otherMod.settings.prepareView(otherMod.settings);
+			page.settings.prepareView(page.settings);
+			require(std::get<bool>(toggle.binding.get()) &&
+					!std::get<bool>(
+						IdlessController(otherPage).binding.get()) &&
+					!Dependent(otherPage).isVisible() &&
+					!std::get<bool>(
+						IdlessController(otherMod).binding.get()) &&
+					!Dependent(otherMod).isVisible(),
+				"idless local state leaked across pages or mods");
+
+			(void)toggle.binding.set(dmui::SettingValue{ false });
+			require(!Dependent(page).isVisible() &&
+					source.reads == 0 &&
+					source.writes == 0 &&
+					source.refreshes == 0 &&
+					!row.writeValue &&
+					source.events.changes.empty(),
+				"idless local state touched storage, emitted an event, or failed to collapse");
+		});
+
+		runner.test("MCM explicit local ownership survives descriptorless references", [] {
+			for (const auto* type : { "section", "spacer" })
+			{
+				auto result = ParseConfig(
+					std::string{ R"({
+						"modName":"LocalOwnership",
+						"displayName":"Local ownership",
+						"content":[
+							{"type":"switcher","groupControl":1,
+							 "valueOptions":{"sourceType":"ModSettingBool"}},
+							{"type":")" } + type + R"(","text":"Dependent",
+							 "groupCondition":1}
+						]
+					})");
+				require(result.pages.size() == 1 && result.diagnostics.empty(),
+					"a descriptorless reference prevented local ownership");
+				auto& page = result.pages.front();
+				require(page.rows.size() == 1 &&
+						page.rows.front().valueRoute == ValueRoute::kLocalUiState &&
+						SummarizeCompatibility(page).localUiStateRows == 1,
+					"the mapper did not assign bindingless local ownership");
+
+				SnapshotSource source;
+				BindPage(page, source, [] { return McmState{}; });
+				auto& toggle = page.settings.groups.front().settings.front();
+				require(toggle.binding.get && toggle.binding.set &&
+						toggle.isEnabled && toggle.isEnabled() &&
+						!std::get<bool>(toggle.binding.get()) &&
+						SummarizeCompatibility(page).localUiStateRows == 1,
+					"binding lost explicit local ownership after presentation mapping");
+				(void)toggle.binding.set(dmui::SettingValue{ true });
+				source.RefreshPage(page, {});
+				require(std::get<bool>(toggle.binding.get()) &&
+						source.reads == 0 && source.writes == 0 &&
+						source.refreshes == 0 && source.events.changes.empty(),
+					"an explicitly local toggle was unbound or reached persistent storage");
+			}
 		});
 
 		runner.test("MCM operable false controller conditions stay hidden", [] {
@@ -422,6 +568,8 @@ namespace vmm_tests
 					summary.unevaluableConditions == 0 &&
 					!HasConditionNote(page),
 				"an operable false controller failed open");
+			require(SummarizeActionableCompatibility(page).empty(),
+				"a false condition created a permanent startup warning");
 			source.snapshot = ReadyValue{ true, 4 };
 			require(Dependent(page).isVisible() && source.reads > priorReads,
 				"an operable controller stopped reading its real value source");
@@ -441,6 +589,30 @@ namespace vmm_tests
 				"a missing dependency hid its dependent");
 			require(HasConditionNote(page),
 				"a missing dependency produced no page diagnostic");
+			require(SummarizeActionableCompatibility(page).empty(),
+				"an unvisited value snapshot created a permanent startup warning");
+		});
+
+		runner.test("MCM not-ready state stays a live availability note", [] {
+			auto result = ParseConfig(R"json({
+				"modName":"NotReady",
+				"content":[{"id":"bOption:Main","type":"switcher",
+					"valueOptions":{"sourceType":"ModSettingBool",
+						"default":false}}]
+			})json");
+			auto& page = result.pages.front();
+			auto& binding = *page.rows.front().binding;
+			std::get<ModSettingBinding>(binding.source).declaration =
+				DeclarationState::kDeclared;
+			SnapshotSource source;
+			BindPage(page, source, [] { return McmState{ true, false }; });
+			page.settings.prepareView(page.settings);
+
+			require(
+				page.rows.front().resolveInertState().governingReason ==
+						InertReason::kRuntimeNotReady &&
+					SummarizeActionableCompatibility(page).empty(),
+				"a pre-save runtime state created a permanent startup warning");
 		});
 
 		runner.test("MCM failed conditions fail open with a diagnostic", [] {

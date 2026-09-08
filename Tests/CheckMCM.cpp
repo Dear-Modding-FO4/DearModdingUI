@@ -257,6 +257,18 @@ namespace vmm_tests
 				&Diagnostic::severity));
 		}
 
+		[[nodiscard]] size_t DiagnosticCount(
+			const LoadResult& a_result,
+			std::string_view a_message)
+		{
+			return static_cast<size_t>(std::ranges::count_if(
+				a_result.diagnostics,
+				[&](const Diagnostic& a_diagnostic) {
+					return a_diagnostic.message.find(a_message) !=
+						std::string::npos;
+				}));
+		}
+
 		[[nodiscard]] std::string ErrorMessages(const LoadResult& a_result)
 		{
 			std::string result;
@@ -618,6 +630,68 @@ namespace vmm_tests
 				"rendered text presentation retained an unsupported warning");
 		});
 
+		runner.test("MCM text HTML follows JSON truthiness", [] {
+			struct Case
+			{
+				std::string_view name;
+				std::optional<std::string_view> value;
+				bool html;
+			};
+			constexpr std::array cases{
+				Case{ "true", "true", true },
+				Case{ "false", "false", false },
+				Case{ "zero", "0", false },
+				Case{ "one", "1", true },
+				Case{ "negative", "-2", true },
+				Case{ "fraction", "0.25", true },
+				Case{ "negative integer zero", "-0", false },
+				Case{ "negative floating zero", "-0.0", false },
+				Case{ "empty string", R"("")", false },
+				Case{ "string", R"("enabled")", true },
+				Case{ "false string", R"("false")", true },
+				Case{ "zero string", R"("0")", true },
+				Case{ "null", "null", false },
+				Case{ "array", "[]", true },
+				Case{ "object", "{}", true },
+				Case{ "absent", std::nullopt, false }
+			};
+			for (const auto& test : cases)
+			{
+				auto json = std::string{
+					R"({"modName":"HtmlTruthiness","displayName":"HTML truthiness","content":[{"id":"text","type":"text","text":"<i>Marked</i>")"
+				};
+				if (test.value)
+					json += R"(,"html":)" + std::string{ *test.value };
+				json += "}]}";
+				const auto result = ParseConfig(json, "html-truthiness.json");
+				require(result.pages.size() == 1 &&
+						result.diagnostics.empty(),
+					"valid HTML truthiness value was diagnosed: " +
+						std::string{ test.name } + ErrorMessages(result));
+				require(
+					std::get<std::string>(
+						SettingNamed(result.pages.front(), "text").defaultValue) ==
+						(test.html ? "Marked" : "<i>Marked</i>"),
+					"HTML truthiness changed mapped text for " +
+						std::string{ test.name });
+			}
+		});
+
+		runner.test("MCM HTML truthiness does not relax align validation", [] {
+			const auto result = ParseConfig(R"({
+				"modName":"HtmlAlignment",
+				"displayName":"HTML alignment",
+				"content":[{"id":"text","type":"text","html":1,"align":true,
+					"text":"<i>Marked</i>"}]
+			})", "html-alignment.json");
+			require(ErrorCount(result) == 1 &&
+					HasDiagnostic(result, "expected a string", ".align") &&
+					std::get<std::string>(
+						SettingNamed(result.pages.front(), "text").defaultValue) ==
+						"Marked",
+				"HTML truthiness altered unrelated alignment validation");
+		});
+
 		runner.test("MCM LoadConfig reads a synthetic temporary file", [] {
 			const auto path = TemporaryConfigPath("load-success");
 			const TemporaryFileCleanup cleanup{ path };
@@ -672,6 +746,41 @@ namespace vmm_tests
 			require(HasDiagnostic(result, "unknown MCM control type",
 						"$.content[0]"),
 				"future control was not diagnosed");
+		});
+
+		runner.test("MCM parser compatibility warnings retain their payload", [] {
+			const auto result = ParseConfig(R"json({
+				"modName":"WarningPayload",
+				"content":[
+					{"id":"future","type":"dial"},
+					{"id":"image","type":"image","libName":"Fixture",
+					 "className":"Header"}
+				]
+			})json", "warning-payload.json");
+			const auto unknown = std::ranges::find_if(
+				result.diagnostics,
+				[](const Diagnostic& a_diagnostic) {
+					return a_diagnostic.location == "$.content[0]" &&
+						a_diagnostic.message ==
+							"unknown MCM control type 'dial' maps to unsupported";
+				});
+			const auto image = std::ranges::find_if(
+				result.diagnostics,
+				[](const Diagnostic& a_diagnostic) {
+					return a_diagnostic.location == "$.content[1]" &&
+						a_diagnostic.message ==
+							"MCM control type 'image' is unsupported in this phase";
+				});
+			require(
+				unknown != result.diagnostics.end() &&
+					unknown->severity == DiagnosticSeverity::kWarning &&
+					unknown->source == "warning-payload.json" &&
+					image != result.diagnostics.end() &&
+					image->severity == DiagnosticSeverity::kWarning &&
+					image->source == "warning-payload.json",
+				"parser compatibility warning severity or payload changed");
+			require(SummarizeActionableCompatibility(result.pages.front()).empty(),
+				"parse-owned warnings were duplicated by registration");
 		});
 
 		runner.test("MCM missing setting metadata remains total and visible", [] {
@@ -1312,6 +1421,130 @@ namespace vmm_tests
 				"an integer hidden property was forced into a boolean target");
 		});
 
+		runner.test("MCM maps referenced idless bool switches to local state", [] {
+			const auto result = ParseConfig(R"json({
+				"modName":"LocalController",
+				"displayName":"Local controller",
+				"content":[
+					{"type":"switcher","text":"Details","groupControl":7,
+					 "valueOptions":{"sourceType":"ModSettingBool","default":true}},
+					{"id":"dependent","type":"text","text":"Dependent",
+					 "groupCondition":{"OR":[{"AND":[7]}]}}
+				]
+			})json", "local-controller.json");
+			require(result.pages.size() == 1 && ErrorCount(result) == 0,
+				"a referenced idless bool switch was diagnosed" +
+					ErrorMessages(result));
+			const auto& page = result.pages.front();
+			const auto& row = page.rows.front();
+			const auto summary = SummarizeCompatibility(page);
+			require(row.valueRoute == ValueRoute::kLocalUiState &&
+					!row.binding &&
+					!row.unmappedSource &&
+					std::get<bool>(
+						SettingNamed(page, row.id).defaultValue) == false &&
+					summary.localUiStateRows == 1 &&
+					summary.bindings == 0 &&
+					summary.unknownBindings == 0,
+				"an idless controller was represented as persistent storage");
+		});
+
+		runner.test("MCM image-only conditions qualify idless local switches", [] {
+			const auto result = ParseConfig(R"json({
+				"modName":"ImageCondition",
+				"displayName":"Image condition",
+				"content":[
+					{"type":"switcher","groupControl":4,
+					 "valueOptions":{"sourceType":"ModSettingBool"}},
+					{"id":"preview","type":"image","libName":"Fixture",
+					 "className":"Preview",
+					 "groupCondition":{"AND":[{"OR":[4]}]}}
+				]
+			})json", "image-condition.json");
+			require(ErrorCount(result) == 0 &&
+					result.pages.front().rows.front().valueRoute ==
+						ValueRoute::kLocalUiState &&
+					!result.pages.front().rows.front().binding,
+				"descriptorless image conditions were ignored for local ownership" +
+					ErrorMessages(result));
+		});
+
+		runner.test("MCM idless local ownership keeps conservative guardrails", [] {
+			const auto checkPersistentFailure =
+				[](std::string_view a_name,
+					std::string_view a_control,
+					std::string_view a_dependent,
+					std::string_view a_message) {
+					const auto result = ParseConfig(
+						std::string{
+							R"({"modName":"Guardrail","displayName":"Guardrail","content":[)"
+						} +
+							std::string{ a_control } +
+							(a_dependent.empty() ?
+								 std::string{} :
+								 "," + std::string{ a_dependent }) +
+							"]}",
+						a_name);
+					require(result.pages.size() == 1 &&
+							ErrorCount(result) == 1 &&
+							DiagnosticCount(result, a_message) == 1,
+						"guardrail did not retain one binding diagnostic: " +
+							std::string{ a_name } + ErrorMessages(result));
+					const auto& row = result.pages.front().rows.front();
+					require(row.valueRoute == ValueRoute::kSource &&
+							!row.binding &&
+							row.unmappedSource,
+						"invalid persistent control became local: " +
+							std::string{ a_name });
+				};
+
+			checkPersistentFailure(
+				"unreferenced.json",
+				R"({"type":"switcher","groupControl":1,"valueOptions":{"sourceType":"ModSettingBool"}})",
+				{},
+				"valid setting id");
+			checkPersistentFailure(
+				"not-controller.json",
+				R"({"type":"switcher","valueOptions":{"sourceType":"ModSettingBool"}})",
+				R"({"id":"dependent","type":"text","groupCondition":1})",
+				"valid setting id");
+			checkPersistentFailure(
+				"wrong-family.json",
+				R"({"type":"switcher","groupControl":1,"valueOptions":{"sourceType":"GlobalValue"}})",
+				R"({"id":"dependent","type":"text","groupCondition":1})",
+				"form identifier");
+			checkPersistentFailure(
+				"wrong-value-kind.json",
+				R"({"type":"switcher","groupControl":1,"valueOptions":{"sourceType":"ModSettingInt"}})",
+				R"({"id":"dependent","type":"text","groupCondition":1})",
+				"valid setting id");
+			checkPersistentFailure(
+				"nonboolean-control.json",
+				R"({"type":"slider","groupControl":1,"valueOptions":{"sourceType":"ModSettingBool","min":0,"max":1}})",
+				R"({"id":"dependent","type":"text","groupCondition":1})",
+				"valid setting id");
+			checkPersistentFailure(
+				"invalid-id.json",
+				R"({"id":"bInvalid:","type":"switcher","groupControl":1,"valueOptions":{"sourceType":"ModSettingBool"}})",
+				R"({"id":"dependent","type":"text","groupCondition":1})",
+				"valid setting id");
+
+			const auto unsupported = ParseConfig(R"json({
+				"modName":"UnsupportedGuardrail",
+				"displayName":"Unsupported guardrail",
+				"content":[
+					{"type":"color","groupControl":1,
+					 "valueOptions":{"sourceType":"ModSettingBool"}},
+					{"id":"dependent","type":"text","groupCondition":1}
+				]
+			})json", "unsupported-guardrail.json");
+			require(ErrorCount(unsupported) == 1 &&
+					HasDiagnostic(unsupported, "unsupported in this phase") &&
+					unsupported.pages.front().rows.front().valueRoute ==
+						ValueRoute::kSource,
+				"unsupported control was promoted or lost its diagnostic");
+		});
+
 		runner.test("MCM mapped bindings cache their runtime key", [] {
 			const auto result = ParseConfig(kSyntheticConfig, "binding-key.json");
 			const auto& page = PageNamed(result, "$EXAMPLE_SOURCES");
@@ -1470,5 +1703,34 @@ namespace vmm_tests
 				"config parsing enabled unneeded JSON comment tolerance");
 		});
 
+		runner.test("MCM registration publishes only actionable summaries", [] {
+			auto root = std::filesystem::current_path();
+			auto sourcePath = root / "plugin" / "src" / "Main.cpp";
+			while (!std::filesystem::exists(sourcePath) &&
+				root.has_parent_path() &&
+				root.parent_path() != root)
+			{
+				root = root.parent_path();
+				sourcePath = root / "plugin" / "src" / "Main.cpp";
+			}
+			std::ifstream stream{ sourcePath, std::ios::binary };
+			const std::string source{
+				std::istreambuf_iterator<char>{ stream },
+				std::istreambuf_iterator<char>{}
+			};
+			size_t reportCount{};
+			for (size_t offset{};
+				(offset = source.find("ReportSummary(", offset)) !=
+				std::string::npos;
+				offset += std::string_view{ "ReportSummary(" }.size())
+				++reportCount;
+			require(
+				!source.empty() &&
+					source.find("SummarizeActionableCompatibility(*page)") !=
+						std::string::npos &&
+					source.find("InertRowsSummary") == std::string::npos &&
+					reportCount == 1,
+				"registration regained a blanket or inert snapshot warning path");
+		});
 	}
 }

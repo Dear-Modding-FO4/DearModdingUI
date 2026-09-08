@@ -1,5 +1,6 @@
 #include "Mapper.h"
 
+#include "Conditions.h"
 #include "Diagnostics.h"
 
 #include <DearModdingUI/MCM/SettingsIni.h>
@@ -605,6 +606,22 @@ namespace DearModdingUI::MCM::detail
 			return std::nullopt;
 		}
 
+		[[nodiscard]] bool IsIdlessLocalToggle(
+			const Control& a_control,
+			const std::unordered_set<int64_t>& a_referencedControls)
+		{
+			return a_control.id.empty() &&
+				a_control.type == ControlType::kSwitch &&
+				a_control.groupControl &&
+				a_referencedControls.contains(*a_control.groupControl) &&
+				a_control.valueOptions &&
+				a_control.valueOptions->sourceType &&
+				a_control.valueOptions->sourceType->family ==
+					SourceFamily::kModSetting &&
+				a_control.valueOptions->sourceType->value ==
+					SourceValueKind::kBool;
+		}
+
 		void DiagnoseUnsupported(
 			const Control& a_control,
 			detail::Diagnostics& a_diag)
@@ -647,6 +664,8 @@ namespace DearModdingUI::MCM::detail
 			std::unordered_set<std::string> descriptorIds;
 			std::optional<size_t> currentGroup;
 			auto descriptorCount = size_t{};
+			const auto referencedControls =
+				detail::BuildReferencedControls(a_page.controls);
 
 			const auto addGroup = [&](
 				std::string a_id,
@@ -760,13 +779,23 @@ namespace DearModdingUI::MCM::detail
 				row.unsupported =
 					std::holds_alternative<dmui::UnsupportedSettingControl>(
 						descriptor.control);
-				row.binding = MapBinding(
-					control,
-					id,
-					descriptor.defaultValue,
-					a_diag);
+				if (IsIdlessLocalToggle(control, referencedControls))
+				{
+					descriptor.defaultValue = false;
+					row.valueRoute = ValueRoute::kLocalUiState;
+					++mapped.localUiStateRows;
+				}
+				else
+				{
+					row.binding = MapBinding(
+						control,
+						id,
+						descriptor.defaultValue,
+						a_diag);
+				}
 				if (!row.binding && control.valueOptions &&
-					control.valueOptions->sourceType)
+					control.valueOptions->sourceType &&
+					row.valueRoute != ValueRoute::kLocalUiState)
 					row.unmappedSource = control.valueOptions->sourceType;
 				mapped.rows.push_back(std::move(row));
 				if (control.type == ControlType::kHidden)

@@ -1,5 +1,7 @@
 #include <DearModdingUI/MCM/ValueSource.h>
 
+#include "Conditions.h"
+
 #include <algorithm>
 #include <format>
 #include <memory>
@@ -65,6 +67,7 @@ namespace DearModdingUI::MCM
 		struct LocalToggleState
 		{
 			std::unordered_map<int64_t, bool> values;
+			std::unordered_set<std::string> ownedRows;
 		};
 
 		void BindLocalToggle(
@@ -192,43 +195,36 @@ namespace DearModdingUI::MCM
 			return InertReason::kValueFailed;
 		}
 
-		void CollectReferencedControls(
-			const GroupCondition& a_condition,
-			std::unordered_set<int64_t>& a_controls)
-		{
-			if (a_condition.type == ConditionType::kControl)
-				a_controls.insert(a_condition.control);
-			for (const auto& operand : a_condition.operands)
-				CollectReferencedControls(operand, a_controls);
-		}
-
-		[[nodiscard]] std::unordered_set<int64_t> BuildReferencedControls(
-			const std::vector<MappedRow>& a_rows)
-		{
-			std::unordered_set<int64_t> result;
-			for (const auto& row : a_rows)
-				if (row.groupCondition)
-					CollectReferencedControls(*row.groupCondition, result);
-			return result;
-		}
-
-		[[nodiscard]] bool IsLocallyOwnableToggle(
+		[[nodiscard]] std::optional<bool> LocalToggleDefault(
 			const MappedRow& a_row,
 			const std::unordered_set<int64_t>& a_referencedControls,
 			const dmui::SettingsPage& a_page,
 			const ValueSource& a_source)
 		{
-			if (!a_row.groupControl || !a_row.binding ||
-				!a_referencedControls.contains(*a_row.groupControl) ||
+			if (!a_row.groupControl)
+				return std::nullopt;
+			const auto* descriptor = FindDescriptor(a_page, a_row.id);
+			if (!descriptor ||
+				!std::holds_alternative<dmui::CheckboxSettingControl>(
+					descriptor->control))
+				return std::nullopt;
+			if (a_row.valueRoute == ValueRoute::kLocalUiState &&
+				!a_row.binding)
+			{
+				// The mapper sees references that presentation-only controls do not retain.
+				if (const auto* value =
+						std::get_if<bool>(&descriptor->defaultValue))
+					return *value;
+				return std::nullopt;
+			}
+			if (!a_referencedControls.contains(*a_row.groupControl) ||
+				!a_row.binding ||
 				IsBindingOperable(*a_row.binding, a_source) ||
 				!std::holds_alternative<ModSettingBinding>(
-					a_row.binding->source) ||
-				!std::holds_alternative<bool>(a_row.binding->target))
-				return false;
-			const auto* descriptor = FindDescriptor(a_page, a_row.id);
-			return descriptor &&
-				std::holds_alternative<dmui::CheckboxSettingControl>(
-					descriptor->control);
+					a_row.binding->source))
+				return std::nullopt;
+			const auto* value = std::get_if<bool>(&a_row.binding->target);
+			return value ? std::optional<bool>{ *value } : std::nullopt;
 		}
 
 		[[nodiscard]] LocalToggleState BuildLocalToggleState(
@@ -237,18 +233,21 @@ namespace DearModdingUI::MCM
 			const ValueSource& a_source)
 		{
 			LocalToggleState result;
-			const auto referencedControls = BuildReferencedControls(a_rows);
+			const auto referencedControls =
+				detail::BuildReferencedControls(a_rows);
 			for (const auto& row : a_rows)
 			{
-				if (!IsLocallyOwnableToggle(
-						row,
-						referencedControls,
-						a_page,
-						a_source))
+				const auto initial = LocalToggleDefault(
+					row,
+					referencedControls,
+					a_page,
+					a_source);
+				if (!initial)
 					continue;
 				result.values.insert_or_assign(
 					*row.groupControl,
-					std::get<bool>(row.binding->target));
+					*initial);
+				result.ownedRows.insert(row.id);
 			}
 			return result;
 		}
@@ -427,6 +426,7 @@ namespace DearModdingUI::MCM
 		for (const auto& row : a_page.rows)
 		{
 			if (row.binding &&
+				row.valueRoute == ValueRoute::kSource &&
 				Supports(row.binding->Family()) &&
 				IsControlOperable(
 					a_state,
@@ -560,11 +560,10 @@ namespace DearModdingUI::MCM
 			BuildDependencies(a_page.rows));
 		const auto localToggles = std::make_shared<LocalToggleState>(
 			BuildLocalToggleState(a_page.rows, a_page.settings, a_source));
-		a_page.localUiStateRows = localToggles->values.size();
+		a_page.localUiStateRows = localToggles->ownedRows.size();
 		for (auto& row : a_page.rows)
 		{
-			if (row.groupControl &&
-				localToggles->values.contains(*row.groupControl))
+			if (localToggles->ownedRows.contains(row.id))
 				row.valueRoute = ValueRoute::kLocalUiState;
 		}
 		auto priorPrepare = std::move(a_page.settings.prepareView);
@@ -648,7 +647,7 @@ namespace DearModdingUI::MCM
 								InertReason::kConditionPending
 							};
 					}
-					if (binding && route == ValueRoute::kLocalUiState)
+					if (route == ValueRoute::kLocalUiState)
 						return ResolvedInertState{
 							InertReason::kNone,
 							actionInertReason.value_or(InertReason::kNone)
@@ -741,6 +740,16 @@ namespace DearModdingUI::MCM
 					action->description.append(explanation);
 				}
 			}
+			if (row.groupControl &&
+				localToggles->ownedRows.contains(row.id))
+			{
+				if (descriptor)
+					BindLocalToggle(
+						*descriptor,
+						*row.groupControl,
+						localToggles);
+				continue;
+			}
 			if (!row.binding)
 				continue;
 			const auto& binding = *row.binding;
@@ -749,15 +758,6 @@ namespace DearModdingUI::MCM
 					FindDescriptor(a_page.settings, binding.descriptorId);
 			if (!descriptor)
 				continue;
-			if (row.groupControl &&
-				localToggles->values.contains(*row.groupControl))
-			{
-				BindLocalToggle(
-					*descriptor,
-					*row.groupControl,
-					localToggles);
-				continue;
-			}
 			if (!IsBindingOperable(binding, a_source))
 			{
 				BindUnsupported(*descriptor);

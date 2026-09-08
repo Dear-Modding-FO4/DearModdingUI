@@ -233,23 +233,22 @@ namespace DearModdingUI::MCM
 				return member->get<double>();
 			}
 
-			[[nodiscard]] std::optional<bool> ReadBoolean(
+			[[nodiscard]] std::optional<bool> ReadTruthiness(
 				const Json& a_object,
-				std::string_view a_name,
-				std::string_view a_location)
+				std::string_view a_name)
 			{
 				const auto member = a_object.find(a_name);
 				if (member == a_object.end())
 					return std::nullopt;
-				if (!member->is_boolean())
-				{
-					Diagnose(
-						DiagnosticSeverity::kError,
-						std::string{ a_location } + "." + std::string{ a_name },
-						"expected a boolean");
-					return std::nullopt;
-				}
-				return member->get<bool>();
+				if (member->is_boolean())
+					return member->get<bool>();
+				if (member->is_null())
+					return false;
+				if (member->is_number())
+					return member->get<double>() != 0.0;
+				if (member->is_string())
+					return !member->get_ref<const std::string&>().empty();
+				return true;
 			}
 
 			[[nodiscard]] std::optional<Scalar> ReadScalar(
@@ -745,7 +744,7 @@ namespace DearModdingUI::MCM
 				}
 				control.groupControl =
 					ReadInteger(a_value, "groupControl", a_location);
-				control.html = ReadBoolean(a_value, "html", a_location);
+				control.html = ReadTruthiness(a_value, "html");
 				control.alignment = ReadString(a_value, "align", a_location);
 				if (const auto action = a_value.find("action");
 					action != a_value.end())
@@ -877,17 +876,8 @@ namespace DearModdingUI::MCM
 				if (result.sourceType &&
 					result.sourceType->family == SourceFamily::kModSetting)
 				{
-					if (a_control.id.empty())
-					{
-						Diagnose(
-							DiagnosticSeverity::kError,
-							a_control.location + ".id",
-							"ModSetting source requires a setting id");
-					}
-					else
-					{
+					if (!a_control.id.empty())
 						result.modSettingId = a_control.id;
-					}
 				}
 
 				if (NeedsValueOptions(a_control.type) &&

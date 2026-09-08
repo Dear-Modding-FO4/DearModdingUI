@@ -483,4 +483,8 @@ namespace DearModdingUI::MCM
 
 	[[nodiscard]] PageCompatibilitySummary SummarizeCompatibility(
 		const MappedPage& a_page) noexcept;
+
+	// Parser-owned faults and transient availability do not belong in this summary.
+	[[nodiscard]] std::string SummarizeActionableCompatibility(
+		const MappedPage& a_page);
 }
