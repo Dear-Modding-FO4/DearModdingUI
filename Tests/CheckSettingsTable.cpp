@@ -408,6 +408,68 @@ namespace vmm_tests
 				"choice draw changed the ImGui stack");
 		});
 
+		runner.test("declarative choices separate unmatched labels from stored values", [] {
+			ImGuiTestFrame frame;
+			std::string stored{ "missing.xml" };
+			size_t writes{};
+			size_t edits{};
+			dmui::SettingDescriptor setting;
+			setting.control = dmui::ChoiceSettingControl{
+				.options = { { "", "None" }, { "known.xml", "Known preset" } },
+				.unmatchedLabel = "None"
+			};
+			setting.defaultValue = std::string{};
+			setting.binding = dmui::BindSetting(
+				[&] { return stored; },
+				[&](std::string value) {
+					++writes;
+					stored = std::move(value);
+					return stored;
+				});
+			setting.onEdit = [&](const dmui::SettingEditEvent& event) {
+				++edits;
+				require(event.changed && event.completed &&
+						std::get<std::string>(event.value).empty(),
+					"choice reset did not emit one completed empty-string change");
+			};
+
+			const auto drawAndCheck = [&](const char* id, std::string_view expected) {
+				ImGui::PushID(id);
+				ImGui::LogToBuffer();
+				const auto drawn = dmui::setting_detail::DrawBoundSetting(
+					setting, setting.binding.get());
+				const std::string logged{ ImGui::GetCurrentContext()->LogBuffer.c_str() };
+				ImGui::LogFinish();
+				ImGui::PopID();
+				require(!drawn.changed && !drawn.completed &&
+						std::get<std::string>(drawn.value) == stored,
+					"choice presentation changed the bound value");
+				require(logged.contains(expected),
+					"choice did not draw the requested preview label");
+			};
+			drawAndCheck("unmatched", "None");
+			require(stored == "missing.xml" && writes == 0 && edits == 0 &&
+					!dmui::IsSettingDefault(setting, setting.binding.get()),
+				"unmatched presentation masked the stored non-default value");
+
+			const auto cleared = dmui::ResetSettingToDefault(setting);
+			require(cleared && std::get<std::string>(*cleared).empty() &&
+					stored.empty() && writes == 1 && edits == 1,
+				"reset did not clear the real unknown value");
+			(void)dmui::ResetSettingToDefault(setting);
+			require(writes == 1 && edits == 1,
+				"already-default reset wrote or emitted a change");
+			stored = "known.xml";
+			drawAndCheck("matched", "Known preset");
+
+			auto& control = std::get<dmui::ChoiceSettingControl>(setting.control);
+			control = {};
+			stored = "missing.xml";
+			drawAndCheck("empty-list", "Unavailable");
+			require(writes == 1 && edits == 1 && frame.IsAtBaseline() && frame.Errors() == 0,
+				"empty-list presentation wrote storage or leaked ImGui state");
+		});
+
 		runner.test("ImGui recovery reports repaired stack depths", [] {
 			ImGuiTestFrame frame;
 			auto recovery = ImGuiRecoverySnapshot::Capture();

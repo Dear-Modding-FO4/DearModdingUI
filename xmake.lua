@@ -174,6 +174,7 @@ target("dmui-tests", function()
     add_deps("imgui", "dmui-mcm")
     add_files(
         "Tests/**.cpp",
+        "plugin/src/Win32FileListingAdapter.cpp",
         "Fixtures/GeneralTestFixtures.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileForwardingNoHost.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileHostAPILayout.cpp",
@@ -201,6 +202,7 @@ target("dmui-tests", function()
     )
     add_includedirs(
         "Preview/include",
+        "plugin/include",
         "Tests",
         "Fixtures",
         "src",
@@ -245,6 +247,7 @@ target("dmui-preview", function()
     add_files(
         "Preview/Main.cpp",
         "Preview/FakeData.cpp",
+        "plugin/src/Win32FileListingAdapter.cpp",
         "Preview/PresentationDemo.cpp",
         "Preview/PlatformImguiStub.cpp",
         "Fixtures/GeneralTestFixtures.cpp",
@@ -278,6 +281,7 @@ target("dmui-preview", function()
     add_includedirs(
         "Preview/include",
         "Preview",
+        "plugin/include",
         "Fixtures",
         "src",
         "include",

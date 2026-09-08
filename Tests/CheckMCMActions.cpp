@@ -390,10 +390,10 @@ namespace vmm_tests
 
 			const auto effective = SettingNamed(page, "setting").binding.set(
 				dmui::SettingValue{ int64_t{ 12 } });
-			require(std::get<int64_t>(effective) == 12 &&
+			require(std::get<int64_t>(effective) == 1 &&
 					executor.bound.size() == 1 &&
 					executor.bound.front() ==
-						std::vector<BoundActionArgument>{ int64_t{ 12 } },
+						std::vector<BoundActionArgument>{ int64_t{ 1 } },
 				"the value placeholder did not receive the effective value");
 		});
 

@@ -2,7 +2,9 @@
 
 #include "Conditions.h"
 #include "Diagnostics.h"
+#include "SliderNormalization.h"
 
+#include <DearModdingUI/MCM/FileChoices.h>
 #include <DearModdingUI/MCM/SettingsIni.h>
 #include <DearModdingUI/MCM/ValueSource.h>
 
@@ -120,13 +122,10 @@ namespace DearModdingUI::MCM::detail
 					}
 					else if constexpr (std::same_as<T, double>)
 					{
-						const auto value = static_cast<long double>(a_scalar);
 						if (std::isfinite(a_scalar) &&
 							std::trunc(a_scalar) == a_scalar &&
-							value >= static_cast<long double>(
-								(std::numeric_limits<int64_t>::min)()) &&
-							value <= static_cast<long double>(
-								(std::numeric_limits<int64_t>::max)()))
+							a_scalar >= -0x1p63 &&
+							a_scalar < 0x1p63)
 							return static_cast<int64_t>(a_scalar);
 						return std::nullopt;
 					}
@@ -141,16 +140,11 @@ namespace DearModdingUI::MCM::detail
 		[[nodiscard]] std::optional<int64_t> SignedBound(
 			const std::optional<double>& a_value) noexcept
 		{
-			const auto value = a_value ?
-				static_cast<long double>(*a_value) :
-				0.0L;
 			if (!a_value ||
 				!std::isfinite(*a_value) ||
 				std::trunc(*a_value) != *a_value ||
-				value < static_cast<long double>(
-					(std::numeric_limits<int64_t>::min)()) ||
-				value > static_cast<long double>(
-					(std::numeric_limits<int64_t>::max)()))
+				*a_value < -0x1p63 ||
+				*a_value >= 0x1p63)
 				return std::nullopt;
 			return static_cast<int64_t>(*a_value);
 		}
@@ -169,6 +163,22 @@ namespace DearModdingUI::MCM::detail
 				a_control.valueOptions->sourceType &&
 				a_control.valueOptions->sourceType->value ==
 					SourceValueKind::kString;
+		}
+
+		[[nodiscard]] bool HasValidIntegerSliderParameters(
+			const Control& a_control) noexcept
+		{
+			if (a_control.type != ControlType::kSlider ||
+				!UsesSignedNumbers(a_control) ||
+				!a_control.valueOptions)
+				return true;
+			const auto& options = *a_control.valueOptions;
+			if (options.sliderDefaultsApplied)
+				return true;
+			const auto minimum = SignedBound(options.minimum);
+			const auto maximum = SignedBound(options.maximum);
+			const auto step = SignedBound(options.step);
+			return minimum && maximum && step && *step > 0;
 		}
 
 		void MapCheckboxDefault(
@@ -227,7 +237,9 @@ namespace DearModdingUI::MCM::detail
 				{
 					mapped.quantization = dmui::NumericQuantization<double>{
 						*options.step,
-						options.minimum.value_or(0.0)
+						a_control.type == ControlType::kSlider ?
+							0.0 :
+							options.minimum.value_or(0.0)
 					};
 				}
 				else if (options.step)
@@ -296,12 +308,17 @@ namespace DearModdingUI::MCM::detail
 				}
 				if (options.format)
 					mapped.format = *options.format;
-				const auto step = SignedBound(options.step);
+				auto step = SignedBound(options.step);
+				if (a_control.type == ControlType::kSlider &&
+					options.sliderDefaultsApplied)
+					step = int64_t{ 1 };
 				if (step && *step > 0 && (!options.minimum || minimum))
 				{
 					mapped.quantization = dmui::NumericQuantization<int64_t>{
 						*step,
-						minimum.value_or(0)
+						a_control.type == ControlType::kSlider ?
+							0 :
+							minimum.value_or(0)
 					};
 				}
 				else if (options.step)
@@ -378,6 +395,58 @@ namespace DearModdingUI::MCM::detail
 			a_descriptor.control = std::move(mapped);
 		}
 
+		void MapFileChoiceControl(dmui::SettingDescriptor& a_descriptor)
+		{
+			dmui::ChoiceSettingControl mapped;
+			mapped.options.push_back({ "", "None" });
+			mapped.unmatchedLabel = "None";
+			a_descriptor.defaultValue = std::string{};
+			a_descriptor.control = std::move(mapped);
+		}
+
+		void ExtractSliderNormalization(
+			dmui::SettingDescriptor& a_descriptor,
+			MappedRow& a_row)
+		{
+			if (auto* control =
+					std::get_if<dmui::DoubleSettingControl>(
+						&a_descriptor.control);
+				control &&
+				control->range &&
+				control->range->minimum &&
+				control->range->maximum &&
+				control->quantization)
+			{
+				a_row.sliderNormalization = DoubleSliderNormalization{
+					*control->range->minimum,
+					*control->range->maximum,
+					control->quantization->interval
+				};
+				control->quantization.reset();
+				a_descriptor.defaultValue = NormalizeSliderValue(
+					*a_row.sliderNormalization, a_descriptor.defaultValue);
+				return;
+			}
+			if (auto* control =
+					std::get_if<dmui::SignedSettingControl>(
+						&a_descriptor.control);
+				control &&
+				control->range &&
+				control->range->minimum &&
+				control->range->maximum &&
+				control->quantization)
+			{
+				a_row.sliderNormalization = SignedSliderNormalization{
+					*control->range->minimum,
+					*control->range->maximum,
+					control->quantization->interval
+				};
+				control->quantization.reset();
+				a_descriptor.defaultValue = NormalizeSliderValue(
+					*a_row.sliderNormalization, a_descriptor.defaultValue);
+			}
+		}
+
 		[[nodiscard]] dmui::SettingDescriptor MapControl(
 			const Control& a_control,
 			std::string a_id,
@@ -447,10 +516,17 @@ namespace DearModdingUI::MCM::detail
 						descriptor,
 						a_diag);
 				}
+				if (a_control.valueOptions &&
+					a_control.valueOptions->sliderParametersValid &&
+					HasValidIntegerSliderParameters(a_control))
+					ExtractSliderNormalization(descriptor, a_row);
 				break;
 			case ControlType::kStepper:
 			case ControlType::kMenu:
 				MapChoiceControl(a_control, descriptor);
+				break;
+			case ControlType::kFileMenu:
+				MapFileChoiceControl(descriptor);
 				break;
 			case ControlType::kInput:
 			{
@@ -523,6 +599,9 @@ namespace DearModdingUI::MCM::detail
 			const auto& options = *a_control.valueOptions;
 			const auto& type = *options.sourceType;
 			const auto location = a_control.location + ".valueOptions";
+			if (a_control.type == ControlType::kFileMenu &&
+				type.value != SourceValueKind::kString)
+				return std::nullopt;
 			switch (type.family)
 			{
 			case SourceFamily::kGlobal:
@@ -778,7 +857,24 @@ namespace DearModdingUI::MCM::detail
 					a_diag);
 				row.unsupported =
 					std::holds_alternative<dmui::UnsupportedSettingControl>(
-						descriptor.control);
+						descriptor.control) ||
+					(control.type == ControlType::kSlider &&
+						control.valueOptions &&
+						(!control.valueOptions->sliderParametersValid ||
+							!HasValidIntegerSliderParameters(control)));
+				if (control.type == ControlType::kFileMenu)
+				{
+					row.fileChoices = FileChoiceMetadata{
+						control.valueOptions ?
+							control.valueOptions->filePath :
+							std::nullopt,
+						control.valueOptions &&
+								control.valueOptions->fileMask ?
+							*control.valueOptions->fileMask :
+							"*",
+						control.location + ".valueOptions"
+					};
+				}
 				if (IsIdlessLocalToggle(control, referencedControls))
 				{
 					descriptor.defaultValue = false;

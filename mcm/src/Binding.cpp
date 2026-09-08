@@ -1,11 +1,17 @@
 #include <DearModdingUI/MCM/ValueSource.h>
 
 #include "Conditions.h"
+#include "SliderNormalization.h"
+
+#include <DearModdingUI/MCM/FileChoices.h>
 
 #include <algorithm>
+#include <cmath>
 #include <format>
+#include <limits>
 #include <memory>
 #include <optional>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -94,7 +100,8 @@ namespace DearModdingUI::MCM
 			dmui::SettingDescriptor& a_descriptor,
 			const MappedBinding& a_binding,
 			ValueSource& a_source,
-			MappedRow& a_row)
+			MappedRow& a_row,
+			const std::optional<SliderNormalization>& a_sliderNormalization)
 		{
 			auto fallback = a_descriptor.defaultValue;
 
@@ -111,15 +118,26 @@ namespace DearModdingUI::MCM
 				};
 
 			a_descriptor.binding.get =
-				[&a_source, a_binding, fallback, matched]() -> dmui::SettingValue {
+				[&a_source,
+				 a_binding,
+				 fallback,
+				 matched]() -> dmui::SettingValue {
 					const auto current = a_source.Read(a_binding);
 					const auto* value = matched(current, fallback);
 					return value ? *value : fallback;
 				};
 			a_row.writeValue =
-				[&a_source, a_binding, fallback, matched](
+				[&a_source,
+				 a_binding,
+				 fallback,
+				 matched,
+				 a_sliderNormalization](
 					dmui::SettingValue a_value,
 					ValueWriteCompletion a_completion) -> dmui::SettingValue {
+					if (a_sliderNormalization)
+						a_value = detail::NormalizeSliderValue(
+							*a_sliderNormalization,
+							std::move(a_value));
 					auto complete =
 						[fallback,
 						 completion = std::move(a_completion)](
@@ -631,6 +649,7 @@ namespace DearModdingUI::MCM
 				 undeclared,
 				 keybindInertState = row.keybindInertState,
 				 actionInertReason = row.actionInertReason,
+				 fileChoices = row.fileChoiceState,
 				 resolveCondition,
 				 resolveState = a_resolveState]() -> ResolvedInertState {
 					if (resolveCondition)
@@ -687,14 +706,23 @@ namespace DearModdingUI::MCM
 					const auto snapshotReason = SnapshotReason(
 						a_source.Read(*binding),
 						binding->target);
-					if (snapshotReason == InertReason::kNone)
+					if (snapshotReason != InertReason::kNone)
 						return ResolvedInertState{
-							InertReason::kNone,
-							rowReason
+							snapshotReason,
+							snapshotReason
 						};
+					if (fileChoices)
+					{
+						const auto fileReason = fileChoices->Reason();
+						if (fileReason != InertReason::kNone)
+							return ResolvedInertState{
+								fileReason,
+								fileReason
+							};
+					}
 					return ResolvedInertState{
-						snapshotReason,
-						snapshotReason
+						InertReason::kNone,
+						rowReason
 					};
 				};
 			inertResolvers->push_back(row.resolveInertState);
@@ -709,13 +737,21 @@ namespace DearModdingUI::MCM
 				const auto description = descriptor->description;
 				descriptor->resolveDescription =
 					[resolve,
+					 fileChoices = row.fileChoiceState,
 					 priorDescription = std::move(priorDescription),
 					 description] {
 						auto result = priorDescription ?
 							priorDescription() :
 							description;
-						const auto explanation =
-							Describe(resolve().rowReason).text;
+						const auto reason = resolve().rowReason;
+						const auto detailed =
+							fileChoices &&
+								reason == InertReason::kFileChoicesFailed ?
+							fileChoices->Description() :
+							std::string{};
+						const auto explanation = detailed.empty() ?
+							std::string{ Describe(reason).text } :
+							detailed;
 						if (!explanation.empty())
 						{
 							if (!result.empty())
@@ -763,7 +799,12 @@ namespace DearModdingUI::MCM
 				BindUnsupported(*descriptor);
 				continue;
 			}
-			BindSupported(*descriptor, binding, a_source, row);
+			BindSupported(
+				*descriptor,
+				binding,
+				a_source,
+				row,
+				row.sliderNormalization);
 		}
 
 		auto priorPrepareView = std::move(a_page.settings.prepareView);

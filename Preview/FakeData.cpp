@@ -7,11 +7,13 @@
 #include <DearModdingUI/MCM/ActionExecutor.h>
 #include <DearModdingUI/MCM/Availability.h>
 #include <DearModdingUI/MCM/DiagnosticReporter.h>
+#include <DearModdingUI/MCM/FileChoices.h>
 #include <DearModdingUI/MCM/GlobalValue.h>
 #include <DearModdingUI/MCM/Keybinds.h>
 #include <DearModdingUI/MCM/SettingsIni.h>
 #include <DearModdingUI/MCM/TextRendering.h>
 #include <DearModdingUI/MCM/ValueSource.h>
+#include <DearModdingUI/MCM/Win32FileListingAdapter.h>
 
 #include <GeneralTestSuite.h>
 
@@ -106,10 +108,14 @@ namespace DearModdingUIPreview
 				 "sourceForm":"DmuiSyntheticMCM.esp|800","default":0,
 				 "options":["59 (Utility) slot","60 (Animation) slot","61 (FX) slot"]}},
 				{"id":"QuantizedScale","type":"slider","text":"Quantized scale",
-				 "help":"Moves in 0.2 increments anchored at 0.1.",
+				 "help":"Moves in 0.2 increments on MCM's zero-anchored grid.",
 				 "valueOptions":{"sourceType":"GlobalValue",
 				 "sourceForm":"DmuiSyntheticMCM.esp|802","default":0.5,
 				 "min":0.1,"max":0.9,"step":0.2,"format":"%.1f"}},
+				{"id":"sPreviewFile:Files","type":"dropdownFiles",
+				 "text":"File preset","help":"Refreshed when this page is activated.",
+				 "valueOptions":{"sourceType":"ModSettingString",
+				 "path":"DMUI_PREVIEW_FILES","mask":"*.xml"}},
 				{"id":"divider","type":"section","text":""},
 				{"id":"FeatureEnabled","type":"switcher","text":"Enable feature",
 				 "valueOptions":{"sourceType":"GlobalValue",
@@ -179,6 +185,13 @@ namespace DearModdingUIPreview
 				m_values.emplace(std::move(a_id), a_value);
 			}
 
+			void Seed(std::string a_id, dmui::SettingValue a_value)
+			{
+				m_overrides.insert_or_assign(
+					std::move(a_id),
+					std::move(a_value));
+			}
+
 		private:
 			std::unordered_map<std::string, float> m_values;
 			std::unordered_map<std::string, dmui::SettingValue> m_overrides;
@@ -225,6 +238,22 @@ namespace DearModdingUIPreview
 			}
 
 			std::vector<DearModdingUI::MCM::Diagnostic> diagnostics;
+		};
+
+		class BuiltinFileListingAdapter final :
+			public DearModdingUI::MCM::FileListingAdapter
+		{
+		public:
+			[[nodiscard]] DearModdingUI::MCM::FileListingResult List(
+				std::string_view,
+				std::string_view) override
+			{
+				return std::vector<std::string>{
+					"HUD Classic.xml",
+					"None",
+					"Wide Screen.xml"
+				};
+			}
 		};
 
 		[[nodiscard]] bool AddPages(
@@ -288,9 +317,18 @@ namespace DearModdingUIPreview
 
 	struct FakeData::Impl
 	{
+		struct McmPageRuntime
+		{
+			DMUI_PageHandle handle{ DMUI_INVALID_PAGE_HANDLE };
+			DearModdingUI::MCM::FileChoiceController fileChoices;
+		};
+
 		PreviewValueSource mcmValues;
 		PreviewActionExecutor mcmActions;
 		PreviewDiagnosticReporter mcmDiagnostics;
+		BuiltinFileListingAdapter builtinMcmFiles;
+		DearModdingUI::MCM::Win32FileListingAdapter realMcmFiles;
+		std::vector<McmPageRuntime> mcmPages;
 		std::vector<std::unique_ptr<dmui::Client>> clients;
 		PreviewEnvironment testEnvironment;
 		DmuiTests::GeneralTestSuite testSuite{ testEnvironment };
@@ -401,9 +439,17 @@ namespace DearModdingUIPreview
 						m_impl->mcmDiagnostics);
 				}
 			}
+			auto& mcmFiles = configOverride ?
+				static_cast<DearModdingUI::MCM::FileListingAdapter&>(
+					m_impl->realMcmFiles) :
+				static_cast<DearModdingUI::MCM::FileListingAdapter&>(
+					m_impl->builtinMcmFiles);
 			m_impl->mcmValues.Seed("DisplaySlot", 2.0f);
 			m_impl->mcmValues.Seed("QuantizedScale", 0.7f);
 			m_impl->mcmValues.Seed("FeatureEnabled", 1.0f);
+			m_impl->mcmValues.Seed(
+				"sPreviewFile:Files",
+				dmui::SettingValue{ std::string{ "HUD Classic.xml" } });
 			m_impl->mcmValues.Seed("bDisplayCondition:Misc", 1.0f);
 			m_impl->mcmValues.Seed("bDisplayConditionInvert:Misc", 1.0f);
 			auto* mcmClient = m_impl->AddClient(
@@ -447,6 +493,14 @@ namespace DearModdingUIPreview
 			}
 			for (auto& mcmPage : mcm.pages)
 			{
+				auto fileChoices =
+					DearModdingUI::MCM::AttachFileChoices(
+						mcmPage,
+						mcmFiles,
+						m_impl->mcmDiagnostics,
+						configOverride ?
+							std::string{ configOverride } :
+							"preview-mcm-config.json");
 				DearModdingUI::MCM::BindPage(
 					mcmPage,
 					m_impl->mcmValues,
@@ -457,18 +511,44 @@ namespace DearModdingUIPreview
 					m_impl->mcmValues,
 					m_impl->mcmDiagnostics);
 				DearModdingUI::MCM::AttachTextRendering(mcmPage);
-				if (!mcmClient->AddSettingsPage(
+				const auto registered = mcmClient->AddSettingsPage(
 						{
 							.id = mcmPage.id.c_str(),
 							.displayName = mcmPage.displayName.c_str(),
 							.summary =
 								"Parsed and bound MCM compatibility controls."
 						},
-						std::move(mcmPage.settings)))
+						std::move(mcmPage.settings));
+				if (!registered)
 				{
 					a_error = "Could not register the MCM preview fixture.";
 					return false;
 				}
+				m_impl->mcmPages.push_back({
+					*registered,
+					std::move(fileChoices)
+				});
+			}
+			auto* implementation = m_impl.get();
+			if (!mcmClient->AddPageActivityObserver(
+					[implementation](const dmui::PageActivity& a_activity) {
+						if (a_activity.kind !=
+							dmui::PageActivityKind::kActivated)
+							return;
+						const auto page = std::ranges::find(
+							implementation->mcmPages,
+							a_activity.activePage,
+							&Impl::McmPageRuntime::handle);
+						if (page != implementation->mcmPages.end())
+							page->fileChoices.Refresh();
+					}))
+			{
+				a_error =
+					"Could not register MCM page activity observation (result " +
+					std::string{
+						DMUI_ResultToString(mcmClient->LastResult())
+					} + ").";
+				return false;
 			}
 
 			if (a_includeNavigationComparisonFixtures)

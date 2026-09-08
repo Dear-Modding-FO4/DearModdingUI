@@ -182,6 +182,19 @@ namespace vmm_tests
 			throw Failure("mapped setting was not found: " + std::string{ a_id });
 		}
 
+		[[nodiscard]] const MappedRow& RowNamed(
+			const MappedPage& a_page,
+			std::string_view a_id)
+		{
+			const auto row = std::ranges::find(
+				a_page.rows,
+				a_id,
+				&MappedRow::id);
+			require(row != a_page.rows.end(),
+				"mapped row was not found: " + std::string{ a_id });
+			return *row;
+		}
+
 		[[nodiscard]] const Control& ControlNamed(
 			const Page& a_page,
 			std::string_view a_id)
@@ -432,12 +445,18 @@ namespace vmm_tests
 			require(numeric && numeric->range &&
 					numeric->range->minimum &&
 					numeric->range->maximum &&
-					numeric->quantization,
+					!numeric->quantization,
 				"float slider range was not mapped");
 			RequireNear(*numeric->range->minimum, 0.25);
 			RequireNear(*numeric->range->maximum, 2.5);
-			RequireNear(numeric->quantization->interval, 0.05);
-			RequireNear(numeric->quantization->origin, 0.25);
+			const auto* sensitivityNormalization =
+				std::get_if<DoubleSliderNormalization>(
+					&*RowNamed(
+						page,
+						"fSensitivity:SampleTweaks").sliderNormalization);
+			require(sensitivityNormalization,
+				"float slider normalization metadata was not retained");
+			RequireNear(sensitivityNormalization->step, 0.05);
 			RequireNear(numeric->dragSpeed, 0.0);
 			require(sensitivity.label == "$EXAMPLE_SENSITIVITY" &&
 					sensitivity.description == "$EXAMPLE_SENSITIVITY_HELP",
@@ -450,10 +469,16 @@ namespace vmm_tests
 			require(integer && integer->range &&
 					integer->range->minimum == std::optional<int64_t>{ 1 } &&
 					integer->range->maximum == std::optional<int64_t>{ 8 } &&
-					integer->quantization &&
-					integer->quantization->interval == 1 &&
-					integer->quantization->origin == 1,
+					!integer->quantization,
 				"integer slider did not retain its range and quantization");
+			const auto* retryNormalization =
+				std::get_if<SignedSliderNormalization>(
+					&*RowNamed(
+						page,
+						"iRetryCount:SampleTweaks").sliderNormalization);
+			require(retryNormalization &&
+					retryNormalization->step == 1,
+				"integer slider normalization metadata was not retained");
 			require(ControlKindCount(
 						result,
 						dmui::SettingControlKind::kDouble) == 2 &&
@@ -537,7 +562,7 @@ namespace vmm_tests
 				"hidden property name did not survive");
 		});
 
-		runner.test("MCM numeric steps without minima use a zero origin", [] {
+		runner.test("MCM sliders without max use upstream widget defaults", [] {
 			const auto result = ParseConfig(R"json({
 				"modName":"Steps",
 				"content":[
@@ -553,13 +578,129 @@ namespace vmm_tests
 				&SettingNamed(result.pages.front(), "float").control);
 			const auto* integer = std::get_if<dmui::SignedSettingControl>(
 				&SettingNamed(result.pages.front(), "integer").control);
-			require(floating && floating->quantization &&
-					floating->quantization->interval == 0.25 &&
-					floating->quantization->origin == 0.0 &&
-					integer && integer->quantization &&
-					integer->quantization->interval == 2 &&
-					integer->quantization->origin == 0,
-				"a step without a minimum was silently discarded");
+			const auto* floatNormalization =
+				std::get_if<DoubleSliderNormalization>(
+					&*RowNamed(
+						result.pages.front(),
+						"float").sliderNormalization);
+			const auto* integerNormalization =
+				std::get_if<SignedSliderNormalization>(
+					&*RowNamed(
+						result.pages.front(),
+						"integer").sliderNormalization);
+			require(floating && !floating->quantization &&
+					floating->range &&
+					floating->range->minimum == std::optional<double>{ 0.0 } &&
+					floating->range->maximum == std::optional<double>{ 1.0 } &&
+					floatNormalization &&
+					floatNormalization->step == 0.05 &&
+					integer && !integer->quantization &&
+					integer->range &&
+					integer->range->minimum == std::optional<int64_t>{ 0 } &&
+					integer->range->maximum == std::optional<int64_t>{ 1 } &&
+					integerNormalization &&
+					integerNormalization->step == 1,
+				"an omitted max did not preserve MCM's 0..1 widget defaults");
+		});
+
+		runner.test("MCM slider quantization stays anchored at zero", [] {
+			const auto result = ParseConfig(R"json({
+				"modName":"ZeroOrigin",
+				"content":[
+					{"id":"float","type":"slider","valueOptions":{
+						"sourceType":"GlobalValueFloat",
+						"sourceForm":"Fixture.esp|1",
+						"min":0.1,"max":0.9,"step":0.2}},
+					{"id":"integer","type":"slider","valueOptions":{
+						"sourceType":"GlobalValueInt",
+						"sourceForm":"Fixture.esp|2",
+						"min":1,"max":9,"step":2}}
+				]
+			})json");
+			const auto* floating = std::get_if<dmui::DoubleSettingControl>(
+				&SettingNamed(result.pages.front(), "float").control);
+			const auto* integer = std::get_if<dmui::SignedSettingControl>(
+				&SettingNamed(result.pages.front(), "integer").control);
+			const auto* floatNormalization =
+				std::get_if<DoubleSliderNormalization>(
+					&*RowNamed(
+						result.pages.front(),
+						"float").sliderNormalization);
+			const auto* integerNormalization =
+				std::get_if<SignedSliderNormalization>(
+					&*RowNamed(
+						result.pages.front(),
+						"integer").sliderNormalization);
+			require(floating && !floating->quantization &&
+					floatNormalization &&
+					floatNormalization->step == 0.2 &&
+					integer && !integer->quantization &&
+					integerNormalization &&
+					integerNormalization->step == 2,
+				"MCM slider quantization used the minimum as its origin");
+		});
+
+		runner.test("MCM slider parameter edge cases stay explicit and safe", [] {
+			const auto result = ParseConfig(R"json({
+				"modName":"SliderEdges",
+				"content":[
+					{"id":"fNullMax:S","type":"slider","valueOptions":{
+						"sourceType":"ModSettingFloat",
+						"min":7,"max":null,"step":2}},
+					{"id":"fNullMin:S","type":"slider","valueOptions":{
+						"sourceType":"ModSettingFloat",
+						"min":null,"max":10,"step":1}},
+					{"id":"fMaxOnly:S","type":"slider","valueOptions":{
+						"sourceType":"ModSettingFloat",
+						"max":10}},
+					{"id":"fBadMax:S","type":"slider","valueOptions":{
+						"sourceType":"ModSettingFloat",
+						"min":0,"max":"ten","step":1}},
+					{"id":"fBackwards:S","type":"slider","valueOptions":{
+						"sourceType":"ModSettingFloat",
+						"min":10,"max":1,"step":1}}
+				]
+			})json", "slider-edges.json");
+			const auto* nullMax = std::get_if<dmui::DoubleSettingControl>(
+				&SettingNamed(result.pages.front(), "fNullMax:S").control);
+			const auto* nullMin = std::get_if<dmui::DoubleSettingControl>(
+				&SettingNamed(result.pages.front(), "fNullMin:S").control);
+			require(nullMax && nullMax->range &&
+					nullMax->range->minimum == std::optional<double>{ 0.0 } &&
+					nullMax->range->maximum == std::optional<double>{ 1.0 } &&
+					!nullMax->quantization &&
+					RowNamed(
+						result.pages.front(),
+						"fNullMax:S").sliderNormalization &&
+					nullMin && nullMin->range &&
+					nullMin->range->minimum == std::optional<double>{ 0.0 } &&
+					nullMin->range->maximum == std::optional<double>{ 10.0 } &&
+					!nullMin->quantization &&
+					RowNamed(
+						result.pages.front(),
+						"fNullMin:S").sliderNormalization,
+				"null max/min did not follow verified AVM2 slider semantics");
+			for (const auto id : {
+					"fMaxOnly:S",
+					"fBadMax:S",
+					"fBackwards:S" })
+			{
+				const auto row = std::ranges::find(
+					result.pages.front().rows,
+					id,
+					&MappedRow::id);
+				require(row != result.pages.front().rows.end() &&
+						row->unsupported,
+					"malformed slider stayed operable: " +
+						std::string{ id });
+			}
+			require(HasDiagnostic(
+						result,
+						"requires finite numeric min, max, and positive step",
+						"$.content[2]") &&
+					HasDiagnostic(result, "expected a number", "$.content[3]") &&
+					HasDiagnostic(result, "maximum is less", "$.content[4]"),
+				"malformed slider diagnostics were incomplete");
 		});
 
 		runner.test("MCM synthetic config maps readable and unsupported controls", [] {
@@ -858,13 +999,22 @@ namespace vmm_tests
 			require(std::holds_alternative<dmui::DoubleSettingControl>(
 						SettingNamed(result.pages.front(), "slider").control),
 				"range-less slider did not preserve its shape");
+			const auto& slider =
+				std::get<dmui::DoubleSettingControl>(
+					SettingNamed(result.pages.front(), "slider").control);
+			require(slider.range &&
+					slider.range->minimum == std::optional<double>{ 0.0 } &&
+					slider.range->maximum == std::optional<double>{ 1.0 } &&
+					!slider.quantization &&
+					RowNamed(
+						result.pages.front(),
+						"slider").sliderNormalization,
+				"range-less slider did not inherit MCM widget defaults");
 			require(std::holds_alternative<dmui::UnsupportedSettingControl>(
 						SettingNamed(result.pages.front(), "typeless").control),
 				"typeless control did not degrade to unsupported");
 			require(HasDiagnostic(result, "missing valueOptions",
 						"$.content[0]") &&
-					HasDiagnostic(result, "slider has no numeric range",
-						"$.content[1]") &&
 					HasDiagnostic(result, "missing required string",
 						"$.content[2].type"),
 				"incomplete controls were not fully diagnosed");
@@ -947,9 +1097,10 @@ namespace vmm_tests
 			const auto* numeric =
 				std::get_if<dmui::DoubleSettingControl>(&mapped.control);
 			require(numeric && numeric->format == "%.2f" &&
-					numeric->quantization &&
-					numeric->quantization->interval == 0.25 &&
-					numeric->quantization->origin == 0.0 &&
+					!numeric->quantization &&
+					RowNamed(
+						result.pages.front(),
+						"FloatValue").sliderNormalization &&
 					std::get<double>(mapped.defaultValue) == 1.25,
 				"numeric format, quantization, or default did not map");
 
@@ -1202,15 +1353,15 @@ namespace vmm_tests
 				"minMcmVersion":2,"modName":"Sources","displayName":"Sources",
 				"content":[
 					{"type":"section","text":"All"},
-					{"id":"g","type":"slider","valueOptions":{"sourceType":"GlobalValue","min":0,"max":1}},
+					{"id":"g","type":"slider","valueOptions":{"sourceType":"GlobalValue","min":0,"max":1,"step":1}},
 					{"id":"pb","type":"switch","valueOptions":{"sourceType":"PropertyValueBool"}},
-					{"id":"pi","type":"slider","valueOptions":{"sourceType":"PropertyValueInt","min":0,"max":1}},
-					{"id":"pf","type":"slider","valueOptions":{"sourceType":"PropertyValueFloat","min":0,"max":1}},
+					{"id":"pi","type":"slider","valueOptions":{"sourceType":"PropertyValueInt","min":0,"max":1,"step":1}},
+					{"id":"pf","type":"slider","valueOptions":{"sourceType":"PropertyValueFloat","min":0,"max":1,"step":1}},
 					{"id":"ps","type":"input","valueOptions":{"sourceType":"PropertyValueString"}},
-					{"id":"px","type":"slider","valueOptions":{"sourceType":"PropertyValueEx","min":0,"max":1}},
+					{"id":"px","type":"slider","valueOptions":{"sourceType":"PropertyValueEx","min":0,"max":1,"step":1}},
 					{"id":"mb:S","type":"switch","valueOptions":{"sourceType":"ModSettingBool"}},
-					{"id":"mi:S","type":"slider","valueOptions":{"sourceType":"ModSettingInt","min":0,"max":1}},
-					{"id":"mf:S","type":"slider","valueOptions":{"sourceType":"ModSettingFloat","min":0,"max":1}},
+					{"id":"mi:S","type":"slider","valueOptions":{"sourceType":"ModSettingInt","min":0,"max":1,"step":1}},
+					{"id":"mf:S","type":"slider","valueOptions":{"sourceType":"ModSettingFloat","min":0,"max":1,"step":1}},
 					{"id":"ms:S","type":"input","valueOptions":{"sourceType":"ModSettingString"}},
 					{"id":"u","type":"input","valueOptions":{"sourceType":"Mystery"}}
 				]
@@ -1574,7 +1725,7 @@ namespace vmm_tests
 				"valid setting id");
 			checkPersistentFailure(
 				"nonboolean-control.json",
-				R"({"type":"slider","groupControl":1,"valueOptions":{"sourceType":"ModSettingBool","min":0,"max":1}})",
+				R"({"type":"slider","groupControl":1,"valueOptions":{"sourceType":"ModSettingBool","min":0,"max":1,"step":1}})",
 				R"({"id":"dependent","type":"text","groupCondition":1})",
 				"valid setting id");
 			checkPersistentFailure(

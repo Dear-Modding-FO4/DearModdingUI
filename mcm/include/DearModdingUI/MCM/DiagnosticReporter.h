@@ -2,6 +2,8 @@
 
 #include <DearModdingUI/MCM/Compatibility.h>
 
+#include <utility>
+
 namespace DearModdingUI::MCM
 {
 	class DiagnosticReporter
@@ -16,5 +18,10 @@ namespace DearModdingUI::MCM
 		DiagnosticReporter& operator=(DiagnosticReporter&&) = delete;
 
 		virtual void Report(Diagnostic a_diagnostic) noexcept = 0;
+
+		virtual void ReportTransient(Diagnostic a_diagnostic) noexcept
+		{
+			Report(std::move(a_diagnostic));
+		}
 	};
 }

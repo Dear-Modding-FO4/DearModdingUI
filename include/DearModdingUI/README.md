@@ -142,6 +142,10 @@ drawn unformatted beside the combo and remains independent of the stable widget 
 settings row already owns the label geometry. See the API repository README for complete C++ signatures
 and examples.
 
+Declarative `ChoiceSettingControl::unmatchedLabel` customizes the unknown-value preview and defaults
+to `"Unavailable"`. It never replaces the bound value: consumers can display `"None"` for a missing
+selection while retaining ordinary change detection, reset behavior, and string persistence.
+
 `drawSectionHeader`, `drawCollapsingSectionHeader`, `drawLinkRow`, `drawFaq`, `drawSearchInput`,
 `drawSettingsActionButton`, `settingsActionButtonWidth`, and `settingsActionButtonExtent` are thin
 calls into the same helpers used by the host. Link rows evenly divide the available width and perform

@@ -1,6 +1,7 @@
 #include <DearModdingUI/MCM/Availability.h>
 #include <DearModdingUI/MCM/ExternalEventDispatcher.h>
 #include <DearModdingUI/MCM/F4SETaskScheduler.h>
+#include <DearModdingUI/MCM/FileChoices.h>
 #include <DearModdingUI/MCM/GamePapyrusDispatcher.h>
 #include <DearModdingUI/MCM/GameScaleformInvoker.h>
 #include <DearModdingUI/MCM/GlobalValueSource.h>
@@ -14,6 +15,7 @@
 
 #include <DearModdingUI/MCM/Compatibility.h>
 #include <DearModdingUI/MCM/TextRendering.h>
+#include <DearModdingUI/MCM/Win32FileListingAdapter.h>
 
 #include <DearModdingUI/Client.h>
 
@@ -49,6 +51,7 @@ namespace DearModdingUI::MCM
 		struct RegisteredPage
 		{
 			std::unique_ptr<MappedPage> page;
+			FileChoiceController fileChoices;
 			DMUI_PageHandle handle{ DMUI_INVALID_PAGE_HANDLE };
 		};
 
@@ -69,6 +72,7 @@ namespace DearModdingUI::MCM
 		F4SETaskScheduler s_scheduler;
 		GamePapyrusDispatcher s_dispatcher;
 		GameScaleformInvoker s_scaleform;
+		Win32FileListingAdapter s_files;
 		ExternalEventDispatcher s_events{ s_scheduler };
 		McmEventLifecycle s_eventLifecycle;
 		bool s_visibilityObserverRegistered{};
@@ -361,6 +365,11 @@ namespace DearModdingUI::MCM
 						keybinds,
 						*mod->diagnostics);
 					ResolveActionAvailability(*page, *mod->actions);
+					auto fileChoices = AttachFileChoices(
+						*page,
+						s_files,
+						*mod->diagnostics,
+						PathText(a_config));
 					BindPage(*page, *mod->values, CurrentMcmState);
 					const auto summary =
 						SummarizeCompatibility(*page, *mod->values);
@@ -477,38 +486,51 @@ namespace DearModdingUI::MCM
 					}
 					mod->pages.push_back({
 						std::move(page),
+						std::move(fileChoices),
 						*registered
 					});
 				}
 				auto* observed = mod.get();
-				(void)mod->client->AddPageActivityObserver(
-					[observed,
-					 modName = configuration.modName](
-						const dmui::PageActivity& a_activity) {
-						if (a_activity.kind == dmui::PageActivityKind::kActivated)
-							s_events.DispatchEvents(
-								s_eventLifecycle.PageActivated(modName));
-						if (a_activity.kind == dmui::PageActivityKind::kDeactivated)
-						{
-							const auto visible =
-								observed->client->IsMenuVisible();
-							s_events.DispatchEvents(
-								s_eventLifecycle.PageDeactivated(
-									modName,
-									visible.value_or(true)));
-							return;
-						}
-						for (const auto& registered : observed->pages)
-						{
-							if (registered.handle == a_activity.activePage)
+				if (!mod->client->AddPageActivityObserver(
+						[observed,
+						 modName = configuration.modName](
+							const dmui::PageActivity& a_activity) {
+							if (a_activity.kind ==
+								dmui::PageActivityKind::kActivated)
 							{
-								observed->values->RefreshPage(
-									*registered.page,
-									CurrentMcmState());
-								break;
+								s_events.DispatchEvents(
+									s_eventLifecycle.PageActivated(modName));
 							}
-						}
-					});
+							if (a_activity.kind ==
+								dmui::PageActivityKind::kDeactivated)
+							{
+								const auto visible =
+									observed->client->IsMenuVisible();
+								s_events.DispatchEvents(
+									s_eventLifecycle.PageDeactivated(
+										modName,
+										visible.value_or(true)));
+								return;
+							}
+							for (auto& registered : observed->pages)
+							{
+								if (registered.handle == a_activity.activePage)
+								{
+									registered.fileChoices.Refresh();
+									observed->values->RefreshPage(
+										*registered.page,
+										CurrentMcmState());
+									break;
+								}
+							}
+						}))
+				{
+					REX::ERROR(
+						"DearModdingUI-MCM: page activity observer for {} "
+						"was rejected ({})"sv,
+						displayName,
+						DMUI_ResultToString(mod->client->LastResult()));
+				}
 
 				REX::INFO(
 					"DearModdingUI-MCM: {} registered ({} pages, {} descriptors, {} diagnostics)"sv,

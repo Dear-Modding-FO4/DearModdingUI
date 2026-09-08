@@ -93,6 +93,33 @@ main menu.
 Global-backed choices use numeric option indexes encoded as descriptor strings. Reads format the
 global as an integer index, and writes accept only numeric strings rather than option labels.
 
+MCM sliders preserve the shipped widget's parameter semantics. When `max` is absent or null, the
+widget does not consume any supplied `min` or `step`, so the bridge materializes its effective
+`0..1` range and `0.05` step. Integer-backed sliders project that default to the observable stored
+values `0` and `1`. When `max` is present, finite numeric `min`, `max`, and a positive `step` are
+required; malformed controls remain visible but disabled with diagnostics. Slider quantization is
+anchored at zero after clamping, matching MCM's scrollbar rather than the core settings API's
+general minimum-origin convention. Declared defaults use the same normalization, so resets converge
+on the effective value rather than repeatedly writing an unreachable off-grid default.
+If an integer half-up snap would cross an `int64_t` boundary,
+the nearest representable zero-origin grid point is used instead.
+
+`dropdownFiles` remains a string-backed choice rather than a value-source special case. Its
+`valueOptions.path` is passed verbatim to a Win32 `FindFirstFile`/`FindNextFile` adapter with the
+optional `mask` defaulting to `*`. Enumeration is non-recursive, unsorted, includes every matched
+entry (including directories and hidden entries), preserves filename case and extensions, and does
+not canonicalize paths, so in-process mod-manager filesystem virtualization remains effective.
+Missing directories and no matches produce only the `None` choice; other I/O failures disable the
+row with a transient path-specific explanation and are retried on later page activations.
+
+The cached choice list is refreshed when its page is activated, including after reopening the
+overlay, and `prepareView` only applies a changed snapshot without performing I/O. The first option
+has value `""` and label `None`; a real file named `None` remains a distinct option. Unknown stored
+filenames display as `None` through the choice control's unmatched label while the binding retains
+the exact stored value for ordinary modified-state and reset handling. User selection and actions
+receive the exact bare filename with extension, while selecting or resetting to `None` persists an
+empty string.
+
 ## Actions
 
 Buttons map to `SettingsActionRow`, not `SettingDescriptor`, so they have no default value, value

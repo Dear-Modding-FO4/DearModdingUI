@@ -73,6 +73,34 @@ namespace DearModdingUI::MCM
 		Submit(a_diagnostic);
 	}
 
+	void RexDiagnosticReporter::ReportTransient(Diagnostic a_diagnostic) noexcept
+	{
+		if (a_diagnostic.location.empty())
+		{
+			if (a_diagnostic.severity == DiagnosticSeverity::kWarning)
+				REX::WARN("{} mod=\"{}\" client_id=\"{}\" {}: {}"sv,
+					kDiagnosticLogTag, mod_, clientId_,
+					a_diagnostic.source, a_diagnostic.message);
+			else
+				REX::ERROR("{} mod=\"{}\" client_id=\"{}\" {}: {}"sv,
+					kDiagnosticLogTag, mod_, clientId_,
+					a_diagnostic.source, a_diagnostic.message);
+		}
+		else
+		{
+			if (a_diagnostic.severity == DiagnosticSeverity::kWarning)
+				REX::WARN("{} mod=\"{}\" client_id=\"{}\" {}: {}: {}"sv,
+					kDiagnosticLogTag, mod_, clientId_,
+					a_diagnostic.source, a_diagnostic.location,
+					a_diagnostic.message);
+			else
+				REX::ERROR("{} mod=\"{}\" client_id=\"{}\" {}: {}: {}"sv,
+					kDiagnosticLogTag, mod_, clientId_,
+					a_diagnostic.source, a_diagnostic.location,
+					a_diagnostic.message);
+		}
+	}
+
 	void RexDiagnosticReporter::AttachClient(dmui::Client& a_client) noexcept
 	{
 		const std::scoped_lock lock{ mutex_ };

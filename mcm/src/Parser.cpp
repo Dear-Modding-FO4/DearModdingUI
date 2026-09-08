@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cmath>
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -32,6 +33,8 @@ namespace DearModdingUI::MCM
 				return ControlType::kStepper;
 			if (type == "menu" || type == "enum" || type == "dropdown")
 				return ControlType::kMenu;
+			if (type == "dropdownfiles")
+				return ControlType::kFileMenu;
 			if (type == "input" || type == "textinput")
 				return ControlType::kInput;
 			if (type == "text")
@@ -85,6 +88,7 @@ namespace DearModdingUI::MCM
 			case ControlType::kSlider:
 			case ControlType::kStepper:
 			case ControlType::kMenu:
+			case ControlType::kFileMenu:
 			case ControlType::kInput:
 				return true;
 			default:
@@ -797,6 +801,8 @@ namespace DearModdingUI::MCM
 				if (control.type == ControlType::kStepper ||
 					control.type == ControlType::kMenu)
 					CheckChoice(control);
+				if (control.type == ControlType::kFileMenu)
+					CheckFileChoice(control);
 
 				return control;
 			}
@@ -816,9 +822,16 @@ namespace DearModdingUI::MCM
 					ReadString(a_value, "scriptName", location);
 				result.propertyName =
 					ReadString(a_value, "propertyName", location);
-				result.minimum = ReadNumber(a_value, "min", location);
-				result.maximum = ReadNumber(a_value, "max", location);
-				result.step = ReadNumber(a_value, "step", location);
+				if (a_control.type == ControlType::kSlider)
+				{
+					ReadSliderParameters(a_value, location, result);
+				}
+				else
+				{
+					result.minimum = ReadNumber(a_value, "min", location);
+					result.maximum = ReadNumber(a_value, "max", location);
+					result.step = ReadNumber(a_value, "step", location);
+				}
 				result.format = ReadString(a_value, "format", location);
 				if (!result.format)
 				{
@@ -855,11 +868,18 @@ namespace DearModdingUI::MCM
 						}
 					}
 				}
+				if (a_control.type == ControlType::kFileMenu)
+				{
+					result.filePath = ReadString(a_value, "path", location);
+					result.fileMask = ReadString(a_value, "mask", location);
+				}
 
 				if (result.minimum &&
 					result.maximum &&
 					*result.maximum < *result.minimum)
 				{
+					if (a_control.type == ControlType::kSlider)
+						result.sliderParametersValid = false;
 					Diagnose(
 						DiagnosticSeverity::kWarning,
 						location,
@@ -891,24 +911,73 @@ namespace DearModdingUI::MCM
 				return result;
 			}
 
+			void ReadSliderParameters(
+				const Json& a_value,
+				const std::string& a_location,
+				ValueOptions& a_result)
+			{
+				const auto maximum = a_value.find("max");
+				const auto usesWidgetDefaults =
+					maximum == a_value.end() || maximum->is_null();
+				if (usesWidgetDefaults)
+				{
+					const auto minimum = a_value.find("min");
+					if (minimum != a_value.end() && !minimum->is_null())
+						(void)ReadNumber(a_value, "min", a_location);
+					const auto step = a_value.find("step");
+					if (step != a_value.end() && !step->is_null())
+						(void)ReadNumber(a_value, "step", a_location);
+					a_result.minimum = 0.0;
+					a_result.maximum = 1.0;
+					a_result.step = 0.05;
+					a_result.sliderDefaultsApplied = true;
+					return;
+				}
+
+				a_result.maximum = ReadNumber(a_value, "max", a_location);
+				const auto minimum = a_value.find("min");
+				if (minimum != a_value.end() && minimum->is_null())
+					a_result.minimum = 0.0;
+				else
+					a_result.minimum = ReadNumber(a_value, "min", a_location);
+				const auto step = a_value.find("step");
+				if (step != a_value.end() && step->is_null())
+					a_result.step = 0.0;
+				else
+					a_result.step = ReadNumber(a_value, "step", a_location);
+
+				a_result.sliderParametersValid =
+					a_result.minimum.has_value() &&
+					a_result.maximum.has_value() &&
+					a_result.step.has_value() &&
+					std::isfinite(*a_result.minimum) &&
+					std::isfinite(*a_result.maximum) &&
+					std::isfinite(*a_result.step) &&
+					*a_result.step > 0.0;
+				if (a_result.sliderParametersValid)
+				{
+					for (const auto bound : { *a_result.minimum, *a_result.maximum })
+					{
+						if (!std::isfinite(
+								std::floor(bound / *a_result.step + 0.5) *
+								*a_result.step))
+							a_result.sliderParametersValid = false;
+					}
+				}
+			}
+
 			void CheckSlider(const Control& a_control)
 			{
-				if (!a_control.valueOptions ||
-					(!a_control.valueOptions->minimum &&
-						!a_control.valueOptions->maximum))
+				if (!a_control.valueOptions)
+				{
+					return;
+				}
+				if (!a_control.valueOptions->sliderParametersValid)
 				{
 					Diagnose(
 						DiagnosticSeverity::kError,
 						a_control.location + ".valueOptions",
-						"slider has no numeric range");
-				}
-				else if (!a_control.valueOptions->minimum ||
-					!a_control.valueOptions->maximum)
-				{
-					Diagnose(
-						DiagnosticSeverity::kWarning,
-						a_control.location + ".valueOptions",
-						"slider range has only one bound");
+						"slider with max requires finite numeric min, max, and positive step");
 				}
 			}
 
@@ -921,6 +990,28 @@ namespace DearModdingUI::MCM
 						DiagnosticSeverity::kError,
 						a_control.location + ".valueOptions.options",
 						"choice control has no options");
+				}
+			}
+
+			void CheckFileChoice(const Control& a_control)
+			{
+				if (!a_control.valueOptions)
+					return;
+				const auto& options = *a_control.valueOptions;
+				if (!options.filePath || options.filePath->empty())
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						a_control.location + ".valueOptions.path",
+						"file dropdown requires a non-empty path");
+				}
+				if (options.sourceType &&
+					options.sourceType->value != SourceValueKind::kString)
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						a_control.location + ".valueOptions.sourceType",
+						"file dropdown requires a string value source");
 				}
 			}
 

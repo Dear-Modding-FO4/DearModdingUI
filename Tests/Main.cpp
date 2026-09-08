@@ -17,6 +17,7 @@ int main()
 	run_mcm_checks(runner);
 	run_mcm_availability_checks(runner);
 	run_mcm_binding_checks(runner);
+	run_mcm_file_choice_checks(runner);
 	run_mcm_global_value_checks(runner);
 	run_mcm_settings_ini_checks(runner);
 	run_mcm_keybind_checks(runner);

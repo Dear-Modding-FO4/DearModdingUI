@@ -2,6 +2,8 @@
 
 #include "Harness.h"
 
+#include <cmath>
+#include <limits>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -21,7 +23,7 @@ namespace vmm_tests
 				 "sourceForm":"ExampleCore.esp|800","default":false}},
 				{"id":"fGlobalSlider:Main","text":"Global slider","type":"slider",
 				 "valueOptions":{"sourceType":"GlobalValue",
-				 "sourceForm":"ExampleCore.esp|801","min":0,"max":10,"default":1}},
+				 "sourceForm":"ExampleCore.esp|801","min":0,"max":10,"step":1,"default":1}},
 				{"id":"bStoredSwitch:Main","text":"Stored switch","type":"switcher",
 				 "valueOptions":{"sourceType":"ModSettingBool","default":false}}
 			]
@@ -36,7 +38,7 @@ namespace vmm_tests
 				"content":[
 					{"id":"fGlobalRange","text":"Global range","type":"slider",
 					 "valueOptions":{"sourceType":"GlobalValue",
-					 "sourceForm":"Fixture.esp|801","min":0,"max":10,"default":1}},
+					 "sourceForm":"Fixture.esp|801","min":0,"max":10,"step":1,"default":1}},
 					{"id":"bStoredOption:Main","text":"Stored option","type":"switcher",
 					 "valueOptions":{"sourceType":"ModSettingBool","default":false}}
 				]
@@ -262,6 +264,172 @@ namespace vmm_tests
 			require(std::get<double>(applied) == 2.0 &&
 					source.generation == 1,
 				"effective quantized value or generation was lost");
+		});
+
+		runner.test("MCM sliders clamp before zero-anchored Math.round snapping", [] {
+			auto result = ParseConfig(R"json({
+				"modName":"SliderNormalization",
+				"content":[
+					{"id":"positive","type":"slider","valueOptions":{
+						"sourceType":"GlobalValueFloat",
+						"sourceForm":"Fixture.esp|1",
+						"min":0.1,"max":0.9,"step":0.2}},
+					{"id":"negative","type":"slider","valueOptions":{
+						"sourceType":"GlobalValueFloat",
+						"sourceForm":"Fixture.esp|2",
+						"min":-1,"max":1,"step":1}}
+				]
+			})json", "slider-normalization.json");
+			auto page = std::move(result.pages.front());
+			FakeValueSource source{ SourceFamily::kGlobal };
+			source.Seed("positive", 0.5);
+			source.Seed("negative", -0.5);
+			BindPage(page, source);
+
+			auto effective = BoundSetting(page, "positive").binding.set(
+				dmui::SettingValue{ -1.0 });
+			require(std::abs(std::get<double>(effective) - 0.2) < 1e-9,
+				"slider snapped before clamping to its non-grid minimum");
+			effective = BoundSetting(page, "positive").binding.set(
+				dmui::SettingValue{ 0.5 });
+			require(std::abs(std::get<double>(effective) - 0.6) < 1e-9,
+				"slider quantization was not anchored at zero");
+			effective = BoundSetting(page, "negative").binding.set(
+				dmui::SettingValue{ -0.5 });
+			require(std::get<double>(effective) == 0.0,
+				"negative half-step did not use ActionScript Math.round semantics");
+		});
+
+		runner.test("MCM integer slider snapping is exact at int64 limits", [] {
+			auto result = ParseConfig(R"json({
+				"modName":"IntegerLimitNormalization",
+				"content":[
+					{"id":"upperBoundary","type":"slider","valueOptions":{
+						"sourceType":"GlobalValueInt",
+						"sourceForm":"Fixture.esp|1",
+						"min":-9223372036854775808,
+						"max":9223372036854774784,
+						"step":2048}},
+					{"id":"lowerBoundary","type":"slider","valueOptions":{
+						"sourceType":"GlobalValueInt",
+						"sourceForm":"Fixture.esp|2",
+						"min":-9223372036854775808,
+						"max":0,
+						"step":3}},
+					{"id":"halfStep","type":"slider","valueOptions":{
+						"sourceType":"GlobalValueInt",
+						"sourceForm":"Fixture.esp|3",
+						"min":-10,
+						"max":10,
+						"step":2}}
+				]
+			})json", "integer-limit-normalization.json");
+			require(result.pages.size() == 1,
+				"integer limit slider fixture did not map");
+			auto page = std::move(result.pages.front());
+			FakeValueSource source{ SourceFamily::kGlobal };
+			source.Seed("upperBoundary", int64_t{ 0 });
+			source.Seed("lowerBoundary", int64_t{ 0 });
+			source.Seed("halfStep", int64_t{ 0 });
+			BindPage(page, source);
+
+			const auto maximum =
+				(std::numeric_limits<int64_t>::max)();
+			const auto minimum =
+				(std::numeric_limits<int64_t>::min)();
+			auto effective = BoundSetting(page, "upperBoundary").binding.set(
+				dmui::SettingValue{ maximum });
+			require(
+				std::get<int64_t>(effective) ==
+					int64_t{ 9223372036854773760 },
+				"positive half-step overflow did not choose the nearest "
+				"representable grid point");
+
+			effective = BoundSetting(page, "lowerBoundary").binding.set(
+				dmui::SettingValue{ minimum });
+			require(std::get<int64_t>(effective) == minimum + 2,
+				"negative snap overflow did not choose the nearest "
+				"representable grid point");
+
+			effective = BoundSetting(page, "halfStep").binding.set(
+				dmui::SettingValue{ int64_t{ -5 } });
+			require(std::get<int64_t>(effective) == -4,
+				"negative integer half-step stopped rounding toward positive "
+				"infinity");
+		});
+
+		runner.test("MCM slider resets converge on their effective defaults", [] {
+			auto result = ParseConfig(R"json({
+				"modName":"SliderDefaults",
+				"displayName":"Slider defaults",
+				"content":[
+					{"id":"floating","type":"slider","valueOptions":{
+						"sourceType":"GlobalValueFloat","sourceForm":"Fixture.esp|1",
+						"min":0.1,"max":0.9,"step":0.2,"default":0.5}},
+					{"id":"integer","type":"slider","valueOptions":{
+						"sourceType":"GlobalValueInt","sourceForm":"Fixture.esp|2",
+						"min":1,"max":10,"step":3,"default":5}}
+				]
+			})json");
+			require(result.diagnostics.empty(), "valid slider defaults were rejected");
+			auto page = std::move(result.pages.front());
+			FakeValueSource source{ SourceFamily::kGlobal };
+			source.Seed("floating", 0.8);
+			source.Seed("integer", int64_t{ 9 });
+			BindPage(page, source);
+			size_t edits{};
+			for (const auto id : { "floating", "integer" })
+			{
+				auto& setting = BoundSetting(page, id);
+				setting.onEdit = [&](const dmui::SettingEditEvent& event) {
+					require(event.changed && event.completed, "reset edit was not completed");
+					++edits;
+				};
+				const auto before = source.writes;
+				const auto reset = dmui::ResetSettingToDefault(setting);
+				require(reset && *reset == setting.defaultValue &&
+						dmui::IsSettingDefault(setting, setting.binding.get()) &&
+						source.writes == before + 1,
+					"slider reset did not reach the effective default");
+				(void)dmui::ResetSettingToDefault(setting);
+				require(source.writes == before + 1,
+					"already-default slider reset repeated its write");
+			}
+			require(edits == 2 &&
+					std::abs(std::get<double>(
+						BoundSetting(page, "floating").defaultValue) - 0.6) < 1e-9 &&
+					std::get<int64_t>(BoundSetting(page, "integer").defaultValue) == 6,
+				"slider defaults did not use the same zero-grid normalization as edits");
+		});
+
+		runner.test("MCM rejects slider bounds that cannot be represented safely", [] {
+			auto result = ParseConfig(R"json({
+				"modName":"UnsafeSlider",
+				"displayName":"Unsafe slider",
+				"content":[
+					{"id":"integer","type":"slider","valueOptions":{
+						"sourceType":"GlobalValueInt","sourceForm":"Fixture.esp|1",
+						"min":1,"max":9223372036854775808,"step":1}},
+					{"id":"floating","type":"slider","valueOptions":{
+						"sourceType":"GlobalValueFloat","sourceForm":"Fixture.esp|2",
+						"min":0,"max":1e308,"step":1e-300}}
+				]
+			})json");
+			require(result.pages.size() == 1 && !result.diagnostics.empty(),
+				"unrepresentable slider bounds were not diagnosed");
+			auto page = std::move(result.pages.front());
+			FakeValueSource source{ SourceFamily::kGlobal };
+			source.Seed("integer", int64_t{ 1 });
+			source.Seed("floating", 1.0);
+			BindPage(page, source);
+			for (const auto id : { "integer", "floating" })
+			{
+				auto& setting = BoundSetting(page, id);
+				require(setting.isEnabled && !setting.isEnabled() &&
+						!dmui::ResetSettingToDefault(setting),
+					"unrepresentable slider remains editable or resettable");
+			}
+			require(source.writes == 0, "invalid slider parameters reached storage");
 		});
 
 		runner.test("MCM pending values stay drawable and disable their row", [] {

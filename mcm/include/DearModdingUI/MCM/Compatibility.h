@@ -10,6 +10,7 @@
 #include <expected>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -28,6 +29,7 @@ namespace DearModdingUI::MCM
 		kSlider,
 		kStepper,
 		kMenu,
+		kFileMenu,
 		kInput,
 		kText,
 		kGroup,
@@ -187,6 +189,10 @@ namespace DearModdingUI::MCM
 		std::optional<double> step;
 		std::optional<std::string> format;
 		std::vector<Scalar> options;
+		std::optional<std::string> filePath;
+		std::optional<std::string> fileMask;
+		bool sliderDefaultsApplied{};
+		bool sliderParametersValid{ true };
 	};
 
 	struct Control
@@ -256,6 +262,33 @@ namespace DearModdingUI::MCM
 		TextPresentation presentation;
 	};
 
+	struct FileChoiceMetadata
+	{
+		std::optional<std::string> path;
+		std::string mask{ "*" };
+		std::string location;
+	};
+
+	class FileChoiceState;
+
+	struct DoubleSliderNormalization
+	{
+		double minimum{};
+		double maximum{};
+		double step{};
+	};
+
+	struct SignedSliderNormalization
+	{
+		int64_t minimum{};
+		int64_t maximum{};
+		int64_t step{};
+	};
+
+	using SliderNormalization = std::variant<
+		DoubleSliderNormalization,
+		SignedSliderNormalization>;
+
 	enum class ValueRoute : uint8_t
 	{
 		kSource,
@@ -279,6 +312,8 @@ namespace DearModdingUI::MCM
 		kValuePending,
 		kValueMissing,
 		kValueFailed,
+		kFileChoicesPending,
+		kFileChoicesFailed,
 		kUnsupportedAction
 	};
 
@@ -386,6 +421,18 @@ namespace DearModdingUI::MCM
 				"This setting's value could not be read.",
 				{}
 			};
+		case InertReason::kFileChoicesPending:
+			return {
+				InertReasonScope::kRow,
+				"Waiting for this file list to be refreshed.",
+				{}
+			};
+		case InertReason::kFileChoicesFailed:
+			return {
+				InertReasonScope::kRow,
+				"This file list could not be read.",
+				{}
+			};
 		case InertReason::kUnsupportedAction:
 			return {
 				InertReasonScope::kRow,
@@ -418,6 +465,9 @@ namespace DearModdingUI::MCM
 		std::optional<MappedText> text;
 		std::optional<Action> action;
 		std::optional<Image> image;
+		std::optional<FileChoiceMetadata> fileChoices;
+		std::shared_ptr<FileChoiceState> fileChoiceState;
+		std::optional<SliderNormalization> sliderNormalization;
 		ValueRoute valueRoute{ ValueRoute::kSource };
 		std::optional<std::string> keybindId;
 		std::optional<ResolvedInertState> keybindInertState;

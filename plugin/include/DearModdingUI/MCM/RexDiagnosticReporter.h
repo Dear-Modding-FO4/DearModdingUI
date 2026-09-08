@@ -25,6 +25,7 @@ namespace DearModdingUI::MCM
 			std::span<const Diagnostic> a_pending = {});
 
 		void Report(Diagnostic a_diagnostic) noexcept override;
+		void ReportTransient(Diagnostic a_diagnostic) noexcept override;
 		void AttachClient(dmui::Client& a_client) noexcept;
 		void ReportSummary(
 			DMUI_StatusSeverity a_severity,
