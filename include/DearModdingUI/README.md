@@ -181,6 +181,45 @@ links do not execute either action, and an open failure is returned instead of f
 clipboard. The operation is synchronous only through launch acceptance and never waits for the
 external process to exit.
 
+`DMUI_HOST_SERVICE_VIRTUAL_FILE_TARGETS` adds two explicit target kinds to the
+same descriptor. `VIRTUAL_FILE` resolves the existing file visible at `target`
+and opens its physical backing file. `VIRTUAL_FILE_PARENT` resolves that file
+first, then opens its physical containing folder; it never resolves a merged
+virtual directory. Both require an absolute file path and retain the same
+OS-default or explicit-application behavior. Ordinary file/directory targets,
+application paths, working directories, and copy links are not implicitly
+resolved by the host.
+
+Resolution opens existing files read-only, maps without reading their contents,
+and obtains the backing section name. Ordinary handle-name queries are not used:
+current USVFS deliberately rewrites them to the virtual name. Local volume mount
+paths and supported UNC names are translated for external use without scanning
+mod directories or consulting manager-specific configuration. Readable,
+nonempty loose files are supported; empty files, directories, archive interiors,
+and unsupported backing namespaces fail explicitly. Missing files have no
+resolvable backing location. The host neither creates files nor guesses a
+future Overwrite destination.
+
+`EXTERNAL_RESOLUTION_FAILED` and `EXTERNAL_RESOLUTION_UNSUPPORTED` are distinct
+from `EXTERNAL_OPEN_FAILED`; `nativeError` reports the Windows error for the
+failing stage. Resolution failure never dispatches an unresolved fallback.
+Resolution is synchronous, so call only for an explicit action, not every frame.
+The physical target may belong to an installed mod; safe user-override creation
+is client policy. A launch reopens by path and is not atomic with resolution.
+USVFS may still inject child applications; this service does not promise an
+unvirtualized process.
+
+```cpp
+uint32_t nativeError{};
+const bool opened = client.OpenExternal({
+    .targetKind = DMUI_EXTERNAL_TARGET_VIRTUAL_FILE_PARENT,
+    .target = absoluteSettingsPath.c_str()
+}, &nativeError);
+```
+
+If `opened` is false, surface `client.LastResult()` and `nativeError` through
+the client's diagnostics.
+
 ## Client actions
 
 Clients may register actions through the optional appended `registerAction` entry. Check

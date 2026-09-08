@@ -22,10 +22,17 @@ namespace DearModdingUI
 		const ExternalOpenRequest&,
 		uint32_t*) noexcept;
 
+	using ExternalFileResolver = DMUI_Result (*)(
+		std::string_view,
+		std::string&,
+		uint32_t*) noexcept;
+
 	class ExternalOpener
 	{
 	public:
-		explicit ExternalOpener(ExternalOpenDispatch a_dispatch = nullptr) noexcept;
+		explicit ExternalOpener(
+			ExternalOpenDispatch a_dispatch = nullptr,
+			ExternalFileResolver a_resolveFile = nullptr) noexcept;
 
 		[[nodiscard]] DMUI_Result Open(
 			const DMUI_ExternalOpenDescriptor* a_descriptor,
@@ -33,6 +40,7 @@ namespace DearModdingUI
 
 	private:
 		ExternalOpenDispatch m_dispatch;
+		ExternalFileResolver m_resolveFile;
 	};
 
 	[[nodiscard]] DMUI_Result ValidateExternalOpenDescriptor(
@@ -42,5 +50,9 @@ namespace DearModdingUI
 		std::wstring_view a_argument);
 	[[nodiscard]] DMUI_Result DispatchExternalOpen(
 		const ExternalOpenRequest& a_request,
+		uint32_t* a_nativeError) noexcept;
+	[[nodiscard]] DMUI_Result ResolveExternalFile(
+		std::string_view a_virtualFile,
+		std::string& a_physicalFile,
 		uint32_t* a_nativeError) noexcept;
 }

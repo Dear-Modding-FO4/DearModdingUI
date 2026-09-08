@@ -3565,10 +3565,17 @@ namespace DearModdingUI
 				(void)ImGui::BeginTooltip();
 				if (link.action == DMUI_LINK_ACTION_COPY_TARGET)
 					ImGui::TextUnformatted("Copy target");
-				else if (link.external.application.empty())
-					ImGui::TextUnformatted("Open with system default");
 				else
-					ImGui::TextUnformatted("Open with selected application");
+				{
+					if (link.external.targetKind == DMUI_EXTERNAL_TARGET_VIRTUAL_FILE)
+						ImGui::TextUnformatted("Open physical backing file");
+					else if (link.external.targetKind == DMUI_EXTERNAL_TARGET_VIRTUAL_FILE_PARENT)
+						ImGui::TextUnformatted("Open physical containing folder");
+					if (link.external.application.empty())
+						ImGui::TextUnformatted("Open with system default");
+					else
+						ImGui::TextUnformatted("Open with selected application");
+				}
 				const auto detail =
 					link.note.empty() ?
 						std::string_view{ link.external.target } :

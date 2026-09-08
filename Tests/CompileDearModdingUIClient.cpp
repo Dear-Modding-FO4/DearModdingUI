@@ -166,6 +166,14 @@ namespace
 			.arguments = arguments,
 			.workingDirectory = "C:\\mods"
 		});
+		(void)client.OpenExternal({
+			.targetKind = DMUI_EXTERNAL_TARGET_VIRTUAL_FILE,
+			.target = "C:\\game\\Data\\settings.ini"
+		});
+		(void)client.OpenExternal({
+			.targetKind = DMUI_EXTERNAL_TARGET_VIRTUAL_FILE_PARENT,
+			.target = "C:\\game\\Data\\settings.ini"
+		});
 		const std::array faq{
 			dmui::FaqEntry{
 				"How do I open the menu?",
