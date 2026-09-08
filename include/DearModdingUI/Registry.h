@@ -49,6 +49,7 @@ namespace DearModdingUI
 		void* userData{ nullptr };
 		uint32_t frameDemand{ 0 };
 		bool callbackFailed{ false };
+		std::string iconName;
 	};
 
 	struct RegisteredCategory
@@ -58,6 +59,7 @@ namespace DearModdingUI
 		std::string id;
 		std::string displayName;
 		int32_t sortKey{ 0 };
+		std::string iconName;
 	};
 
 	struct RegisteredAction

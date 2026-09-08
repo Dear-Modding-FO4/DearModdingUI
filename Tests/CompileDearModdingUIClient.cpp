@@ -42,14 +42,16 @@ namespace
 			return;
 		(void)client.AddCategory({
 			.id = "general",
-			.displayName = "General"
+			.displayName = "Lighting",
+			.iconName = "sun-horizon"
 		});
 		const auto label = g_counter;
 		const auto page = client.AddPage(
 			{
 				.id = "settings",
 				.displayName = "Settings",
-				.categoryId = "general"
+				.categoryId = "general",
+				.iconName = "sliders-horizontal"
 			},
 			[label] {
 				ImGui::TextUnformatted("hello");

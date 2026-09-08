@@ -78,7 +78,7 @@ namespace DearModdingUI
 
 		[[nodiscard]] bool HasIconGlyph(char32_t a_glyph) noexcept
 		{
-			if (!a_glyph)
+			if (!IsRepresentableIconGlyph<ImWchar>(a_glyph))
 				return false;
 			auto* font = ImGui::GetFont();
 			return font &&
@@ -1101,18 +1101,15 @@ namespace DearModdingUI
 		void DrawCategoryHeader(
 			const char* a_key,
 			const NavigationClient& a_client,
-			const char* a_name,
+			const NavigationCategory& a_category,
 			bool& a_expanded,
 			size_t a_count) noexcept
 		{
-			const auto glyph = ResolveCategoryIconGlyph(
-				a_name,
-				a_client.displayName,
-				a_client.id,
-				a_client.iconName);
+			const auto glyph =
+				ResolveNavigationCategoryIconGlyph(a_client, a_category);
 			DrawRuledHeading({
 				.key = a_key,
-				.text = a_name,
+				.text = a_category.displayName.c_str(),
 				.glyph = glyph,
 				.count = a_count,
 				.expanded = &a_expanded,
@@ -1570,7 +1567,7 @@ namespace DearModdingUI
 						DrawCategoryHeader(
 							key.c_str(),
 							a_client,
-							category.displayName.c_str(),
+							category,
 							state->second,
 							category.pages.size());
 					}
@@ -2061,20 +2058,7 @@ namespace DearModdingUI
 		[[nodiscard]] char32_t PaletteEntryGlyph(
 			const NavigationSearchEntry& a_entry) noexcept
 		{
-			switch (a_entry.kind)
-			{
-			case NavigationItemKind::kClient:
-				return ResolveClientIconGlyph(
-					a_entry.iconName,
-					a_entry.category,
-					a_entry.clientDisplayName);
-			case NavigationItemKind::kAction:
-				if (const auto glyph = ResolveActionIconGlyph(a_entry.iconName))
-					return glyph;
-				return PhosphorGlyph::kTerminalWindow;
-			default:
-				return PhosphorGlyph::kFiles;
-			}
+			return ResolveNavigationSearchEntryGlyph(a_entry);
 		}
 
 		void ActivatePaletteEntry(

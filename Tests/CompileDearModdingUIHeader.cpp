@@ -215,13 +215,14 @@ static_assert(DMUI_HOTKEY_BINDING_UNBOUND_OVERRIDE_CONFLICT == 4u);
 static_assert(DMUI_HOTKEY_BINDING_UNBOUND_INVALID_OVERRIDE == 5u);
 static_assert(DMUI_CLIENT_ORIGIN_NATIVE == 0u);
 static_assert(DMUI_CLIENT_ORIGIN_BRIDGED == 1u);
+static_assert(DMUI_HOST_SERVICE_NAVIGATION_ICONS == (UINT64_C(1) << 11u));
 
 #if UINTPTR_MAX == UINT64_MAX
 static_assert(sizeof(DMUI_ImGuiFingerprint) == 216);
 static_assert(sizeof(DMUI_HostReadyInfo) == 40);
 static_assert(sizeof(DMUI_ClientDescriptor) == 112);
-static_assert(sizeof(DMUI_PageDescriptor) == 64);
-static_assert(sizeof(DMUI_CategoryDescriptor) == 32);
+static_assert(sizeof(DMUI_PageDescriptor) == 72);
+static_assert(sizeof(DMUI_CategoryDescriptor) == 40);
 static_assert(sizeof(DMUI_ActionDescriptor) == 64);
 static_assert(sizeof(DMUI_FrameObserverDescriptor) == 24);
 static_assert(sizeof(DMUI_HotkeyActionDescriptor) == 56);
@@ -251,9 +252,13 @@ static_assert(offsetof(DMUI_ClientDescriptor, requiredServices) == 96);
 static_assert(offsetof(DMUI_ClientDescriptor, minimumForwardingVersion) == 104);
 static_assert(DMUI_CLIENT_DESCRIPTOR_SERVICES_SIZE ==
 	sizeof(DMUI_ClientDescriptor));
-static_assert(DMUI_PAGE_DESCRIPTOR_0_1_SIZE ==
+static_assert(DMUI_PAGE_DESCRIPTOR_0_1_SIZE == 64);
+static_assert(offsetof(DMUI_PageDescriptor, iconName) == 64);
+static_assert(DMUI_PAGE_DESCRIPTOR_ICON_SIZE ==
 	sizeof(DMUI_PageDescriptor));
-static_assert(DMUI_CATEGORY_DESCRIPTOR_0_1_SIZE ==
+static_assert(DMUI_CATEGORY_DESCRIPTOR_0_1_SIZE == 32);
+static_assert(offsetof(DMUI_CategoryDescriptor, iconName) == 32);
+static_assert(DMUI_CATEGORY_DESCRIPTOR_ICON_SIZE ==
 	sizeof(DMUI_CategoryDescriptor));
 static_assert(DMUI_ACTION_DESCRIPTOR_0_1_SIZE ==
 	sizeof(DMUI_ActionDescriptor));

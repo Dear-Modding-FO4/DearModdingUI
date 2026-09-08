@@ -146,6 +146,21 @@ namespace vmm_tests
 			return DMUI_RESULT_OK;
 		}
 
+		DMUI_Result DMUI_CALL MockRegisterPage(
+			DMUI_ClientHandle,
+			const DMUI_PageDescriptor*,
+			DMUI_PageHandle*) noexcept
+		{
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL MockRegisterCategory(
+			DMUI_ClientHandle,
+			const DMUI_CategoryDescriptor*) noexcept
+		{
+			return DMUI_RESULT_OK;
+		}
+
 		DMUI_Result DMUI_CALL MockQueryServices(
 			DMUI_HostServicesInfo* a_services) noexcept
 		{
@@ -368,7 +383,8 @@ namespace vmm_tests
 			const char* a_category,
 			int32_t a_sort,
 			DMUI_PageKind a_kind,
-			CallbackState& a_state) noexcept
+			CallbackState& a_state,
+			const char* a_iconName = nullptr) noexcept
 		{
 			return {
 				sizeof(DMUI_PageDescriptor),
@@ -379,7 +395,8 @@ namespace vmm_tests
 				a_sort,
 				a_kind,
 				&Draw,
-				&a_state
+				&a_state,
+				a_iconName
 			};
 		}
 
@@ -438,9 +455,17 @@ namespace vmm_tests
 			const char* a_category,
 			int32_t a_sort,
 			DMUI_PageKind a_kind,
-			CallbackState& a_state)
+			CallbackState& a_state,
+			const char* a_iconName = nullptr)
 		{
-			auto descriptor = Page(a_id, a_name, a_category, a_sort, a_kind, a_state);
+			auto descriptor = Page(
+				a_id,
+				a_name,
+				a_category,
+				a_sort,
+				a_kind,
+				a_state,
+				a_iconName);
 			DMUI_PageHandle handle{};
 			require(a_registry.RegisterPage(a_client, &descriptor, &handle) == DMUI_RESULT_OK,
 				"page registration failed");
@@ -452,14 +477,16 @@ namespace vmm_tests
 			DMUI_ClientHandle a_client,
 			const char* a_id,
 			const char* a_displayName,
-			int32_t a_sortKey = 0)
+			int32_t a_sortKey = 0,
+			const char* a_iconName = nullptr)
 		{
 			const DMUI_CategoryDescriptor descriptor{
 				sizeof(DMUI_CategoryDescriptor),
 				a_id,
 				a_displayName,
 				a_sortKey,
-				0
+				0,
+				a_iconName
 			};
 			require(
 				a_registry.RegisterCategory(a_client, &descriptor) ==
@@ -1813,7 +1840,7 @@ namespace vmm_tests
 			require(registry.RegisterPage(handle, &page, nullptr) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"null page output was accepted");
-			page.structSize = sizeof(page) - 1;
+			page.structSize = DMUI_PAGE_DESCRIPTOR_0_1_SIZE - 1;
 			require(registry.RegisterPage(handle, &page, &pageHandle) ==
 					DMUI_RESULT_STRUCT_TOO_SMALL,
 				"short page descriptor was accepted");
@@ -1865,6 +1892,244 @@ namespace vmm_tests
 				registry.Navigation().clients.size() == 1 &&
 					registry.Navigation().clients.front().iconName == "gauge",
 				"the client icon name was not deep-copied");
+		});
+
+		runner.test("navigation icon descriptor extensions preserve old prefixes", [] {
+			const auto fingerprint = Fingerprint();
+			Registry registry{ fingerprint };
+			CallbackState state;
+			auto clientDescriptor =
+				Client("icons.mod", "Icon Metadata", fingerprint, state);
+			clientDescriptor.iconName = "cloud-sun";
+			DMUI_ClientHandle client{};
+			require(
+				registry.RegisterClient(&clientDescriptor, &client) ==
+					DMUI_RESULT_OK,
+				"navigation icon client registration failed");
+
+			DMUI_CategoryDescriptor oldCategory{
+				DMUI_CATEGORY_DESCRIPTOR_0_1_SIZE,
+				"old",
+				"Lighting",
+				0,
+				0,
+				"sun-horizon"
+			};
+			require(
+				registry.RegisterCategory(client, &oldCategory) ==
+					DMUI_RESULT_OK,
+				"old category prefix was rejected");
+			auto partialCategory = oldCategory;
+			partialCategory.structSize =
+				DMUI_CATEGORY_DESCRIPTOR_0_1_SIZE + 4;
+			partialCategory.id = "partial";
+			require(
+				registry.RegisterCategory(client, &partialCategory) ==
+					DMUI_RESULT_OK,
+				"partial category extension was rejected");
+			char categoryIcon[]{ "sun-horizon" };
+			auto currentCategory = oldCategory;
+			currentCategory.structSize = DMUI_CATEGORY_DESCRIPTOR_ICON_SIZE;
+			currentCategory.id = "current";
+			currentCategory.iconName = categoryIcon;
+			require(
+				registry.RegisterCategory(client, &currentCategory) ==
+					DMUI_RESULT_OK,
+				"current category icon was rejected");
+			categoryIcon[0] = 'x';
+
+			auto oldPage = Page(
+				"old",
+				"Lighting",
+				"old",
+				0,
+				DMUI_PAGE_KIND_SETTINGS,
+				state,
+				"sun");
+			oldPage.structSize = DMUI_PAGE_DESCRIPTOR_0_1_SIZE;
+			DMUI_PageHandle oldPageHandle{};
+			require(
+				registry.RegisterPage(client, &oldPage, &oldPageHandle) ==
+					DMUI_RESULT_OK,
+				"old page prefix was rejected");
+			auto partialPage = Page(
+				"partial",
+				"Weather",
+				"partial",
+				0,
+				DMUI_PAGE_KIND_SETTINGS,
+				state,
+				"sun");
+			partialPage.structSize = DMUI_PAGE_DESCRIPTOR_0_1_SIZE + 4;
+			DMUI_PageHandle partialPageHandle{};
+			require(
+				registry.RegisterPage(
+					client,
+					&partialPage,
+					&partialPageHandle) == DMUI_RESULT_OK,
+				"partial page extension was rejected");
+			char pageIcon[]{ "sliders-horizontal" };
+			auto currentPage = Page(
+				"current",
+				"Current",
+				"current",
+				0,
+				DMUI_PAGE_KIND_SETTINGS,
+				state,
+				pageIcon);
+			DMUI_PageHandle currentPageHandle{};
+			require(
+				registry.RegisterPage(
+					client,
+					&currentPage,
+					&currentPageHandle) == DMUI_RESULT_OK,
+				"current page icon was rejected");
+			pageIcon[0] = 'x';
+
+			std::string oversized(129, 'x');
+			auto invalidCategory = currentCategory;
+			invalidCategory.id = "oversized";
+			invalidCategory.iconName = oversized.c_str();
+			require(
+				registry.RegisterCategory(client, &invalidCategory) ==
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"oversized category icon name was accepted");
+			const char malformed[]{ '\x01', '\0' };
+			auto invalidPage = Page(
+				"malformed",
+				"Malformed",
+				"current",
+				0,
+				DMUI_PAGE_KIND_SETTINGS,
+				state,
+				malformed);
+			DMUI_PageHandle invalidPageHandle{};
+			require(
+				registry.RegisterPage(
+					client,
+					&invalidPage,
+					&invalidPageHandle) == DMUI_RESULT_INVALID_DESCRIPTOR,
+				"malformed page icon name was accepted");
+			auto unknownCategory = currentCategory;
+			unknownCategory.id = "unknown-icon";
+			unknownCategory.iconName = "not-an-icon";
+			require(
+				registry.RegisterCategory(client, &unknownCategory) ==
+					DMUI_RESULT_OK,
+				"unknown well-formed category icon name was rejected");
+			auto blankCategory = currentCategory;
+			blankCategory.id = "blank-icon";
+			blankCategory.iconName = " \t ";
+			require(
+				registry.RegisterCategory(client, &blankCategory) ==
+					DMUI_RESULT_OK,
+				"blank category icon name was rejected");
+			auto unknownPage = Page(
+				"unknown-icon",
+				"Unknown Icon",
+				"current",
+				10,
+				DMUI_PAGE_KIND_SETTINGS,
+				state,
+				"not-an-icon");
+			require(
+				registry.RegisterPage(
+					client,
+					&unknownPage,
+					&invalidPageHandle) == DMUI_RESULT_OK,
+				"unknown well-formed page icon name was rejected");
+			auto blankPage = Page(
+				"blank-icon",
+				"Blank Icon",
+				"current",
+				20,
+				DMUI_PAGE_KIND_SETTINGS,
+				state,
+				" \t ");
+			require(
+				registry.RegisterPage(
+					client,
+					&blankPage,
+					&invalidPageHandle) == DMUI_RESULT_OK,
+				"blank page icon name was rejected");
+
+			require(registry.Freeze(), "navigation icon registry did not freeze");
+			const auto& categories = registry.RegisteredCategories();
+			require(
+				categories.size() == 5 &&
+					categories[0].iconName.empty() &&
+					categories[1].iconName.empty() &&
+					categories[2].iconName == "sun-horizon",
+				"category icon prefix guards or copy lifetime changed");
+			const auto& pages = registry.OrderedPages();
+			const auto oldRegisteredPage = std::ranges::find(
+				pages,
+				"old",
+				&RegisteredPage::id);
+			const auto partialRegisteredPage = std::ranges::find(
+				pages,
+				"partial",
+				&RegisteredPage::id);
+			const auto currentRegisteredPage = std::ranges::find(
+				pages,
+				"current",
+				&RegisteredPage::id);
+			require(
+				pages.size() == 5 &&
+					oldRegisteredPage != pages.end() &&
+					oldRegisteredPage->iconName.empty() &&
+					partialRegisteredPage != pages.end() &&
+					partialRegisteredPage->iconName.empty() &&
+					currentRegisteredPage != pages.end() &&
+					currentRegisteredPage->iconName ==
+						"sliders-horizontal",
+				"page icon prefix guards or copy lifetime changed");
+			const auto& navigation = registry.Navigation().clients.front();
+			const auto navigationCategory = std::ranges::find(
+				navigation.categories,
+				"current",
+				&NavigationCategory::id);
+			require(
+				navigation.iconName == "cloud-sun" &&
+					navigationCategory != navigation.categories.end() &&
+					navigationCategory->iconName == "sun-horizon" &&
+					navigationCategory->pages.front().iconName ==
+						"sliders-horizontal",
+				"navigation model dropped copied icon metadata");
+			const ClientSelectionState selection{
+				client,
+				currentPageHandle
+			};
+			for (const auto layout : {
+					 SidebarLayoutKind::Tree,
+					 SidebarLayoutKind::TwoPane,
+					 SidebarLayoutKind::DrillDown,
+					 SidebarLayoutKind::IconRail })
+			{
+				SidebarBrowsingState browsing;
+				RevealSidebarSelection(
+					layout,
+					registry.Navigation(),
+					selection,
+					browsing);
+				require(
+					ResolveNavigationCategoryIconGlyph(
+						navigation,
+						*navigationCategory) ==
+						FindPhosphorIconGlyphOrZero("sun-horizon"),
+					"a sidebar layout lost the shared category icon override");
+			}
+			const auto index =
+				BuildNavigationSearchIndex(registry.Navigation(), {});
+			const auto pageEntry = std::ranges::find_if(
+				index,
+				[&](const auto& a_entry) {
+					return a_entry.page == currentPageHandle;
+				});
+			require(
+				pageEntry != index.end() &&
+					pageEntry->iconName == "sliders-horizontal",
+				"page search metadata dropped the explicit icon");
 		});
 
 		runner.test("client service requirements fail before registration", [] {
@@ -1946,6 +2211,36 @@ namespace vmm_tests
 						DMUI_RESULT_FORWARDING_VERSION_MISMATCH &&
 					s_mockRegistrations == 0,
 				"old forwarding surface reached client registration");
+		});
+
+		runner.test("navigation icon preflight requires page and category entries", [] {
+			s_mockServices = DMUI_HOST_SERVICE_NAVIGATION_ICONS;
+			s_mockForwardingVersion = DMUI_FORWARDING_VERSION_CURRENT;
+			DMUI_HostAPI api{};
+			api.structSize = sizeof(api);
+			api.registerClient = &MockRegisterClient;
+			api.queryServices = &MockQueryServices;
+			const dmui::ClientOptions options{
+				.requiredServices = DMUI_HOST_SERVICE_NAVIGATION_ICONS
+			};
+			require(
+				dmui::PreflightHostAPI(&api, options) ==
+					DMUI_RESULT_SERVICE_UNAVAILABLE,
+				"navigation icon preflight accepted missing registration entries");
+			api.registerPage = &MockRegisterPage;
+			require(
+				dmui::PreflightHostAPI(&api, options) ==
+					DMUI_RESULT_SERVICE_UNAVAILABLE,
+				"navigation icon preflight omitted category registration");
+			api.registerCategory = &MockRegisterCategory;
+			require(
+				dmui::PreflightHostAPI(&api, options) == DMUI_RESULT_OK,
+				"complete navigation icon surface failed preflight");
+			api.structSize = DMUI_HOST_API_REGISTER_CATEGORY_SIZE - 1;
+			require(
+				dmui::PreflightHostAPI(&api, options) ==
+					DMUI_RESULT_SERVICE_UNAVAILABLE,
+				"navigation icon preflight read a truncated category entry");
 		});
 
 		runner.test("pixel-image preflight requires create update and shared entries", [] {
@@ -4850,6 +5145,12 @@ namespace vmm_tests
 		});
 
 		runner.test("icon resolution follows semantic fallback chain", [] {
+			const auto cloudSun =
+				FindPhosphorIconGlyphOrZero("cloud-sun");
+			const auto sunHorizon =
+				FindPhosphorIconGlyphOrZero("sun-horizon");
+			const auto lightbulb =
+				FindPhosphorIconGlyphOrZero("lightbulb");
 			require(ResolveIconGlyph(IconKind::kClient, "acorn") == 0xEB9A,
 				"full generated icon catalog was not consulted");
 			require(ResolveIconGlyph(IconKind::kCategory, "gear") ==
@@ -4896,6 +5197,110 @@ namespace vmm_tests
 					ResolveClientIconGlyph({}, {}, "Unknown") ==
 						PhosphorGlyph::kQuestion,
 				"action and client misses lost distinct fallbacks");
+			require(
+				ResolveCategoryIconGlyph(
+					"Lighting",
+					"Community Shaders",
+					"dear-modding.community-shaders",
+					"cloud-sun",
+					"Sun Horizon") == sunHorizon &&
+					ResolveCategoryIconGlyph(
+						"Lighting",
+						"Community Shaders",
+						"dear-modding.community-shaders",
+						"cloud-sun",
+						"unknown") == lightbulb &&
+					ResolveClientIconGlyph(
+						"cloud-sun",
+						"Lighting",
+						"Community Shaders") == cloudSun,
+				"category override and client icon selection became coupled");
+			require(
+				ResolveIconGlyph(
+					IconKind::kCategory,
+					"unknown",
+					"Lighting") == lightbulb,
+				"category semantic fallback ignored its metadata");
+			NavigationClient navigationClient;
+			navigationClient.id = "dear-modding.community-shaders";
+			navigationClient.displayName = "Community Shaders";
+			navigationClient.iconName = "cloud-sun";
+			NavigationCategory navigationCategory;
+			navigationCategory.id = "lighting";
+			navigationCategory.displayName = "Lighting";
+			navigationCategory.iconName = "sun-horizon";
+			navigationClient.categories.push_back(navigationCategory);
+			require(
+				ResolveNavigationClientIconGlyph(navigationClient) == cloudSun &&
+					ResolveNavigationCategoryIconGlyph(
+						navigationClient,
+						navigationClient.categories.front()) == sunHorizon,
+				"navigation client and category resolvers lost independent overrides");
+		});
+
+		runner.test("navigation palette glyphs follow per-source precedence", [] {
+			const auto sunHorizon =
+				FindPhosphorIconGlyphOrZero("sun-horizon");
+			const auto lightbulb =
+				FindPhosphorIconGlyphOrZero("lightbulb");
+			const auto weather =
+				FindPhosphorIconGlyphOrZero("cloud-sun");
+			NavigationSearchEntry page;
+			page.kind = NavigationItemKind::kPage;
+			page.displayName = "Unknown";
+			page.iconName = "sun-horizon";
+			page.category = "Lighting";
+			require(
+				ResolveNavigationSearchEntryGlyph(page) == sunHorizon,
+				"explicit page palette icon did not win");
+			page.iconName = "unknown";
+			page.displayName = "Lighting Feature";
+			require(
+				ResolveNavigationSearchEntryGlyph(page) == lightbulb,
+				"page-name palette inference did not follow explicit fallback");
+			page.displayName = "Unknown";
+			page.category = "Weather";
+			require(
+				ResolveNavigationSearchEntryGlyph(page) == weather,
+				"page category metadata was not inferred");
+			page.category = "Unknown";
+			require(
+				ResolveNavigationSearchEntryGlyph(page) ==
+					PhosphorGlyph::kFiles,
+				"page palette miss lost the Files fallback");
+
+			NavigationSearchEntry action;
+			action.kind = NavigationItemKind::kAction;
+			action.displayName = "Copy Records";
+			action.iconName = "trash";
+			require(
+				ResolveNavigationSearchEntryGlyph(action) ==
+					PhosphorGlyph::kTrash,
+				"explicit action palette icon did not win");
+			action.iconName = "unknown";
+			action.displayName = "Audio Feature";
+			require(
+				ResolveNavigationSearchEntryGlyph(action) ==
+					PhosphorGlyph::kSpeakerHigh,
+				"action-label palette inference did not run");
+			action.displayName = "Run";
+			require(
+				ResolveNavigationSearchEntryGlyph(action) ==
+					PhosphorGlyph::kTerminalWindow,
+				"action palette miss lost the terminal fallback");
+			require(
+				ResolveActionIconGlyph("unknown") == char32_t{},
+				"toolbar actions stopped preserving their text-only contract");
+		});
+
+		runner.test("raw icon glyph validation rejects truncating code points", [] {
+			require(
+				IsRepresentableIconGlyph<ImWchar>(PhosphorGlyph::kSun) &&
+					!IsRepresentableIconGlyph<ImWchar>(char32_t{}) &&
+					!IsRepresentableIconGlyph<ImWchar>(
+						char32_t{ 0x1E472 }) &&
+					!IsValidUnicodeScalar(char32_t{ 0xD800 }),
+				"raw glyph validation allowed zero, invalid, or truncating values");
 		});
 
 		runner.test("settings actions map to deterministic glyphs", [] {

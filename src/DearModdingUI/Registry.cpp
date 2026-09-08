@@ -334,14 +334,20 @@ namespace DearModdingUI
 			page.kind = a_descriptor->kind;
 			page.draw = a_descriptor->draw;
 			page.userData = a_descriptor->userData;
+			const auto* iconName =
+				a_descriptor->structSize >= DMUI_PAGE_DESCRIPTOR_ICON_SIZE ?
+					a_descriptor->iconName :
+					nullptr;
 			if (!ReadString(a_descriptor->id, kIdCapacity, false, page.id) ||
 				!ReadString(a_descriptor->displayName, kDisplayNameCapacity, false, page.displayName) ||
 				!ReadString(a_descriptor->categoryId, kCategoryIdCapacity, true, page.categoryId) ||
 				!ReadString(a_descriptor->summary, kSummaryCapacity, true, page.summary) ||
+				!ReadString(iconName, kIconNameCapacity, true, page.iconName) ||
 				!ValidId(page.id) ||
 				!ValidText(page.displayName, false) ||
 				(!page.categoryId.empty() && !ValidId(page.categoryId)) ||
-				!ValidText(page.summary, true))
+				!ValidText(page.summary, true) ||
+				!ValidText(page.iconName, true))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 
 			const std::scoped_lock lock{ m_mutex };
@@ -390,6 +396,10 @@ namespace DearModdingUI
 			RegisteredCategory category{};
 			category.client = a_client;
 			category.sortKey = a_descriptor->sortKey;
+			const auto* iconName =
+				a_descriptor->structSize >= DMUI_CATEGORY_DESCRIPTOR_ICON_SIZE ?
+					a_descriptor->iconName :
+					nullptr;
 			if (!ReadString(
 					a_descriptor->id,
 					kCategoryIdCapacity,
@@ -400,8 +410,14 @@ namespace DearModdingUI
 					kDisplayNameCapacity,
 					false,
 					category.displayName) ||
+				!ReadString(
+					iconName,
+					kIconNameCapacity,
+					true,
+					category.iconName) ||
 				!ValidId(category.id) ||
-				!ValidText(category.displayName, false))
+				!ValidText(category.displayName, false) ||
+				!ValidText(category.iconName, true))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 
 			const std::scoped_lock lock{ m_mutex };

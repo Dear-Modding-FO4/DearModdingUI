@@ -27,6 +27,7 @@ namespace DearModdingUI
 		std::string summary;
 		int32_t sortKey{ 0 };
 		std::string categoryId;
+		std::string iconName;
 	};
 
 	struct NavigationCategory
@@ -35,6 +36,7 @@ namespace DearModdingUI
 		std::vector<NavigationPage> pages;
 		std::string id;
 		int32_t sortKey{ 0 };
+		std::string iconName;
 
 		[[nodiscard]] bool HasHeading() const noexcept
 		{
@@ -56,6 +58,9 @@ namespace DearModdingUI
 
 	[[nodiscard]] char32_t ResolveNavigationClientIconGlyph(
 		const NavigationClient& a_client) noexcept;
+	[[nodiscard]] char32_t ResolveNavigationCategoryIconGlyph(
+		const NavigationClient& a_client,
+		const NavigationCategory& a_category) noexcept;
 
 	struct NavigationClientSection
 	{
@@ -116,6 +121,9 @@ namespace DearModdingUI
 		NavigationSearchEntry entry;
 		NavigationMatchQuality match{ NavigationMatchQuality::kSummary };
 	};
+
+	[[nodiscard]] char32_t ResolveNavigationSearchEntryGlyph(
+		const NavigationSearchEntry& a_entry) noexcept;
 
 	inline constexpr size_t kRecentPageCapacity{ 8 };
 

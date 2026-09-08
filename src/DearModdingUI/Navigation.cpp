@@ -89,9 +89,12 @@ namespace DearModdingUI
 	{
 		try
 		{
+			if (const auto glyph =
+					ResolveNamedIconGlyphOrZero(a_client.iconName))
+				return glyph;
 			const auto category = BestClientCategoryConcept(a_client);
 			return ResolveClientIconGlyph(
-				a_client.iconName,
+				{},
 				category.slug,
 				a_client.displayName);
 		}
@@ -99,6 +102,18 @@ namespace DearModdingUI
 		{
 			return PhosphorGlyph::kQuestion;
 		}
+	}
+
+	char32_t ResolveNavigationCategoryIconGlyph(
+		const NavigationClient& a_client,
+		const NavigationCategory& a_category) noexcept
+	{
+		return ResolveCategoryIconGlyph(
+			a_category.displayName,
+			a_client.displayName,
+			a_client.id,
+			a_client.iconName,
+			a_category.iconName);
 	}
 
 	const NavigationClient* NavigationModel::FindClient(
@@ -244,7 +259,8 @@ namespace DearModdingUI
 					{},
 					page->summary,
 					page->sortKey,
-					{}
+					{},
+					page->iconName
 				});
 			}
 			if (!uncategorized.pages.empty())
@@ -274,7 +290,8 @@ namespace DearModdingUI
 					category->displayName,
 					{},
 					category->id,
-					category->sortKey
+					category->sortKey,
+					category->iconName
 				};
 				for (const auto* page : orderedPages)
 				{
@@ -288,7 +305,8 @@ namespace DearModdingUI
 						category->displayName,
 						page->summary,
 						page->sortKey,
-						category->id
+						category->id,
+						page->iconName
 					});
 				}
 				if (!navigationCategory.pages.empty())
@@ -389,7 +407,7 @@ namespace DearModdingUI
 						client.displayName,
 						page.id,
 						page.displayName,
-						{},
+						page.iconName,
 						page.categoryDisplayName,
 						page.summary,
 						page.sortKey
@@ -416,6 +434,31 @@ namespace DearModdingUI
 			});
 		}
 		return entries;
+	}
+
+	char32_t ResolveNavigationSearchEntryGlyph(
+		const NavigationSearchEntry& a_entry) noexcept
+	{
+		switch (a_entry.kind)
+		{
+		case NavigationItemKind::kClient:
+			return ResolveClientIconGlyph(
+				a_entry.iconName,
+				a_entry.category,
+				a_entry.clientDisplayName);
+		case NavigationItemKind::kAction:
+			return ResolveSemanticIconGlyph(
+				a_entry.iconName,
+				a_entry.displayName,
+				{},
+				PhosphorGlyph::kTerminalWindow);
+		default:
+			return ResolveSemanticIconGlyph(
+				a_entry.iconName,
+				a_entry.displayName,
+				a_entry.category,
+				PhosphorGlyph::kFiles);
+		}
 	}
 
 	std::vector<NavigationSearchHit> SearchNavigation(

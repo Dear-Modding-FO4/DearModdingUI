@@ -26,9 +26,11 @@ Register each category exactly once with `registerCategory`/`Client::AddCategory
 references its `categoryId`. Unknown or cross-client category references fail; null or empty
 `categoryId` leaves the page ungrouped. Categories are not synthesized from display strings, and
 declared categories with no settings pages produce no empty heading.
-The optional client `iconName` is copied at registration. Any canonical Phosphor 2.1.2 icon name is
-valid; hyphens, spaces, underscores, and PascalCase normalize to the same slug. An unknown or null
-value falls back through category and whole-word display-name concepts, then the question glyph. Set only documented
+The optional client, category, and page `iconName` values are copied at
+registration. Any canonical Phosphor 2.1.2 icon name is valid; hyphens, spaces,
+underscores, and PascalCase normalize to the same slug. An unknown, blank, or
+null well-formed value falls through; malformed control text or a name over
+128 bytes rejects the descriptor. Set only documented
 `DMUI_ClientDescriptor::capabilities`; unknown bits reject the descriptor. Client origin defaults to
 `DMUI_CLIENT_ORIGIN_NATIVE`. A bridge sets `DMUI_CLIENT_ORIGIN_BRIDGED` and may provide a copied
 `bridgeSourceLabel`; the Health page groups bridged clients under `<source> mods`, or `Bridged mods`
@@ -54,6 +56,22 @@ appear there. `selectPage` accepts settings pages, switches both the active mod 
 window, and falls back deterministically if the previous selection is not available.
 The command palette searches mods, pages, and actions globally. A matching mod ranks above its pages
 and opens its lowest-`sortKey` landing page while expanding that mod in the sidebar.
+Named icon precedence is explicit valid name, semantic metadata inference,
+then the surface fallback. Clients infer from category metadata and
+whole-word display-name concepts before the question glyph. Category headings
+preserve the existing matching-client-category rule, then infer from the
+category display name before the question glyph. Palette pages infer from the
+page name and category before Files; palette actions infer from their label
+before Terminal Window. Page icons are palette-only: plain page sidebar and
+title rows retain their current text and selection markers. Header/toolbar
+actions intentionally keep their existing text-only presentation when an icon
+name is absent or unknown.
+Raw-glyph links and section headers keep their separate contract: zero means
+no icon, and an unavailable or unrepresentable glyph uses text fallback.
+`SettingGroup::glyph` uses a chosen nonzero glyph or label inference;
+`HeadingMode::kDivider` remains explicitly iconless. No icon editor, mod-name
+exception table, category renaming, API version bump, or product version bump
+is introduced.
 
 Clients receive a clean scrolling content region below the host-owned page title, category, and
 summary. Draw regular ImGui controls there. Do not begin independent top-level windows, draw over
@@ -162,6 +180,14 @@ The C++ wrapper accepts category metadata through `dmui::CategoryDescriptor` and
 optional, and `AddPage` returns the accepted page handle as `std::optional<DMUI_PageHandle>`.
 Pass that handle to `SelectPage` to select the registered settings page and open the shared menu.
 Both methods preserve `LastResult()` for failure details.
+Both descriptors append an optional `iconName`. The raw C ABI keeps
+`DMUI_CATEGORY_DESCRIPTOR_0_1_SIZE == 32` and
+`DMUI_PAGE_DESCRIPTOR_0_1_SIZE == 64`; set `structSize` to
+`DMUI_CATEGORY_DESCRIPTOR_ICON_SIZE` (40) or
+`DMUI_PAGE_DESCRIPTOR_ICON_SIZE` (72) before supplying the appended pointer.
+Older prefixes retain inferred defaults, and partial appended pointers are
+never read. Require `DMUI_HOST_SERVICE_NAVIGATION_ICONS` when honoring these
+fields is mandatory.
 
 ## External opening and links
 
@@ -228,6 +254,8 @@ using it. Actions belong to their client, appear on every one of that client's p
 order by `sortKey` then stable ID. The host copies the ID, display label, optional Phosphor icon name,
 and optional tooltip. A missing or unknown icon uses a compact text button without reserving unused
 space for clients that register no actions.
+This toolbar contract is intentionally distinct from command-palette action
+inference.
 
 Action callbacks run only when the host-rendered control is pressed. The host contains C++ exceptions
 and Windows structured exceptions, recovers shared ImGui state, and permanently disables a faulting
@@ -478,7 +506,7 @@ DMUI_ClientDescriptor client{
 	&Unavailable,
 	nullptr,
 	DMUI_CLIENT_CAPABILITY_NONE,
-	"puzzle-piece",
+	"cloud-sun",
 	DMUI_CLIENT_ORIGIN_NATIVE,
 	nullptr
 };
@@ -491,10 +519,11 @@ if (api->registerClient(&client, &clientHandle) != DMUI_RESULT_OK)
 
 DMUI_CategoryDescriptor category{
 	sizeof(category),
-	"general",
-	"General",
+	"lighting",
+	"Lighting",
 	0,
-	0
+	0,
+	"sun-horizon"
 };
 if (api->registerCategory(clientHandle, &category) != DMUI_RESULT_OK)
 {
@@ -506,12 +535,13 @@ DMUI_PageDescriptor page{
 	sizeof(page),
 	"settings",
 	"Settings",
-	"general",
+	"lighting",
 	"Example settings.",
 	0,
 	DMUI_PAGE_KIND_SETTINGS,
 	&DrawSettings,
-	nullptr
+	nullptr,
+	"sliders-horizontal"
 };
 DMUI_PageHandle pageHandle{};
 if (api->registerPage(clientHandle, &page, &pageHandle) != DMUI_RESULT_OK)
