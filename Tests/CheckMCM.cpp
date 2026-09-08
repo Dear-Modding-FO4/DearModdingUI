@@ -783,6 +783,60 @@ namespace vmm_tests
 				"parse-owned warnings were duplicated by registration");
 		});
 
+		runner.test("MCM image-only pages retain one capability warning per image", [] {
+			const auto result = ParseConfig(R"json({
+				"modName":"ImageOnly",
+				"displayName":"Image only",
+				"content":[
+					{"type":"section","text":"Illustrations"},
+					{"type":"image","libName":"Fixture","className":"Header"},
+					{"type":"image","libName":"Fixture","className":"Footer"},
+					{"type":"empty"}
+				]
+			})json", "image-only.json");
+			require(result.pages.size() == 1 &&
+					DescriptorCount(result.pages.front()) == 0,
+				"image-only page was dropped or emitted fake controls");
+			require(result.diagnostics.size() == 2 &&
+					DiagnosticCount(result, "MCM control type 'image'") == 2 &&
+					DiagnosticCount(result, "page produced no setting descriptors") == 0,
+				"image-only page duplicated or lost its capability warnings");
+			const auto& page = result.pages.front();
+			require(page.settings.notes.size() == 1 &&
+					page.settings.notes.front().text.find("SWF image content") !=
+						std::string::npos &&
+					SummarizeActionableCompatibility(page).empty(),
+				"image-only limitation was hidden or added another registration warning");
+
+			const auto mixed = ParseConfig(R"json({
+				"modName":"Mixed",
+				"displayName":"Mixed",
+				"content":[
+					{"type":"image","libName":"Fixture","className":"Header"},
+					{"type":"text","text":"Supported content"}
+				]
+			})json");
+			require(DescriptorCount(mixed.pages.front()) == 1 &&
+					mixed.pages.front().settings.notes.empty(),
+				"a mixed page incorrectly claims it has no supported visible controls");
+		});
+
+		runner.test("MCM empty and malformed pages retain diagnostics", [] {
+			for (const auto content : { "[]", "[17]", R"([{"type":"section","text":"Empty"}])" })
+			{
+				const auto result = ParseConfig(
+					std::string{ R"({"modName":"Empty","displayName":"Empty","content":)" } +
+						content + "}");
+				require(result.pages.size() == 1 &&
+						DiagnosticCount(result, "page produced no setting descriptors") == 1 &&
+						result.pages.front().settings.notes.empty(),
+					"an empty or malformed page lost its empty-content diagnostic");
+				if (std::string_view{ content } == "[17]")
+					require(ErrorCount(result) > 0,
+						"malformed control lost its parser error");
+			}
+		});
+
 		runner.test("MCM missing setting metadata remains total and visible", [] {
 			const auto result = ParseConfig(R"({
 				"minMcmVersion": 2,

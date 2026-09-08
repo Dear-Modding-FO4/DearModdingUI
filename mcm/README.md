@@ -160,7 +160,9 @@ snapshots remain live page state rather than append-only startup diagnostics.
 Parser diagnostics continue to own unknown or unsupported controls, sources, and images, so their
 original warning severity, source location, and message reach Health without a duplicate page
 summary. Unsupported images retain their metadata, warning, and counts but emit no descriptor;
-load-bearing unsupported controls remain visible and disabled. The preview accepts
+an image-only page explains that limitation in a page note rather than adding an empty-descriptor
+warning. Genuinely empty pages and malformed controls retain their diagnostics.
+Load-bearing unsupported controls remain visible and disabled. The preview accepts
 `DMUI_PREVIEW_MCM_INSTALLED=0` and `DMUI_PREVIEW_GAME_LOADED=0` to inspect the missing-MCM and
 main-menu states without adding command-line surface.
 

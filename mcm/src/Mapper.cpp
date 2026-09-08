@@ -831,10 +831,21 @@ namespace DearModdingUI::MCM::detail
 
 			if (descriptorCount == 0)
 			{
-				a_diag.Add(
-					DiagnosticSeverity::kWarning,
-					a_page.location,
-					"page produced no setting descriptors");
+				const auto hasUnsupportedImages = std::ranges::any_of(
+					a_page.controls,
+					[](const Control& a_control) {
+						return a_control.type == ControlType::kImage;
+					});
+				if (hasUnsupportedImages)
+					mapped.settings.notes.push_back({
+						"This page has no supported visible controls. Its SWF image content is not supported.",
+						false
+					});
+				else
+					a_diag.Add(
+						DiagnosticSeverity::kWarning,
+						a_page.location,
+						"page produced no setting descriptors");
 			}
 			return mapped;
 		}
