@@ -296,6 +296,11 @@ namespace DmuiForwardingSmoke
 						DMUI_ResultToString(servicesResult_));
 					return RegistrationFailure("service preflight");
 				}
+				if (!client_.AddCategory({
+						.id = "development",
+						.displayName = "Development"
+					}))
+					return RegistrationFailure("category");
 
 				// Register this before pages and before any frame demand. Image
 				// import is attempted only by this observer.
@@ -309,7 +314,7 @@ namespace DmuiForwardingSmoke
 						{
 							.id = "forwarding-smoke",
 							.displayName = "Forwarding Smoke Test (Development Only)",
-							.category = "Development",
+							.categoryId = "development",
 							.summary =
 								"Manual verification of layout-independent forwarding services.",
 							.sortKey = 9900
@@ -328,7 +333,7 @@ namespace DmuiForwardingSmoke
 					{
 						.id = "forwarding-smoke-overlay",
 						.displayName = "Forwarding Smoke Overlay",
-						.category = "Development",
+						.categoryId = "development",
 						.summary = "Managed non-interactive smoke-test overlay.",
 						.sortKey = 9901,
 						.kind = DMUI_PAGE_KIND_OVERLAY
@@ -419,7 +424,9 @@ namespace DmuiForwardingSmoke
 				initializationResult_ = DMUI_RESULT_OK;
 				REX::INFO(
 					"dmui-forwarding-smoke: initialization complete; "
-					"registered forwarding 0.1 client"sv);
+					"registered forwarding client (API {}.{})"sv,
+					DMUI_VERSION_MAJOR(DMUI_API_VERSION_CURRENT),
+					DMUI_VERSION_MINOR(DMUI_API_VERSION_CURRENT));
 				return true;
 			}
 

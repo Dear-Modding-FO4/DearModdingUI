@@ -250,9 +250,9 @@ namespace DearModdingUI
 
 	[[nodiscard]] inline std::string SidebarCategoryKey(
 		const NavigationClient& a_client,
-		std::string_view a_category)
+		std::string_view a_categoryId)
 	{
-		return a_client.id + "/" + std::string{ a_category };
+		return a_client.id + "/" + std::string{ a_categoryId };
 	}
 
 	inline void RevealSidebarCategory(
@@ -267,7 +267,7 @@ namespace DearModdingUI
 		if (!page || !client)
 			return;
 		a_state.categoryExpansion[
-			SidebarCategoryKey(*client, page->category)] = true;
+			SidebarCategoryKey(*client, page->categoryId)] = true;
 	}
 
 	struct TreeSidebarLayout

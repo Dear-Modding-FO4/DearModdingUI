@@ -180,6 +180,7 @@ namespace DearModdingUI
 
 	NavigationModel BuildNavigationModel(
 		const std::vector<RegisteredClient>& a_clients,
+		const std::vector<RegisteredCategory>& a_categories,
 		const std::vector<RegisteredPage>& a_pages)
 	{
 		std::vector<const RegisteredClient*> orderedClients;
@@ -221,31 +222,78 @@ namespace DearModdingUI
 			}
 			std::ranges::sort(orderedPages, [](const auto* a_left, const auto* a_right) {
 				return std::tie(
-					a_left->category,
 					a_left->sortKey,
 					a_left->displayName,
 					a_left->id) <
 					std::tie(
-						a_right->category,
 						a_right->sortKey,
 						a_right->displayName,
 						a_right->id);
 			});
 
+			NavigationCategory uncategorized{};
 			for (const auto* page : orderedPages)
 			{
-				if (navigationClient.categories.empty() ||
-					navigationClient.categories.back().displayName != page->category)
-					navigationClient.categories.push_back({ page->category, {} });
-				navigationClient.categories.back().pages.push_back({
+				if (!page->categoryId.empty())
+					continue;
+				uncategorized.pages.push_back({
 					page->handle,
 					page->client,
 					page->id,
 					page->displayName,
-					page->category,
+					{},
 					page->summary,
-					page->sortKey
+					page->sortKey,
+					{}
 				});
+			}
+			if (!uncategorized.pages.empty())
+				navigationClient.categories.push_back(std::move(uncategorized));
+
+			std::vector<const RegisteredCategory*> orderedCategories;
+			for (const auto& category : a_categories)
+			{
+				if (category.client == client->handle)
+					orderedCategories.push_back(&category);
+			}
+			std::ranges::sort(
+				orderedCategories,
+				[](const auto* a_left, const auto* a_right) {
+					return std::tie(
+						a_left->sortKey,
+						a_left->displayName,
+						a_left->id) <
+						std::tie(
+							a_right->sortKey,
+							a_right->displayName,
+							a_right->id);
+				});
+			for (const auto* category : orderedCategories)
+			{
+				NavigationCategory navigationCategory{
+					category->displayName,
+					{},
+					category->id,
+					category->sortKey
+				};
+				for (const auto* page : orderedPages)
+				{
+					if (page->categoryId != category->id)
+						continue;
+					navigationCategory.pages.push_back({
+						page->handle,
+						page->client,
+						page->id,
+						page->displayName,
+						category->displayName,
+						page->summary,
+						page->sortKey,
+						category->id
+					});
+				}
+				if (!navigationCategory.pages.empty())
+					navigationClient.categories.push_back(
+						std::move(navigationCategory));
 			}
 			model.clients.push_back(std::move(navigationClient));
 		}
@@ -342,7 +390,7 @@ namespace DearModdingUI
 						page.id,
 						page.displayName,
 						{},
-						page.category,
+						page.categoryDisplayName,
 						page.summary,
 						page.sortKey
 					});

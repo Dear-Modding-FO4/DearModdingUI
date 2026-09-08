@@ -17,11 +17,15 @@ version is unsupported. Discovery may succeed before the host plugin initializes
 registration then return `DMUI_RESULT_HOST_NOT_INITIALIZED`. Export presence does not mean the
 renderer is ready: register at `kPostPostLoad` and wait for exactly one lifecycle callback.
 
-Client, page, action, hotkey-action, frame-observer, and page-activity-observer registration closes when the first valid
+Client, category, page, action, hotkey-action, frame-observer, and page-activity-observer registration closes when the first valid
 active-swapchain `Present` begins host initialization. Register them immediately after the client. All descriptor strings are copied;
 callback and userdata pointers must remain valid for the process lifetime. IDs use ASCII letters,
 digits, `.`, `_`, and `-`. Client IDs are process-wide; page and action IDs are unique within their client.
-Page categories and summaries are optional; null or empty category means the page has no group.
+Categories are client-scoped first-class declarations with stable IDs, display names, and `sortKey`.
+Register each category exactly once with `registerCategory`/`Client::AddCategory` before any page
+references its `categoryId`. Unknown or cross-client category references fail; null or empty
+`categoryId` leaves the page ungrouped. Categories are not synthesized from display strings, and
+declared categories with no settings pages produce no empty heading.
 The optional client `iconName` is copied at registration. Any canonical Phosphor 2.1.2 icon name is
 valid; hyphens, spaces, underscores, and PascalCase normalize to the same slug. An unknown or null
 value falls back through category and whole-word display-name concepts, then the question glyph. Set only documented
@@ -43,8 +47,9 @@ and name themselves in that breadcrumb. Home shows host identity, registration c
 health summary derived from live subsystem and client status. Health owns the detailed host subsystem
 observations and full client registry. Its mod dropdown is built from registered client display names.
 The sidebar places uncategorized client settings pages first without a heading, then groups
-categorized pages under their category headings. Pages order by category, `sortKey`, display name,
-and ID. Switching mods selects that client's first page. Overlay pages never
+categorized pages under their category headings. Categories order by `sortKey`, display name, and
+stable ID; all-zero keys therefore sort alphabetically. Pages within a category order independently
+by page `sortKey`, display name, and ID. Switching mods selects that client's first page. Overlay pages never
 appear there. `selectPage` accepts settings pages, switches both the active mod and page, opens the
 window, and falls back deterministically if the previous selection is not available.
 The command palette searches mods, pages, and actions globally. A matching mod ranks above its pages
@@ -78,9 +83,8 @@ Body-font families are enumerated from subfolders of
 Atkinson Hyperlegible and Jost ship with the host, and users can add another family without changing
 code. A missing or failed family falls back to Jost, while a missing icon font falls back to text-only
 labels without disabling the menu or the C ABI host.
-When a normalized category name equals its client's normalized display name or full client ID, the
-category inherits that client's resolved glyph. Other category labels try a Phosphor name before the
-semantic concept vocabulary.
+Category icon inference uses the human-readable category display name. Stable category IDs are used
+for expansion identity, so equal labels with different IDs remain distinct.
 The semantic concepts are `ai`, `armor`, `audio`, `building`, `camera`, `combat`,
 `compatibility`, `controls`, `crafting`, `debug`, `dev-tools`, `diagnostics`, `dialogue`, `difficulty`,
 `economy`, `gameplay`, `general`, `graphics`, `hud`, `input`, `interface`, `inventory`, `leveling`,
@@ -103,9 +107,9 @@ provides `dmui::FontGuard` and converts `DMUI_Vec4` to `ImVec4` with `dmui::ToIm
 
 `drawSectionHeader`, `drawCollapsingSectionHeader`, `drawLinkRow`, `drawFaq`, `drawSearchInput`,
 `drawSettingsActionButton`, `settingsActionButtonWidth`, and `settingsActionButtonExtent` are thin
-calls into the same helpers used by the host. Link rows evenly divide the available width and copy
-enabled URLs to the clipboard without launching a browser; disabled links remain hoverable so their
-note or URL can explain the state. FAQ rows use host-owned disclosure state keyed by the widget ID
+calls into the same helpers used by the host. Link rows evenly divide the available width and perform
+their explicitly selected Copy or Open action after a click. Existing host Home links remain copy-only;
+disabled links remain hoverable so their note or target can explain the state. FAQ rows use host-owned disclosure state keyed by the widget ID
 and entry index. The sizing calls return live host font and style measurements through `float` output
 parameters. Search buffers must have a nonzero capacity and contain a NUL terminator within that
 capacity. A successful call always leaves the buffer NUL-terminated, truncates edited output to
@@ -153,10 +157,29 @@ clears its bracket state, so an early return cannot leak into shared chrome. The
 the two begin calls as `std::optional<bool>`, constructs the versioned row options, and applies every
 appended-table availability check.
 
-The C++ wrapper accepts page metadata through `dmui::PageDescriptor`, where category and summary are
-optional, and returns the accepted page handle from `AddPage` as `std::optional<DMUI_PageHandle>`.
+The C++ wrapper accepts category metadata through `dmui::CategoryDescriptor` and
+`Client::AddCategory`. Page metadata uses `dmui::PageDescriptor`, where `categoryId` and summary are
+optional, and `AddPage` returns the accepted page handle as `std::optional<DMUI_PageHandle>`.
 Pass that handle to `SelectPage` to select the registered settings page and open the shared menu.
 Both methods preserve `LastResult()` for failure details.
+
+## External opening and links
+
+The pre-release API exposes the `DMUI_HOST_SERVICE_EXTERNAL_OPEN` service and the generic `openExternal` entry.
+Without an explicit application, a URI, absolute file, or absolute directory is passed to the
+operating system's registered handler. With an application override, `application` must be an
+absolute executable path. The process argv is the executable path, followed by the supplied argument
+array, followed by `target` when `targetKind` is not `NONE`. Arguments are never concatenated through
+`cmd.exe` or PowerShell, and no placeholder substitution occurs. `workingDirectory` is accepted only
+with an explicit application and must be absolute. Success means process creation or shell dispatch
+was accepted; it does not promise that an application window appeared. Failures return
+`DMUI_RESULT_EXTERNAL_OPEN_FAILED` and may report the native Windows error through `nativeError`.
+
+`dmui::Link` uses the same `dmui::ExternalOpen` descriptor and an explicit `LinkAction`. Existing
+copy behavior remains available as `kCopyTarget`; clients opt into `kOpenExternal` per link. Disabled
+links do not execute either action, and an open failure is returned instead of falling back to the
+clipboard. The operation is synchronous only through launch acceptance and never waits for the
+external process to exit.
 
 ## Client actions
 
@@ -307,7 +330,7 @@ retires the attachment, releases host-owned COM/resources, and requests immediat
 ## Forwarding presentation services
 
 `queryServices` reports semantic host-service flags and a forwarding version
-separate from the 0.1 ABI and product version. Clients may append
+separate from the 0.1 ABI and 0.1.0 product version. Clients may append
 `requiredServices` and `minimumForwardingVersion` to their descriptor; the host
 rejects unavailable requirements before assigning a handle. The C++ wrapper's
 `ClientOptions` performs the same preflight before `registerClient`.
@@ -427,11 +450,24 @@ if (api->registerClient(&client, &clientHandle) != DMUI_RESULT_OK)
 	return;
 }
 
+DMUI_CategoryDescriptor category{
+	sizeof(category),
+	"general",
+	"General",
+	0,
+	0
+};
+if (api->registerCategory(clientHandle, &category) != DMUI_RESULT_OK)
+{
+	StartStandalone();
+	return;
+}
+
 DMUI_PageDescriptor page{
 	sizeof(page),
 	"settings",
 	"Settings",
-	"General",
+	"general",
 	"Example settings.",
 	0,
 	DMUI_PAGE_KIND_SETTINGS,

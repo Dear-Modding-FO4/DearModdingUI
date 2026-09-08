@@ -150,6 +150,7 @@ target("dmui-tests", function()
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileSettingsActions.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileVisualDecisions.cpp",
         "src/DearModdingUI/Diagnostics.cpp",
+        "src/DearModdingUI/ExternalOpen.cpp",
         "src/DearModdingUI/FontCatalog.cpp",
         "src/DearModdingUI/Health.cpp",
         "src/DearModdingUI/Home.cpp",
@@ -182,7 +183,7 @@ target("dmui-tests", function()
         "/Zc:preprocessor",
         { public = true }
     )
-    add_syslinks("bcrypt", "d3d11", "dxgi")
+    add_syslinks("bcrypt", "d3d11", "dxgi", "shell32")
 end)
 
 target("dmui-preview", function()
@@ -207,6 +208,7 @@ target("dmui-preview", function()
         "src/DearModdingUI/BackgroundBlur.cpp",
         "src/DearModdingUI/CursorLoader.cpp",
         "src/DearModdingUI/Diagnostics.cpp",
+        "src/DearModdingUI/ExternalOpen.cpp",
         "src/DearModdingUI/FontCatalog.cpp",
         "src/DearModdingUI/Health.cpp",
         "src/DearModdingUI/Home.cpp",
@@ -326,7 +328,7 @@ target(plugin_name, function()
         "/Zc:preprocessor",
         { public = true }
     )
-    add_syslinks("d3d11", "dxgi", "d3dcompiler")
+    add_syslinks("d3d11", "dxgi", "d3dcompiler", "shell32")
     set_pcxxheader("Depends/commonlibf4/include/F4SE/Impl/PCH.h")
 
     after_build(function(target)

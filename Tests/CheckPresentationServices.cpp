@@ -238,7 +238,8 @@ namespace vmm_tests
 						DMUI_HOST_SERVICE_NOTIFICATIONS |
 						DMUI_HOST_SERVICE_ANNOTATED_PLOTS |
 						DMUI_HOST_SERVICE_DIALOGS |
-						DMUI_HOST_SERVICE_PIXEL_IMAGES),
+						DMUI_HOST_SERVICE_PIXEL_IMAGES |
+						DMUI_HOST_SERVICE_EXTERNAL_OPEN),
 				"advertised presentation services drifted");
 		});
 

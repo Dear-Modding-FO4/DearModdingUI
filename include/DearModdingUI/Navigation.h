@@ -13,6 +13,7 @@
 namespace DearModdingUI
 {
 	struct RegisteredClient;
+	struct RegisteredCategory;
 	struct RegisteredPage;
 	struct RegisteredAction;
 
@@ -22,15 +23,18 @@ namespace DearModdingUI
 		DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
 		std::string id;
 		std::string displayName;
-		std::string category;
+		std::string categoryDisplayName;
 		std::string summary;
 		int32_t sortKey{ 0 };
+		std::string categoryId;
 	};
 
 	struct NavigationCategory
 	{
 		std::string displayName;
 		std::vector<NavigationPage> pages;
+		std::string id;
+		int32_t sortKey{ 0 };
 
 		[[nodiscard]] bool HasHeading() const noexcept
 		{
@@ -210,6 +214,7 @@ namespace DearModdingUI
 
 	[[nodiscard]] NavigationModel BuildNavigationModel(
 		const std::vector<RegisteredClient>& a_clients,
+		const std::vector<RegisteredCategory>& a_categories,
 		const std::vector<RegisteredPage>& a_pages);
 	[[nodiscard]] std::string NavigationClientSectionLabel(
 		DMUI_ClientOrigin a_origin,

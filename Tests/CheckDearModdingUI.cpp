@@ -69,6 +69,21 @@ namespace vmm_tests
 		uint32_t s_mockRegistrations{};
 		DMUI_HostServices s_mockServices{};
 		uint32_t s_mockForwardingVersion{};
+		uint32_t s_externalOpenCalls{};
+		uint32_t s_externalNativeError{};
+		DMUI_Result s_externalResult{ DMUI_RESULT_OK };
+		ExternalOpenRequest s_externalRequest;
+
+		DMUI_Result FakeExternalOpen(
+			const ExternalOpenRequest& a_request,
+			uint32_t* a_nativeError) noexcept
+		{
+			++s_externalOpenCalls;
+			s_externalRequest = a_request;
+			if (a_nativeError)
+				*a_nativeError = s_externalNativeError;
+			return s_externalResult;
+		}
 
 		DMUI_Result DMUI_CALL MockRegisterClient(
 			const DMUI_ClientDescriptor*,
@@ -371,6 +386,26 @@ namespace vmm_tests
 			return handle;
 		}
 
+		void AddCategory(
+			Registry& a_registry,
+			DMUI_ClientHandle a_client,
+			const char* a_id,
+			const char* a_displayName,
+			int32_t a_sortKey = 0)
+		{
+			const DMUI_CategoryDescriptor descriptor{
+				sizeof(DMUI_CategoryDescriptor),
+				a_id,
+				a_displayName,
+				a_sortKey,
+				0
+			};
+			require(
+				a_registry.RegisterCategory(a_client, &descriptor) ==
+					DMUI_RESULT_OK,
+				"category registration failed");
+		}
+
 		[[nodiscard]] DMUI_ActionHandle AddAction(
 			Registry& a_registry,
 			DMUI_ClientHandle a_client,
@@ -396,7 +431,9 @@ namespace vmm_tests
 				DMUI_API_VERSION_CURRENT == DMUI_MAKE_VERSION(0u, 1u) &&
 					Registry::SupportsVersion(DMUI_API_VERSION_0_1),
 				"v0.1 was not reported or accepted");
-			require(!Registry::SupportsVersion(DMUI_MAKE_VERSION(0, 2)),
+			require(!Registry::SupportsVersion(DMUI_MAKE_VERSION(0u, 2u)),
+				"future v0.2 ABI was accepted");
+			require(!Registry::SupportsVersion(DMUI_MAKE_VERSION(0, 3)),
 				"future minor was accepted");
 			require(!Registry::SupportsVersion(DMUI_MAKE_VERSION(1, 0)),
 				"future major was accepted");
@@ -448,8 +485,12 @@ namespace vmm_tests
 						DMUI_HOST_API_CREATE_IMAGE_SIZE &&
 					DMUI_HOST_API_CREATE_IMAGE_SIZE <
 						DMUI_HOST_API_UPDATE_IMAGE_SIZE &&
+					DMUI_HOST_API_UPDATE_IMAGE_SIZE <
+						DMUI_HOST_API_REGISTER_CATEGORY_SIZE &&
+					DMUI_HOST_API_REGISTER_CATEGORY_SIZE <
+						DMUI_HOST_API_OPEN_EXTERNAL_SIZE &&
 					sizeof(DMUI_HostAPI) ==
-						DMUI_HOST_API_UPDATE_IMAGE_SIZE,
+						DMUI_HOST_API_OPEN_EXTERNAL_SIZE,
 				"the versioned host API prefix moved");
 		});
 
@@ -470,12 +511,14 @@ namespace vmm_tests
 				"Second",
 				fingerprint,
 				secondState);
+			AddCategory(registry, firstClient, "general", "General");
+			AddCategory(registry, secondClient, "general", "General");
 			const auto firstPage = AddPage(
 				registry,
 				firstClient,
 				"first",
 				"First",
-				"General",
+				"general",
 				0,
 				DMUI_PAGE_KIND_SETTINGS,
 				firstState);
@@ -484,7 +527,7 @@ namespace vmm_tests
 				firstClient,
 				"next",
 				"Next",
-				"General",
+				"general",
 				1,
 				DMUI_PAGE_KIND_SETTINGS,
 				firstState);
@@ -493,7 +536,7 @@ namespace vmm_tests
 				secondClient,
 				"second",
 				"Second",
-				"General",
+				"general",
 				0,
 				DMUI_PAGE_KIND_SETTINGS,
 				secondState);
@@ -1699,7 +1742,8 @@ namespace vmm_tests
 			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_OK,
 				"valid client was rejected");
-			auto page = Page("settings", "Settings", "General", 0,
+			AddCategory(registry, handle, "general", "General");
+			auto page = Page("settings", "Settings", "general", 0,
 				DMUI_PAGE_KIND_SETTINGS, state);
 			DMUI_PageHandle pageHandle{};
 			require(registry.RegisterPage(handle, nullptr, &pageHandle) ==
@@ -1745,12 +1789,13 @@ namespace vmm_tests
 			require(registry.RegisterClient(&client, &handle) == DMUI_RESULT_OK,
 				"client icon registration failed");
 			iconName[0] = 'x';
+			AddCategory(registry, handle, "general", "General");
 			(void)AddPage(
 				registry,
 				handle,
 				"settings",
 				"Settings",
-				"General",
+				"general",
 				0,
 				DMUI_PAGE_KIND_SETTINGS,
 				state);
@@ -2411,13 +2456,20 @@ namespace vmm_tests
 		runner.test("link-row API arguments reject malformed descriptors", [] {
 			const DMUI_DrawLinkRowFn drawLinkRow =
 				&ValidateLinkRowArguments;
+			DMUI_ExternalOpenDescriptor external{
+				DMUI_EXTERNAL_OPEN_DESCRIPTOR_0_1_SIZE,
+				DMUI_EXTERNAL_TARGET_URI,
+				"https://github.com/Dear-Modding-FO4/DearModdingUI"
+			};
 			DMUI_LinkDescriptor link{
 				DMUI_LINK_DESCRIPTOR_0_1_SIZE,
 				"GitHub",
-				"https://github.com/Dear-Modding-FO4/DearModdingUI",
 				nullptr,
 				0,
-				1
+				1,
+				DMUI_LINK_ACTION_COPY_TARGET,
+				0,
+				&external
 			};
 			require(
 				drawLinkRow(
@@ -2445,16 +2497,16 @@ namespace vmm_tests
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"an empty link label was accepted");
 			link.label = "GitHub";
-			link.url = "";
+			external.target = "";
 			require(
 				drawLinkRow(
 					DMUI_INVALID_CLIENT_HANDLE,
 					"links",
 					&link,
 					1) ==
-					DMUI_RESULT_INVALID_ARGUMENT,
-				"an enabled link without a URL was accepted");
-			link.url = "https://github.com/Dear-Modding-FO4/DearModdingUI";
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"an enabled link without a target was accepted");
+			external.target = "https://github.com/Dear-Modding-FO4/DearModdingUI";
 			link.structSize = DMUI_LINK_DESCRIPTOR_0_1_SIZE - 1;
 			require(
 				drawLinkRow(
@@ -2464,6 +2516,7 @@ namespace vmm_tests
 					1) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"a short link descriptor was accepted");
+			link.structSize = DMUI_LINK_DESCRIPTOR_0_1_SIZE;
 			require(
 				drawLinkRow(
 					DMUI_INVALID_CLIENT_HANDLE,
@@ -2472,6 +2525,143 @@ namespace vmm_tests
 					0) ==
 					DMUI_RESULT_OK,
 				"an empty link row was rejected");
+			link.enabled = 0;
+			link.external = nullptr;
+			require(
+				drawLinkRow(
+					DMUI_INVALID_CLIENT_HANDLE,
+					"links",
+					&link,
+					1) == DMUI_RESULT_OK,
+				"a disabled link required an executable action");
+		});
+
+		runner.test("external opening validates and dispatches typed targets", [] {
+			s_externalOpenCalls = 0;
+			s_externalResult = DMUI_RESULT_OK;
+			s_externalNativeError = 0;
+			const ExternalOpener opener{ &FakeExternalOpen };
+
+			DMUI_ExternalOpenDescriptor descriptor{
+				sizeof(DMUI_ExternalOpenDescriptor),
+				DMUI_EXTERNAL_TARGET_URI,
+				"https://example.invalid/docs"
+			};
+			require(opener.Open(&descriptor) == DMUI_RESULT_OK,
+				"default URI dispatch failed");
+			require(
+				s_externalOpenCalls == 1 &&
+					s_externalRequest.targetKind == DMUI_EXTERNAL_TARGET_URI &&
+					s_externalRequest.target == "https://example.invalid/docs" &&
+					s_externalRequest.application.empty(),
+				"default URI did not use the associated-handler path");
+
+			descriptor.targetKind = DMUI_EXTERNAL_TARGET_FILE;
+			descriptor.target = "C:\\mods\\readme.txt";
+			require(opener.Open(&descriptor) == DMUI_RESULT_OK,
+				"absolute file dispatch failed");
+			descriptor.targetKind = DMUI_EXTERNAL_TARGET_DIRECTORY;
+			descriptor.target = "\\\\server\\mods";
+			require(opener.Open(&descriptor) == DMUI_RESULT_OK,
+				"absolute directory dispatch failed");
+
+			const char* arguments[]{ "--line", "42", "" };
+			descriptor.targetKind = DMUI_EXTERNAL_TARGET_FILE;
+			descriptor.target = "C:\\mods\\settings.ini";
+			descriptor.application = "C:\\Windows\\notepad.exe";
+			descriptor.arguments = arguments;
+			descriptor.argumentCount = static_cast<uint32_t>(std::size(arguments));
+			descriptor.workingDirectory = "C:\\mods";
+			require(opener.Open(&descriptor) == DMUI_RESULT_OK,
+				"explicit application dispatch failed");
+			require(
+				s_externalRequest.application == "C:\\Windows\\notepad.exe" &&
+					s_externalRequest.arguments.size() == 3 &&
+					s_externalRequest.arguments.back().empty() &&
+					s_externalRequest.target == "C:\\mods\\settings.ini" &&
+					s_externalRequest.workingDirectory == "C:\\mods",
+				"explicit application arguments were not preserved");
+
+			descriptor.targetKind = DMUI_EXTERNAL_TARGET_NONE;
+			descriptor.target = nullptr;
+			descriptor.arguments = nullptr;
+			descriptor.argumentCount = 0;
+			descriptor.workingDirectory = nullptr;
+			require(opener.Open(&descriptor) == DMUI_RESULT_OK,
+				"application-only dispatch failed");
+
+			s_externalResult = DMUI_RESULT_EXTERNAL_OPEN_FAILED;
+			s_externalNativeError = 5;
+			uint32_t nativeError{};
+			require(
+				opener.Open(&descriptor, &nativeError) ==
+						DMUI_RESULT_EXTERNAL_OPEN_FAILED &&
+					nativeError == 5 &&
+					s_externalOpenCalls == 6,
+				"platform dispatch failure was hidden or retried");
+		});
+
+		runner.test("external opening rejects ambiguous or unsafe descriptors", [] {
+			ExternalOpenRequest request;
+			DMUI_ExternalOpenDescriptor descriptor{
+				sizeof(DMUI_ExternalOpenDescriptor),
+				DMUI_EXTERNAL_TARGET_FILE,
+				"relative.txt"
+			};
+			require(
+				ValidateExternalOpenDescriptor(&descriptor, request) ==
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"a relative file target was accepted");
+			descriptor.targetKind = DMUI_EXTERNAL_TARGET_URI;
+			descriptor.target = "not a URI";
+			require(
+				ValidateExternalOpenDescriptor(&descriptor, request) ==
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"a URI without a scheme was accepted");
+			descriptor.targetKind = DMUI_EXTERNAL_TARGET_NONE;
+			descriptor.target = nullptr;
+			require(
+				ValidateExternalOpenDescriptor(&descriptor, request) ==
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"an empty default-handler request was accepted");
+			descriptor.application = "notepad.exe";
+			require(
+				ValidateExternalOpenDescriptor(&descriptor, request) ==
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"a relative explicit application was accepted");
+			descriptor.application = "C:\\Windows\\notepad.exe";
+			descriptor.argumentCount = 129;
+			require(
+				ValidateExternalOpenDescriptor(&descriptor, request) ==
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"an overflowing argument count was accepted");
+			descriptor.argumentCount = 0;
+			std::string oversized(32768, 'x');
+			descriptor.targetKind = DMUI_EXTERNAL_TARGET_FILE;
+			descriptor.target = oversized.c_str();
+			require(
+				ValidateExternalOpenDescriptor(&descriptor, request) ==
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"an oversized target was accepted");
+			const char invalidUtf8[]{ static_cast<char>(0xC3), '(', '\0' };
+			descriptor.targetKind = DMUI_EXTERNAL_TARGET_URI;
+			descriptor.target = invalidUtf8;
+			require(
+				ValidateExternalOpenDescriptor(&descriptor, request) ==
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"malformed UTF-8 was accepted");
+		});
+
+		runner.test("Windows argv quoting preserves empty spaces quotes and slashes", [] {
+			require(QuoteWindowsArgument(L"") == L"\"\"",
+				"empty argument quoting changed");
+			require(QuoteWindowsArgument(L"two words") == L"\"two words\"",
+				"space-containing argument quoting changed");
+			require(QuoteWindowsArgument(L"a\"b") == L"\"a\\\"b\"",
+				"embedded quote escaping changed");
+			require(
+				QuoteWindowsArgument(L"C:\\path\\") == L"\"C:\\path\\\\\"",
+				"trailing backslash escaping changed");
 		});
 
 		runner.test("FAQ API arguments reject malformed entries", [] {
@@ -2691,9 +2881,11 @@ namespace vmm_tests
 					DMUI_RESULT_DUPLICATE_CLIENT_ID,
 				"duplicate client ID was accepted");
 			const auto second = AddClient(registry, "b.mod", "B", fingerprint, state);
-			(void)AddPage(registry, first, "settings", "Settings", "General", 0,
+			AddCategory(registry, first, "general", "General");
+			AddCategory(registry, second, "general", "General");
+			(void)AddPage(registry, first, "settings", "Settings", "general", 0,
 				DMUI_PAGE_KIND_SETTINGS, state);
-			auto page = Page("settings", "Duplicate", "General", 0,
+			auto page = Page("settings", "Duplicate", "general", 0,
 				DMUI_PAGE_KIND_SETTINGS, state);
 			DMUI_PageHandle pageHandle{};
 			require(registry.RegisterPage(first, &page, &pageHandle) ==
@@ -2878,12 +3070,138 @@ namespace vmm_tests
 			const auto& navigation = registry.Navigation();
 			require(
 					registry.OrderedPages().size() == 1 &&
-						registry.OrderedPages()[0].category.empty() &&
+						registry.OrderedPages()[0].categoryId.empty() &&
 						navigation.clients.size() == 1 &&
 						navigation.clients[0].categories.size() == 1 &&
 						navigation.clients[0].categories[0].displayName.empty() &&
 						navigation.clients[0].categories[0].pages[0].handle == page,
 				"uncategorized page was rejected or assigned a category");
+		});
+
+		runner.test("categories require unique client-scoped stable IDs", [] {
+			const auto fingerprint = Fingerprint();
+			Registry registry{ fingerprint };
+			CallbackState state;
+			const auto first =
+				AddClient(registry, "first.categories", "First", fingerprint, state);
+			const auto second =
+				AddClient(registry, "second.categories", "Second", fingerprint, state);
+			AddCategory(registry, first, "general", "General");
+			AddCategory(registry, second, "general", "Other General");
+			AddCategory(registry, second, "second-only", "Second Only");
+
+			const DMUI_CategoryDescriptor duplicate{
+				sizeof(DMUI_CategoryDescriptor),
+				"general",
+				"Renamed",
+				99,
+				0
+			};
+			require(
+				registry.RegisterCategory(first, &duplicate) ==
+					DMUI_RESULT_DUPLICATE_CATEGORY_ID,
+				"duplicate category ID was merged or replaced");
+			auto invalid = duplicate;
+			invalid.id = "bad id";
+			require(
+				registry.RegisterCategory(first, &invalid) ==
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"category ID whitespace was accepted");
+			invalid.id = "valid";
+			invalid.displayName = " \t ";
+			require(
+				registry.RegisterCategory(first, &invalid) ==
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"whitespace-only category label was accepted");
+
+			auto unknown = Page(
+				"unknown", "Unknown", "missing", 0,
+				DMUI_PAGE_KIND_SETTINGS, state);
+			DMUI_PageHandle page{};
+			require(
+				registry.RegisterPage(first, &unknown, &page) ==
+					DMUI_RESULT_CATEGORY_NOT_FOUND,
+				"unknown category reference was accepted");
+			unknown.categoryId = "second-only";
+			require(
+				registry.RegisterPage(first, &unknown, &page) ==
+					DMUI_RESULT_CATEGORY_NOT_FOUND,
+				"another client's category reference was accepted");
+			auto crossClient = Page(
+				"cross", "Cross", "general", 0,
+				DMUI_PAGE_KIND_SETTINGS, state);
+			require(
+				registry.RegisterPage(first, &crossClient, &page) ==
+					DMUI_RESULT_OK,
+				"owned category reference was rejected");
+			require(registry.Freeze(), "category registry did not freeze");
+			require(
+				registry.RegisterCategory(first, &duplicate) ==
+					DMUI_RESULT_REGISTRATION_CLOSED,
+				"category registration remained open after freeze");
+		});
+
+		runner.test("category ordering uses sort key display name and stable ID", [] {
+			const auto fingerprint = Fingerprint();
+			Registry registry{ fingerprint };
+			CallbackState state;
+			const auto client =
+				AddClient(registry, "ordered.categories", "Ordered", fingerprint, state);
+			AddCategory(registry, client, "General-10", "General", 10);
+			AddCategory(registry, client, "Diagnostics11", "Diagnostics", 10);
+			AddCategory(registry, client, "alpha", "Alpha");
+			AddCategory(registry, client, "Diagnostics10", "Diagnostics", 10);
+			(void)AddPage(
+				registry, client, "uncategorized", "Uncategorized", nullptr, 100,
+				DMUI_PAGE_KIND_SETTINGS, state);
+			(void)AddPage(
+				registry, client, "general", "General Page", "General-10", 0,
+				DMUI_PAGE_KIND_SETTINGS, state);
+			(void)AddPage(
+				registry, client, "alpha", "Alpha Page", "alpha", 0,
+				DMUI_PAGE_KIND_SETTINGS, state);
+			const auto diagnosticsPage = AddPage(
+				registry, client, "diagnostics-a", "Diagnostics A", "Diagnostics10", 0,
+				DMUI_PAGE_KIND_SETTINGS, state);
+			(void)AddPage(
+				registry, client, "diagnostics-b", "Diagnostics B", "Diagnostics11", 0,
+				DMUI_PAGE_KIND_SETTINGS, state);
+			require(registry.Freeze(), "ordered category registry did not freeze");
+			const auto& categories = registry.Navigation().clients.front().categories;
+			require(
+				categories.size() == 5 &&
+					categories[0].id.empty() &&
+					categories[1].id == "alpha" &&
+					categories[2].id == "Diagnostics10" &&
+					categories[3].id == "Diagnostics11" &&
+					categories[4].id == "General-10",
+				"category ordering or stable identity changed");
+			require(
+				categories[2].displayName == categories[3].displayName &&
+					SidebarCategoryKey(
+						registry.Navigation().clients.front(),
+						categories[2].id) !=
+						SidebarCategoryKey(
+							registry.Navigation().clients.front(),
+							categories[3].id),
+				"equal category labels collapsed stable expansion identities");
+			ClientSelectionState selection{
+				client,
+				diagnosticsPage
+			};
+			for (const auto layout : {
+					 SidebarLayoutKind::Tree,
+					 SidebarLayoutKind::TwoPane,
+					 SidebarLayoutKind::DrillDown,
+					 SidebarLayoutKind::IconRail })
+			{
+				SidebarBrowsingState browsing;
+				RevealSidebarSelection(layout, registry.Navigation(), selection, browsing);
+				require(
+					browsing.categoryExpansion[
+						"ordered.categories/Diagnostics10"],
+					"a sidebar layout used the category label as expansion identity");
+			}
 		});
 
 		runner.test("registration copies strings and grows beyond the old capacity", [] {
@@ -2909,6 +3227,7 @@ namespace vmm_tests
 			require(registry.RegisterAction(client, &action, &actionHandle) ==
 					DMUI_RESULT_OK,
 				"copy action failed");
+			AddCategory(registry, client, "general", "General");
 			actionId[0] = 'x';
 			actionLabel[0] = 'X';
 			actionIcon[0] = 'x';
@@ -2917,7 +3236,7 @@ namespace vmm_tests
 			{
 				const auto id = "page-" + std::to_string(index);
 				const auto name = "Page " + std::to_string(index);
-				(void)AddPage(registry, client, id.c_str(), name.c_str(), "General",
+				(void)AddPage(registry, client, id.c_str(), name.c_str(), "general",
 					static_cast<int32_t>(index), DMUI_PAGE_KIND_SETTINGS, state);
 			}
 			require(registry.Freeze(), "registry did not freeze");
@@ -2944,13 +3263,16 @@ namespace vmm_tests
 			const auto zulu = AddClient(registry, "z.mod", "Zulu", fingerprint, state);
 			const auto alpha = AddClient(
 				registry, "a.mod", "Alpha", fingerprint, state);
-			(void)AddPage(registry, zulu, "late", "Late", "B", 20,
+			AddCategory(registry, zulu, "b", "B");
+			AddCategory(registry, alpha, "b", "B", 10);
+			AddCategory(registry, alpha, "a", "A", 0);
+			(void)AddPage(registry, zulu, "late", "Late", "b", 20,
 				DMUI_PAGE_KIND_SETTINGS, state);
-			(void)AddPage(registry, alpha, "second", "Second", "B", 10,
+			(void)AddPage(registry, alpha, "second", "Second", "b", 10,
 				DMUI_PAGE_KIND_SETTINGS, state);
-			(void)AddPage(registry, alpha, "first", "First", "A", 50,
+			(void)AddPage(registry, alpha, "first", "First", "a", 50,
 				DMUI_PAGE_KIND_SETTINGS, state);
-			(void)AddPage(registry, alpha, "sorted", "Sorted", "B", -10,
+			(void)AddPage(registry, alpha, "sorted", "Sorted", "b", -10,
 				DMUI_PAGE_KIND_SETTINGS, state);
 			require(registry.Freeze(), "registry did not freeze");
 			const auto& pages = registry.OrderedPages();
@@ -2966,8 +3288,9 @@ namespace vmm_tests
 			CallbackState state;
 			const auto client = AddClient(
 				registry, "mixed.mod", "Mixed", fingerprint, state);
+			AddCategory(registry, client, "general", "General");
 			const auto headed = AddPage(
-				registry, client, "headed", "Headed", "General", -100,
+				registry, client, "headed", "Headed", "general", -100,
 				DMUI_PAGE_KIND_SETTINGS, state);
 			const auto ungrouped = AddPage(
 				registry, client, "ungrouped", "Ungrouped", nullptr, 100,
@@ -3029,15 +3352,19 @@ namespace vmm_tests
 			const auto bravo = AddClient(registry, "bravo.mod", "Bravo", fingerprint, state);
 			const auto alpha = AddClient(
 				registry, "alpha.mod", "Alpha", fingerprint, state);
-			const auto alphaLate = AddPage(registry, alpha, "late", "Late", "General", 20,
+			AddCategory(registry, alpha, "general", "General");
+			AddCategory(registry, alpha, "advanced", "Advanced", -10);
+			AddCategory(registry, alpha, "hud", "HUD");
+			AddCategory(registry, bravo, "general", "General");
+			const auto alphaLate = AddPage(registry, alpha, "late", "Late", "general", 20,
 				DMUI_PAGE_KIND_SETTINGS, state);
-			const auto alphaEarly = AddPage(registry, alpha, "early", "Early", "General", -10,
+			const auto alphaEarly = AddPage(registry, alpha, "early", "Early", "general", -10,
 				DMUI_PAGE_KIND_SETTINGS, state);
-			(void)AddPage(registry, alpha, "advanced", "Advanced", "Advanced", 0,
+			(void)AddPage(registry, alpha, "advanced", "Advanced", "advanced", 0,
 				DMUI_PAGE_KIND_SETTINGS, state);
-			const auto overlay = AddPage(registry, alpha, "overlay", "Overlay", "HUD", 0,
+			const auto overlay = AddPage(registry, alpha, "overlay", "Overlay", "hud", 0,
 				DMUI_PAGE_KIND_OVERLAY, state);
-			(void)AddPage(registry, bravo, "settings", "Settings", "General", 0,
+			(void)AddPage(registry, bravo, "settings", "Settings", "general", 0,
 				DMUI_PAGE_KIND_SETTINGS, state);
 			require(registry.Freeze(), "registry did not freeze");
 
@@ -3113,6 +3440,7 @@ namespace vmm_tests
 				DMUI_CLIENT_ORIGIN_BRIDGED,
 				"Unused");
 			(void)nativeZulu;
+			AddCategory(registry, mcmZulu, "overview-category", "Overview");
 			(void)AddPage(
 				registry,
 				nativeAlpha,
@@ -3136,7 +3464,7 @@ namespace vmm_tests
 				mcmZulu,
 				"overview",
 				"Overview",
-				"Overview",
+				"overview-category",
 				0,
 				DMUI_PAGE_KIND_SETTINGS,
 				state);
@@ -3597,8 +3925,8 @@ namespace vmm_tests
 					"Layout Client",
 					1,
 					{ { "General", {
-						{ 420, 42, "page", "Page", "General", {}, 0 }
-					} } }
+						{ 420, 42, "page", "Page", "General", {}, 0, "general" }
+					}, "general" } }
 				}
 			};
 			model.sections = {
@@ -3619,7 +3947,7 @@ namespace vmm_tests
 				browsing.drillDown ==
 					DrillDownState{ DrillDownLevel::Pages, 42 } &&
 					browsing.categoryExpansion[
-						"layout.client/General"],
+						"layout.client/general"],
 				"incoming drill-down layout did not synchronize selection");
 			browsing.drillDown = TransitionDrillDown(
 				browsing.drillDown,
@@ -3649,7 +3977,7 @@ namespace vmm_tests
 			require(
 				browsing.modExpansion["layout.client"] &&
 					browsing.categoryExpansion[
-						"layout.client/General"],
+					"layout.client/general"],
 				"layout lifecycle hooks did not reveal selected ancestors");
 
 			SelectHostPage(HostPageKind::kHealth, selection);
@@ -3668,11 +3996,13 @@ namespace vmm_tests
 			Registry registry{ fingerprint };
 			CallbackState state;
 			const auto client = AddClient(registry, "selection.mod", "Selection", fingerprint, state);
-			const auto first = AddPage(registry, client, "first", "First", "General", 0,
+			AddCategory(registry, client, "general", "General");
+			AddCategory(registry, client, "hud", "HUD");
+			const auto first = AddPage(registry, client, "first", "First", "general", 0,
 				DMUI_PAGE_KIND_SETTINGS, state);
-			const auto second = AddPage(registry, client, "second", "Second", "General", 10,
+			const auto second = AddPage(registry, client, "second", "Second", "general", 10,
 				DMUI_PAGE_KIND_SETTINGS, state);
-			const auto overlay = AddPage(registry, client, "overlay", "Overlay", "HUD", 0,
+			const auto overlay = AddPage(registry, client, "overlay", "Overlay", "hud", 0,
 				DMUI_PAGE_KIND_OVERLAY, state);
 			require(registry.Freeze(), "registry did not freeze");
 			const auto& navigation = registry.Navigation();
@@ -3732,8 +4062,8 @@ namespace vmm_tests
 				DMUI_MAKE_VERSION(1, 0),
 				{ { "Telemetry", {
 					{ 10, 1, "frame-records", "Frame Records", "Telemetry",
-						"Inspect captured frame events.", 10 }
-				} } }
+						"Inspect captured frame events.", 10, "telemetry-internal" }
+				}, "telemetry-internal" } }
 			});
 			std::vector<RegisteredAction> actions{
 				{
@@ -3781,6 +4111,9 @@ namespace vmm_tests
 						hits[1].entry.iconName == "clipboard-text" &&
 						hits[1].entry.category.empty(),
 					"search hits did not retain actionable row metadata");
+			require(
+				SearchNavigation(model, actions, "telemetry-internal").empty(),
+				"search exposed an opaque category ID");
 			const auto actionOnly = SearchNavigation(model, actions, "toolbox");
 			require(
 					actionOnly.size() == 1 &&
@@ -4889,11 +5222,13 @@ namespace vmm_tests
 				"Alpha",
 				fingerprint,
 				callback);
+			AddCategory(registry, zulu, "general", "General");
+			AddCategory(registry, alpha, "general", "General");
 			const auto zuluPage = AddPage(
-				registry, zulu, "settings", "Settings", "General", 0,
+				registry, zulu, "settings", "Settings", "general", 0,
 				DMUI_PAGE_KIND_SETTINGS, callback);
 			const auto alphaPage = AddPage(
-				registry, alpha, "settings", "Settings", "General", 0,
+				registry, alpha, "settings", "Settings", "general", 0,
 				DMUI_PAGE_KIND_SETTINGS, callback);
 			require(registry.Freeze(), "many-client registry did not freeze");
 			const auto& many = registry.Navigation();
@@ -4968,7 +5303,8 @@ namespace vmm_tests
 			Registry registry{ fingerprint };
 			CallbackState state;
 			const auto client = AddClient(registry, "single.mod", "Single", fingerprint, state);
-			const auto page = AddPage(registry, client, "only", "Only", "General", 0,
+			AddCategory(registry, client, "general", "General");
+			const auto page = AddPage(registry, client, "only", "Only", "general", 0,
 				DMUI_PAGE_KIND_SETTINGS, state);
 			require(registry.Freeze(), "registry did not freeze");
 			const auto& navigation = registry.Navigation();
@@ -5415,12 +5751,13 @@ namespace vmm_tests
 			require(readyRegistry.RegisterClient(
 						&readyClient, &readyHandle) == DMUI_RESULT_OK,
 				"throwing ready client was not registered");
+			AddCategory(readyRegistry, readyHandle, "general", "General");
 			const auto readyPage = AddPage(
 				readyRegistry,
 				readyHandle,
 				"settings",
 				"Settings",
-				"General",
+				"general",
 				0,
 				DMUI_PAGE_KIND_SETTINGS,
 				readyState);
@@ -5433,8 +5770,9 @@ namespace vmm_tests
 			Registry drawRegistry{ fingerprint };
 			const auto drawClient = AddClient(
 				drawRegistry, "throw-draw.mod", "Throw Draw", fingerprint, drawState);
+			AddCategory(drawRegistry, drawClient, "general", "General");
 			auto drawPageDescriptor = Page(
-				"settings", "Settings", "General", 0, DMUI_PAGE_KIND_SETTINGS, drawState);
+				"settings", "Settings", "general", 0, DMUI_PAGE_KIND_SETTINGS, drawState);
 			drawPageDescriptor.draw = &ThrowDraw;
 			DMUI_PageHandle drawPage{};
 			require(drawRegistry.RegisterPage(
@@ -5486,9 +5824,11 @@ namespace vmm_tests
 			Registry registry{ fingerprint };
 			CallbackState state;
 			const auto client = AddClient(registry, "frames.mod", "Frames", fingerprint, state);
-			const auto settings = AddPage(registry, client, "settings", "Settings", "General", 0,
+			AddCategory(registry, client, "general", "General");
+			AddCategory(registry, client, "hud", "HUD");
+			const auto settings = AddPage(registry, client, "settings", "Settings", "general", 0,
 				DMUI_PAGE_KIND_SETTINGS, state);
-			const auto overlay = AddPage(registry, client, "overlay", "Overlay", "HUD", 0,
+			const auto overlay = AddPage(registry, client, "overlay", "Overlay", "hud", 0,
 				DMUI_PAGE_KIND_OVERLAY, state);
 			require(registry.RequestFrame(client, settings) == DMUI_RESULT_INVALID_PAGE_KIND,
 				"settings page requested overlay frames");
@@ -5513,7 +5853,8 @@ namespace vmm_tests
 			Registry registry{ fingerprint };
 			CallbackState state;
 			const auto client = AddClient(registry, "draw.mod", "Draw", fingerprint, state);
-			const auto page = AddPage(registry, client, "draw", "Draw", "General", 0,
+			AddCategory(registry, client, "general", "General");
+			const auto page = AddPage(registry, client, "draw", "Draw", "general", 0,
 				DMUI_PAGE_KIND_SETTINGS, state);
 			require(registry.InvokePage(page) == DMUI_RESULT_OK, "draw callback failed");
 			require(state.draws == 1, "draw callback did not receive userdata");

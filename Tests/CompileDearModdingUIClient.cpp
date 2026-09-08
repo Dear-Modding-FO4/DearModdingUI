@@ -40,12 +40,16 @@ namespace
 		(void)bridgedClient;
 		if (!client.Connect())
 			return;
+		(void)client.AddCategory({
+			.id = "general",
+			.displayName = "General"
+		});
 		const auto label = g_counter;
 		const auto page = client.AddPage(
 			{
 				.id = "settings",
 				.displayName = "Settings",
-				.category = "General"
+				.categoryId = "general"
 			},
 			[label] {
 				ImGui::TextUnformatted("hello");
@@ -95,7 +99,7 @@ namespace
 			{
 				.id = "declarative",
 				.displayName = "Declarative",
-				.category = "General"
+				.categoryId = "general"
 			},
 			std::move(settings));
 		(void)client.AddAction(
@@ -144,12 +148,24 @@ namespace
 		const std::array links{
 			dmui::Link{
 				"GitHub",
-				"https://github.com/Dear-Modding-FO4/DearModdingUI",
+				{
+					DMUI_EXTERNAL_TARGET_URI,
+					"https://github.com/Dear-Modding-FO4/DearModdingUI"
+				},
 				nullptr,
 				U'\0',
-				true }
+				true,
+				dmui::LinkAction::kCopyTarget }
 		};
 		(void)client.DrawLinkRow("links", links);
+		const char* arguments[]{ "--reuse-window", "" };
+		(void)client.OpenExternal({
+			.targetKind = DMUI_EXTERNAL_TARGET_FILE,
+			.target = "C:\\mods\\readme.txt",
+			.application = "C:\\Tools\\viewer.exe",
+			.arguments = arguments,
+			.workingDirectory = "C:\\mods"
+		});
 		const std::array faq{
 			dmui::FaqEntry{
 				"How do I open the menu?",

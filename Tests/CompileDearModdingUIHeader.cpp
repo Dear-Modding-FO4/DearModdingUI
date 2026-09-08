@@ -8,6 +8,8 @@ static_assert(std::is_standard_layout_v<DMUI_ClientDescriptor>);
 static_assert(std::is_trivially_copyable_v<DMUI_ClientDescriptor>);
 static_assert(std::is_standard_layout_v<DMUI_PageDescriptor>);
 static_assert(std::is_trivially_copyable_v<DMUI_PageDescriptor>);
+static_assert(std::is_standard_layout_v<DMUI_CategoryDescriptor>);
+static_assert(std::is_trivially_copyable_v<DMUI_CategoryDescriptor>);
 static_assert(std::is_standard_layout_v<DMUI_ActionDescriptor>);
 static_assert(std::is_trivially_copyable_v<DMUI_ActionDescriptor>);
 static_assert(std::is_standard_layout_v<DMUI_FrameObserverDescriptor>);
@@ -16,6 +18,8 @@ static_assert(std::is_standard_layout_v<DMUI_HotkeyActionDescriptor>);
 static_assert(std::is_trivially_copyable_v<DMUI_HotkeyActionDescriptor>);
 static_assert(std::is_standard_layout_v<DMUI_LinkDescriptor>);
 static_assert(std::is_trivially_copyable_v<DMUI_LinkDescriptor>);
+static_assert(std::is_standard_layout_v<DMUI_ExternalOpenDescriptor>);
+static_assert(std::is_trivially_copyable_v<DMUI_ExternalOpenDescriptor>);
 static_assert(std::is_standard_layout_v<DMUI_FaqEntry>);
 static_assert(std::is_trivially_copyable_v<DMUI_FaqEntry>);
 static_assert(std::is_standard_layout_v<DMUI_DiagnosticDescriptor>);
@@ -55,6 +59,10 @@ static_assert(!std::is_nothrow_invocable_v<
 	DMUI_HotkeyActionHandle,
 	uint32_t,
 	void*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_RegisterCategoryFn,
+	DMUI_ClientHandle,
+	const DMUI_CategoryDescriptor*>);
 static_assert(std::is_nothrow_invocable_v<
 	DMUI_RegisterActionFn,
 	DMUI_ClientHandle,
@@ -179,6 +187,11 @@ static_assert(std::is_nothrow_invocable_v<
 static_assert(std::is_nothrow_invocable_v<
 	DMUI_EndSettingsTableFn,
 	DMUI_ClientHandle>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_OpenExternalFn,
+	DMUI_ClientHandle,
+	const DMUI_ExternalOpenDescriptor*,
+	uint32_t*>);
 static_assert(DMUI_PAGE_KIND_SETTINGS == 1u);
 static_assert(DMUI_PAGE_KIND_OVERLAY == 2u);
 static_assert(DMUI_STATUS_SEVERITY_INFO == 0u);
@@ -208,10 +221,12 @@ static_assert(sizeof(DMUI_ImGuiFingerprint) == 216);
 static_assert(sizeof(DMUI_HostReadyInfo) == 40);
 static_assert(sizeof(DMUI_ClientDescriptor) == 112);
 static_assert(sizeof(DMUI_PageDescriptor) == 64);
+static_assert(sizeof(DMUI_CategoryDescriptor) == 32);
 static_assert(sizeof(DMUI_ActionDescriptor) == 64);
 static_assert(sizeof(DMUI_FrameObserverDescriptor) == 24);
 static_assert(sizeof(DMUI_HotkeyActionDescriptor) == 56);
-static_assert(sizeof(DMUI_LinkDescriptor) == 40);
+static_assert(sizeof(DMUI_LinkDescriptor) == 48);
+static_assert(sizeof(DMUI_ExternalOpenDescriptor) == 48);
 static_assert(sizeof(DMUI_FaqEntry) == 24);
 static_assert(sizeof(DMUI_DiagnosticDescriptor) == 32);
 static_assert(sizeof(DMUI_HotkeyBindingInfo) == 40);
@@ -238,6 +253,8 @@ static_assert(DMUI_CLIENT_DESCRIPTOR_SERVICES_SIZE ==
 	sizeof(DMUI_ClientDescriptor));
 static_assert(DMUI_PAGE_DESCRIPTOR_0_1_SIZE ==
 	sizeof(DMUI_PageDescriptor));
+static_assert(DMUI_CATEGORY_DESCRIPTOR_0_1_SIZE ==
+	sizeof(DMUI_CategoryDescriptor));
 static_assert(DMUI_ACTION_DESCRIPTOR_0_1_SIZE ==
 	sizeof(DMUI_ActionDescriptor));
 static_assert(DMUI_FRAME_OBSERVER_DESCRIPTOR_0_1_SIZE ==
@@ -248,12 +265,21 @@ static_assert(DMUI_HOTKEY_ACTION_DESCRIPTOR_CONTEXT_SIZE ==
 	sizeof(DMUI_HotkeyActionDescriptor));
 static_assert(offsetof(DMUI_LinkDescriptor, structSize) == 0);
 static_assert(offsetof(DMUI_LinkDescriptor, label) == 8);
-static_assert(offsetof(DMUI_LinkDescriptor, url) == 16);
-static_assert(offsetof(DMUI_LinkDescriptor, note) == 24);
-static_assert(offsetof(DMUI_LinkDescriptor, glyph) == 32);
-static_assert(offsetof(DMUI_LinkDescriptor, enabled) == 36);
+static_assert(offsetof(DMUI_LinkDescriptor, note) == 16);
+static_assert(offsetof(DMUI_LinkDescriptor, glyph) == 24);
+static_assert(offsetof(DMUI_LinkDescriptor, enabled) == 28);
+static_assert(offsetof(DMUI_LinkDescriptor, action) == 32);
+static_assert(offsetof(DMUI_LinkDescriptor, external) == 40);
 static_assert(DMUI_LINK_DESCRIPTOR_0_1_SIZE ==
 	sizeof(DMUI_LinkDescriptor));
+static_assert(offsetof(DMUI_ExternalOpenDescriptor, targetKind) == 4);
+static_assert(offsetof(DMUI_ExternalOpenDescriptor, target) == 8);
+static_assert(offsetof(DMUI_ExternalOpenDescriptor, application) == 16);
+static_assert(offsetof(DMUI_ExternalOpenDescriptor, arguments) == 24);
+static_assert(offsetof(DMUI_ExternalOpenDescriptor, argumentCount) == 32);
+static_assert(offsetof(DMUI_ExternalOpenDescriptor, workingDirectory) == 40);
+static_assert(DMUI_EXTERNAL_OPEN_DESCRIPTOR_0_1_SIZE ==
+	sizeof(DMUI_ExternalOpenDescriptor));
 static_assert(offsetof(DMUI_FaqEntry, structSize) == 0);
 static_assert(offsetof(DMUI_FaqEntry, question) == 8);
 static_assert(offsetof(DMUI_FaqEntry, answer) == 16);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/SettingsActions.h>
+#include <DearModdingUI/ExternalOpen.h>
 
 #include <imgui/imgui.h>
 
@@ -17,10 +18,11 @@ namespace DearModdingUI
 	struct LinkRowEntry
 	{
 		std::string_view label;
-		std::string_view url;
+		ExternalOpenRequest external;
 		std::string_view note;
 		char32_t glyph{};
 		bool enabled{ true };
+		DMUI_LinkAction action{ DMUI_LINK_ACTION_COPY_TARGET };
 	};
 
 	struct FaqRowEntry
@@ -49,7 +51,7 @@ namespace DearModdingUI
 		std::string& a_search) noexcept;
 	void DrawSectionHeader(const char* a_text, char32_t a_glyph = 0) noexcept;
 	void DrawBulletText(const char* a_text) noexcept;
-	void DrawLinkRow(
+	[[nodiscard]] DMUI_Result DrawLinkRow(
 		const char* a_id,
 		std::span<const LinkRowEntry> a_links) noexcept;
 	void DrawFaq(

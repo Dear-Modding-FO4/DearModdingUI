@@ -63,6 +63,14 @@ namespace DearModdingUIPreview
 				a_error = DMUI_ResultToString(client.LastResult());
 				return false;
 			}
+			if (!client.AddCategory({
+					.id = "services",
+					.displayName = "Services"
+				}))
+			{
+				a_error = DMUI_ResultToString(client.LastResult());
+				return false;
+			}
 			const auto pageKind = kind == PresentationDemoKind::kOverlay ?
 				DMUI_PAGE_KIND_OVERLAY :
 				DMUI_PAGE_KIND_SETTINGS;
@@ -72,7 +80,7 @@ namespace DearModdingUIPreview
 					.displayName = kind == PresentationDemoKind::kOverlay ?
 						"Performance overlay" :
 						"Presentation showcase",
-					.category = "Services",
+					.categoryId = "services",
 					.summary = "Synthetic forwarding presentation state.",
 					.kind = pageKind
 				},

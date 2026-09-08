@@ -244,6 +244,22 @@ namespace DearModdingUI
 			return service.registry.RegisterPage(a_client, a_descriptor, a_page);
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterCategoryCpp(
+			DMUI_ClientHandle a_client,
+			const DMUI_CategoryDescriptor* a_descriptor) noexcept
+		{
+			if (!a_descriptor || a_client == DMUI_INVALID_CLIENT_HANDLE)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			auto& service = GetService();
+			const auto state = service.state.load(std::memory_order_acquire);
+			if (state == DMUI_HOST_STATE_INITIALIZING ||
+				state == DMUI_HOST_STATE_READY)
+				return DMUI_RESULT_REGISTRATION_CLOSED;
+			if (state != DMUI_HOST_STATE_WAITING_FOR_PRESENT)
+				return StateResult(state);
+			return service.registry.RegisterCategory(a_client, a_descriptor);
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterActionCpp(
 			DMUI_ClientHandle a_client,
 			const DMUI_ActionDescriptor* a_descriptor,
@@ -704,16 +720,24 @@ namespace DearModdingUI
 				for (size_t index = 0; index < a_count; ++index)
 				{
 					const auto& link = a_links[index];
+					ExternalOpenRequest external;
+					if (link.enabled != 0 && link.external)
+					{
+						const auto result =
+							ValidateExternalOpenDescriptor(link.external, external);
+						if (result != DMUI_RESULT_OK)
+							return result;
+					}
 					links.push_back({
 						link.label,
-						link.url ? link.url : "",
+						std::move(external),
 						link.note ? link.note : "",
 						static_cast<char32_t>(link.glyph),
-						link.enabled != 0
+						link.enabled != 0,
+						link.action
 					});
 				}
-				DrawLinkRow(a_id, links);
-				return DMUI_RESULT_OK;
+				return DrawLinkRow(a_id, links);
 			}
 			catch (const std::bad_alloc&)
 			{
@@ -723,6 +747,26 @@ namespace DearModdingUI
 			{
 				return DMUI_RESULT_CALLBACK_FAILED;
 			}
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiOpenExternalCpp(
+			DMUI_ClientHandle a_client,
+			const DMUI_ExternalOpenDescriptor* a_descriptor,
+			uint32_t* a_nativeError) noexcept
+		{
+			if (a_nativeError)
+				*a_nativeError = 0;
+			if (a_client == DMUI_INVALID_CLIENT_HANDLE || !a_descriptor)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			auto& service = GetService();
+			const auto state = service.state.load(std::memory_order_acquire);
+			if (state != DMUI_HOST_STATE_READY)
+				return StateResult(state);
+			const auto clientResult = service.registry.ValidateClient(a_client);
+			if (clientResult != DMUI_RESULT_OK)
+				return clientResult;
+			static const ExternalOpener opener;
+			return opener.Open(a_descriptor, a_nativeError);
 		}
 
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawFaqCpp(
@@ -1198,6 +1242,15 @@ namespace DearModdingUI
 			});
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterCategory(
+			DMUI_ClientHandle a_client,
+			const DMUI_CategoryDescriptor* a_descriptor) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiRegisterCategoryCpp(a_client, a_descriptor);
+			});
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterAction(
 			DMUI_ClientHandle a_client,
 			const DMUI_ActionDescriptor* a_descriptor,
@@ -1410,6 +1463,19 @@ namespace DearModdingUI
 					a_id,
 					a_entries,
 					a_count);
+			});
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiOpenExternal(
+			DMUI_ClientHandle a_client,
+			const DMUI_ExternalOpenDescriptor* a_descriptor,
+			uint32_t* a_nativeError) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiOpenExternalCpp(
+					a_client,
+					a_descriptor,
+					a_nativeError);
 			});
 		}
 
@@ -1918,7 +1984,9 @@ namespace DearModdingUI
 			&ApiResolveDialogSubmission,
 			&ApiCancelDialog,
 			&ApiCreateImage,
-			&ApiUpdateImage
+			&ApiUpdateImage,
+			&ApiRegisterCategory,
+			&ApiOpenExternal
 		};
 		return api;
 	}

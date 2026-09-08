@@ -13,6 +13,7 @@
 #include <DearModdingUI/MCM/TextRendering.h>
 #include <DearModdingUI/MCM/ValueSource.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <exception>
@@ -33,7 +34,8 @@ namespace DearModdingUIPreview
 		{
 			const char* id;
 			const char* displayName;
-			const char* category;
+			const char* categoryId;
+			const char* categoryDisplayName;
 			const char* summary;
 		};
 
@@ -226,6 +228,7 @@ namespace DearModdingUIPreview
 		};
 
 		void DrawFixturePage(
+			dmui::Client& a_client,
 			const std::string& a_name,
 			const std::string& a_summary) noexcept
 		{
@@ -236,6 +239,34 @@ namespace DearModdingUIPreview
 			ImGui::TextDisabled("Standalone preview fixture");
 			ImGui::BulletText("%s is registered with the production host.", a_name.c_str());
 			ImGui::BulletText("Navigation, status, actions, typography, and shell layout are live.");
+			if (a_name == "Diagnostics")
+			{
+				const std::array links{
+					dmui::Link{
+						"Copy support URL",
+						{
+							DMUI_EXTERNAL_TARGET_URI,
+							"https://github.com/Dear-Modding-FO4/DearModdingUI"
+						},
+						"Copy the support URL.",
+						U'\0',
+						true,
+						dmui::LinkAction::kCopyTarget
+					},
+					dmui::Link{
+						"Open support page",
+						{
+							DMUI_EXTERNAL_TARGET_URI,
+							"https://github.com/Dear-Modding-FO4/DearModdingUI"
+						},
+						"Open with the operating system's associated handler.",
+						U'\0',
+						true,
+						dmui::LinkAction::kOpenExternal
+					}
+				};
+				(void)a_client.DrawLinkRow("preview-support", links);
+			}
 		}
 
 		template <dmui::SettingValueAlternative T>
@@ -404,6 +435,28 @@ namespace DearModdingUIPreview
 			std::span<const PageSpec> a_pages,
 			std::string& a_error)
 		{
+			std::vector<std::string_view> categories;
+			for (const auto& page : a_pages)
+			{
+				if (!page.categoryId)
+					continue;
+				const auto existing = std::ranges::find(
+					categories,
+					std::string_view{ page.categoryId });
+				if (existing != categories.end())
+					continue;
+				if (!a_client.AddCategory({
+						.id = page.categoryId,
+						.displayName = page.categoryDisplayName
+					}))
+				{
+					a_error = "Could not register category " +
+						std::string{ page.categoryId } + " (result " +
+						std::to_string(a_client.LastResult()) + ").";
+					return false;
+				}
+				categories.push_back(page.categoryId);
+			}
 			int32_t sortKey = 0;
 			for (const auto& page : a_pages)
 			{
@@ -411,13 +464,14 @@ namespace DearModdingUIPreview
 					{
 						.id = page.id,
 						.displayName = page.displayName,
-						.category = page.category,
+						.categoryId = page.categoryId,
 						.summary = page.summary,
 						.sortKey = sortKey
 					},
-					[name = std::string{ page.displayName },
+					[client = &a_client,
+					 name = std::string{ page.displayName },
 						summary = std::string{ page.summary }]() {
-						DrawFixturePage(name, summary);
+						DrawFixturePage(*client, name, summary);
 					});
 				if (!handle)
 				{
@@ -493,11 +547,13 @@ namespace DearModdingUIPreview
 					"overview",
 					"Overview",
 					nullptr,
+					nullptr,
 					"Runtime summary and active compatibility fixes."
 				},
 				PageSpec{
 					"fixes",
 					"Fixes",
+					nullptr,
 					nullptr,
 					"Individual engine fixes and their current state."
 				},
@@ -505,11 +561,13 @@ namespace DearModdingUIPreview
 					"performance",
 					"Performance",
 					nullptr,
+					nullptr,
 					"Frame pacing, budgets, and background work."
 				},
 				PageSpec{
 					"rendering",
 					"Rendering",
+					nullptr,
 					nullptr,
 					"Renderer compatibility and presentation options."
 				},
@@ -517,31 +575,33 @@ namespace DearModdingUIPreview
 					"camera",
 					"Camera",
 					nullptr,
+					nullptr,
 					"First-person and third-person camera behavior."
 				},
 				PageSpec{
 					"diagnostics",
 					"Diagnostics",
+					"diagnostics",
 					"Diagnostics",
 					"Runtime diagnostics and support information."
 				}
 			};
 			static constexpr std::array communityShadersPages{
-				PageSpec{ "overview", "Overview", "General", "Renderer and feature status." },
-				PageSpec{ "screen-space-shadows", "Screen-Space Shadows", "Lighting", "Contact shadow settings." },
-				PageSpec{ "grass-lighting", "Grass Lighting", "Lighting", "Per-blade lighting controls." },
-				PageSpec{ "wetness", "Wetness Effects", "Lighting", "Rain and surface wetness." },
-				PageSpec{ "subsurface-scattering", "Subsurface Scattering", "Lighting", "Skin and foliage scattering." },
-				PageSpec{ "complex-parallax", "Complex Parallax", "Visuals", "Material parallax controls." },
-				PageSpec{ "terrain-parallax", "Terrain Parallax", "Visuals", "Terrain displacement options." },
-				PageSpec{ "water-caustics", "Water Caustics", "Visuals", "Underwater light projection." },
-				PageSpec{ "skylighting", "Skylighting", "Lighting", "Ambient sky illumination." },
-				PageSpec{ "cloud-shadows", "Cloud Shadows", "Lighting", "Dynamic cloud shadowing." },
-				PageSpec{ "interior-shadows", "Interior Shadows", "Lighting", "Interior shadow generation." },
-				PageSpec{ "upscaling", "Upscaling", "Performance", "Resolution scaling and sharpening." },
-				PageSpec{ "shader-cache", "Shader Cache", "Performance", "Compilation and cache status." },
-				PageSpec{ "debug-view", "Debug View", "Diagnostics", "Renderer visualization modes." },
-				PageSpec{ "compatibility", "Compatibility", "Compatibility", "Detected patches and conflicts." }
+				PageSpec{ "overview", "Overview", "general", "General", "Renderer and feature status." },
+				PageSpec{ "screen-space-shadows", "Screen-Space Shadows", "lighting", "Lighting", "Contact shadow settings." },
+				PageSpec{ "grass-lighting", "Grass Lighting", "lighting", "Lighting", "Per-blade lighting controls." },
+				PageSpec{ "wetness", "Wetness Effects", "lighting", "Lighting", "Rain and surface wetness." },
+				PageSpec{ "subsurface-scattering", "Subsurface Scattering", "lighting", "Lighting", "Skin and foliage scattering." },
+				PageSpec{ "complex-parallax", "Complex Parallax", "visuals", "Visuals", "Material parallax controls." },
+				PageSpec{ "terrain-parallax", "Terrain Parallax", "visuals", "Visuals", "Terrain displacement options." },
+				PageSpec{ "water-caustics", "Water Caustics", "visuals", "Visuals", "Underwater light projection." },
+				PageSpec{ "skylighting", "Skylighting", "lighting", "Lighting", "Ambient sky illumination." },
+				PageSpec{ "cloud-shadows", "Cloud Shadows", "lighting", "Lighting", "Dynamic cloud shadowing." },
+				PageSpec{ "interior-shadows", "Interior Shadows", "lighting", "Lighting", "Interior shadow generation." },
+				PageSpec{ "upscaling", "Upscaling", "performance", "Performance", "Resolution scaling and sharpening." },
+				PageSpec{ "shader-cache", "Shader Cache", "performance", "Performance", "Compilation and cache status." },
+				PageSpec{ "debug-view", "Debug View", "diagnostics", "Diagnostics", "Renderer visualization modes." },
+				PageSpec{ "compatibility", "Compatibility", "compatibility", "Compatibility", "Detected patches and conflicts." }
 			};
 			static constexpr std::array additionalClients{
 				ClientSpec{
@@ -549,56 +609,56 @@ namespace DearModdingUIPreview
 					"Buffout 4",
 					{ 1, 28 },
 					"terminal-window",
-					{ "diagnostics", "Crash Diagnostics", "Diagnostics", "Crash logging and runtime checks." }
+					{ "diagnostics", "Crash Diagnostics", "diagnostics", "Diagnostics", "Crash logging and runtime checks." }
 				},
 				ClientSpec{
 					"highfpsphysicsfix",
 					"High FPS Physics Fix",
 					{ 0, 8 },
 					"",
-					{ "timing", "Frame Timing", "Performance", "Physics timing and loading controls." }
+					{ "timing", "Frame Timing", "performance", "Performance", "Physics timing and loading controls." }
 				},
 				ClientSpec{
 					"xcell",
 					"X-Cell",
 					{ 1, 5 },
 					"squares-four",
-					{ "memory", "Memory", "Performance", "Memory allocation and reclamation." }
+					{ "memory", "Memory", "performance", "Performance", "Memory allocation and reclamation." }
 				},
 				ClientSpec{
 					"prp",
 					"Previsibines Repair Pack",
 					{ 74, 0 },
 					"files",
-					{ "coverage", "Coverage", "Compatibility", "Loaded previs and precombine coverage." }
+					{ "coverage", "Coverage", "compatibility", "Compatibility", "Loaded previs and precombine coverage." }
 				},
 				ClientSpec{
 					"nacx",
 					"NAC X",
 					{ 1, 0 },
 					"palette",
-					{ "weather", "Weather", "Visuals", "Weather and post-process configuration." }
+					{ "weather", "Weather", "visuals", "Visuals", "Weather and post-process configuration." }
 				},
 				ClientSpec{
 					"longloadingtimesfix",
 					"Long Loading Times Fix",
 					{ 1, 0 },
 					"arrow-counter-clockwise",
-					{ "loading", "Loading", "Performance", "Loading-screen timing and diagnostics." }
+					{ "loading", "Loading", "performance", "Performance", "Loading-screen timing and diagnostics." }
 				},
 				ClientSpec{
 					"weapondebriscrashfix",
 					"Weapon Debris Crash Fix",
 					{ 1, 2 },
 					"shield-check",
-					{ "status", "Status", "Stability", "Debris patch status and compatibility." }
+					{ "status", "Status", "stability", "Stability", "Debris patch status and compatibility." }
 				},
 				ClientSpec{
 					"fallui",
 					"FallUI",
 					{ 2, 3 },
 					"",
-					{ "interface", "Interface", "General", "HUD and inventory interface settings." }
+					{ "interface", "Interface", "general", "General", "HUD and inventory interface settings." }
 				}
 			};
 
@@ -967,17 +1027,20 @@ namespace DearModdingUIPreview
 						"overview",
 						"Overview",
 						nullptr,
+						nullptr,
 						"Synthetic navigation-only bridge fixture."
 					},
 					PageSpec{
 						"tuning",
 						"Tuning",
+						"configuration",
 						"Configuration",
 						"Generic bridged configuration controls."
 					},
 					PageSpec{
 						"diagnostics",
 						"Diagnostics",
+						"diagnostics",
 						"Diagnostics",
 						"A category intentionally matching its page name."
 					}

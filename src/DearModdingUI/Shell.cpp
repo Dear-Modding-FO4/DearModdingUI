@@ -1560,7 +1560,7 @@ namespace DearModdingUI
 				if (category.HasHeading())
 				{
 					const auto key =
-						SidebarCategoryKey(a_client, category.displayName);
+						SidebarCategoryKey(a_client, category.id);
 					auto state =
 						a_context.browsing.categoryExpansion
 							.try_emplace(key, true)
@@ -2498,13 +2498,17 @@ namespace DearModdingUI
 			{
 				quickLinks.push_back({
 					link.label,
-					link.url,
+					{
+						DMUI_EXTERNAL_TARGET_URI,
+						std::string{ link.url }
+					},
 					link.note,
 					FindPhosphorIconGlyphOrZero(link.iconName),
-					link.enabled
+					link.enabled,
+					DMUI_LINK_ACTION_COPY_TARGET
 				});
 			}
-			DrawLinkRow("##DearModdingUI.HomeQuickLinks", quickLinks);
+			(void)DrawLinkRow("##DearModdingUI.HomeQuickLinks", quickLinks);
 
 			ImGui::Spacing();
 			DrawSectionHeader(
@@ -3484,13 +3488,15 @@ namespace DearModdingUI
 		DrawBulletTextEntry(a_text);
 	}
 
-	void DrawLinkRow(
+	DMUI_Result DrawLinkRow(
 		const char* a_id,
 		std::span<const LinkRowEntry> a_links) noexcept
 	{
 		if (a_links.empty())
-			return;
+			return DMUI_RESULT_OK;
 
+		DMUI_Result result{ DMUI_RESULT_OK };
+		const ExternalOpener opener;
 		const auto& style = ImGui::GetStyle();
 		const auto buttonWidth =
 			(ImGui::GetContentRegionAvail().x -
@@ -3535,20 +3541,58 @@ namespace DearModdingUI
 			ImGui::EndDisabled();
 
 			if (link.enabled && clicked)
-				ImGui::SetClipboardText(link.url.data());
+			{
+				if (link.action == DMUI_LINK_ACTION_COPY_TARGET)
+					ImGui::SetClipboardText(link.external.target.c_str());
+				else
+				{
+					DMUI_ExternalOpenDescriptor descriptor{
+						sizeof(DMUI_ExternalOpenDescriptor),
+						link.external.targetKind,
+						link.external.target.empty() ?
+							nullptr :
+							link.external.target.c_str(),
+						link.external.application.empty() ?
+							nullptr :
+							link.external.application.c_str(),
+						nullptr,
+						static_cast<uint32_t>(link.external.arguments.size()),
+						0,
+						link.external.workingDirectory.empty() ?
+							nullptr :
+							link.external.workingDirectory.c_str()
+					};
+					std::vector<const char*> arguments;
+					arguments.reserve(link.external.arguments.size());
+					for (const auto& argument : link.external.arguments)
+						arguments.push_back(argument.c_str());
+					descriptor.arguments =
+						arguments.empty() ? nullptr : arguments.data();
+					result = opener.Open(&descriptor);
+				}
+			}
 			const auto hoverFlags =
 				ImGuiHoveredFlags_DelayNormal |
 				(link.enabled ?
 						ImGuiHoveredFlags_None :
 						ImGuiHoveredFlags_AllowWhenDisabled);
-			const auto tooltip =
-				link.note.empty() ? link.url : link.note;
 			if (ImGui::IsItemHovered(hoverFlags))
 			{
 				(void)ImGui::BeginTooltip();
+				if (link.action == DMUI_LINK_ACTION_COPY_TARGET)
+					ImGui::TextUnformatted("Copy target");
+				else if (link.external.application.empty())
+					ImGui::TextUnformatted("Open with system default");
+				else
+					ImGui::TextUnformatted("Open with selected application");
+				const auto detail =
+					link.note.empty() ?
+						std::string_view{ link.external.target } :
+						link.note;
+				if (!detail.empty())
 				ImGui::TextUnformatted(
-					tooltip.data(),
-					tooltip.data() + tooltip.size());
+					detail.data(),
+					detail.data() + detail.size());
 				ImGui::EndTooltip();
 			}
 			ImGui::PopID();
@@ -3556,6 +3600,7 @@ namespace DearModdingUI
 				ImGui::SameLine();
 		}
 		ImGui::PopID();
+		return result;
 	}
 
 	void DrawFaq(

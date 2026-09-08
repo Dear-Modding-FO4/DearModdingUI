@@ -40,7 +40,7 @@ namespace DearModdingUI
 		std::string clientDisplayName;
 		std::string id;
 		std::string displayName;
-		std::string category;
+		std::string categoryId;
 		std::string summary;
 		std::string imguiLabel;
 		int32_t sortKey{ 0 };
@@ -49,6 +49,15 @@ namespace DearModdingUI
 		void* userData{ nullptr };
 		uint32_t frameDemand{ 0 };
 		bool callbackFailed{ false };
+	};
+
+	struct RegisteredCategory
+	{
+		DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
+		std::string clientId;
+		std::string id;
+		std::string displayName;
+		int32_t sortKey{ 0 };
 	};
 
 	struct RegisteredAction
@@ -99,6 +108,9 @@ namespace DearModdingUI
 			DMUI_ClientHandle a_client,
 			const DMUI_PageDescriptor* a_descriptor,
 			DMUI_PageHandle* a_page) noexcept;
+		[[nodiscard]] DMUI_Result RegisterCategory(
+			DMUI_ClientHandle a_client,
+			const DMUI_CategoryDescriptor* a_descriptor) noexcept;
 		[[nodiscard]] DMUI_Result RegisterAction(
 			DMUI_ClientHandle a_client,
 			const DMUI_ActionDescriptor* a_descriptor,
@@ -119,6 +131,8 @@ namespace DearModdingUI
 		[[nodiscard]] size_t DemandedOverlayCount() const noexcept;
 		[[nodiscard]] bool HasSettingsPages() const noexcept;
 		[[nodiscard]] const std::vector<RegisteredClient>& RegisteredClients() const noexcept;
+		[[nodiscard]] const std::vector<RegisteredCategory>&
+			RegisteredCategories() const noexcept;
 		[[nodiscard]] const std::vector<RegisteredPage>& OrderedPages() const noexcept;
 		[[nodiscard]] const std::vector<RegisteredAction>& OrderedActions() const noexcept;
 		[[nodiscard]] const std::vector<RegisteredFrameObserver>&
@@ -176,6 +190,9 @@ namespace DearModdingUI
 		[[nodiscard]] const RegisteredClient* FindClient(DMUI_ClientHandle a_client) const noexcept;
 		[[nodiscard]] RegisteredPage* FindPage(DMUI_PageHandle a_page) noexcept;
 		[[nodiscard]] const RegisteredPage* FindPage(DMUI_PageHandle a_page) const noexcept;
+		[[nodiscard]] const RegisteredCategory* FindCategory(
+			DMUI_ClientHandle a_client,
+			std::string_view a_id) const noexcept;
 		[[nodiscard]] RegisteredAction* FindAction(DMUI_ActionHandle a_action) noexcept;
 		[[nodiscard]] const RegisteredAction* FindAction(DMUI_ActionHandle a_action) const noexcept;
 		[[nodiscard]] RegisteredFrameObserver* FindFrameObserver(
@@ -189,6 +206,7 @@ namespace DearModdingUI
 		DMUI_ImGuiFingerprint m_fingerprint{};
 		mutable std::mutex m_mutex;
 		std::vector<RegisteredClient> m_clients;
+		std::vector<RegisteredCategory> m_categories;
 		std::vector<RegisteredPage> m_pages;
 		std::vector<RegisteredAction> m_actions;
 		std::vector<RegisteredFrameObserver> m_frameObservers;

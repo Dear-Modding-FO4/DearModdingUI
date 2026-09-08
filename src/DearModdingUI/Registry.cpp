@@ -13,7 +13,7 @@ namespace DearModdingUI
 	{
 		inline constexpr size_t kIdCapacity{ 128 };
 		inline constexpr size_t kDisplayNameCapacity{ 256 };
-		inline constexpr size_t kCategoryCapacity{ 128 };
+		inline constexpr size_t kCategoryIdCapacity{ 128 };
 		inline constexpr size_t kSummaryCapacity{ 1024 };
 		inline constexpr size_t kIconNameCapacity{ 128 };
 		inline constexpr size_t kBridgeSourceLabelCapacity{ 128 };
@@ -60,12 +60,15 @@ namespace DearModdingUI
 		{
 			if (!a_optional && a_text.empty())
 				return false;
+			bool hasVisibleCharacter = false;
 			for (const auto character : a_text)
 			{
 				if (static_cast<unsigned char>(character) < 0x20u && character != '\t')
 					return false;
+				if (character != ' ' && character != '\t')
+					hasVisibleCharacter = true;
 			}
-			return true;
+			return a_optional || hasVisibleCharacter;
 		}
 
 		[[nodiscard]] bool InvokeReadyCpp(
@@ -333,11 +336,11 @@ namespace DearModdingUI
 			page.userData = a_descriptor->userData;
 			if (!ReadString(a_descriptor->id, kIdCapacity, false, page.id) ||
 				!ReadString(a_descriptor->displayName, kDisplayNameCapacity, false, page.displayName) ||
-				!ReadString(a_descriptor->category, kCategoryCapacity, true, page.category) ||
+				!ReadString(a_descriptor->categoryId, kCategoryIdCapacity, true, page.categoryId) ||
 				!ReadString(a_descriptor->summary, kSummaryCapacity, true, page.summary) ||
 				!ValidId(page.id) ||
 				!ValidText(page.displayName, false) ||
-				!ValidText(page.category, true) ||
+				(!page.categoryId.empty() && !ValidId(page.categoryId)) ||
 				!ValidText(page.summary, true))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 
@@ -347,6 +350,9 @@ namespace DearModdingUI
 			const auto* client = FindClient(a_client);
 			if (!client)
 				return DMUI_RESULT_CLIENT_NOT_FOUND;
+			if (!page.categoryId.empty() &&
+				!FindCategory(a_client, page.categoryId))
+				return DMUI_RESULT_CATEGORY_NOT_FOUND;
 			if (std::ranges::any_of(m_pages, [&](const auto& a_existing) {
 					return a_existing.client == a_client && a_existing.id == page.id;
 				}))
@@ -360,6 +366,55 @@ namespace DearModdingUI
 			page.imguiLabel = page.displayName + "###" + page.clientId + "/" + page.id;
 			m_pages.push_back(std::move(page));
 			*a_page = m_pages.back().handle;
+			return DMUI_RESULT_OK;
+		}
+		catch (...)
+		{
+			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		}
+	}
+
+	DMUI_Result Registry::RegisterCategory(
+		DMUI_ClientHandle a_client,
+		const DMUI_CategoryDescriptor* a_descriptor) noexcept
+	{
+		if (!a_descriptor || a_client == DMUI_INVALID_CLIENT_HANDLE)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		if (a_descriptor->structSize < DMUI_CATEGORY_DESCRIPTOR_0_1_SIZE)
+			return DMUI_RESULT_STRUCT_TOO_SMALL;
+		if (a_descriptor->reserved != 0)
+			return DMUI_RESULT_INVALID_DESCRIPTOR;
+
+		try
+		{
+			RegisteredCategory category{};
+			category.client = a_client;
+			category.sortKey = a_descriptor->sortKey;
+			if (!ReadString(
+					a_descriptor->id,
+					kCategoryIdCapacity,
+					false,
+					category.id) ||
+				!ReadString(
+					a_descriptor->displayName,
+					kDisplayNameCapacity,
+					false,
+					category.displayName) ||
+				!ValidId(category.id) ||
+				!ValidText(category.displayName, false))
+				return DMUI_RESULT_INVALID_DESCRIPTOR;
+
+			const std::scoped_lock lock{ m_mutex };
+			if (!m_open)
+				return DMUI_RESULT_REGISTRATION_CLOSED;
+			const auto* client = FindClient(a_client);
+			if (!client)
+				return DMUI_RESULT_CLIENT_NOT_FOUND;
+			if (FindCategory(a_client, category.id))
+				return DMUI_RESULT_DUPLICATE_CATEGORY_ID;
+
+			category.clientId = client->id;
+			m_categories.push_back(std::move(category));
 			return DMUI_RESULT_OK;
 		}
 		catch (...)
@@ -527,27 +582,50 @@ namespace DearModdingUI
 			const std::scoped_lock lock{ m_mutex };
 			if (!m_open)
 				return false;
-			std::ranges::sort(m_pages, [](const auto& a_left, const auto& a_right) {
+			std::ranges::sort(m_pages, [&](const auto& a_left, const auto& a_right) {
+				if (std::tie(a_left.clientDisplayName, a_left.clientId) !=
+					std::tie(a_right.clientDisplayName, a_right.clientId))
+					return std::tie(a_left.clientDisplayName, a_left.clientId) <
+						std::tie(a_right.clientDisplayName, a_right.clientId);
+				if (a_left.categoryId.empty() != a_right.categoryId.empty())
+					return a_left.categoryId.empty();
+				if (!a_left.categoryId.empty())
+				{
+					const auto* leftCategory =
+						FindCategory(a_left.client, a_left.categoryId);
+					const auto* rightCategory =
+						FindCategory(a_right.client, a_right.categoryId);
+					if (std::tie(
+							leftCategory->sortKey,
+							leftCategory->displayName,
+							leftCategory->id) !=
+						std::tie(
+							rightCategory->sortKey,
+							rightCategory->displayName,
+							rightCategory->id))
+						return std::tie(
+								   leftCategory->sortKey,
+								   leftCategory->displayName,
+								   leftCategory->id) <
+							std::tie(
+								   rightCategory->sortKey,
+								   rightCategory->displayName,
+								   rightCategory->id);
+				}
 				return std::tie(
-					a_left.clientDisplayName,
-					a_left.clientId,
-					a_left.category,
-					a_left.sortKey,
-					a_left.displayName,
-					a_left.id) <
+						   a_left.sortKey,
+						   a_left.displayName,
+						   a_left.id) <
 					std::tie(
-						a_right.clientDisplayName,
-						a_right.clientId,
-						a_right.category,
-						a_right.sortKey,
-						a_right.displayName,
-						a_right.id);
+						   a_right.sortKey,
+						   a_right.displayName,
+						   a_right.id);
 			});
 			std::ranges::sort(m_actions, [](const auto& a_left, const auto& a_right) {
 				return std::tie(a_left.client, a_left.sortKey, a_left.id) <
 					std::tie(a_right.client, a_right.sortKey, a_right.id);
 			});
-			m_navigation = BuildNavigationModel(m_clients, m_pages);
+			m_navigation = BuildNavigationModel(m_clients, m_categories, m_pages);
 			m_open = false;
 			return true;
 		}
@@ -602,6 +680,12 @@ namespace DearModdingUI
 	const std::vector<RegisteredClient>& Registry::RegisteredClients() const noexcept
 	{
 		return m_clients;
+	}
+
+	const std::vector<RegisteredCategory>&
+		Registry::RegisteredCategories() const noexcept
+	{
+		return m_categories;
 	}
 
 	const std::vector<RegisteredPage>& Registry::OrderedPages() const noexcept
@@ -1100,6 +1184,19 @@ namespace DearModdingUI
 			return a_existing.handle == a_page;
 		});
 		return found != m_pages.end() ? &*found : nullptr;
+	}
+
+	const RegisteredCategory* Registry::FindCategory(
+		DMUI_ClientHandle a_client,
+		std::string_view a_id) const noexcept
+	{
+		const auto found = std::ranges::find_if(
+			m_categories,
+			[&](const auto& a_existing) {
+				return a_existing.client == a_client &&
+					a_existing.id == a_id;
+			});
+		return found != m_categories.end() ? &*found : nullptr;
 	}
 
 	RegisteredAction* Registry::FindAction(DMUI_ActionHandle a_action) noexcept
