@@ -2404,20 +2404,6 @@ namespace DearModdingUI
 				}));
 		}
 
-		[[nodiscard]] DMUI_StatusSeverity HealthStatusSeverity(
-			HealthState a_state) noexcept
-		{
-			switch (a_state)
-			{
-			case HealthState::kReady:
-				return DMUI_STATUS_SEVERITY_SUCCESS;
-			case HealthState::kWaiting:
-				return DMUI_STATUS_SEVERITY_WARNING;
-			default:
-				return DMUI_STATUS_SEVERITY_INFO;
-			}
-		}
-
 		void DrawHostHome() noexcept
 		{
 			(void)DrawTitleRow({
@@ -2433,18 +2419,18 @@ namespace DearModdingUI
 			const auto statuses = RollupClientStatuses(statusSnapshot);
 			const auto healthSnapshots =
 				HostSubsystemHealthRegistry().Snapshots();
+			const auto healthNow = HealthClock::now();
 			const auto clientsNeedingAttention =
 				CountClientsNeedingAttention(clients, statuses);
 			const auto healthSummary = BuildHomeHealthSummary(
 				healthSnapshots,
-				clientsNeedingAttention);
-			const auto healthy =
-				clientsNeedingAttention == 0 &&
-				std::ranges::all_of(
-					healthSnapshots,
-					[](const HealthSnapshot& a_health) {
-						return a_health.state == HealthState::kReady;
-					});
+				clientsNeedingAttention,
+				healthNow);
+			const auto homeHealthSeverity = HomeHealthSeverity(
+				healthSnapshots,
+				clientsNeedingAttention,
+				healthNow);
+			const auto summarySeverity = HealthStatusSeverity(homeHealthSeverity);
 
 			DrawSectionHeader(
 				"About",
@@ -2480,10 +2466,7 @@ namespace DearModdingUI
 			DrawBulletText(registrySummary);
 			ImGui::PushStyleColor(
 				ImGuiCol_Text,
-				StatusTextColor(
-					healthy ?
-						DMUI_STATUS_SEVERITY_SUCCESS :
-						DMUI_STATUS_SEVERITY_WARNING));
+				StatusTextColor(summarySeverity));
 			DrawBulletText(healthSummary.c_str());
 			ImGui::PopStyleColor();
 
@@ -2537,6 +2520,7 @@ namespace DearModdingUI
 			const auto statuses = RollupClientStatuses(statusSnapshot);
 			const auto healthSnapshots =
 				HostSubsystemHealthRegistry().Snapshots();
+			const auto healthNow = HealthClock::now();
 			const auto diagnosticSnapshots = CurrentClientDiagnostics();
 			constexpr auto extentPolicy =
 				TitleRowButtonExtentPolicy::kTitleBar;
@@ -2568,11 +2552,13 @@ namespace DearModdingUI
 					healthSnapshots,
 					clients,
 					statuses,
-					diagnosticSnapshots);
+					diagnosticSnapshots,
+					healthNow);
 				ImGui::SetClipboardText(report.c_str());
 			}
 			const auto healthRows = BuildHealthSubsystemRows(
-				healthSnapshots);
+				healthSnapshots,
+				healthNow);
 
 			DrawSectionHeader(
 				"Host subsystems",
@@ -2593,13 +2579,11 @@ namespace DearModdingUI
 					DrawHostDetailRow(
 						rowId.c_str(),
 						health.identity.c_str(),
-						health.state == HealthState::kReady ?
-							"" :
-							health.reason.c_str(),
+						health.reason.c_str(),
 						[&]() noexcept {
 							ImGui::TextColored(
 								StatusTextColor(
-									HealthStatusSeverity(health.state)),
+									HealthStatusSeverity(health.severity)),
 								"Status: %s | %s in state",
 								health.stateLabel.c_str(),
 								health.durationLabel.c_str());

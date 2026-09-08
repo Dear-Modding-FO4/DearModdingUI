@@ -2,7 +2,9 @@
 #include <DearModdingUI/FontCatalog.h>
 #include <DearModdingUI/HostSettings.h>
 #include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/TypographyHealth.h>
 #include <Support/Runtime.h>
+#include <Support/SubsystemHealth.h>
 
 #include <REX/REX.h>
 
@@ -12,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <exception>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -34,11 +37,42 @@ namespace DearModdingUI::Theme
 			0
 		};
 
-		struct FontLoadResult
+		class TypographyHealthReporter final : public HealthReporter
 		{
-			bool roles{ false };
-			bool icons{ false };
-			bool requestedBody{ false };
+		public:
+			void Report(
+				HealthEvent a_event,
+				const HealthSnapshot& a_snapshot) noexcept override
+			{
+				if (a_snapshot.state == HealthState::kFailed)
+				{
+					REX::ERROR("[{}] Typography Failed: {}"sv,
+						a_snapshot.identity,
+						a_snapshot.reason);
+				}
+				else if (a_snapshot.state == HealthState::kDegraded)
+				{
+					REX::WARN("[{}] Typography Degraded: {}"sv,
+						a_snapshot.identity,
+						a_snapshot.reason);
+				}
+				else if (a_snapshot.state == HealthState::kReady)
+				{
+					REX::INFO("[{}] Typography {}: {}"sv,
+						a_snapshot.identity,
+						a_event == HealthEvent::kRecovery ?
+							"recovered" :
+							"Ready",
+						a_snapshot.reason);
+				}
+			}
+		};
+
+		TypographyHealthReporter s_typographyHealthReporter;
+		SubsystemHealth s_typographyHealth{
+			"dmui.typography",
+			s_typographyHealthReporter,
+			HostSubsystemHealthRegistry()
 		};
 
 		struct LoadedFont
@@ -160,12 +194,17 @@ namespace DearModdingUI::Theme
 			return mergedCount > 0;
 		}
 
-		[[nodiscard]] FontLoadResult LoadFonts(
+		[[nodiscard]] TypographyLoadOutcome LoadFonts(
 			ImGuiIO& a_io,
 			uint32_t a_backBufferHeight,
 			float a_userScale,
-			const FontCatalog::FontFamily* a_family) noexcept
+			std::string_view a_requestedFamily,
+			const FontCatalog::FontFamily* a_family,
+			bool a_requestedFamilyFound)
 		{
+			TypographyLoadOutcome outcome;
+			outcome.requestedFamily = a_requestedFamily;
+			outcome.requestedFamilyFound = a_requestedFamilyFound;
 			g_fonts = {};
 			auto& atlas = *a_io.Fonts;
 			std::array<LoadedFont, static_cast<size_t>(FontRole::kCount) + 1> loaded{};
@@ -193,7 +232,8 @@ namespace DearModdingUI::Theme
 				std::string_view{ a_family->regularFile } :
 				kFontRoleDefaults[static_cast<size_t>(FontRole::kBody)].file;
 			g_fonts.body = loadFile(requestedFile, bodySize);
-			const auto requestedBodyLoaded = g_fonts.body != nullptr;
+			outcome.requestedBodyLoaded =
+				a_requestedFamilyFound && g_fonts.body != nullptr;
 			g_effectiveBodyFontFamily = a_family ?
 				a_family->name :
 				std::string{ kDefaultBodyFontFamily };
@@ -204,6 +244,8 @@ namespace DearModdingUI::Theme
 				g_fonts.body = loadFile(defaultBody.file, bodySize);
 				g_effectiveBodyFontFamily = kDefaultBodyFontFamily;
 			}
+			outcome.rolesLoaded[static_cast<size_t>(FontRole::kBody)] =
+				g_fonts.body != nullptr;
 
 			const auto loadRole = [&](FontRole a_role) {
 				const auto index = static_cast<size_t>(a_role);
@@ -218,16 +260,19 @@ namespace DearModdingUI::Theme
 			g_fonts.heading = loadRole(FontRole::kHeading);
 			g_fonts.subheading = loadRole(FontRole::kSubheading);
 			g_fonts.subtext = loadRole(FontRole::kSubtext);
-
-			const auto allBundled = g_fonts.body &&
-				g_fonts.title &&
-				g_fonts.heading &&
-				g_fonts.subheading &&
-				g_fonts.subtext;
+			outcome.rolesLoaded[static_cast<size_t>(FontRole::kTitle)] =
+				g_fonts.title != nullptr;
+			outcome.rolesLoaded[static_cast<size_t>(FontRole::kHeading)] =
+				g_fonts.heading != nullptr;
+			outcome.rolesLoaded[static_cast<size_t>(FontRole::kSubheading)] =
+				g_fonts.subheading != nullptr;
+			outcome.rolesLoaded[static_cast<size_t>(FontRole::kSubtext)] =
+				g_fonts.subtext != nullptr;
 			if (!g_fonts.body)
 			{
 				g_fonts.body = atlas.AddFontDefault();
 				g_effectiveBodyFontFamily = "Built-in fallback";
+				outcome.emergencyFontUsed = g_fonts.body != nullptr;
 			}
 			if (!g_fonts.title)
 				g_fonts.title = g_fonts.body;
@@ -238,11 +283,10 @@ namespace DearModdingUI::Theme
 			if (!g_fonts.subtext)
 				g_fonts.subtext = g_fonts.body;
 			a_io.FontDefault = g_fonts.body;
-			return {
-				allBundled,
-				MergeIconFonts(atlas, g_fonts),
-				requestedBodyLoaded
-			};
+			outcome.iconsLoaded = MergeIconFonts(atlas, g_fonts);
+			outcome.effectiveFamily = g_effectiveBodyFontFamily;
+			outcome.usableAtlas = g_fonts.body != nullptr;
+			return outcome;
 		}
 
 		[[nodiscard]] ImFont* FontForRole(FontRole a_role) noexcept
@@ -274,6 +318,30 @@ namespace DearModdingUI::Theme
 			g_effectiveBodyFontFamily = "Built-in fallback";
 			a_io.FontDefault = g_fonts.body;
 			return g_fonts.body != nullptr;
+		}
+
+		void PublishTypographyOutcome(
+			const TypographyLoadOutcome& a_outcome) noexcept
+		{
+			try
+			{
+				const auto observation =
+					ClassifyTypographyHealth(a_outcome);
+				(void)s_typographyHealth.Observe(
+					observation.state,
+					observation.reason);
+			}
+			catch (const std::exception& error)
+			{
+				REX::WARN(
+					"DearModdingUI: typography health could not be published: {}"sv,
+					error.what());
+			}
+			catch (...)
+			{
+				REX::WARN(
+					"DearModdingUI: typography health could not be published"sv);
+			}
 		}
 	}
 
@@ -340,41 +408,56 @@ namespace DearModdingUI::Theme
 		io.ConfigInputTrickleEventQueue = false;
 		RefreshFontFamilies();
 		const auto settings = HostSettings::Current();
+		const auto* requestedFamily = FontCatalog::Find(
+			settings.bodyFontFamily,
+			g_fontFamilies);
 		const auto* family = ResolveFamily(settings.bodyFontFamily);
-		const auto loaded = LoadFonts(
-			io,
-			static_cast<uint32_t>(kDefaultScreenHeight),
-			settings.uiScale,
-			family);
-		if (!loaded.roles)
-			REX::WARN("DearModdingUI: bundled font roles are incomplete; using safe fallbacks"sv);
-		if (!loaded.icons)
-			REX::WARN("DearModdingUI: Phosphor icon font is unavailable; using text-only labels"sv);
-		if (!g_fonts.body && !LoadEmergencyFont(io))
-			REX::ERROR("DearModdingUI: no usable font atlas could be prepared"sv);
+		TypographyLoadOutcome loaded;
+		try
+		{
+			loaded = LoadFonts(
+				io,
+				static_cast<uint32_t>(kDefaultScreenHeight),
+				settings.uiScale,
+				settings.bodyFontFamily,
+				family,
+				requestedFamily != nullptr);
+		}
+		catch (...)
+		{
+			loaded.requestedFamily = settings.bodyFontFamily;
+			loaded.requestedFamilyFound = requestedFamily != nullptr;
+			io.Fonts->Clear();
+			loaded.emergencyFontUsed = LoadEmergencyFont(io);
+			loaded.usableAtlas = loaded.emergencyFontUsed;
+			loaded.effectiveFamily = g_effectiveBodyFontFamily;
+		}
+		if (!g_fonts.body)
+		{
+			loaded.emergencyFontUsed = LoadEmergencyFont(io);
+			loaded.usableAtlas = loaded.emergencyFontUsed;
+			loaded.effectiveFamily = g_effectiveBodyFontFamily;
+		}
 		g_baseFontSize =
 			ResolveFontSize(static_cast<uint32_t>(kDefaultScreenHeight)) *
 			settings.uiScale;
-		g_fontRequestFamily = family ?
-			family->name :
-			std::string{ kDefaultBodyFontFamily };
+		g_fontRequestFamily = settings.bodyFontFamily;
 		ApplyStyle();
-		if (!loaded.requestedBody)
-			REX::WARN("DearModdingUI: requested body font failed; using Jost"sv);
+		PublishTypographyOutcome(loaded);
 	}
 
 	bool PrepareFrame(uint32_t a_backBufferHeight) noexcept
 	{
 		const auto settings = HostSettings::Current();
+		const auto* requestedFamily = FontCatalog::Find(
+			settings.bodyFontFamily,
+			g_fontFamilies);
 		const auto* family = ResolveFamily(settings.bodyFontFamily);
-		const auto requestedFamily = family ?
-			std::string_view{ family->name } :
-			kDefaultBodyFontFamily;
 		const auto desiredFontSize =
 			ResolveFontSize(a_backBufferHeight) * settings.uiScale;
 		if (std::abs(desiredFontSize - g_baseFontSize) <
 				0.01f &&
-			requestedFamily == g_fontRequestFamily)
+			settings.bodyFontFamily == g_fontRequestFamily)
 		{
 			ApplyStyle();
 			return true;
@@ -384,33 +467,49 @@ namespace DearModdingUI::Theme
 		if (!context || context->WithinFrameScope)
 			return false;
 
+		(void)s_typographyHealth.Observe(
+			HealthState::kProgressing,
+			"Rebuilding the font atlas for the requested family or scale.");
 		auto& io = ImGui::GetIO();
 		io.Fonts->Clear();
-		const auto loaded = LoadFonts(
-			io,
-			a_backBufferHeight,
-			settings.uiScale,
-			family);
+		TypographyLoadOutcome loaded;
+		try
+		{
+			loaded = LoadFonts(
+				io,
+				a_backBufferHeight,
+				settings.uiScale,
+				settings.bodyFontFamily,
+				family,
+				requestedFamily != nullptr);
+		}
+		catch (...)
+		{
+			loaded.requestedFamily = settings.bodyFontFamily;
+			loaded.requestedFamilyFound = requestedFamily != nullptr;
+			io.Fonts->Clear();
+			loaded.emergencyFontUsed = LoadEmergencyFont(io);
+			loaded.usableAtlas = loaded.emergencyFontUsed;
+			loaded.effectiveFamily = g_effectiveBodyFontFamily;
+		}
 		if (!g_fonts.body)
 		{
-			if (!LoadEmergencyFont(io))
+			loaded.emergencyFontUsed = LoadEmergencyFont(io);
+			loaded.usableAtlas = loaded.emergencyFontUsed;
+			loaded.effectiveFamily = g_effectiveBodyFontFamily;
+			if (!loaded.emergencyFontUsed)
 			{
-				REX::ERROR("DearModdingUI: font atlas rebuild failed"sv);
+				PublishTypographyOutcome(loaded);
 				return false;
 			}
 		}
 
 		g_baseFontSize = desiredFontSize;
-		g_fontRequestFamily = requestedFamily;
+		g_fontRequestFamily = settings.bodyFontFamily;
 		ApplyStyle();
 		REX::INFO("DearModdingUI: typography resolved to {:.0f}px at {}p"sv,
 			desiredFontSize, a_backBufferHeight);
-		if (!loaded.roles)
-			REX::WARN("DearModdingUI: scaled atlas uses fallback font roles"sv);
-		if (!loaded.icons)
-			REX::WARN("DearModdingUI: scaled atlas uses text-only labels"sv);
-		if (!loaded.requestedBody)
-			REX::WARN("DearModdingUI: requested body font failed; using Jost"sv);
+		PublishTypographyOutcome(loaded);
 		return true;
 	}
 

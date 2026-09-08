@@ -1,8 +1,10 @@
 #include <DearModdingUI/HostSettings.h>
 
 #include <DearModdingUI/Host.h>
+#include <DearModdingUI/HostSettingsHealth.h>
 #include <DearModdingUI/Hotkeys.h>
 #include <Support/Runtime.h>
+#include <Support/SubsystemHealth.h>
 
 #include <REX/REX.h>
 
@@ -34,6 +36,46 @@ namespace DearModdingUI::HostSettings
 		std::mutex s_settingsMutex;
 		PersistedHostInterfaceSettings s_settings;
 		std::atomic<uint32_t> s_menuToggleKey{ kMenuDefaultToggleKey };
+		std::mutex s_configurationHealthMutex;
+		HostSettingsHealthState s_configurationHealthState;
+
+		class ConfigurationHealthReporter final : public HealthReporter
+		{
+		public:
+			void Report(
+				HealthEvent a_event,
+				const HealthSnapshot& a_snapshot) noexcept override
+			{
+				if (a_event == HealthEvent::kRecovery)
+				{
+					REX::INFO("[{}] Configuration recovered: {}"sv,
+						a_snapshot.identity,
+						a_snapshot.reason);
+					return;
+				}
+				if (a_snapshot.state == HealthState::kDegraded)
+				{
+					REX::WARN("[{}] Configuration {}: {}"sv,
+						a_snapshot.identity,
+						HealthStateLabel(a_snapshot.state),
+						a_snapshot.reason);
+				}
+				else
+				{
+					REX::INFO("[{}] Configuration {}: {}"sv,
+						a_snapshot.identity,
+						HealthStateLabel(a_snapshot.state),
+						a_snapshot.reason);
+				}
+			}
+		};
+
+		ConfigurationHealthReporter s_configurationHealthReporter;
+		SubsystemHealth s_configurationHealth{
+			"dmui.configuration",
+			s_configurationHealthReporter,
+			HostSubsystemHealthRegistry()
+		};
 
 		[[nodiscard]] std::filesystem::path ConfigPath()
 		{
@@ -41,60 +83,63 @@ namespace DearModdingUI::HostSettings
 				L"Data/F4SE/Plugins/DearModdingUI.toml";
 		}
 
-		[[nodiscard]] PersistedHostInterfaceSettings LoadSettings()
+		void PublishConfigurationHealth() noexcept
 		{
-			PersistedHostInterfaceSettings settings;
-			const auto path = ConfigPath();
-			if (!std::filesystem::exists(path))
-				return settings;
-
-			const auto root = toml::parse(path.string());
-			const auto& section = toml::find(root, "Additional");
-			settings.monochromeIcons = toml::find_or<bool>(
-				section, "bMenuMonochromeIcons", settings.monochromeIcons);
-			settings.sidebarLayout = toml::find_or<std::string>(
-				section, "sMenuSidebarLayout", settings.sidebarLayout);
-			settings.accentColor = toml::find_or<std::string>(
-				section, "sMenuAccentColor", settings.accentColor);
-			settings.windowBackgroundOpacity = toml::find_or<float>(
-				section, "fMenuWindowOpacity", settings.windowBackgroundOpacity);
-			settings.paletteBackgroundColor = toml::find_or<std::string>(
-				section, "sMenuPaletteBackgroundColor", settings.paletteBackgroundColor);
-			settings.paletteBackgroundOpacity = toml::find_or<float>(
-				section, "fMenuPaletteOpacity", settings.paletteBackgroundOpacity);
-			settings.backgroundBlur = toml::find_or<bool>(
-				section, "bMenuBackgroundBlur", settings.backgroundBlur);
-			settings.backgroundBlurStrength = toml::find_or<float>(
-				section, "fMenuBackgroundBlurStrength", settings.backgroundBlurStrength);
-			settings.uiScale = toml::find_or<float>(
-				section, "fMenuUiScale", settings.uiScale);
-			settings.bodyFontFamily = toml::find_or<std::string>(
-				section, "sMenuBodyFontFamily", settings.bodyFontFamily);
-			settings.menuToggleKey = toml::find_or<std::string>(
-				section, "sMenuToggleKey", settings.menuToggleKey);
-			if (root.contains("Hotkeys") && root.at("Hotkeys").is_table())
+			try
 			{
-				for (const auto& [id, value] : root.at("Hotkeys").as_table())
+				HealthObservation observation;
 				{
-					if (value.is_string())
-						settings.hotkeys.emplace(id, value.as_string());
+					const std::scoped_lock lock{ s_configurationHealthMutex };
+					observation = s_configurationHealthState.Observation();
 				}
+				(void)s_configurationHealth.Observe(
+					observation.state,
+					observation.reason);
 			}
-			const auto parsed = ParseMenuToggleKey(settings.menuToggleKey);
-			if (!parsed.recognized)
+			catch (const std::exception& error)
 			{
 				REX::WARN(
-					"DearModdingUI: sMenuToggleKey \"{}\" is not one of F1-F12, Home, End, Insert, or Delete; falling back to F11."sv,
-					settings.menuToggleKey);
+					"DearModdingUI: configuration health could not be published: {}"sv,
+					error.what());
 			}
-			if (!ParseUserSidebarLayout(settings.sidebarLayout))
+			catch (...)
 			{
 				REX::WARN(
-					"DearModdingUI: sMenuSidebarLayout \"{}\" is not an available user layout; falling back to \"{}\"."sv,
-					settings.sidebarLayout,
-					SidebarLayoutKindName(DEFAULT_SIDEBAR_LAYOUT));
+					"DearModdingUI: configuration health could not be published"sv);
 			}
-			return EncodeHostInterfaceSettings(DecodeHostInterfaceSettings(settings));
+		}
+
+		void RecordSaveFailure(std::string_view a_error) noexcept
+		{
+			try
+			{
+				{
+					const std::scoped_lock lock{ s_configurationHealthMutex };
+					s_configurationHealthState.RecordSaveFailure(a_error);
+				}
+				PublishConfigurationHealth();
+			}
+			catch (...)
+			{
+				REX::WARN("DearModdingUI: save failure health could not be retained"sv);
+			}
+		}
+
+		void RecordSaveSuccess() noexcept
+		{
+			try
+			{
+				{
+					const std::scoped_lock lock{ s_configurationHealthMutex };
+					s_configurationHealthState.RecordSaveSuccess(
+						ConfigPath().filename().string());
+				}
+				PublishConfigurationHealth();
+			}
+			catch (...)
+			{
+				REX::WARN("DearModdingUI: save recovery health could not be retained"sv);
+			}
 		}
 
 		void EnsureLoaded() noexcept
@@ -102,16 +147,23 @@ namespace DearModdingUI::HostSettings
 			std::call_once(s_loadOnce, []() noexcept {
 				try
 				{
+					auto loaded = LoadHostInterfaceSettings(ConfigPath());
 					const std::scoped_lock lock{ s_settingsMutex };
-					s_settings = LoadSettings();
+					s_settings = loaded.settings;
 					s_menuToggleKey.store(
 						ParseMenuToggleKey(s_settings.menuToggleKey).virtualKey,
 						std::memory_order_release);
 					Hotkeys::InitializeOverrides(s_settings.hotkeys);
 					Hotkeys::SetReservedVirtualKey(
 						s_menuToggleKey.load(std::memory_order_acquire));
-					REX::INFO("DearModdingUI: loaded host settings from {}"sv,
-						ConfigPath().string());
+					{
+						const std::scoped_lock healthLock{
+							s_configurationHealthMutex
+						};
+						s_configurationHealthState.RecordLoad(
+							std::move(loaded));
+					}
+					PublishConfigurationHealth();
 					REX::INFO("DearModdingUI: menu toggle key {}"sv,
 						s_settings.menuToggleKey);
 				}
@@ -119,10 +171,49 @@ namespace DearModdingUI::HostSettings
 				{
 					REX::WARN("DearModdingUI: host settings could not be loaded: {}"sv,
 						error.what());
+					try
+					{
+						HostSettingsLoadResult failed;
+						failed.disposition =
+							HostSettingsLoadDisposition::kFailed;
+						failed.path = ConfigPath().filename().string();
+						failed.detail = std::format(
+							"Could not establish host settings: {}. Using defaults; restart after correcting the configuration.",
+							error.what());
+						{
+							const std::scoped_lock lock{
+								s_configurationHealthMutex
+							};
+							s_configurationHealthState.RecordLoad(
+								std::move(failed));
+						}
+						PublishConfigurationHealth();
+					}
+					catch (...)
+					{}
 				}
 				catch (...)
 				{
 					REX::WARN("DearModdingUI: host settings could not be loaded"sv);
+					try
+					{
+						HostSettingsLoadResult failed;
+						failed.disposition =
+							HostSettingsLoadDisposition::kFailed;
+						failed.path = ConfigPath().filename().string();
+						failed.detail =
+							"Could not establish host settings. Using defaults; restart after correcting the configuration.";
+						{
+							const std::scoped_lock lock{
+								s_configurationHealthMutex
+							};
+							s_configurationHealthState.RecordLoad(
+								std::move(failed));
+						}
+						PublishConfigurationHealth();
+					}
+					catch (...)
+					{}
 				}
 			});
 		}
@@ -167,6 +258,7 @@ namespace DearModdingUI::HostSettings
 					if (!output)
 					{
 						a_error = "DearModdingUI.toml could not be opened for writing.";
+						RecordSaveFailure(a_error);
 						return false;
 					}
 					output << toml::format(root);
@@ -174,6 +266,7 @@ namespace DearModdingUI::HostSettings
 					if (!output)
 					{
 						a_error = "DearModdingUI.toml could not be written.";
+						RecordSaveFailure(a_error);
 						return false;
 					}
 				}
@@ -189,18 +282,22 @@ namespace DearModdingUI::HostSettings
 					a_error = std::format(
 						"DearModdingUI.toml could not be replaced (error {}).",
 						error);
+					RecordSaveFailure(a_error);
 					return false;
 				}
+				RecordSaveSuccess();
 				return true;
 			}
 			catch (const std::exception& error)
 			{
 				a_error = error.what();
+				RecordSaveFailure(a_error);
 				return false;
 			}
 			catch (...)
 			{
 				a_error = "DearModdingUI.toml could not be persisted.";
+				RecordSaveFailure(a_error);
 				return false;
 			}
 		}

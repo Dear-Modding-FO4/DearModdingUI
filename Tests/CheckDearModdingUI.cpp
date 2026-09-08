@@ -5,6 +5,7 @@
 #include <DearModdingUI/Health.h>
 #include <DearModdingUI/Host.h>
 #include <DearModdingUI/HostSettings.h>
+#include <DearModdingUI/HostSettingsHealth.h>
 #include <DearModdingUI/HostSettingsView.h>
 #include <DearModdingUI/Home.h>
 #include <DearModdingUI/LinkRow.h>
@@ -20,6 +21,7 @@
 #include <DearModdingUI/ShellGeometry.h>
 #include <DearModdingUI/Theme.h>
 #include <DearModdingUI/ThemeDefaults.h>
+#include <DearModdingUI/TypographyHealth.h>
 #include <DearModdingUI/VisualDecisions.h>
 #include <DearModdingUI/SidebarComparison.h>
 #include "Harness.h"
@@ -2097,6 +2099,97 @@ namespace vmm_tests
 				"waiting host health did not preserve its live state and reason");
 		});
 
+		runner.test("Health uses shared labels and severities for fallback and failure", [] {
+			const auto now = HealthClock::time_point{} +
+				std::chrono::seconds{ 20 };
+			const std::array snapshots{
+				HealthSnapshot{
+					"dmui.configuration",
+					HealthState::kDegraded,
+					now - std::chrono::seconds{ 5 },
+					{},
+					"Using corrected settings." },
+				HealthSnapshot{
+					"dmui.input.game-interception",
+					HealthState::kFailed,
+					now - std::chrono::seconds{ 10 },
+					{},
+					"PlayerCamera patch failed." }
+			};
+			const auto rows = BuildHealthSubsystemRows(snapshots, now);
+			require(
+				rows.size() == 2 &&
+					rows[0].stateLabel == "Degraded" &&
+					rows[0].reason == "Using corrected settings." &&
+					rows[1].stateLabel == "Failed" &&
+					HealthStatusSeverity(rows[0].severity) ==
+						DMUI_STATUS_SEVERITY_WARNING &&
+					HealthStatusSeverity(rows[1].severity) ==
+						DMUI_STATUS_SEVERITY_ERROR,
+				"Health presentation disagreed with shared state semantics");
+		});
+
+		runner.test("overdue Health observations warn consistently without changing capability", [] {
+			const auto start = HealthClock::time_point{} +
+				std::chrono::seconds{ 10 };
+			const auto deadline = start + std::chrono::seconds{ 10 };
+			std::array snapshots{
+				HealthSnapshot{
+					"dmui.render.reconciliation",
+					HealthState::kWaiting,
+					start,
+					deadline,
+					"Waiting for the renderer." }
+			};
+			const auto before = deadline - std::chrono::seconds{ 1 };
+			require(BuildHomeHealthSummary(snapshots, 0, before) ==
+						"1 host subsystem starting" &&
+					HomeHealthSeverity(snapshots, 0, before) ==
+						HealthSeverity::kNeutral &&
+					BuildHealthSubsystemRows(snapshots, before)[0].stateLabel ==
+						"Waiting",
+				"an expected wait was escalated before its deadline");
+
+			const auto rows = BuildHealthSubsystemRows(snapshots, deadline);
+			require(BuildHomeHealthSummary(snapshots, 0, deadline) ==
+						"1 host subsystem needs attention" &&
+					HomeHealthSeverity(snapshots, 0, deadline) ==
+						HealthSeverity::kWarning &&
+					rows[0].state == HealthState::kWaiting &&
+					rows[0].stateLabel == "Waiting (deadline exceeded)" &&
+					rows[0].reason == "Waiting for the renderer." &&
+					HealthStatusSeverity(rows[0].severity) ==
+						DMUI_STATUS_SEVERITY_WARNING,
+				"an overdue wait disappeared from Home or Health");
+			const auto report = BuildHealthDiagnosticsReport(
+				"Host", "0.1.0", snapshots, {}, {}, {}, deadline);
+			require(report.find("Waiting (deadline exceeded)") !=
+						std::string::npos &&
+					snapshots[0].state == HealthState::kWaiting,
+				"the copied report omitted expiry or presentation changed capability");
+
+			snapshots[0].state = HealthState::kProgressing;
+			require(HomeHealthSeverity(snapshots, 0, deadline) ==
+						HealthSeverity::kWarning &&
+					BuildHealthSubsystemRows(snapshots, deadline)[0].stateLabel ==
+						"Progressing (deadline exceeded)",
+				"overdue progress was presented as normal startup");
+			snapshots[0].state = HealthState::kFailed;
+			require(HomeHealthSeverity(snapshots, 0, deadline) ==
+						HealthSeverity::kError &&
+					BuildHealthSubsystemRows(snapshots, deadline)[0].severity ==
+						HealthSeverity::kError,
+				"deadline warning downgraded a failed subsystem");
+			snapshots[0].state = HealthState::kReady;
+			require(BuildHomeHealthSummary(snapshots, 0, deadline) ==
+						"All systems ready" &&
+					HomeHealthSeverity(snapshots, 0, deadline) ==
+						HealthSeverity::kSuccess &&
+					BuildHealthSubsystemRows(snapshots, deadline)[0].stateLabel ==
+						"Ready",
+				"recovered readiness retained a stale deadline warning");
+		});
+
 		runner.test("client diagnostics aggregate by severity scope and summary", [] {
 			DiagnosticStore store;
 			DMUI_DiagnosticDescriptor diagnostic{
@@ -2346,6 +2439,38 @@ namespace vmm_tests
 				"the copied Health report omitted required support context");
 		});
 
+		runner.test("Health report uses visible degraded and failed details", [] {
+			const std::array subsystems{
+				HealthSnapshot{
+					"dmui.configuration",
+					HealthState::kDegraded,
+					{},
+					{},
+					"Using corrected settings." },
+				HealthSnapshot{
+					"dmui.input.game-interception",
+					HealthState::kFailed,
+					{},
+					{},
+					"PlayerCamera patch failed." }
+			};
+			const auto report = BuildHealthDiagnosticsReport(
+				"Evil Modding",
+				"0.1.0",
+				subsystems,
+				{},
+				{},
+				{});
+			require(
+				report.find(
+					"dmui.configuration: Degraded - Using corrected settings.") !=
+						std::string::npos &&
+					report.find(
+						"dmui.input.game-interception: Failed - PlayerCamera patch failed.") !=
+						std::string::npos,
+				"copied Health details disagreed with the visible subsystem rows");
+		});
+
 		runner.test("Home summarizes healthy host and client state", [] {
 			const auto now = HealthClock::time_point{} +
 				std::chrono::seconds{ 75 };
@@ -2390,8 +2515,43 @@ namespace vmm_tests
 
 			require(
 				BuildHomeHealthSummary(registry.Snapshots(), 2) ==
-					"1 host subsystem and 2 mods need attention",
-				"degraded live state did not produce the combined Home summary");
+					"1 host subsystem starting; 2 mods need attention",
+				"startup state did not remain distinct from attention");
+		});
+
+		runner.test("Home does not claim empty or degraded health is ready", [] {
+			require(
+				BuildHomeHealthSummary({}, 0) ==
+					"Host health not observed yet" &&
+					HomeHealthSeverity({}, 0) == HealthSeverity::kNeutral,
+				"an empty health registry claimed readiness");
+
+			const std::array degraded{
+				HealthSnapshot{
+					"dmui.configuration",
+					HealthState::kDegraded,
+					{},
+					{},
+					"Using defaults after a parse failure." }
+			};
+			require(
+				BuildHomeHealthSummary(degraded, 0) ==
+					"1 host subsystem needs attention" &&
+					HomeHealthSeverity(degraded, 0) ==
+						HealthSeverity::kWarning,
+				"a degraded subsystem did not need attention");
+
+			const std::array failed{
+				HealthSnapshot{
+					"dmui.input.game-interception",
+					HealthState::kFailed,
+					{},
+					{},
+					"PlayerCamera patch failed." }
+			};
+			require(
+				HomeHealthSeverity(failed, 0) == HealthSeverity::kError,
+				"a failed subsystem did not color the Home summary as an error");
 		});
 
 		runner.test("Home FAQ composes the configured menu toggle key", [] {
@@ -5118,6 +5278,151 @@ namespace vmm_tests
 			require(
 				DefaultHostInterfaceSettings() == HostInterfaceSettings{},
 				"reset did not restore shipped defaults");
+		});
+
+		runner.test("host settings health distinguishes absent valid and malformed files", [] {
+			const auto root =
+				std::filesystem::current_path() /
+				".Build" /
+				"Tests" /
+				"health-config-fixture";
+			std::error_code error;
+			std::filesystem::remove_all(root, error);
+			std::filesystem::create_directories(root, error);
+			const auto path = root / "DearModdingUI.toml";
+
+			auto loaded = LoadHostInterfaceSettings(path);
+			require(
+				loaded.disposition == HostSettingsLoadDisposition::kMissing &&
+					loaded.detail.find("Using defaults") != std::string::npos,
+				"an absent optional host config was not healthy");
+
+			std::ofstream(path)
+				<< "[Additional]\n"
+				<< "sMenuToggleKey = \"End\"\n"
+				<< "sMenuSidebarLayout = \"tree\"\n";
+			loaded = LoadHostInterfaceSettings(path);
+			require(
+				loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
+					loaded.settings.menuToggleKey == "End",
+				"a valid host config did not report loaded");
+
+			std::ofstream(path, std::ios::trunc)
+				<< "[Additional\n";
+			loaded = LoadHostInterfaceSettings(path);
+			require(
+				loaded.disposition == HostSettingsLoadDisposition::kFailed &&
+					loaded.detail.find("correct or remove") !=
+						std::string::npos,
+				"a malformed host config did not retain actionable failure");
+
+			loaded = LoadHostInterfaceSettings(root);
+			require(
+				loaded.disposition == HostSettingsLoadDisposition::kFailed,
+				"an unreadable host config path was treated as loaded");
+			std::filesystem::remove_all(root, error);
+		});
+
+		runner.test("host settings health reports actual accepted fallbacks", [] {
+			const auto root =
+				std::filesystem::current_path() /
+				".Build" /
+				"Tests" /
+				"health-config-corrections";
+			std::error_code error;
+			std::filesystem::remove_all(root, error);
+			std::filesystem::create_directories(root, error);
+			const auto path = root / "DearModdingUI.toml";
+			std::ofstream(path)
+				<< "[Additional]\n"
+				<< "sMenuToggleKey = \"PageUp\"\n"
+				<< "sMenuSidebarLayout = \"columns\"\n"
+				<< "fMenuUiScale = 99.0\n"
+				<< "sMenuAccentColor = \"bad\"\n"
+				<< "sMenuBodyFontFamily = \"..\\\\escaped\"\n";
+
+			const auto loaded = LoadHostInterfaceSettings(path);
+			HostSettingsHealthState state;
+			state.RecordLoad(loaded);
+			auto observation = state.Observation();
+			require(
+				loaded.disposition == HostSettingsLoadDisposition::kCorrected &&
+					loaded.settings.menuToggleKey == "End" &&
+					observation.state == HealthState::kDegraded &&
+					observation.reason.find(
+						"sMenuToggleKey \"PageUp\" used \"End\"") !=
+						std::string::npos,
+				"configuration health reported a stale toggle fallback");
+
+			state.RecordSaveFailure("access denied");
+			observation = state.Observation();
+			require(
+				observation.state == HealthState::kDegraded &&
+					observation.reason.find("access denied") !=
+						std::string::npos &&
+					observation.reason.find("sMenuToggleKey") !=
+						std::string::npos,
+				"a save failure erased the active load correction");
+
+			state.RecordSaveSuccess(path.string());
+			observation = state.Observation();
+			require(
+				observation.state == HealthState::kReady &&
+					observation.reason.find("Saved accepted settings") !=
+						std::string::npos,
+				"a successful write did not resolve persisted configuration health");
+			std::filesystem::remove_all(root, error);
+		});
+
+		runner.test("typography health distinguishes requested fallback and failure", [] {
+			Theme::TypographyLoadOutcome ready;
+			ready.requestedFamily = "Jost";
+			ready.effectiveFamily = "Jost";
+			ready.requestedFamilyFound = true;
+			ready.requestedBodyLoaded = true;
+			ready.rolesLoaded.fill(true);
+			ready.iconsLoaded = true;
+			ready.usableAtlas = true;
+			auto observation = Theme::ClassifyTypographyHealth(ready);
+			require(
+				observation.state == HealthState::kReady &&
+					observation.reason.find("Phosphor") != std::string::npos,
+				"complete typography did not report ready");
+
+			auto fallback = ready;
+			fallback.requestedFamily = "Missing Family";
+			fallback.requestedFamilyFound = false;
+			fallback.rolesLoaded[
+				static_cast<size_t>(Theme::FontRole::kHeading)] = false;
+			fallback.iconsLoaded = false;
+			observation = Theme::ClassifyTypographyHealth(fallback);
+			require(
+				observation.state == HealthState::kDegraded &&
+					observation.reason.find("Missing Family") !=
+						std::string::npos &&
+					observation.reason.find("heading") !=
+						std::string::npos &&
+					observation.reason.find("text-only") !=
+						std::string::npos,
+				"typography fallback health lost its concrete causes");
+
+			fallback.emergencyFontUsed = true;
+			fallback.effectiveFamily = "Built-in fallback";
+			observation = Theme::ClassifyTypographyHealth(fallback);
+			require(
+				observation.state == HealthState::kDegraded &&
+					observation.reason.find("emergency") !=
+						std::string::npos,
+				"usable emergency typography was reported as failed");
+
+			fallback.usableAtlas = false;
+			fallback.emergencyFontUsed = false;
+			observation = Theme::ClassifyTypographyHealth(fallback);
+			require(
+				observation.state == HealthState::kFailed &&
+					observation.reason.find("font atlas") !=
+						std::string::npos,
+				"missing typography capability was not failed");
 		});
 
 		runner.test("font families enumerate regular faces and fall back", [] {

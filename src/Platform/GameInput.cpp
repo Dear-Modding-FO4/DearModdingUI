@@ -33,10 +33,79 @@ namespace Addictol::GameInput
 		static std::atomic<bool> s_installAttempted{ false };
 		static std::atomic<bool> s_installed{ false };
 		static std::atomic<bool> s_blocked{ false };
+		static std::atomic<bool> s_runtimeFailureReported{ false };
+
+		class InputHealthReporter final : public DearModdingUI::HealthReporter
+		{
+		public:
+			void Report(
+				DearModdingUI::HealthEvent a_event,
+				const DearModdingUI::HealthSnapshot& a_snapshot) noexcept override
+			{
+				using DearModdingUI::HealthEvent;
+				using DearModdingUI::HealthState;
+				if (a_snapshot.state == HealthState::kFailed)
+				{
+					REX::ERROR("[{}] Game-input interception Failed: {}"sv,
+						a_snapshot.identity,
+						a_snapshot.reason);
+				}
+				else if (a_snapshot.state == HealthState::kReady)
+				{
+					REX::INFO("[{}] Game-input interception {}: {}"sv,
+						a_snapshot.identity,
+						a_event == HealthEvent::kRecovery ?
+							"recovered" :
+							"Ready",
+						a_snapshot.reason);
+				}
+			}
+		};
+
+		InputHealthReporter s_inputHealthReporter;
+		DearModdingUI::SubsystemHealth s_inputHealth{
+			"dmui.input.game-interception",
+			s_inputHealthReporter,
+			DearModdingUI::HostSubsystemHealthRegistry()
+		};
+
+		void PublishRuntimeFailure(InputReceiver a_receiver) noexcept
+		{
+			if (s_runtimeFailureReported.exchange(true, std::memory_order_acq_rel))
+				return;
+			try
+			{
+				std::array outcomes{
+					InputReceiverHookOutcome{
+						InputReceiver::kMenuControls,
+						InputHookFailure::kNone },
+					InputReceiverHookOutcome{
+						InputReceiver::kPlayerControls,
+						InputHookFailure::kNone },
+					InputReceiverHookOutcome{
+						InputReceiver::kPlayerCamera,
+						InputHookFailure::kNone }
+				};
+				for (auto& outcome : outcomes)
+				{
+					if (outcome.receiver == a_receiver)
+						outcome.failure = InputHookFailure::kOriginalTargetLost;
+				}
+				const auto observation = ClassifyInputHookHealth(outcomes);
+				(void)s_inputHealth.Observe(
+					observation.state,
+					observation.reason);
+			}
+			catch (...)
+			{
+				REX::ERROR(
+					"Game input: a hooked receiver lost its original target"sv);
+			}
+		}
 
 		static void Forward(
 			ReceiverHook& a_hook,
-			std::string_view a_name,
+			InputReceiver a_receiverKind,
 			RE::BSInputEventReceiver* a_receiver,
 			const RE::InputEvent* a_queueHead) noexcept
 		{
@@ -44,7 +113,7 @@ namespace Addictol::GameInput
 			if (!original)
 			{
 				if (!a_hook.missingOriginalLogged.exchange(true, std::memory_order_acq_rel))
-					REX::ERROR("Game input: {} hook has no original target"sv, a_name);
+					PublishRuntimeFailure(a_receiverKind);
 				return;
 			}
 
@@ -59,36 +128,44 @@ namespace Addictol::GameInput
 			RE::BSInputEventReceiver* a_receiver,
 			const RE::InputEvent* a_queueHead) noexcept
 		{
-			Forward(s_menuControlsHook, "MenuControls"sv, a_receiver, a_queueHead);
+			Forward(
+				s_menuControlsHook,
+				InputReceiver::kMenuControls,
+				a_receiver,
+				a_queueHead);
 		}
 
 		static void HKPlayerControls(
 			RE::BSInputEventReceiver* a_receiver,
 			const RE::InputEvent* a_queueHead) noexcept
 		{
-			Forward(s_playerControlsHook, "PlayerControls"sv, a_receiver, a_queueHead);
+			Forward(
+				s_playerControlsHook,
+				InputReceiver::kPlayerControls,
+				a_receiver,
+				a_queueHead);
 		}
 
 		static void HKPlayerCamera(
 			RE::BSInputEventReceiver* a_receiver,
 			const RE::InputEvent* a_queueHead) noexcept
 		{
-			Forward(s_playerCameraHook, "PlayerCamera"sv, a_receiver, a_queueHead);
+			Forward(
+				s_playerCameraHook,
+				InputReceiver::kPlayerCamera,
+				a_receiver,
+				a_queueHead);
 		}
 
 		template <class T>
-		[[nodiscard]] bool InstallReceiver(
-			std::string_view a_name,
+		[[nodiscard]] InputHookFailure InstallReceiver(
 			T* a_instance,
 			uintptr_t a_expectedOffset,
 			TPerformInputProcessing a_hook,
 			ReceiverHook& a_record) noexcept
 		{
 			if (!a_instance)
-			{
-				REX::ERROR("Game input: {} singleton is unavailable; hook skipped"sv, a_name);
-				return false;
-			}
+				return InputHookFailure::kSingletonUnavailable;
 
 			auto* const receiver =
 				static_cast<RE::BSInputEventReceiver*>(a_instance);
@@ -98,28 +175,18 @@ namespace Addictol::GameInput
 					objectAddress,
 					receiverAddress,
 					a_expectedOffset))
-			{
-				REX::ERROR(
-					"Game input: {} receiver offset did not match 0x{:X}; hook skipped"sv,
-					a_name,
-					a_expectedOffset);
-				return false;
-			}
+				return InputHookFailure::kReceiverOffsetMismatch;
 
 			auto** const vtable = *reinterpret_cast<void***>(receiver);
 			if (!vtable)
-			{
-				REX::ERROR("Game input: {} receiver vtable is unavailable; hook skipped"sv, a_name);
-				return false;
-			}
+				return InputHookFailure::kVtableUnavailable;
 
 			const auto current = reinterpret_cast<TPerformInputProcessing>(
 				vtable[kPerformInputProcessingSlot]);
-			if (!current || current == a_hook)
-			{
-				REX::ERROR("Game input: {} receiver vtable cannot be hooked safely"sv, a_name);
-				return false;
-			}
+			if (!current)
+				return InputHookFailure::kTargetUnavailable;
+			if (current == a_hook)
+				return InputHookFailure::kAlreadyHooked;
 
 			a_record.original.store(current, std::memory_order_release);
 			const auto previous = reinterpret_cast<TPerformInputProcessing>(
@@ -130,18 +197,20 @@ namespace Addictol::GameInput
 			if (!previous)
 			{
 				a_record.original.store(nullptr, std::memory_order_release);
-				REX::ERROR("Game input: {} receiver vtable patch failed"sv, a_name);
-				return false;
+				return InputHookFailure::kPatchFailed;
 			}
 			if (previous != a_hook)
 				a_record.original.store(previous, std::memory_order_release);
 
-			REX::INFO(
-				"Game input: {} PerformInputProcessing hooked at receiver offset 0x{:X}"sv,
-				a_name,
-				a_expectedOffset);
-			return true;
+			return InputHookFailure::kNone;
 		}
+	}
+
+	void InitializeHealth() noexcept
+	{
+		(void)s_inputHealth.Observe(
+			DearModdingUI::HealthState::kWaiting,
+			"Waiting for the game-data-ready prerequisite.");
 	}
 
 	bool InstallHooks() noexcept
@@ -151,31 +220,50 @@ namespace Addictol::GameInput
 				expected, true, std::memory_order_acq_rel))
 			return s_installed.load(std::memory_order_acquire);
 
-		const auto menuControls = InstallReceiver(
-			"MenuControls"sv,
-			RE::MenuControls::GetSingleton(),
-			0,
-			&HKMenuControls,
-			s_menuControlsHook);
-		const auto playerControls = InstallReceiver(
-			"PlayerControls"sv,
-			RE::PlayerControls::GetSingleton(),
-			0,
-			&HKPlayerControls,
-			s_playerControlsHook);
-		const auto playerCamera = InstallReceiver(
-			"PlayerCamera"sv,
-			RE::PlayerCamera::GetSingleton(),
-			kPlayerCameraReceiverOffset,
-			&HKPlayerCamera,
-			s_playerCameraHook);
-		const auto installed = menuControls && playerControls && playerCamera;
-		s_installed.store(installed, std::memory_order_release);
-		if (installed)
-			REX::INFO("Game input: all PerformInputProcessing hooks installed"sv);
-		else
-			REX::WARN("Game input: one or more PerformInputProcessing hooks were skipped"sv);
-		return installed;
+		(void)s_inputHealth.Observe(
+			DearModdingUI::HealthState::kProgressing,
+			"Installing MenuControls, PlayerControls, and PlayerCamera interception.");
+		const std::array outcomes{
+			InputReceiverHookOutcome{
+				InputReceiver::kMenuControls,
+				InstallReceiver(
+					RE::MenuControls::GetSingleton(),
+					0,
+					&HKMenuControls,
+					s_menuControlsHook) },
+			InputReceiverHookOutcome{
+				InputReceiver::kPlayerControls,
+				InstallReceiver(
+					RE::PlayerControls::GetSingleton(),
+					0,
+					&HKPlayerControls,
+					s_playerControlsHook) },
+			InputReceiverHookOutcome{
+				InputReceiver::kPlayerCamera,
+				InstallReceiver(
+					RE::PlayerCamera::GetSingleton(),
+					kPlayerCameraReceiverOffset,
+					&HKPlayerCamera,
+					s_playerCameraHook) }
+		};
+		try
+		{
+			const auto observation = ClassifyInputHookHealth(outcomes);
+			const auto installed =
+				observation.state == DearModdingUI::HealthState::kReady;
+			s_installed.store(installed, std::memory_order_release);
+			(void)s_inputHealth.Observe(
+				observation.state,
+				observation.reason);
+			return installed;
+		}
+		catch (...)
+		{
+			s_installed.store(false, std::memory_order_release);
+			REX::ERROR(
+				"Game input: hook outcomes could not be retained; treating installation as failed"sv);
+			return false;
+		}
 	}
 
 	void SetBlocked(bool a_blocked) noexcept

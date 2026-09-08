@@ -6,6 +6,23 @@ The host owns the ImGui context, D3D11 and Win32 backends, common shell, navigat
 
 The host-owned Home page is the landing page for each game launch and gives a concise host identity, registration counts, and overall live-health summary. The peer Health page owns detailed host subsystem observations and the full client registry with per-mod status. Settings is the third host page, and the footer gear navigates to that same authoritative settings surface. Closing and reopening the menu within that launch returns to the last selected host or client page; active-page selection is not persisted across launches.
 
+## Host health
+
+Health reports renderer readiness, configuration loading and persistence,
+game-input interception, and typography from the corresponding host operations.
+Ready means the subsystem is operating as requested; Degraded means it remains
+usable with a fallback or unresolved problem; Failed means a required capability
+is unavailable. Waiting and Progressing describe initialization rather than
+automatically indicating failure. An expired initialization deadline is shown
+as a warning without changing the subsystem's operational state.
+
+Missing optional configuration uses defaults normally. Invalid configuration,
+failed saves, missing fonts or icons, and failed input hooks retain their actual
+reasons until an observed recovery. Home, Health, logs, and copied reports use the
+same observations. The existing Reported problems section remains separate and
+last. The standalone preview's `--health-scenario synthetic` option adds clearly
+labeled simulated outcomes without damaging installed assets or game hooks.
+
 ## Navigation
 
 The sidebar groups settings clients under Native and each declared bridge-source label. Source names come from client metadata, not host-specific bridge rules. Empty page categories have no heading; named categories remain visible even when their names match a page or client.

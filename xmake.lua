@@ -154,6 +154,7 @@ target("dmui-tests", function()
         "src/DearModdingUI/FontCatalog.cpp",
         "src/DearModdingUI/Health.cpp",
         "src/DearModdingUI/Home.cpp",
+        "src/DearModdingUI/HostSettingsHealth.cpp",
         "src/DearModdingUI/Hotkeys.cpp",
         "src/DearModdingUI/MenuDismissal.cpp",
         "src/DearModdingUI/Navigation.cpp",
@@ -170,6 +171,7 @@ target("dmui-tests", function()
         "src",
         "include",
         "Depends",
+        "Depends/toml11/single_include",
         "Depends/commonlibf4/include",
         "Depends/commonlibf4/lib/dearmoddingui-api/include"
     )
@@ -214,6 +216,7 @@ target("dmui-preview", function()
         "src/DearModdingUI/Home.cpp",
         "src/DearModdingUI/Host.cpp",
         "src/DearModdingUI/HostSettings.cpp",
+        "src/DearModdingUI/HostSettingsHealth.cpp",
         "src/DearModdingUI/HostSettingsView.cpp",
         "src/DearModdingUI/Hotkeys.cpp",
         "src/DearModdingUI/MenuDismissal.cpp",

@@ -111,22 +111,29 @@ namespace DearModdingUI::FontCatalog
 		return result;
 	}
 
+	const FontFamily* Find(
+		std::string_view a_requested,
+		const std::vector<FontFamily>& a_families) noexcept
+	{
+		const auto requested = std::ranges::find_if(
+			a_families,
+			[&](const auto& a_family) {
+				return SameName(a_family.name, a_requested);
+			});
+		return requested == a_families.end() ?
+			nullptr :
+			std::addressof(*requested);
+	}
+
 	const FontFamily* Resolve(
 		std::string_view a_requested,
 		const std::vector<FontFamily>& a_families,
 		std::string_view a_fallback) noexcept
 	{
-		const auto find = [&](std::string_view a_name) {
-			return std::ranges::find_if(a_families, [&](const auto& a_family) {
-				return SameName(a_family.name, a_name);
-			});
-		};
-		if (const auto requested = find(a_requested);
-			requested != a_families.end())
-			return std::addressof(*requested);
-		if (const auto fallback = find(a_fallback);
-			fallback != a_families.end())
-			return std::addressof(*fallback);
+		if (const auto* requested = Find(a_requested, a_families))
+			return requested;
+		if (const auto* fallback = Find(a_fallback, a_families))
+			return fallback;
 		return a_families.empty() ? nullptr : std::addressof(a_families.front());
 	}
 }

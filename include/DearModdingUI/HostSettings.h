@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -120,14 +121,13 @@ namespace DearModdingUI
 		return -1;
 	}
 
-	[[nodiscard]] constexpr HostAccentColor DecodeHostColor(
-		std::string_view a_value,
-		HostAccentColor a_fallback) noexcept
+	[[nodiscard]] constexpr std::optional<HostAccentColor> TryDecodeHostColor(
+		std::string_view a_value) noexcept
 	{
 		if (a_value.size() == 7 && a_value.front() == '#')
 			a_value.remove_prefix(1);
 		if (a_value.size() != 6)
-			return a_fallback;
+			return std::nullopt;
 
 		const auto component = [a_value](size_t a_offset) {
 			const auto high = HexDigitValue(a_value[a_offset]);
@@ -138,12 +138,20 @@ namespace DearModdingUI
 		const auto green = component(2);
 		const auto blue = component(4);
 		if (red < 0 || green < 0 || blue < 0)
-			return a_fallback;
-		return {
+			return std::nullopt;
+		return HostAccentColor{
 			static_cast<uint8_t>(red),
 			static_cast<uint8_t>(green),
 			static_cast<uint8_t>(blue)
 		};
+	}
+
+	[[nodiscard]] constexpr HostAccentColor DecodeHostColor(
+		std::string_view a_value,
+		HostAccentColor a_fallback) noexcept
+	{
+		const auto decoded = TryDecodeHostColor(a_value);
+		return decoded ? *decoded : a_fallback;
 	}
 
 	[[nodiscard]] constexpr HostAccentColor DecodeHostAccentColor(
@@ -194,12 +202,12 @@ namespace DearModdingUI
 		};
 	}
 
-	[[nodiscard]] inline std::string DecodeBodyFontFamily(
-		std::string_view a_value)
+	[[nodiscard]] constexpr bool IsValidBodyFontFamily(
+		std::string_view a_value) noexcept
 	{
 		if (a_value.empty() || a_value.size() > 128 ||
 			a_value == "." || a_value == "..")
-			return std::string{ kDefaultBodyFontFamily };
+			return false;
 		for (const auto character : a_value)
 		{
 			const auto byte = static_cast<unsigned char>(character);
@@ -207,9 +215,17 @@ namespace DearModdingUI
 				character == ':' || character == '*' || character == '?' ||
 				character == '"' || character == '<' || character == '>' ||
 				character == '|')
-				return std::string{ kDefaultBodyFontFamily };
+				return false;
 		}
-		return std::string{ a_value };
+		return true;
+	}
+
+	[[nodiscard]] inline std::string DecodeBodyFontFamily(
+		std::string_view a_value)
+	{
+		return IsValidBodyFontFamily(a_value) ?
+			std::string{ a_value } :
+			std::string{ kDefaultBodyFontFamily };
 	}
 
 	[[nodiscard]] inline HostInterfaceSettings DecodeHostInterfaceSettings(

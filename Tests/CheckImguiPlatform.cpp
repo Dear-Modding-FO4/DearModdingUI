@@ -237,6 +237,92 @@ namespace vmm_tests
 				"PlayerCamera's primary vtable must be rejected");
 		});
 
+		runner.test("input hook health requires every receiver", [] {
+			const std::array ready{
+				InputReceiverHookOutcome{
+					InputReceiver::kMenuControls,
+					InputHookFailure::kNone },
+				InputReceiverHookOutcome{
+					InputReceiver::kPlayerControls,
+					InputHookFailure::kNone },
+				InputReceiverHookOutcome{
+					InputReceiver::kPlayerCamera,
+					InputHookFailure::kNone }
+			};
+			const auto observation = ClassifyInputHookHealth(ready);
+			require(
+				observation.state == DearModdingUI::HealthState::kReady &&
+					observation.reason.find("PlayerCamera") !=
+						std::string::npos,
+				"input health reported ready without naming all required receivers");
+		});
+
+		runner.test("input hook health retains the concrete failed receiver", [] {
+			auto outcomes = std::array{
+				InputReceiverHookOutcome{
+					InputReceiver::kMenuControls,
+					InputHookFailure::kNone },
+				InputReceiverHookOutcome{
+					InputReceiver::kPlayerControls,
+					InputHookFailure::kPatchFailed },
+				InputReceiverHookOutcome{
+					InputReceiver::kPlayerCamera,
+					InputHookFailure::kNone }
+			};
+			auto observation = ClassifyInputHookHealth(outcomes);
+			require(
+				observation.state == DearModdingUI::HealthState::kFailed &&
+					observation.reason.find("PlayerControls") !=
+						std::string::npos &&
+					observation.reason.find("incompatible input hook") !=
+						std::string::npos,
+				"input health lost the receiver patch failure");
+
+			outcomes[1].failure = InputHookFailure::kNone;
+			outcomes[2].failure = InputHookFailure::kOriginalTargetLost;
+			observation = ClassifyInputHookHealth(outcomes);
+			require(
+				observation.state == DearModdingUI::HealthState::kFailed &&
+					observation.reason.find("PlayerCamera") !=
+						std::string::npos &&
+					observation.reason.find("original target") !=
+						std::string::npos,
+				"runtime original-target loss was not actionable");
+		});
+
+		runner.test("input hook health identifies each required receiver", [] {
+			constexpr std::array receivers{
+				InputReceiver::kMenuControls,
+				InputReceiver::kPlayerControls,
+				InputReceiver::kPlayerCamera
+			};
+			for (size_t failed = 0; failed < receivers.size(); ++failed)
+			{
+				std::array outcomes{
+					InputReceiverHookOutcome{
+						InputReceiver::kMenuControls,
+						InputHookFailure::kNone },
+					InputReceiverHookOutcome{
+						InputReceiver::kPlayerControls,
+						InputHookFailure::kNone },
+					InputReceiverHookOutcome{
+						InputReceiver::kPlayerCamera,
+						InputHookFailure::kNone }
+				};
+				outcomes[failed].failure =
+					InputHookFailure::kSingletonUnavailable;
+				const auto observation =
+					ClassifyInputHookHealth(outcomes);
+				require(
+					observation.state ==
+							DearModdingUI::HealthState::kFailed &&
+						observation.reason.find(
+							InputReceiverName(receivers[failed])) !=
+							std::string::npos,
+					"input health attributed a failure to the wrong receiver");
+			}
+		});
+
 		runner.test("backbuffer state recreates on identity size and view changes", [] {
 			constexpr BackBufferIdentity empty{};
 			constexpr BackBufferIdentity first{ 1, 1920, 1080 };

@@ -31,5 +31,10 @@ namespace DearModdingUI
 		std::string_view a_toggleKeyName);
 	[[nodiscard]] std::string BuildHomeHealthSummary(
 		std::span<const HealthSnapshot> a_subsystems,
-		size_t a_clientsNeedingAttention);
+		size_t a_clientsNeedingAttention,
+		HealthClock::time_point a_now = HealthClock::now());
+	[[nodiscard]] HealthSeverity HomeHealthSeverity(
+		std::span<const HealthSnapshot> a_subsystems,
+		size_t a_clientsNeedingAttention,
+		HealthClock::time_point a_now = HealthClock::now()) noexcept;
 }

@@ -17,19 +17,14 @@ namespace DearModdingUI
 {
 	namespace
 	{
-		[[nodiscard]] const char* HealthStateLabel(HealthState a_state) noexcept
+		[[nodiscard]] std::string SubsystemStateLabel(
+			const HealthSnapshot& a_snapshot,
+			HealthClock::time_point a_now)
 		{
-			switch (a_state)
-			{
-			case HealthState::kWaiting:
-				return "Waiting";
-			case HealthState::kProgressing:
-				return "Progressing";
-			case HealthState::kReady:
-				return "Ready";
-			default:
-				return "Unknown";
-			}
+			std::string label{ HealthStateLabel(a_snapshot.state) };
+			if (HealthDeadlineExceeded(a_snapshot, a_now))
+				label.append(" (deadline exceeded)");
+			return label;
 		}
 
 		[[nodiscard]] const char* StatusSeverityLabel(
@@ -239,9 +234,10 @@ namespace DearModdingUI
 			rows.push_back({
 				std::string{ snapshot.identity },
 				snapshot.state,
-				HealthStateLabel(snapshot.state),
+				SubsystemStateLabel(snapshot, a_now),
 				FormatHealthDuration(a_now - snapshot.enteredAt),
-				std::string{ snapshot.reason }
+				std::string{ snapshot.reason },
+				HealthSnapshotSeverity(snapshot, a_now)
 			});
 		}
 		std::ranges::sort(
@@ -372,7 +368,8 @@ namespace DearModdingUI
 		std::span<const HealthSnapshot> a_subsystems,
 		const std::vector<RegisteredClient>& a_clients,
 		std::span<const ClientStatus> a_statuses,
-		std::span<const ClientDiagnosticSnapshot> a_diagnostics)
+		std::span<const ClientDiagnosticSnapshot> a_diagnostics,
+		HealthClock::time_point a_now)
 	{
 		std::string report;
 		report.append("DearModdingUI diagnostics report\n\nHost: ");
@@ -402,7 +399,7 @@ namespace DearModdingUI
 				report.append("- ");
 				report.append(subsystem->identity);
 				report.append(": ");
-				report.append(HealthStateLabel(subsystem->state));
+				report.append(SubsystemStateLabel(*subsystem, a_now));
 				if (!subsystem->reason.empty())
 				{
 					report.append(" - ");

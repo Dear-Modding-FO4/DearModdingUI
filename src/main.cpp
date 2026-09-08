@@ -119,6 +119,7 @@ namespace Addictol
 
 				DearModdingUI::HostSettings::Initialize();
 				DearModdingUI::Initialize();
+				GameInput::InitializeHealth();
 
 				auto* messaging = F4SE::GetMessagingInterface();
 				if (!messaging || !messaging->RegisterListener(MessageListener))

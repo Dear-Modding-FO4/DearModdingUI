@@ -17,6 +17,9 @@ namespace DearModdingUI::FontCatalog
 
 	[[nodiscard]] std::vector<FontFamily> Enumerate(
 		const std::filesystem::path& a_root) noexcept;
+	[[nodiscard]] const FontFamily* Find(
+		std::string_view a_requested,
+		const std::vector<FontFamily>& a_families) noexcept;
 	[[nodiscard]] const FontFamily* Resolve(
 		std::string_view a_requested,
 		const std::vector<FontFamily>& a_families,

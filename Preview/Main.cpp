@@ -13,6 +13,7 @@
 #include <DearModdingUI/SidebarComparison.h>
 #include <Platform/ImguiPlatformTargets.h>
 #include <Support/Runtime.h>
+#include <Support/SubsystemHealth.h>
 
 #include <Windows.h>
 #include <d3d11.h>
@@ -75,6 +76,7 @@ namespace DearModdingUIPreview
 			std::optional<NavigationPresentationKind> navigationOverride;
 			std::optional<DMUI_ClientOrigin> navigationOrigin;
 			std::optional<PresentationDemoKind> presentationDemo;
+			bool syntheticHealth{};
 			bool help{};
 		};
 
@@ -82,6 +84,44 @@ namespace DearModdingUIPreview
 
 		Renderer* g_renderer{};
 		bool g_imguiBackendReady{};
+
+		class PreviewHealthReporter final : public HealthReporter
+		{
+		public:
+			void Report(
+				HealthEvent,
+				const HealthSnapshot&) noexcept override
+			{}
+		};
+
+		PreviewHealthReporter g_previewHealthReporter;
+
+		void ConfigureSyntheticHealth(
+			std::vector<std::unique_ptr<SubsystemHealth>>& a_health)
+		{
+			const auto add = [&](std::string_view a_identity,
+								 HealthState a_state,
+								 std::string_view a_reason) {
+				auto health = std::make_unique<SubsystemHealth>(
+					a_identity,
+					g_previewHealthReporter,
+					HostSubsystemHealthRegistry());
+				health->Observe(a_state, a_reason);
+				a_health.push_back(std::move(health));
+			};
+			add(
+				"preview.synthetic.configuration",
+				HealthState::kReady,
+				"Synthetic fixture: using defaults; configuration file is absent.");
+			add(
+				"preview.synthetic.typography",
+				HealthState::kDegraded,
+				"Synthetic fixture: requested family is unavailable; using Jost with text-only labels.");
+			add(
+				"preview.synthetic.input",
+				HealthState::kFailed,
+				"Synthetic fixture: PlayerCamera receiver patch failed; check for an incompatible input hook.");
+		}
 
 		void SetHRESULTError(
 			std::wstring& a_error,
@@ -162,6 +202,7 @@ namespace DearModdingUIPreview
 				<< L"  --origin <native|bridged>  Select the destinations comparison tab\n"
 				<< L"  --presentation <overlay|notification|image|plot|dialog>\n"
 				<< L"                            Capture a synthetic service state\n"
+				<< L"  --health-scenario <synthetic>  Add labeled synthetic Health states\n"
 				<< L"  --expand <client-id>      Expand a tree mod or enter a drill-down mod\n"
 				<< L"  --collapse-all            Collapse the tree or show the drill-down root\n"
 				<< L"  --help                    Show this help\n";
@@ -325,6 +366,15 @@ namespace DearModdingUIPreview
 						return false;
 					}
 					a_options.presentationDemo = kind;
+				}
+				else if (argument == L"--health-scenario")
+				{
+					if (value != L"synthetic")
+					{
+						a_error = L"Health scenario must be synthetic.";
+						return false;
+					}
+					a_options.syntheticHealth = true;
 				}
 				else if (argument == L"--expand")
 				{
@@ -998,6 +1048,8 @@ namespace DearModdingUIPreview
 				}
 
 				Theme::Initialize(m_window.Handle());
+				if (m_options.syntheticHealth)
+					ConfigureSyntheticHealth(m_syntheticHealth);
 				CursorLoader::Initialize(m_window.Handle());
 				if (!ImGui_ImplWin32_Init(m_window.Handle()))
 				{
@@ -1329,6 +1381,7 @@ namespace DearModdingUIPreview
 			Renderer m_renderer;
 			ImGuiContext* m_context{};
 			std::unique_ptr<FakeData> m_fakeData;
+			std::vector<std::unique_ptr<SubsystemHealth>> m_syntheticHealth;
 			std::unique_ptr<PresentationDemo> m_presentationDemo;
 			std::string m_iniPath;
 			bool m_win32Initialized{};

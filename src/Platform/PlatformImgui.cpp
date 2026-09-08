@@ -306,7 +306,6 @@ namespace Addictol
 				return;
 			}
 
-			const auto recovered = a_event == HealthEvent::kRecovery;
 			if (a_snapshot.state == HealthState::kWaiting)
 			{
 				REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer state: waiting for renderer ({})"sv,
@@ -314,9 +313,9 @@ namespace Addictol
 			}
 			else if (a_snapshot.state == HealthState::kProgressing)
 			{
-				if (recovered)
+				if (a_event == HealthEvent::kDeadlineProgress)
 				{
-					REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer state recovered after deadline: bound and waiting for Present (swapchain {}, device {}, context {}, window {})"sv,
+					REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer made progress after its deadline: bound and waiting for Present (swapchain {}, device {}, context {}, window {})"sv,
 						static_cast<void*>(s_attachment.swapChain),
 						static_cast<void*>(s_attachment.device),
 						static_cast<void*>(s_attachment.context),
@@ -331,12 +330,24 @@ namespace Addictol
 						static_cast<void*>(s_attachment.window));
 				}
 			}
-			else
+			else if (a_snapshot.state == HealthState::kReady)
 			{
-				if (recovered)
+				if (a_event == HealthEvent::kDeadlineRecovery)
 					REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer state recovered after deadline: ready"sv);
+				else if (a_event == HealthEvent::kRecovery)
+				REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer state recovered: ready"sv);
 				else
-					REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer state: ready"sv);
+				REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer state: ready"sv);
+			}
+			else if (a_snapshot.state == HealthState::kDegraded)
+			{
+				REX::WARN("[dmui.render.reconciliation] Platform Imgui: renderer state degraded: {}"sv,
+				a_snapshot.reason);
+			}
+			else if (a_snapshot.state == HealthState::kFailed)
+			{
+				REX::ERROR("[dmui.render.reconciliation] Platform Imgui: renderer state failed: {}"sv,
+				a_snapshot.reason);
 			}
 		}
 

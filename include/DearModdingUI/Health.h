@@ -27,6 +27,7 @@ namespace DearModdingUI
 		std::string stateLabel;
 		std::string durationLabel;
 		std::string reason;
+		HealthSeverity severity{ HealthSeverity::kNeutral };
 	};
 
 	struct HealthDiagnosticRow
@@ -53,6 +54,22 @@ namespace DearModdingUI
 		std::string droppedReportLabel;
 	};
 
+	[[nodiscard]] constexpr DMUI_StatusSeverity HealthStatusSeverity(
+		HealthSeverity a_severity) noexcept
+	{
+		switch (a_severity)
+		{
+		case HealthSeverity::kSuccess:
+			return DMUI_STATUS_SEVERITY_SUCCESS;
+		case HealthSeverity::kWarning:
+			return DMUI_STATUS_SEVERITY_WARNING;
+		case HealthSeverity::kError:
+			return DMUI_STATUS_SEVERITY_ERROR;
+		default:
+			return DMUI_STATUS_SEVERITY_INFO;
+		}
+	}
+
 	[[nodiscard]] std::vector<HealthClientSection> BuildHealthClientSections(
 		const std::vector<RegisteredClient>& a_clients);
 	[[nodiscard]] std::vector<HealthSubsystemRow> BuildHealthSubsystemRows(
@@ -68,5 +85,6 @@ namespace DearModdingUI
 		std::span<const HealthSnapshot> a_subsystems,
 		const std::vector<RegisteredClient>& a_clients,
 		std::span<const ClientStatus> a_statuses,
-		std::span<const ClientDiagnosticSnapshot> a_diagnostics);
+		std::span<const ClientDiagnosticSnapshot> a_diagnostics,
+		HealthClock::time_point a_now = HealthClock::now());
 }

@@ -3,6 +3,7 @@
 #include "Harness.h"
 
 #include <chrono>
+#include <memory>
 #include <vector>
 
 namespace vmm_tests
@@ -64,18 +65,119 @@ namespace vmm_tests
 				"a diagnostic deadline changed capability or repeated");
 		});
 
-		runner.test("health recovery after a deadline is reported", [] {
+		runner.test("health deadline progress and recovery stay distinct", [] {
 			CapturingHealthReporter reporter;
 			SubsystemHealth health{ "fixture", reporter, start };
 			health.Observe(HealthState::kWaiting, "dependency is unavailable", start);
 			health.SetDeadline(start + 10s);
 			health.Evaluate(start + 10s);
 			health.Observe(HealthState::kProgressing, "dependency connected", start + 11s);
+			health.Observe(HealthState::kReady, "dependency ready", start + 12s);
+			require(
+				reporter.records.size() == 4 &&
+					reporter.records[2].event ==
+						HealthEvent::kDeadlineProgress &&
+					reporter.records[3].event ==
+						HealthEvent::kDeadlineRecovery &&
+					health.Snapshot().state == HealthState::kReady,
+				"deadline progress was reported as full recovery");
+		});
+
+		runner.test("degraded state recovers after an intervening rebuild", [] {
+			CapturingHealthReporter reporter;
+			SubsystemHealth health{ "fixture", reporter, start };
+			health.Observe(HealthState::kDegraded, "using fallback", start);
+			health.Observe(
+				HealthState::kProgressing,
+				"rebuilding",
+				start + 1s);
+			health.Observe(HealthState::kReady, "rebuild complete", start + 2s);
 			require(
 				reporter.records.size() == 3 &&
-					reporter.records.back().event == HealthEvent::kRecovery &&
-					health.Snapshot().state == HealthState::kProgressing,
-				"recovery after deadline was not reported");
+					reporter.records[1].event == HealthEvent::kTransition &&
+					reporter.records.back().event == HealthEvent::kRecovery,
+				"full recovery did not require a ready observation");
+		});
+
+		runner.test("failed state reports a genuine ready recovery", [] {
+			CapturingHealthReporter reporter;
+			SubsystemHealth health{ "fixture", reporter, start };
+			health.Observe(HealthState::kFailed, "capability absent", start);
+			health.Observe(HealthState::kReady, "capability restored", start + 1s);
+			require(
+				reporter.records.size() == 2 &&
+					reporter.records.back().event == HealthEvent::kRecovery,
+				"a failed capability did not report full recovery");
+		});
+
+		runner.test("health state helpers share readiness and severity", [] {
+			require(
+				HealthStateLabel(HealthState::kDegraded) == "Degraded" &&
+					HealthStateLabel(HealthState::kFailed) == "Failed" &&
+					HealthStateSeverity(HealthState::kWaiting) ==
+						HealthSeverity::kNeutral &&
+					HealthStateSeverity(HealthState::kDegraded) ==
+						HealthSeverity::kWarning &&
+					HealthStateSeverity(HealthState::kFailed) ==
+						HealthSeverity::kError &&
+					HealthStateIsStarting(HealthState::kWaiting) &&
+					!HealthStateNeedsAttention(HealthState::kProgressing) &&
+					HealthStateNeedsAttention(HealthState::kDegraded) &&
+					HealthStateIsUsable(HealthState::kDegraded) &&
+					!HealthStateIsReady(HealthState::kDegraded),
+				"health state helpers disagreed about startup or fallback states");
+		});
+
+		runner.test("health snapshots own dynamic identity and reason text", [] {
+			CapturingHealthReporter reporter;
+			std::string identity{ "dynamic.identity" };
+			SubsystemHealth health{ identity, reporter, start };
+			std::string reason{ "temporary reason" };
+			health.Observe(HealthState::kDegraded, reason, start);
+			auto snapshot = health.Snapshot();
+			identity.assign("changed");
+			reason.assign("destroyed");
+			health.Observe(HealthState::kReady, "healthy", start + 1s);
+			require(
+				snapshot.identity == "dynamic.identity" &&
+					snapshot.reason == "temporary reason" &&
+					reporter.records.front().snapshot.reason ==
+						"temporary reason",
+				"health snapshots retained borrowed diagnostic text");
+		});
+
+		runner.test("copied health snapshots survive later observations", [] {
+			CapturingHealthReporter reporter;
+			SubsystemHealthRegistry registry;
+			SubsystemHealth health{ "fixture", reporter, registry, start };
+			health.Observe(HealthState::kDegraded, "first reason", start);
+			const auto first = registry.Snapshots();
+			health.Observe(HealthState::kFailed, "second reason", start + 1s);
+			require(
+				first.size() == 1 &&
+					first.front().state == HealthState::kDegraded &&
+					first.front().reason == "first reason",
+				"a copied registry snapshot changed after re-observation");
+		});
+
+		runner.test("scoped health fixtures unregister before their registry", [start] {
+			CapturingHealthReporter reporter;
+			SubsystemHealthRegistry registry;
+			{
+				std::vector<std::unique_ptr<SubsystemHealth>> fixtures;
+				auto fixture = std::make_unique<SubsystemHealth>(
+					"preview.synthetic.input", reporter, registry, start);
+				require(fixture->Observe(
+							HealthState::kFailed,
+							"Synthetic input failure.",
+							start),
+					"synthetic observation was not retained");
+				fixtures.push_back(std::move(fixture));
+				require(registry.Snapshots().size() == 1,
+					"scoped fixture was not registered");
+			}
+			require(registry.Snapshots().empty(),
+				"destroyed fixture left a dangling registry entry");
 		});
 
 		runner.test("health registry returns each subsystem's live observation", [] {

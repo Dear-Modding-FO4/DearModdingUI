@@ -4,6 +4,7 @@
 #include <chrono>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -17,24 +18,138 @@ namespace DearModdingUI
 	{
 		kWaiting,
 		kProgressing,
-		kReady
+		kReady,
+		kDegraded,
+		kFailed
+	};
+
+	enum class HealthSeverity
+	{
+		kNeutral,
+		kInfo,
+		kSuccess,
+		kWarning,
+		kError
 	};
 
 	enum class HealthEvent
 	{
 		kTransition,
 		kDeadlineExceeded,
+		kDeadlineProgress,
+		kDeadlineRecovery,
 		kRecovery
+	};
+
+	[[nodiscard]] constexpr std::string_view HealthStateLabel(
+		HealthState a_state) noexcept
+	{
+		switch (a_state)
+		{
+		case HealthState::kWaiting:
+			return "Waiting";
+		case HealthState::kProgressing:
+			return "Progressing";
+		case HealthState::kReady:
+			return "Ready";
+		case HealthState::kDegraded:
+			return "Degraded";
+		case HealthState::kFailed:
+			return "Failed";
+		default:
+			return "Unknown";
+		}
+	}
+
+	[[nodiscard]] constexpr HealthSeverity HealthStateSeverity(
+		HealthState a_state) noexcept
+	{
+		switch (a_state)
+		{
+		case HealthState::kWaiting:
+			return HealthSeverity::kNeutral;
+		case HealthState::kProgressing:
+			return HealthSeverity::kInfo;
+		case HealthState::kReady:
+			return HealthSeverity::kSuccess;
+		case HealthState::kDegraded:
+			return HealthSeverity::kWarning;
+		case HealthState::kFailed:
+			return HealthSeverity::kError;
+		default:
+			return HealthSeverity::kInfo;
+		}
+	}
+
+	[[nodiscard]] constexpr bool HealthStateIsReady(
+		HealthState a_state) noexcept
+	{
+		return a_state == HealthState::kReady;
+	}
+
+	[[nodiscard]] constexpr bool HealthStateIsUsable(
+		HealthState a_state) noexcept
+	{
+		return a_state == HealthState::kReady ||
+			a_state == HealthState::kDegraded;
+	}
+
+	[[nodiscard]] constexpr bool HealthStateIsStarting(
+		HealthState a_state) noexcept
+	{
+		return a_state == HealthState::kWaiting ||
+			a_state == HealthState::kProgressing;
+	}
+
+	[[nodiscard]] constexpr bool HealthStateNeedsAttention(
+		HealthState a_state) noexcept
+	{
+		return a_state == HealthState::kDegraded ||
+			a_state == HealthState::kFailed;
+	}
+
+	struct HealthObservation
+	{
+		HealthState state{ HealthState::kWaiting };
+		std::string reason;
 	};
 
 	struct HealthSnapshot
 	{
-		std::string_view identity;
+		std::string identity;
 		HealthState state{ HealthState::kWaiting };
 		HealthClock::time_point enteredAt{};
 		std::optional<HealthClock::time_point> deadline;
-		std::string_view reason;
+		std::string reason;
 	};
+
+	[[nodiscard]] inline bool HealthDeadlineExceeded(
+		const HealthSnapshot& a_snapshot,
+		HealthClock::time_point a_now) noexcept
+	{
+		return !HealthStateIsReady(a_snapshot.state) &&
+			a_snapshot.deadline && a_now >= *a_snapshot.deadline;
+	}
+
+	[[nodiscard]] inline bool HealthNeedsAttention(
+		const HealthSnapshot& a_snapshot,
+		HealthClock::time_point a_now) noexcept
+	{
+		return HealthStateNeedsAttention(a_snapshot.state) ||
+			HealthDeadlineExceeded(a_snapshot, a_now);
+	}
+
+	[[nodiscard]] inline HealthSeverity HealthSnapshotSeverity(
+		const HealthSnapshot& a_snapshot,
+		HealthClock::time_point a_now) noexcept
+	{
+		const auto severity = HealthStateSeverity(a_snapshot.state);
+		if (severity == HealthSeverity::kError)
+			return severity;
+		return HealthDeadlineExceeded(a_snapshot, a_now) ?
+			HealthSeverity::kWarning :
+			severity;
+	}
 
 	class HealthReporter
 	{
@@ -86,10 +201,11 @@ namespace DearModdingUI
 		SubsystemHealth(
 			std::string_view a_identity,
 			HealthReporter& a_reporter,
-			HealthClock::time_point a_now = HealthClock::now()) noexcept :
+			HealthClock::time_point a_now = HealthClock::now()) :
 			reporter_(a_reporter)
 		{
-			snapshot_.identity = a_identity;
+			identity_ = a_identity;
+			snapshot_.identity = identity_;
 			snapshot_.enteredAt = a_now;
 		}
 
@@ -97,7 +213,7 @@ namespace DearModdingUI
 			std::string_view a_identity,
 			HealthReporter& a_reporter,
 			SubsystemHealthRegistry& a_registry,
-			HealthClock::time_point a_now = HealthClock::now()) noexcept :
+			HealthClock::time_point a_now = HealthClock::now()) :
 			SubsystemHealth(a_identity, a_reporter, a_now)
 		{
 			registry_ = &a_registry;
@@ -110,33 +226,65 @@ namespace DearModdingUI
 				registry_->Unregister(*this);
 		}
 
-		void Observe(
+		bool Observe(
 			HealthState a_state,
 			std::string_view a_reason,
 			HealthClock::time_point a_now = HealthClock::now()) noexcept
 		{
-			HealthSnapshot snapshot;
-			bool recovered{};
+			HealthSnapshot candidate;
+			HealthSnapshot reportedSnapshot;
+			try
+			{
+				candidate.identity = identity_;
+				candidate.state = a_state;
+				candidate.enteredAt = a_now;
+				candidate.reason = a_reason;
+				reportedSnapshot = candidate;
+			}
+			catch (...)
+			{
+				return false;
+			}
+
+			HealthEvent event{ HealthEvent::kTransition };
 			{
 				const std::scoped_lock lock{ mutex_ };
 				if (reported_ &&
 					snapshot_.state == a_state &&
 					snapshot_.reason == a_reason)
-					return;
+					return true;
 
-				snapshot_.state = a_state;
-				snapshot_.reason = a_reason;
-				snapshot_.enteredAt = a_now;
+				candidate.deadline = snapshot_.deadline;
+				reportedSnapshot.deadline = snapshot_.deadline;
+				if (a_state == HealthState::kDegraded ||
+					a_state == HealthState::kFailed)
+					fullRecoveryPending_ = true;
+				if (deadlineRecoveryPending_)
+				{
+					if (a_state == HealthState::kReady)
+					{
+						event = HealthEvent::kDeadlineRecovery;
+						deadlineRecoveryPending_ = false;
+						fullRecoveryPending_ = false;
+					}
+					else if (a_state == HealthState::kProgressing)
+					{
+						event = HealthEvent::kDeadlineProgress;
+					}
+				}
+				else if (reported_ &&
+					fullRecoveryPending_ &&
+					a_state == HealthState::kReady)
+				{
+					event = HealthEvent::kRecovery;
+					fullRecoveryPending_ = false;
+				}
+
+				snapshot_ = std::move(candidate);
 				reported_ = true;
-				recovered =
-					recoveryPending_ && a_state != HealthState::kWaiting;
-				if (recovered)
-					recoveryPending_ = false;
-				snapshot = snapshot_;
 			}
-			reporter_.Report(
-				recovered ? HealthEvent::kRecovery : HealthEvent::kTransition,
-				snapshot);
+			reporter_.Report(event, reportedSnapshot);
+			return true;
 		}
 
 		void SetDeadline(
@@ -145,10 +293,10 @@ namespace DearModdingUI
 			const std::scoped_lock lock{ mutex_ };
 			snapshot_.deadline = a_deadline;
 			deadlineReported_ = false;
-			recoveryPending_ = false;
+			deadlineRecoveryPending_ = false;
 		}
 
-		void Evaluate(
+		bool Evaluate(
 			HealthClock::time_point a_now = HealthClock::now()) noexcept
 		{
 			HealthSnapshot snapshot;
@@ -158,13 +306,21 @@ namespace DearModdingUI
 					!snapshot_.deadline ||
 					a_now < *snapshot_.deadline ||
 					deadlineReported_)
-					return;
+					return true;
 
+				try
+				{
+					snapshot = snapshot_;
+				}
+				catch (...)
+				{
+					return false;
+				}
 				deadlineReported_ = true;
-				recoveryPending_ = true;
-				snapshot = snapshot_;
+				deadlineRecoveryPending_ = true;
 			}
 			reporter_.Report(HealthEvent::kDeadlineExceeded, snapshot);
+			return true;
 		}
 
 		void InvalidateObservation() noexcept
@@ -173,14 +329,14 @@ namespace DearModdingUI
 			reported_ = false;
 		}
 
-		[[nodiscard]] HealthSnapshot Snapshot() const noexcept
+		[[nodiscard]] HealthSnapshot Snapshot() const
 		{
 			const std::scoped_lock lock{ mutex_ };
 			return snapshot_;
 		}
 
 	private:
-		[[nodiscard]] std::optional<HealthSnapshot> ObservedSnapshot() const noexcept
+		[[nodiscard]] std::optional<HealthSnapshot> ObservedSnapshot() const
 		{
 			const std::scoped_lock lock{ mutex_ };
 			if (!reported_)
@@ -191,12 +347,14 @@ namespace DearModdingUI
 		friend class SubsystemHealthRegistry;
 
 		HealthReporter& reporter_;
+		std::string identity_;
 		SubsystemHealthRegistry* registry_{};
 		mutable std::mutex mutex_;
 		HealthSnapshot snapshot_;
 		bool reported_{ false };
 		bool deadlineReported_{ false };
-		bool recoveryPending_{ false };
+		bool deadlineRecoveryPending_{ false };
+		bool fullRecoveryPending_{ false };
 	};
 
 	inline void SubsystemHealthRegistry::Register(
