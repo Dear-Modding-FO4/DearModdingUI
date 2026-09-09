@@ -1,19 +1,24 @@
 # DearModdingUI client API
 
-`API.h` is the C ABI for Dear-Modding F4SE user interfaces, and `ImGuiFingerprint.h` is the optional
-C++ fingerprint builder. They live with `Client.h` and the shared visual helpers in the standalone
+`API.h` is the host C ABI for Dear-Modding F4SE user interfaces. It lives with
+`CUIAPI.h`, `UI.h`, `Client.h`, and the shared visual helpers in the standalone
 DearModdingUI API repository, which CommonLibF4 re-exports through its public
-`lib/dearmoddingui-api` dependency. Linking that fork is enough to consume them. `Client.h` is a
-header-only C++ wrapper that handles discovery, registration, and either forwarding or the ImGui
-context handoff; prefer it over the raw ABI. Forwarding clients compile no Dear ImGui sources, while
-lockstep clients link the pinned sources. Neither mode links against the host DLL or exposes Addictol,
-CommonLibF4, F4SE, Windows, D3D, TOML, or C++ library types through the C contract.
+`lib/dearmoddingui-api` dependency. Linking that fork is enough to consume
+them. `Client.h` is a header-only C++ wrapper that handles discovery,
+registration, stable UI negotiation, and callback error propagation; prefer it
+over the raw ABI. Clients compile no Dear ImGui sources and do not link against
+the host DLL. Client drawing uses the separate `dmui::ui` namespace and
+DMUI-owned types. The C contract exposes no Addictol, CommonLibF4, F4SE,
+Windows, D3D, TOML, Dear ImGui, or C++ library types.
 
 ## Discovery and registration
 
 At F4SE `kPostPostLoad`, after every plugin `Load` has returned, locate the host DLL and resolve the
-single `DMUI_GetHostAPI` export. Call it with `DMUI_API_VERSION_CURRENT`. A null result means that ABI
-version is unsupported. Discovery may succeed before the host plugin initializes; `queryState` and
+single `DMUI_GetAPI` export. Call it with `DMUI_HOST_ABI_CURRENT`, then validate the returned
+`hostAbiVersion`. A null result means that host ABI generation is unsupported.
+The product/API release identifier remains `DMUI_API_VERSION_CURRENT`; the
+returned `apiVersion` and client descriptor `apiVersion` are metadata, not
+compatibility gates. Discovery may succeed before the host plugin initializes; `queryState` and
 registration then return `DMUI_RESULT_HOST_NOT_INITIALIZED`. Export presence does not mean the
 renderer is ready: register at `kPostPostLoad` and wait for exactly one lifecycle callback.
 
@@ -74,7 +79,7 @@ exception table, category renaming, API version bump, or product version bump
 is introduced.
 
 Clients receive a clean scrolling content region below the host-owned page title, category, and
-summary. Draw regular ImGui controls there. Do not begin independent top-level windows, draw over
+summary. Draw regular `dmui::ui` controls there. Do not begin independent top-level windows, draw over
 the sidebar/header, change the host style or fonts directly, or retain pointers into host navigation
 data. Client pages inherit the active theme and may use their own balanced child regions and popups.
 
@@ -122,14 +127,14 @@ registered client and are available while the host is ready on the render thread
 warning, error, info, and muted colors plus every status color. `pushFont` accepts the Body, Title,
 Heading, Subheading, or Subtext role; balance every successful push with `popFont`. The C++ wrapper
 provides `dmui::FontGuard`, `dmui::DrawStyledText`, `dmui::DrawLabeledValue`, and converts `DMUI_Vec4` to
-`ImVec4` with `dmui::ToImVec4`. `TextStyle` independently selects an optional font role, semantic
+`dmui::ui::Vec4` with `dmui::ToUIVec4`. `TextStyle` independently selects an optional font role, semantic
 `TextTone`, and wrapping. Semantic tones map directly to this theme snapshot; restart-needed and the
 other status tones remain distinct from general warning/error colors, and muted text does not enter
 ImGui's disabled-widget state. Drawing is length-delimited and unformatted, so long strings, `%`, and
 `##` remain literal. `DrawLabeledValue` resolves theme and live spacing before drawing, acquires its
 optional value font once, and preserves the caller's current font for the label. The existing
-`DMUI_StyleMetrics` snapshot includes `fontSizeBase` after `scrollbarSize`, so lockstep and forwarding
-clients use the same metrics path without a separate font-size export.
+`DMUI_StyleMetrics` snapshot includes `fontSizeBase` after `scrollbarSize`, so clients use
+one metrics path without a separate font-size export.
 
 The public `SettingsTableScope` and `SettingsRowScope` own only successful visible begin calls and
 preserve clipping as a successful invisible result. Their explicit ends are idempotent; row end
@@ -179,7 +184,7 @@ settings and actions separately and use `SettingGroup::rows` when their source o
 preserved. A `DividerRow` in that ordering draws the shared divider without contributing to the
 group's visible-row count. Action rows share `RowPresentation`, visibility, enabled state,
 filtering, descriptions, and the host settings-table geometry without acquiring defaults, bindings,
-dirty state, or reset semantics. They use the forwarded ordinary ImGui button primitive;
+dirty state, or reset semantics. They use the stable `dmui::ui::Button` primitive;
 `drawSettingsActionButton` is reserved for the fixed Reset, Revert, and Apply actions and cannot
 represent arbitrary labels.
 
@@ -417,13 +422,15 @@ override remains authoritative while its engine device, context, and window are 
 generation change replaces it. Destruction of the active window or a definitive DXGI device loss
 retires the attachment, releases host-owned COM/resources, and requests immediate reconciliation.
 
-## Forwarding presentation services
+## Stable UI and presentation services
 
-`queryServices` reports semantic host-service flags and a forwarding version
-separate from the 0.1 ABI and 0.1.0 product version. Clients may append
-`requiredServices` and `minimumForwardingVersion` to their descriptor; the host
-rejects unavailable requirements before assigning a handle. The C++ wrapper's
-`ClientOptions` performs the same preflight before `registerClient`.
+`queryServices` reports semantic host-service flags. The appended
+`queryUIAPI` entry separately negotiates DMUI UI ABI family 1, a minimum
+revision, and an additive function-table prefix. This identity is independent
+of the 0.1 release label, 0.1.0 product version, and the host's internal Dear
+ImGui version. Clients set `requiredServices`, `minimumUIRevision`, and
+`minimumUIAPISize` in `ClientOptions`; the wrapper validates both services and
+all required UI operations before `registerClient`.
 
 The appended API provides official frame-demand and swapchain wrappers,
 contextual hotkey enablement, owner/generation-scoped D3D11 image resources,
@@ -431,14 +438,15 @@ host-owned generic CPU-pixel images, opt-in managed overlay windows, copied
 latest-message notifications, annotated plots, and single-active
 submission-aware dialogs. CPU producers require
 `DMUI_HOST_SERVICE_PIXEL_IMAGES`; imported SRVs retain the distinct
-`DMUI_HOST_SERVICE_IMAGE_RESOURCES` promise. The original 400-byte table
-prefix, all previous offsets, and all existing `_0_1_SIZE` constants remain
-unchanged. See the nested public API README for exact image formats, row
+`DMUI_HOST_SERVICE_IMAGE_RESOURCES` promise. Existing host-table prefixes and
+offsets remain unchanged; `queryUIAPI` is appended at the 440-byte generation-1
+table size. See the nested public API README for the stable UI schema, exact
+image formats, row
 extent, transactional update, logical overlay coordinate, notification
 duration, dialog state, and per-call thread contracts.
 
-Forwarded `InputTextMultiline` and `IsItemDeactivatedAfterEdit` are generated
-from the curated allowlist. Declarative setting writes remain live through
+Stable `InputTextMultiline` and `IsItemDeactivatedAfterEdit` operations are
+declared by the checked-in UI schema. Declarative setting writes remain live through
 `binding.set`; `SettingDescriptor::onEdit` independently reports changed and
 completed state immediately after the widget. New image and plot draw calls
 are accepted only on the render thread during the owning page callback.
@@ -461,42 +469,39 @@ advertise `D3D11_FORMAT_SUPPORT_TEXTURE2D` and
 stencil-only views are rejected. The host samples the original SRV without
 copying, normalizing, or converting depth into another texture.
 
-## ImGui compatibility and callbacks
+## Stable UI compatibility and callbacks
 
-The host publishes the immutable upstream commit, `IMGUI_VERSION_NUM`, explicit compile-configuration
-flags, size and alignment fields for shared public/internal types, `ImDrawVert` member offsets, and a
-deterministic layout signature. The signature is built from `sizeof`, `alignof`, and `offsetof`
-expressions over public draw, font, IO, style, platform, context, and recovery structures. It is never
-a copied magic value. A lockstep client must build its expected fingerprint from the exact headers and configuration used
-to compile its own ImGui sources. Registration rejects any field mismatch before storing callbacks. A
-null fingerprint selects layout-independent forwarding and skips the shared-layout comparison.
-
-Include the pinned `imgui.h` and `imgui_internal.h`, then `ImGuiFingerprint.h`, and call
-`DMUI_MakeImGuiFingerprint()`. The builder derives custom `ImTextureID`, `ImDrawIdx`, callback,
-`ImDrawVert`, `ImWchar`, color packing, docking, obsolete API, test-engine, CRC, FreeType, debug-tool,
-math-operator, and vector-extension flags directly from the active preprocessor configuration.
+Public clients never receive the host's Dear ImGui context, allocators, font
+pointers, enum values, or internal layouts. `DMUI_GetAPI(HOST_ABI_1)` exposes
+the host table, whose appended `queryUIAPI` entry negotiates stable UI ABI
+family 1. Compatibility depends on the requested revision, required table
+prefix, and non-null required operations, not on the host's internal Dear
+ImGui version.
 
 `onHostReady`, `onHostUnavailable`, page draw, action, hotkey, and frame callbacks run on the render thread.
 `setStatus`, `postNotification`, image release, hotkey enablement, and dialog
-submission resolution are the any-thread exceptions. The context and allocator functions
-exist only in `DMUI_HostReadyInfo`; clients must not poll for a context. In the ready callback, set the
-client's statically linked ImGui globals:
+submission resolution are the any-thread exceptions. `DMUI_HostReadyInfo` contains only its
+size-prefixed release metadata; the callback is a lifecycle notification, not a context handoff:
 
 ```cpp
 void DMUI_CALL Ready(const DMUI_HostReadyInfo* info, void*)
 {
-	ImGui::SetCurrentContext(static_cast<ImGuiContext*>(info->imguiContext));
-	ImGui::SetAllocatorFunctions(
-		info->imguiAlloc, info->imguiFree, info->imguiAllocatorUserData);
+	if (!info || info->structSize < sizeof(DMUI_HostReadyInfo))
+		return;
+	// Registered page callbacks may now use dmui::ui.
 }
 ```
 
 Client callback typedefs are intentionally not `noexcept`, so a C++ exception reaches the host guard
-instead of terminating the process. Host API entry points and allocator callbacks remain `noexcept`.
+instead of terminating the process. Host API entry points remain `noexcept`.
 The host catches C++ exceptions and Windows structured exceptions around client callbacks, disables a
-faulting page or action, recovers the pinned ImGui stack state, and keeps the rest of the host usable.
-Shared-context drawing cannot provide process isolation, so callbacks must still balance every ImGui
-stack operation. The settings-table bracket additionally recovers abandoned bracket state at the
+faulting page or action, recovers its internal UI stack state, and keeps the rest of the host usable.
+Stable UI drawing remains in-process and cannot provide process isolation.
+Familiar `dmui::ui` wrappers record the first operation error and the C++
+client page trampoline returns it at the callback boundary; explicit checked
+wrappers return `DMUI_Result` directly. Scope-end operations continue
+dispatching after a sticky error so balanced scopes unwind. The settings-table
+bracket additionally recovers abandoned bracket state at the
 callback boundary; structural misuse still returns `DMUI_RESULT_UNBALANCED_BRACKET`.
 
 If initialization fails, each accepted client receives `onHostUnavailable` with an explicit reason
@@ -506,13 +511,12 @@ process lifetime; hotkey actions may be unregistered, but clients cannot unload 
 ## Minimal registration
 
 ```cpp
-// Include imgui.h and imgui_internal.h before the fingerprint builder.
-const auto fingerprint = DMUI_MakeImGuiFingerprint();
-
-const auto getHost = reinterpret_cast<decltype(&DMUI_GetHostAPI)>(
-	GetProcAddress(hostModule, "DMUI_GetHostAPI"));
-const auto* api = getHost ? getHost(DMUI_API_VERSION_CURRENT) : nullptr;
-if (!api)
+const auto getAPI = reinterpret_cast<decltype(&DMUI_GetAPI)>(
+	GetProcAddress(hostModule, "DMUI_GetAPI"));
+const auto* api = getAPI ? getAPI(DMUI_HOST_ABI_CURRENT) : nullptr;
+if (!api ||
+	api->structSize < DMUI_HOST_API_REGISTER_CLIENT_SIZE ||
+	api->hostAbiVersion != DMUI_HOST_ABI_CURRENT)
 {
 	StartStandalone();
 	return;
@@ -524,7 +528,6 @@ DMUI_ClientDescriptor client{
 	"example.author.mod",
 	"Example Mod",
 	DMUI_MAKE_VERSION(1, 0),
-	&fingerprint,
 	&Ready,
 	&Unavailable,
 	nullptr,

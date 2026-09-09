@@ -35,11 +35,19 @@ New source presentations implement the presentation contract in `NavigationPrese
 
 ## Client registration
 
-The ABI, lifecycle, compatibility fingerprint, and registration examples are documented in [`include/DearModdingUI/README.md`](include/DearModdingUI/README.md). Public client headers live in the standalone DearModdingUI API repository and arrive through CommonLibF4's `lib/dearmoddingui-api` public dependency.
+The host ABI, stable UI compatibility, lifecycle, and registration examples are documented in [`include/DearModdingUI/README.md`](include/DearModdingUI/README.md). Public client headers live in the standalone DearModdingUI API repository and arrive through CommonLibF4's `lib/dearmoddingui-api` public dependency.
 
-Clients locate the `DMUI_GetHostAPI` export at F4SE `kPostPostLoad`, request the current API version, register the client and all pages, then wait for the host-ready callback before drawing. Clients may open a registered settings page through `selectPage`; the host opens and closes the shared menu with `[Additional] sMenuToggleKey`, which defaults to End. Escape first cancels the active edit or drag, then dismisses the topmost popup or dialog, and closes the shared menu when neither remains.
+Clients locate the `DMUI_GetAPI` export at F4SE `kPostPostLoad`, request
+`DMUI_HOST_ABI_CURRENT`, validate the returned host ABI generation, negotiate
+the stable UI table, register the client and all pages, then wait for the
+host-ready callback before drawing. The 0.1 API value is release metadata, not
+an additional compatibility gate. Clients may open a registered settings page
+through `selectPage`; the host opens and closes the shared menu with
+`[Additional] sMenuToggleKey`, which defaults to End. Escape first cancels the
+active edit or drag, then dismisses the topmost popup or dialog, and closes the
+shared menu when neither remains.
 
-Forwarding-only clients can preflight additive presentation services before
+Clients can preflight the stable UI table and additive presentation services before
 registration. The host now provides contextual hotkeys, retained D3D11 image
 handles, host-owned RGBA8 images created and transactionally updated from
 decoded CPU pixels, opt-in passive managed overlays, latest-message
@@ -85,8 +93,7 @@ dialog, notification, and input exercises. Game-only input-context observations
 remain explicitly unexercised in the preview.
 
 Enable the test package instead of the release package, not alongside it: both
-supply the same host and bridge DLL names. Disable the older standalone
-forwarding smoke mod when switching to this package. Preserve your existing
+supply the same host and bridge DLL names. Disable the older standalone smoke-test mod when switching to this package. Preserve your existing
 `DearModdingUI.toml` and window layout rather than replacing them with packaged
 defaults. Switch back to the release package after testing; fixture source stays
 in the repository.
@@ -110,7 +117,7 @@ Headless capture defaults to 3840x2160 and waits three frames before writing the
 `--width`, `--height`, and `--frames` override the capture defaults. The build copies the theme, fonts, and shaders to `.Build/Preview/Data/F4SE/Plugins/`.
 
 Use `--presentation overlay|notification|image|plot|dialog` to capture a
-synthetic client exercising the corresponding forwarding-only host service.
+synthetic client exercising the corresponding public host service.
 These fixtures create their resources locally and invoke the public client
 wrappers rather than duplicating the host presentation. The `image` fixture
 shows a CPU-created checker, the same CPU handle after a deterministic
@@ -121,12 +128,22 @@ For deterministic tree captures, `--collapse-all` starts with every mod closed a
 `--expand <client-id>` arguments define the exact expanded set. In drill-down, `--collapse-all`
 shows the mod root and `--expand <client-id>` opens that mod.
 
-## Generating the client ImGui header
+## Generating the stable UI contract
 
-The forwarding surface is curated in `Tools/imgui_forward_allowlist.json`. Generate the API repository header and validate every referenced symbol against the built host with:
+The checked-in DMUI-owned schema is the current contract. The immutable
+`ui-contract.manifest.json` records the published ABI-1 baseline and rejects
+changes to existing operation IDs, slots, signatures, requirements, and enum
+values. Additive slots or enum values require a newer UI revision. Regenerate
+the public C table, C++ checked wrappers, and host translation declarations
+with:
 
 ```powershell
-python Tools/generate_imgui_forward.py --definitions Depends/cimgui/generator/output/definitions.json --allowlist Tools/imgui_forward_allowlist.json --output ../DearModdingUI-API/include/DearModdingUI/ImGuiForward.h --dll .Build/release/F4SE/Plugins/DearModdingUI.dll --dumpbin <path-to-dumpbin.exe>
+python Depends/commonlibf4/lib/dearmoddingui-api/Tools/generate-ui-contract.py `
+  --schema Depends/commonlibf4/lib/dearmoddingui-api/schema/ui-contract.json `
+  --baseline-manifest Depends/commonlibf4/lib/dearmoddingui-api/schema/ui-contract.manifest.json `
+  --c-header Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/CUIAPI.h `
+  --checked-header Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/UIChecked.generated.h `
+  --host-bindings include/DearModdingUI/UIBindings.generated.h
 ```
 
 ## License

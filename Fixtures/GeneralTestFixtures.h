@@ -1,15 +1,6 @@
 #pragma once
 
-#if defined(IMGUI_VERSION) || defined(IMGUI_VERSION_NUM)
-#error "general test fixtures require forwarding declarations, not real Dear ImGui"
-#endif
-
-// Isolate both inline API namespaces from the preview host's lockstep clients.
-#define dmui DmuiFixtureClient
-#define ImGui DmuiFixtureImGui
 #include <DearModdingUI/Client.h>
-#undef ImGui
-#undef dmui
 
 #include <array>
 #include <cstdint>
@@ -22,7 +13,7 @@
 
 namespace DmuiTestFixtures
 {
-	namespace dmui = DmuiFixtureClient;
+	namespace dmui = ::dmui;
 
 	inline constexpr std::string_view kClientId{
 		"dearmodding.tests.general"
@@ -130,7 +121,7 @@ namespace DmuiTestFixtures
 			ExerciseKind::kResults,
 			"results",
 			"Results and status",
-			"Host, forwarding, service, and explicit exercise outcomes.",
+			"Host, stable UI, service, and explicit exercise outcomes.",
 			"Run each exercise page, then return here and log a result snapshot.",
 			"Every outcome remains unexercised until an action or observation occurs."
 		},

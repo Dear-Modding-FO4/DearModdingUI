@@ -1,8 +1,5 @@
 #include "FakeData.h"
 
-#include <imgui/imgui.h>
-#include <imgui/imgui_internal.h>
-
 #include <DearModdingUI/Client.h>
 #include <DearModdingUI/MCM/ActionExecutor.h>
 #include <DearModdingUI/MCM/Availability.h>
@@ -45,12 +42,6 @@ namespace DearModdingUIPreview
 			const char* categoryId;
 			const char* categoryDisplayName;
 			const char* summary;
-		};
-
-		enum class ClientConnection
-		{
-			kLockstep,
-			kForwarding
 		};
 
 		class PreviewEnvironment final : public DmuiTests::Environment
@@ -339,23 +330,14 @@ namespace DearModdingUIPreview
 			dmui::Version a_version,
 			std::string_view a_iconName,
 			std::string& a_error,
-			ClientConnection a_connection = ClientConnection::kLockstep,
 			dmui::ClientOrigin a_origin = {})
 		{
-			auto client = a_connection == ClientConnection::kForwarding ?
-				std::make_unique<dmui::Client>(
-					a_id,
-					a_displayName,
-					a_version,
-					dmui::kForwardingClient,
-					a_iconName,
-					a_origin) :
-				std::make_unique<dmui::Client>(
-					a_id,
-					a_displayName,
-					a_version,
-					a_iconName,
-					a_origin);
+			auto client = std::make_unique<dmui::Client>(
+				a_id,
+				a_displayName,
+				a_version,
+				a_iconName,
+				a_origin);
 			if (!client->Connect())
 			{
 				a_error = "Could not connect fake client " +
@@ -458,7 +440,6 @@ namespace DearModdingUIPreview
 				{ 1, 0 },
 				"plugs-connected",
 				a_error,
-				ClientConnection::kForwarding,
 				{
 					dmui::ClientOriginKind::kBridged,
 					"MCM"
@@ -647,7 +628,6 @@ namespace DearModdingUIPreview
 						{ 0, 1 },
 						"share-network",
 						a_error,
-						ClientConnection::kLockstep,
 						{
 							dmui::ClientOriginKind::kBridged,
 							fixture.source

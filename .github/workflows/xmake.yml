@@ -64,20 +64,24 @@ jobs:
           if ($written) { throw "build wrote through an install path: $($written.FullName -join ', ')" }
         }
 
-    - name: Check ImGui forwarding header
+    - name: Check stable UI contract generation
       shell: pwsh
       run: |
-        $generated = Join-Path $env:RUNNER_TEMP 'ImGuiForward.h'
-        $committed = 'Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/ImGuiForward.h'
-        $dll = '.Build/release/F4SE/Plugins/DearModdingUI.dll'
-
-        python Tools/generate_imgui_forward.py `
-          --definitions Depends/cimgui/generator/output/definitions.json `
-          --allowlist Tools/imgui_forward_allowlist.json `
-          --output $generated `
-          --dll $dll
+        $api = 'Depends/commonlibf4/lib/dearmoddingui-api'
+        $generated = Join-Path $env:RUNNER_TEMP 'dmui-ui-contract'
+        New-Item -ItemType Directory -Force $generated | Out-Null
+        python "$api/Tools/generate-ui-contract.py" `
+          --schema "$api/schema/ui-contract.json" `
+          --baseline-manifest "$api/schema/ui-contract.manifest.json" `
+          --c-header "$generated/CUIAPI.h" `
+          --checked-header "$generated/UIChecked.generated.h" `
+          --host-bindings "$generated/UIBindings.generated.h"
         if ($LASTEXITCODE -ne 0) {
-          throw 'ImGui forwarding generation or DLL export validation failed.'
+          throw 'stable UI contract generation failed'
+        }
+        python "$api/Tests/test-ui-contract-generator.py"
+        if ($LASTEXITCODE -ne 0) {
+          throw 'stable UI compatibility baseline regression failed'
         }
 
         function Get-NormalizedBytes([string] $path) {
@@ -96,17 +100,19 @@ jobs:
           return $outputBytes.ToArray()
         }
 
-        [byte[]] $generatedBytes = Get-NormalizedBytes $generated
-        [byte[]] $committedBytes = Get-NormalizedBytes $committed
-        if (-not [Linq.Enumerable]::SequenceEqual[byte]($generatedBytes, $committedBytes)) {
-          throw @'
-        The committed ImGui forwarding header is out of date.
-        From DearModdingUI, run:
-          python Tools/generate_imgui_forward.py --definitions Depends/cimgui/generator/output/definitions.json --allowlist Tools/imgui_forward_allowlist.json --output Depends/commonlibf4/lib/dearmoddingui-api/include/DearModdingUI/ImGuiForward.h
-        Commit include/DearModdingUI/ImGuiForward.h in the nested DearModdingUI-API checkout, then update the CommonLibF4 and DearModdingUI submodule references.
-        '@
+        $comparisons = @{
+          'CUIAPI.h' = "$api/include/DearModdingUI/CUIAPI.h"
+          'UIChecked.generated.h' = "$api/include/DearModdingUI/UIChecked.generated.h"
+          'UIBindings.generated.h' = 'include/DearModdingUI/UIBindings.generated.h'
         }
-        Write-Host 'ImGui forwarding header matches the generator and DLL exports.'
+        foreach ($name in $comparisons.Keys) {
+          [byte[]] $generatedBytes = Get-NormalizedBytes (Join-Path $generated $name)
+          [byte[]] $committedBytes = Get-NormalizedBytes $comparisons[$name]
+          if (-not [Linq.Enumerable]::SequenceEqual[byte]($generatedBytes, $committedBytes)) {
+            throw "generated stable UI artifact is out of date: $($comparisons[$name])"
+          }
+        }
+        Write-Host 'stable UI contract artifacts match the checked-in schema'
 
     - name: Check plugin exports
       shell: pwsh
@@ -116,27 +122,19 @@ jobs:
 
         $exports = (dumpbin /exports $dll) -join "`n"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        $missing = @('DMUI_GetHostAPI','F4SEPlugin_Load','F4SEPlugin_Query','F4SEPlugin_Version') |
+        $missing = @('DMUI_GetAPI','F4SEPlugin_Load','F4SEPlugin_Query','F4SEPlugin_Version') |
           Where-Object { $exports -notmatch [regex]::Escape($_) }
 
         if ($missing) { throw "missing DearModdingUI exports: $($missing -join ', ')" }
-        Write-Host "all four DearModdingUI exports present"
-
-    - name: Check shared forwarding isolation
-      shell: pwsh
-      run: |
-        foreach ($name in @('GeneralTestFixtures.cpp.obj', 'GeneralTestSuite.cpp.obj')) {
-          $objects = @(Get-ChildItem '.LinkConf/xmake/dmui-preview' -Recurse -File -Filter $name)
-          if ($objects.Count -ne 1) { throw "expected one preview fixture object: $name" }
-          $symbols = (dumpbin /symbols $objects[0].FullName) -join "`n"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if ($symbols -match 'External.*@(dmui|ImGui)@@') {
-            throw "$name shares API symbols with lockstep preview clients"
-          }
-          if ($symbols -notmatch '@DmuiFixtureClient@@') {
-            throw "$name did not emit the isolated forwarding client"
+        foreach ($symbol in @('DMUI_GetHostAPI','DMUI_GetImGuiVersionNum','DMUI_GetStyleMetrics')) {
+          if ($exports -match [regex]::Escape($symbol)) {
+            throw "obsolete DearModdingUI export is still present: $symbol"
           }
         }
+        if ($exports -match '(?m)\big[A-Z][A-Za-z0-9_]*\b') {
+          throw 'raw cimgui exports are still present'
+        }
+        Write-Host "stable DearModdingUI exports present; obsolete raw exports absent"
 
     - name: Run checks
       run: .Build/Tests/dmui-tests.exe
@@ -174,8 +172,8 @@ jobs:
         $client = '.Build/test/F4SE/Plugins/dmui-test-client.dll'
         $hostExports = (dumpbin /exports $hostDll) -join "`n"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        if ($hostExports -notmatch 'DMUI_GetHostAPI') {
-          throw 'test host is missing DMUI_GetHostAPI'
+        if ($hostExports -notmatch 'DMUI_GetAPI') {
+          throw 'test host is missing DMUI_GetAPI'
         }
         $clientImports = (dumpbin /imports $client) -join "`n"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -3544,32 +3544,33 @@ namespace DearModdingUI
 				(link.enabled ?
 						ImGuiHoveredFlags_None :
 						ImGuiHoveredFlags_AllowWhenDisabled);
+			const auto tooltipVisible =
+				ImGui::IsItemHovered(hoverFlags) &&
+				ImGui::BeginTooltip();
+			if (tooltipVisible)
 			{
-				const dmui::TooltipScope tooltip{ hoverFlags };
-				if (tooltip.Visible())
+				if (link.action == DMUI_LINK_ACTION_COPY_TARGET)
+					ImGui::TextUnformatted("Copy target");
+				else
 				{
-					if (link.action == DMUI_LINK_ACTION_COPY_TARGET)
-						ImGui::TextUnformatted("Copy target");
+					if (link.external.targetKind == DMUI_EXTERNAL_TARGET_VIRTUAL_FILE)
+						ImGui::TextUnformatted("Open physical backing file");
+					else if (link.external.targetKind == DMUI_EXTERNAL_TARGET_VIRTUAL_FILE_PARENT)
+						ImGui::TextUnformatted("Open physical containing folder");
+					if (link.external.application.empty())
+						ImGui::TextUnformatted("Open with system default");
 					else
-					{
-						if (link.external.targetKind == DMUI_EXTERNAL_TARGET_VIRTUAL_FILE)
-							ImGui::TextUnformatted("Open physical backing file");
-						else if (link.external.targetKind == DMUI_EXTERNAL_TARGET_VIRTUAL_FILE_PARENT)
-							ImGui::TextUnformatted("Open physical containing folder");
-						if (link.external.application.empty())
-							ImGui::TextUnformatted("Open with system default");
-						else
-							ImGui::TextUnformatted("Open with selected application");
-					}
-					const auto detail =
-						link.note.empty() ?
-							std::string_view{ link.external.target } :
-							link.note;
-					if (!detail.empty())
-						ImGui::TextUnformatted(
-							detail.data(),
-							detail.data() + detail.size());
+						ImGui::TextUnformatted("Open with selected application");
 				}
+				const auto detail =
+					link.note.empty() ?
+						std::string_view{ link.external.target } :
+						link.note;
+				if (!detail.empty())
+					ImGui::TextUnformatted(
+						detail.data(),
+						detail.data() + detail.size());
+				ImGui::EndTooltip();
 			}
 			ImGui::PopID();
 			if (index + 1 < a_links.size())

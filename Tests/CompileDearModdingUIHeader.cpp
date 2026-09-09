@@ -2,8 +2,8 @@
 
 #include <type_traits>
 
-static_assert(std::is_standard_layout_v<DMUI_ImGuiFingerprint>);
-static_assert(std::is_trivially_copyable_v<DMUI_ImGuiFingerprint>);
+static_assert(std::is_standard_layout_v<DMUI_HostReadyInfo>);
+static_assert(std::is_trivially_copyable_v<DMUI_HostReadyInfo>);
 static_assert(std::is_standard_layout_v<DMUI_ClientDescriptor>);
 static_assert(std::is_trivially_copyable_v<DMUI_ClientDescriptor>);
 static_assert(std::is_standard_layout_v<DMUI_PageDescriptor>);
@@ -40,6 +40,11 @@ static_assert(sizeof(DMUI_StatusSeverity) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_FontRole) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_SettingsAction) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_HotkeyBindingState) == sizeof(uint32_t));
+static_assert(DMUI_HOST_ABI_CURRENT == DMUI_HOST_ABI_1);
+static_assert(DMUI_API_VERSION_CURRENT == DMUI_API_VERSION_0_1);
+static_assert(std::is_same_v<
+	decltype(&DMUI_GetAPI),
+	const DMUI_HostAPI* (DMUI_CALL*)(uint32_t) noexcept>);
 static_assert(!std::is_nothrow_invocable_v<
 	DMUI_HostReadyCallback,
 	const DMUI_HostReadyInfo*,
@@ -218,9 +223,8 @@ static_assert(DMUI_CLIENT_ORIGIN_BRIDGED == 1u);
 static_assert(DMUI_HOST_SERVICE_NAVIGATION_ICONS == (UINT64_C(1) << 11u));
 
 #if UINTPTR_MAX == UINT64_MAX
-static_assert(sizeof(DMUI_ImGuiFingerprint) == 216);
-static_assert(sizeof(DMUI_HostReadyInfo) == 40);
-static_assert(sizeof(DMUI_ClientDescriptor) == 112);
+static_assert(sizeof(DMUI_HostReadyInfo) == 8);
+static_assert(sizeof(DMUI_ClientDescriptor) == 96);
 static_assert(sizeof(DMUI_PageDescriptor) == 72);
 static_assert(sizeof(DMUI_CategoryDescriptor) == 40);
 static_assert(sizeof(DMUI_ActionDescriptor) == 64);
@@ -243,13 +247,14 @@ static_assert(offsetof(DMUI_Vec4, y) == 4);
 static_assert(offsetof(DMUI_Vec4, z) == 8);
 static_assert(offsetof(DMUI_Vec4, w) == 12);
 static_assert(offsetof(DMUI_ClientDescriptor, structSize) == 0);
-static_assert(offsetof(DMUI_ClientDescriptor, capabilities) == 64);
-static_assert(offsetof(DMUI_ClientDescriptor, iconName) == 72);
-static_assert(offsetof(DMUI_ClientDescriptor, origin) == 80);
-static_assert(offsetof(DMUI_ClientDescriptor, bridgeSourceLabel) == 88);
-static_assert(DMUI_CLIENT_DESCRIPTOR_0_1_SIZE == 96);
-static_assert(offsetof(DMUI_ClientDescriptor, requiredServices) == 96);
-static_assert(offsetof(DMUI_ClientDescriptor, minimumForwardingVersion) == 104);
+static_assert(offsetof(DMUI_HostReadyInfo, structSize) == 0);
+static_assert(offsetof(DMUI_HostReadyInfo, apiVersion) == 4);
+static_assert(offsetof(DMUI_ClientDescriptor, capabilities) == 56);
+static_assert(offsetof(DMUI_ClientDescriptor, iconName) == 64);
+static_assert(offsetof(DMUI_ClientDescriptor, origin) == 72);
+static_assert(offsetof(DMUI_ClientDescriptor, bridgeSourceLabel) == 80);
+static_assert(DMUI_CLIENT_DESCRIPTOR_0_1_SIZE == 88);
+static_assert(offsetof(DMUI_ClientDescriptor, requiredServices) == 88);
 static_assert(DMUI_CLIENT_DESCRIPTOR_SERVICES_SIZE ==
 	sizeof(DMUI_ClientDescriptor));
 static_assert(DMUI_PAGE_DESCRIPTOR_0_1_SIZE == 64);

@@ -17,7 +17,6 @@ namespace DearModdingUI
 	inline constexpr std::string_view kHostDisplayName{ "Evil Modding" };
 	inline constexpr std::string_view kHostVersion{ DMUI_VERSION };
 
-	[[nodiscard]] const DMUI_ImGuiFingerprint& HostFingerprint() noexcept;
 	[[nodiscard]] const DMUI_HostAPI& HostAPI() noexcept;
 
 	void Initialize() noexcept;

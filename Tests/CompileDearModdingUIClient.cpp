@@ -1,6 +1,3 @@
-#include <imgui/imgui.h>
-#include <imgui/imgui_internal.h>
-
 #include <DearModdingUI/Client.h>
 
 #include <array>
@@ -58,7 +55,7 @@ namespace
 				.iconName = "sliders-horizontal"
 			},
 			[label] {
-				ImGui::TextUnformatted("hello");
+				dmui::ui::TextUnformatted("hello");
 				(void)label;
 			});
 		if (page)
@@ -139,7 +136,7 @@ namespace
 		});
 		const auto colors = client.GetThemeColors();
 		if (colors)
-			(void)dmui::ToImVec4(colors->accent);
+			(void)dmui::ToUIVec4(colors->accent);
 		const dmui::FontGuard font{ client, DMUI_FONT_ROLE_BODY };
 		(void)font.Pushed();
 		(void)font.Result();
@@ -183,11 +180,11 @@ namespace
 			"Quality mode ## literal");
 		{
 			const dmui::TooltipScope tooltip{
-				ImGuiHoveredFlags_DelayNormal |
-					ImGuiHoveredFlags_AllowWhenDisabled
+				dmui::ui::HoveredFlags::kDelayNormal |
+					dmui::ui::HoveredFlags::kAllowWhenDisabled
 			};
 			if (tooltip.Visible())
-				ImGui::TextUnformatted("Rich tooltip");
+				dmui::ui::TextUnformatted("Rich tooltip");
 		}
 		(void)client.DrawSectionHeader("Section");
 		std::string search;
@@ -263,7 +260,7 @@ namespace
 			if (row.Visible())
 			{
 				bool enabled{};
-				(void)ImGui::Checkbox("##Value", &enabled);
+				(void)dmui::ui::Checkbox("##Value", &enabled);
 				(void)row.End(true, enabled);
 			}
 			dmui::DrawDivider();

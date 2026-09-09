@@ -2,7 +2,7 @@
 
 **Test-release manual harness.** It is not part of the release build or package.
 It registers nothing when the DearModdingUI host is absent or
-does not provide the required forwarding version/services, and logs that
+does not provide the required stable UI table/services, and logs that
 outcome once. It has no standalone UI, fallback menu, automation, game launch,
 input injection, or disk persistence.
 
@@ -33,8 +33,9 @@ are not included in the installable package.
    attempt at F4SE `kPostPostLoad`, after all plugins have loaded; it does not
    retry later or on Present.
 2. Start the game manually. Open the host and select **DMUI Tests**, then use
-   its **Exercises** pages. Verify host state is ready, API is 0.1, forwarding is
-   1.1, and all required service bits are reported. If the host was absent or
+   its **Exercises** pages. Verify host state is ready, API is 0.1, UI ABI is
+   1, the negotiated UI revision is 1, and all required service bits are
+   reported. If the host was absent or
    incompatible at `kPostPostLoad`, verify the test client logged once and
    registered nothing. Also inspect the three clearly labeled `[Fixture]`
    navigation, status, and in-memory configuration clients. MCM coverage in
@@ -85,9 +86,8 @@ It never logs entered text and does not log ordinary per-frame queries or
 draws.
 The standalone preview sends the same fixture diagnostics to standard error.
 
-The shared fixture translation units use isolated forwarding namespaces, so
-the preview cannot substitute its lockstep client or real ImGui inline bodies.
-Only the thin environment adapters differ between preview and F4SE.
+The preview and F4SE fixture use the same public `dmui::ui` callbacks and
+negotiate the same host UI table. Only the thin environment adapters differ.
 
 Use **Log current results** on the results page for an on-demand compact
 snapshot. Another compact snapshot is written whenever any exercise page is
@@ -96,7 +96,7 @@ outcomes are labeled `observed`, `failed`, or `unexercised`; unexercised probes
 remain unexercised, and a snapshot never treats the absence of errors as an
 overall pass.
 
-These checks validate the forwarding API harness. They do **not** validate a
+These checks validate the stable UI API harness. They do **not** validate a
 consumer's proxy-swapchain attachment or renderer-replacement integration.
 
 After the manual test, remove or disable the installed test package. No cleanup

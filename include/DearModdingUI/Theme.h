@@ -1,7 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/ThemeDefaults.h>
-#include <DearModdingUI/Presentation.h>
+#include <DearModdingUI/PresentationCore.h>
 
 #include <array>
 #include <cstdint>

@@ -22,6 +22,7 @@
 #include <DearModdingUI/Theme.h>
 #include <DearModdingUI/ThemeDefaults.h>
 #include <DearModdingUI/TypographyHealth.h>
+#include <DearModdingUI/UIAdapter.h>
 #include <DearModdingUI/VisualDecisions.h>
 #include <DearModdingUI/SidebarComparison.h>
 #include "Harness.h"
@@ -30,7 +31,6 @@
 #include <imgui/imgui_internal.h>
 
 #include <DearModdingUI/Client.h>
-#include <DearModdingUI/ImGuiFingerprint.h>
 
 #include <Windows.h>
 #include <bcrypt.h>
@@ -61,7 +61,6 @@ namespace vmm_tests
 			uint32_t unavailable{ 0 };
 			uint32_t draws{ 0 };
 			DMUI_UnavailableReason reason{ DMUI_UNAVAILABLE_NONE };
-			void* context{ nullptr };
 		};
 
 		struct PageActivityState
@@ -71,7 +70,11 @@ namespace vmm_tests
 
 		uint32_t s_mockRegistrations{};
 		DMUI_HostServices s_mockServices{};
-		uint32_t s_mockForwardingVersion{};
+		DMUI_Result s_mockUIResult{ DMUI_RESULT_OK };
+		uint32_t s_mockUIRevision{ DMUI_UI_REVISION_CURRENT };
+		uint32_t s_mockUITableSize{ DMUI_UI_API_CURRENT_SIZE };
+		bool s_mockMissingRequiredUIOperation{};
+		bool s_mockMissingPlotLines{};
 		uint32_t s_externalOpenCalls{};
 		uint32_t s_externalNativeError{};
 		DMUI_Result s_externalResult{ DMUI_RESULT_OK };
@@ -165,7 +168,38 @@ namespace vmm_tests
 			DMUI_HostServicesInfo* a_services) noexcept
 		{
 			a_services->supportedServices = s_mockServices;
-			a_services->forwardingVersion = s_mockForwardingVersion;
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL MockQueryUIAPI(
+			uint32_t a_requestedUIAbi,
+			uint32_t a_minimumRevision,
+			uint32_t a_minimumTableSize,
+			DMUI_UIAPIInfo* a_info) noexcept
+		{
+			static DMUI_UIAPI ui = DearModdingUI::UI::API();
+			ui = DearModdingUI::UI::API();
+			ui.structSize = s_mockUITableSize;
+			ui.abiVersion = DMUI_UI_ABI_CURRENT;
+			ui.revision = s_mockUIRevision;
+			if (s_mockMissingRequiredUIOperation)
+				ui.endCombo = nullptr;
+			if (s_mockMissingPlotLines)
+				ui.plotLines = nullptr;
+			if (!a_info ||
+				a_info->structSize < DMUI_UI_API_INFO_1_SIZE)
+				return DMUI_RESULT_STRUCT_TOO_SMALL;
+			a_info->abiVersion = ui.abiVersion;
+			a_info->revision = ui.revision;
+			a_info->tableSize = ui.structSize;
+			a_info->api = nullptr;
+			if (s_mockUIResult != DMUI_RESULT_OK)
+				return s_mockUIResult;
+			if (a_requestedUIAbi != ui.abiVersion ||
+				a_minimumRevision > ui.revision ||
+				a_minimumTableSize > ui.structSize)
+				return DMUI_RESULT_UNSUPPORTED_ABI;
+			a_info->api = &ui;
 			return DMUI_RESULT_OK;
 		}
 
@@ -224,11 +258,6 @@ namespace vmm_tests
 				const HealthSnapshot&) noexcept override
 			{}
 		};
-
-		[[nodiscard]] DMUI_ImGuiFingerprint Fingerprint() noexcept
-		{
-			return DMUI_MakeImGuiFingerprint();
-		}
 
 		[[nodiscard]] bool SameColor(
 			const ImVec4& a_left,
@@ -317,7 +346,7 @@ namespace vmm_tests
 		{
 			auto& state = *static_cast<CallbackState*>(a_userData);
 			++state.ready;
-			state.context = a_info->imguiContext;
+			(void)a_info;
 		}
 
 		void DMUI_CALL Unavailable(
@@ -332,6 +361,12 @@ namespace vmm_tests
 		void DMUI_CALL Draw(void* a_userData) noexcept
 		{
 			++static_cast<CallbackState*>(a_userData)->draws;
+		}
+
+		DMUI_Result DMUI_CALL DrawPage(void* a_userData) noexcept
+		{
+			Draw(a_userData);
+			return DMUI_RESULT_OK;
 		}
 
 		void DMUI_CALL ObservePageActivity(
@@ -356,10 +391,19 @@ namespace vmm_tests
 			throw std::runtime_error("draw");
 		}
 
+		DMUI_Result DMUI_CALL ThrowDrawPage(void*)
+		{
+			throw std::runtime_error("draw");
+		}
+
+		DMUI_Result DMUI_CALL UnsupportedDrawPage(void*) noexcept
+		{
+			return DMUI_RESULT_UNSUPPORTED_ABI;
+		}
+
 		[[nodiscard]] DMUI_ClientDescriptor Client(
 			const char* a_id,
 			const char* a_name,
-			const DMUI_ImGuiFingerprint& a_fingerprint,
 			CallbackState& a_state) noexcept
 		{
 			return {
@@ -368,7 +412,6 @@ namespace vmm_tests
 				a_id,
 				a_name,
 				DMUI_MAKE_VERSION(1, 0),
-				&a_fingerprint,
 				&Ready,
 				&Unavailable,
 				&a_state,
@@ -394,7 +437,7 @@ namespace vmm_tests
 				nullptr,
 				a_sort,
 				a_kind,
-				&Draw,
+				&DrawPage,
 				&a_state,
 				a_iconName
 			};
@@ -433,12 +476,11 @@ namespace vmm_tests
 			Registry& a_registry,
 			const char* a_id,
 			const char* a_name,
-			const DMUI_ImGuiFingerprint& a_fingerprint,
 			CallbackState& a_state,
 			DMUI_ClientOrigin a_origin = DMUI_CLIENT_ORIGIN_NATIVE,
 			const char* a_bridgeSourceLabel = nullptr)
 		{
-			auto descriptor = Client(a_id, a_name, a_fingerprint, a_state);
+			auto descriptor = Client(a_id, a_name, a_state);
 			descriptor.origin = a_origin;
 			descriptor.bridgeSourceLabel = a_bridgeSourceLabel;
 			DMUI_ClientHandle handle{};
@@ -519,18 +561,10 @@ namespace vmm_tests
 				"host identity does not match the development version");
 		});
 
-		runner.test("DearModdingUI reports and negotiates the 0.1 ABI", [] {
+		runner.test("DearModdingUI retains the 0.1 release identifier as metadata", [] {
 			require(
-				DMUI_API_VERSION_CURRENT == DMUI_MAKE_VERSION(0u, 1u) &&
-					Registry::SupportsVersion(DMUI_API_VERSION_0_1),
-				"v0.1 was not reported or accepted");
-			require(!Registry::SupportsVersion(DMUI_MAKE_VERSION(0u, 2u)),
-				"future v0.2 ABI was accepted");
-			require(!Registry::SupportsVersion(DMUI_MAKE_VERSION(0, 3)),
-				"future minor was accepted");
-			require(!Registry::SupportsVersion(DMUI_MAKE_VERSION(1, 0)),
-				"future major was accepted");
-			require(!Registry::SupportsVersion(0), "zero ABI was accepted");
+				DMUI_API_VERSION_CURRENT == DMUI_MAKE_VERSION(0u, 1u),
+				"the fixed 0.1 release identifier changed");
 		});
 
 		runner.test("host API extensions preserve the published prefix", [] {
@@ -582,27 +616,26 @@ namespace vmm_tests
 						DMUI_HOST_API_REGISTER_CATEGORY_SIZE &&
 					DMUI_HOST_API_REGISTER_CATEGORY_SIZE <
 						DMUI_HOST_API_OPEN_EXTERNAL_SIZE &&
+					DMUI_HOST_API_OPEN_EXTERNAL_SIZE <
+						DMUI_HOST_API_QUERY_UI_API_SIZE &&
 					sizeof(DMUI_HostAPI) ==
-						DMUI_HOST_API_OPEN_EXTERNAL_SIZE,
+						DMUI_HOST_API_QUERY_UI_API_SIZE,
 				"the versioned host API prefix moved");
 		});
 
 		runner.test("page activity reports client boundaries without false closes", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState firstState;
 			CallbackState secondState;
 			const auto firstClient = AddClient(
 				registry,
 				"first.mod",
 				"First",
-				fingerprint,
 				firstState);
 			const auto secondClient = AddClient(
 				registry,
 				"second.mod",
 				"Second",
-				fingerprint,
 				secondState);
 			AddCategory(registry, firstClient, "general", "General");
 			AddCategory(registry, secondClient, "general", "General");
@@ -1236,11 +1269,10 @@ namespace vmm_tests
 		});
 
 		runner.test("status validation rejects invalid clients and messages", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			const auto client = AddClient(
-				registry, "status.mod", "Status Mod", fingerprint, state);
+				registry, "status.mod", "Status Mod", state);
 			std::string owner;
 			require(
 					ValidateStatusRequest(
@@ -1802,11 +1834,10 @@ namespace vmm_tests
 		});
 
 		runner.test("client descriptors reject null size and callback failures", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			DMUI_ClientHandle handle{};
-			auto client = Client("sample.mod", "Sample", fingerprint, state);
+			auto client = Client("sample.mod", "Sample", state);
 
 			require(registry.RegisterClient(nullptr, &handle) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
@@ -1819,13 +1850,6 @@ namespace vmm_tests
 					DMUI_RESULT_STRUCT_TOO_SMALL,
 				"short client descriptor was accepted");
 			client.structSize = sizeof(client);
-			auto shortFingerprint = fingerprint;
-			shortFingerprint.structSize = sizeof(shortFingerprint) - 1;
-			client.expectedImGui = &shortFingerprint;
-			require(registry.RegisterClient(&client, &handle) ==
-					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"short fingerprint was accepted");
-			client.expectedImGui = &fingerprint;
 			client.onHostReady = nullptr;
 			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_INVALID_DESCRIPTOR,
@@ -1862,11 +1886,10 @@ namespace vmm_tests
 		});
 
 		runner.test("client descriptors require and copy the complete 0.1 shape", [] {
-			const auto fingerprint = Fingerprint();
 			CallbackState state;
 
-			Registry registry{ fingerprint };
-			auto shortDescriptor = Client("short.mod", "Short", fingerprint, state);
+			Registry registry;
+			auto shortDescriptor = Client("short.mod", "Short", state);
 			shortDescriptor.structSize =
 				static_cast<uint32_t>(
 					offsetof(DMUI_ClientDescriptor, bridgeSourceLabel));
@@ -1877,7 +1900,7 @@ namespace vmm_tests
 				"a partial 0.1 client descriptor was accepted");
 
 			char iconName[]{ "gauge" };
-			auto client = Client("owned.mod", "Owned", fingerprint, state);
+			auto client = Client("owned.mod", "Owned", state);
 			client.iconName = iconName;
 			require(registry.RegisterClient(&client, &handle) == DMUI_RESULT_OK,
 				"client icon registration failed");
@@ -1900,11 +1923,10 @@ namespace vmm_tests
 		});
 
 		runner.test("navigation icon descriptor extensions preserve old prefixes", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			auto clientDescriptor =
-				Client("icons.mod", "Icon Metadata", fingerprint, state);
+				Client("icons.mod", "Icon Metadata", state);
 			clientDescriptor.iconName = "cloud-sun";
 			DMUI_ClientHandle client{};
 			require(
@@ -2138,26 +2160,24 @@ namespace vmm_tests
 		});
 
 		runner.test("client service requirements fail before registration", [] {
-			const auto fingerprint = Fingerprint();
 			CallbackState state;
-			Registry registry{ fingerprint };
+			Registry registry;
 			auto descriptor =
-				Client("required.mod", "Required", fingerprint, state);
+				Client("required.mod", "Required", state);
 			descriptor.requiredServices =
 				DMUI_HOST_SERVICE_IMAGE_RESOURCES |
 				DMUI_HOST_SERVICE_DIALOGS |
 				DMUI_HOST_SERVICE_PIXEL_IMAGES;
-			descriptor.minimumForwardingVersion =
-				DMUI_FORWARDING_VERSION_CURRENT;
+			descriptor.apiVersion = DMUI_MAKE_VERSION(99u, 0u);
 			DMUI_ClientHandle handle{};
 			require(registry.RegisterClient(&descriptor, &handle) ==
 						DMUI_RESULT_OK &&
 					handle != DMUI_INVALID_CLIENT_HANDLE,
-				"implemented service requirements were rejected");
+				"release metadata incorrectly gated client registration");
 
-			Registry unavailable{ fingerprint };
+			Registry unavailable;
 			auto unsupported =
-				Client("unsupported.mod", "Unsupported", fingerprint, state);
+				Client("unsupported.mod", "Unsupported", state);
 			unsupported.requiredServices = UINT64_C(1) << 63u;
 			handle = DMUI_INVALID_CLIENT_HANDLE;
 			require(unavailable.RegisterClient(&unsupported, &handle) ==
@@ -2166,41 +2186,40 @@ namespace vmm_tests
 					unavailable.ClientCount() == 0,
 				"unsupported service registered a partial client");
 
-			auto future =
-				Client("future.mod", "Future", fingerprint, state);
-			future.minimumForwardingVersion =
-				DMUI_MAKE_VERSION(99u, 0u);
-			require(unavailable.RegisterClient(&future, &handle) ==
-						DMUI_RESULT_FORWARDING_VERSION_MISMATCH &&
-					unavailable.ClientCount() == 0,
-				"future forwarding requirement registered a partial client");
-
-			auto reserved =
-				Client("reserved.mod", "Reserved", fingerprint, state);
-			reserved.reserved = 1;
-			require(unavailable.RegisterClient(&reserved, &handle) ==
-						DMUI_RESULT_INVALID_DESCRIPTOR &&
-					unavailable.ClientCount() == 0,
-				"nonzero service requirement reserved bits were accepted");
 		});
 
 		runner.test("official client preflight rejects incomplete host tables", [] {
 			s_mockRegistrations = 0;
 			s_mockServices = DMUI_HOST_SERVICE_IMAGE_RESOURCES;
-			s_mockForwardingVersion = DMUI_FORWARDING_VERSION_CURRENT;
+			s_mockUIResult = DMUI_RESULT_OK;
+			s_mockUIRevision = DMUI_UI_REVISION_CURRENT;
+			s_mockUITableSize = DMUI_UI_API_CURRENT_SIZE;
 			DMUI_HostAPI api{};
 			api.structSize = sizeof(api);
+			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
+			api.apiVersion = DMUI_API_VERSION_CURRENT;
 			api.registerClient = &MockRegisterClient;
 			const dmui::ClientOptions options{
-				.requiredServices = DMUI_HOST_SERVICE_IMAGE_RESOURCES,
-				.minimumForwardingVersion = DMUI_FORWARDING_VERSION_CURRENT
+				.requiredServices = DMUI_HOST_SERVICE_IMAGE_RESOURCES
 			};
 
+			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT + 1;
+			require(dmui::PreflightHostAPI(&api, options) ==
+						DMUI_RESULT_UNSUPPORTED_ABI &&
+					s_mockRegistrations == 0,
+				"unknown host ABI generation reached client registration");
+			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
+			api.apiVersion = DMUI_MAKE_VERSION(99u, 0u);
+			require(dmui::PreflightHostAPI(&api, options) ==
+						DMUI_RESULT_SERVICE_UNAVAILABLE &&
+					s_mockRegistrations == 0,
+				"release metadata incorrectly gated host ABI preflight");
 			require(dmui::PreflightHostAPI(&api, options) ==
 						DMUI_RESULT_SERVICE_UNAVAILABLE &&
 					s_mockRegistrations == 0,
 				"missing queryServices reached client registration");
 			api.queryServices = &MockQueryServices;
+			api.queryUIAPI = &MockQueryUIAPI;
 			s_mockServices = DMUI_HOST_SERVICE_NONE;
 			require(dmui::PreflightHostAPI(&api, options) ==
 						DMUI_RESULT_SERVICE_UNAVAILABLE &&
@@ -2211,20 +2230,82 @@ namespace vmm_tests
 						DMUI_RESULT_SERVICE_UNAVAILABLE &&
 					s_mockRegistrations == 0,
 				"advertised service with missing functions reached registration");
-			s_mockForwardingVersion = DMUI_FORWARDING_VERSION_1_0;
+			api.importD3D11Image = [](DMUI_ClientHandle,
+									 const DMUI_D3D11ImageDescriptor*,
+									 DMUI_ImageHandle*) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			api.drawImage = &MockDrawImage;
+			api.releaseImage = &MockReleaseImage;
+			api.queryImage = &MockQueryImage;
+			api.queryUIAPI = nullptr;
 			require(dmui::PreflightHostAPI(&api, options) ==
-						DMUI_RESULT_FORWARDING_VERSION_MISMATCH &&
+						DMUI_RESULT_UNSUPPORTED_ABI &&
 					s_mockRegistrations == 0,
-				"old forwarding surface reached client registration");
+				"missing stable UI query reached client registration");
+			api.queryUIAPI = &MockQueryUIAPI;
+			require(dmui::PreflightHostAPI(&api, options) == DMUI_RESULT_OK,
+				"compatible host ABI failed with different release metadata");
+			s_mockUIRevision = 0u;
+			require(dmui::PreflightHostAPI(&api, options) ==
+					DMUI_RESULT_UNSUPPORTED_ABI,
+				"old stable UI revision reached client registration");
+			s_mockUIRevision = DMUI_UI_REVISION_CURRENT;
+			s_mockUITableSize = DMUI_UI_API_REQUIRED_SIZE - 1u;
+			require(dmui::PreflightHostAPI(&api, options) ==
+					DMUI_RESULT_UNSUPPORTED_ABI,
+				"short required stable UI table reached client registration");
+			s_mockUITableSize = DMUI_UI_API_REQUIRED_SIZE;
+			require(dmui::PreflightHostAPI(&api, options) == DMUI_RESULT_OK,
+				"missing optional UI tail incorrectly blocked connection");
+			s_mockMissingRequiredUIOperation = true;
+			require(dmui::PreflightHostAPI(&api, options) ==
+					DMUI_RESULT_UNSUPPORTED_ABI,
+				"missing mandatory Begin/End pair operation reached registration");
+			s_mockMissingRequiredUIOperation = false;
+		});
+
+		runner.test("official client preflight enforces requested UI tail operations", [] {
+			s_mockUIResult = DMUI_RESULT_OK;
+			s_mockUIRevision = DMUI_UI_REVISION_CURRENT;
+			s_mockUITableSize = DMUI_UI_API_CURRENT_SIZE;
+			s_mockMissingRequiredUIOperation = false;
+			s_mockMissingPlotLines = true;
+			DMUI_HostAPI api{};
+			api.structSize = sizeof(api);
+			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
+			api.apiVersion = DMUI_API_VERSION_CURRENT;
+			api.registerClient = &MockRegisterClient;
+			api.queryUIAPI = &MockQueryUIAPI;
+
+			const dmui::ClientOptions baseline{};
+			require(
+				dmui::PreflightHostAPI(&api, baseline) == DMUI_RESULT_OK,
+				"missing optional UI tail blocked a baseline client");
+
+			const dmui::ClientOptions plotLines{
+				.minimumUIAPISize = DMUI_UI_API_PLOT_LINES_SIZE
+			};
+			require(
+				dmui::PreflightHostAPI(&api, plotLines) ==
+					DMUI_RESULT_UNSUPPORTED_ABI,
+				"requested PlotLines tail accepted a null operation");
+
+			s_mockMissingPlotLines = false;
+			require(
+				dmui::PreflightHostAPI(&api, plotLines) == DMUI_RESULT_OK,
+				"available requested PlotLines tail failed preflight");
 		});
 
 		runner.test("navigation icon preflight requires page and category entries", [] {
 			s_mockServices = DMUI_HOST_SERVICE_NAVIGATION_ICONS;
-			s_mockForwardingVersion = DMUI_FORWARDING_VERSION_CURRENT;
 			DMUI_HostAPI api{};
 			api.structSize = sizeof(api);
+			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
+			api.apiVersion = DMUI_API_VERSION_CURRENT;
 			api.registerClient = &MockRegisterClient;
 			api.queryServices = &MockQueryServices;
+			api.queryUIAPI = &MockQueryUIAPI;
 			const dmui::ClientOptions options{
 				.requiredServices = DMUI_HOST_SERVICE_NAVIGATION_ICONS
 			};
@@ -2244,17 +2325,19 @@ namespace vmm_tests
 			api.structSize = DMUI_HOST_API_REGISTER_CATEGORY_SIZE - 1;
 			require(
 				dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_SERVICE_UNAVAILABLE,
-				"navigation icon preflight read a truncated category entry");
+					DMUI_RESULT_UNSUPPORTED_ABI,
+				"truncated host table exposed the appended UI query");
 		});
 
 		runner.test("pixel-image preflight requires create update and shared entries", [] {
 			s_mockServices = DMUI_HOST_SERVICE_PIXEL_IMAGES;
-			s_mockForwardingVersion = DMUI_FORWARDING_VERSION_CURRENT;
 			DMUI_HostAPI api{};
 			api.structSize = sizeof(api);
+			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
+			api.apiVersion = DMUI_API_VERSION_CURRENT;
 			api.registerClient = &MockRegisterClient;
 			api.queryServices = &MockQueryServices;
+			api.queryUIAPI = &MockQueryUIAPI;
 			const dmui::ClientOptions options{
 				.requiredServices = DMUI_HOST_SERVICE_PIXEL_IMAGES
 			};
@@ -2286,10 +2369,9 @@ namespace vmm_tests
 		});
 
 		runner.test("client origin defaults to native", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
-			auto client = Client("native.mod", "Native", fingerprint, state);
+			auto client = Client("native.mod", "Native", state);
 			DMUI_ClientHandle handle{};
 
 			require(
@@ -2305,11 +2387,10 @@ namespace vmm_tests
 		});
 
 		runner.test("bridged clients carry copied source labels", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			char sourceLabel[]{ "MCM" };
-			auto client = Client("bridged.mod", "Bridged", fingerprint, state);
+			auto client = Client("bridged.mod", "Bridged", state);
 			client.origin = DMUI_CLIENT_ORIGIN_BRIDGED;
 			client.bridgeSourceLabel = sourceLabel;
 			DMUI_ClientHandle handle{};
@@ -2324,7 +2405,7 @@ namespace vmm_tests
 				"the bridge source label was not copied");
 
 			auto contradictory =
-				Client("native.source", "Native Source", fingerprint, state);
+				Client("native.source", "Native Source", state);
 			contradictory.bridgeSourceLabel = "MCM";
 			require(
 				registry.RegisterClient(&contradictory, &handle) ==
@@ -3174,9 +3255,12 @@ namespace vmm_tests
 		runner.test("virtual-file preflight requires advertised targets and opening entry", [] {
 			DMUI_HostAPI api{};
 			api.structSize = sizeof(api);
+			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
+			api.apiVersion = DMUI_API_VERSION_CURRENT;
 			api.registerClient = &MockRegisterClient;
 			api.queryServices = &MockQueryServices;
 			api.openExternal = &MockOpenExternal;
+			api.queryUIAPI = &MockQueryUIAPI;
 			const dmui::ClientOptions options{
 				.requiredServices = DMUI_HOST_SERVICE_VIRTUAL_FILE_TARGETS
 			};
@@ -3194,8 +3278,8 @@ namespace vmm_tests
 			api.openExternal = &MockOpenExternal;
 			api.structSize = DMUI_HOST_API_OPEN_EXTERNAL_SIZE - 1;
 			require(dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_SERVICE_UNAVAILABLE,
-				"virtual-file preflight read beyond the host table");
+					DMUI_RESULT_UNSUPPORTED_ABI,
+				"truncated host table exposed the appended UI query");
 		});
 
 		runner.test("virtual targets resolve the file before dispatching either action", [] {
@@ -3525,101 +3609,17 @@ namespace vmm_tests
 				"a short diagnostic descriptor was accepted");
 		});
 
-		runner.test("forwarding clients register without a fingerprint", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
-			CallbackState state;
-			auto client = Client("forward.mod", "Forward", fingerprint, state);
-			client.expectedImGui = nullptr;
-			DMUI_ClientHandle handle{};
-
-			require(registry.RegisterClient(&client, &handle) == DMUI_RESULT_OK &&
-					handle != DMUI_INVALID_CLIENT_HANDLE,
-				"forwarding client was rejected");
-		});
-
-		runner.test("lockstep clients still reject fingerprint mismatches", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
-			CallbackState state;
-			auto mismatch = fingerprint;
-			++mismatch.imguiVersionNum;
-			auto client = Client("lockstep.mod", "Lockstep", mismatch, state);
-			DMUI_ClientHandle handle{ 99 };
-
-			require(registry.RegisterClient(&client, &handle) ==
-					DMUI_RESULT_FINGERPRINT_MISMATCH &&
-					handle == DMUI_INVALID_CLIENT_HANDLE,
-				"lockstep fingerprint mismatch was accepted");
-		});
-
-		runner.test("client fingerprint comparison is byte exact", [] {
-			const auto fingerprint = Fingerprint();
-			require(fingerprint.structSize == sizeof(fingerprint), "fingerprint size is stale");
-			require(fingerprint.sizeOfImWchar == sizeof(ImWchar), "ImWchar size was omitted");
-			require(fingerprint.sizeOfImTextureID == sizeof(ImTextureID),
-				"ImTextureID size was omitted");
-			require(fingerprint.sizeOfImGuiContext == sizeof(ImGuiContext),
-				"ImGuiContext size was omitted");
-			require(fingerprint.offsetOfImDrawVertPos == offsetof(ImDrawVert, pos) &&
-					fingerprint.offsetOfImDrawVertUv == offsetof(ImDrawVert, uv) &&
-					fingerprint.offsetOfImDrawVertCol == offsetof(ImDrawVert, col),
-				"ImDrawVert layout was omitted");
-			require(fingerprint.layoutSignature != 0, "layout signature was not constructed");
-			Registry registry{ fingerprint };
-			CallbackState state;
-			DMUI_ClientHandle handle{};
-
-			auto mismatch = fingerprint;
-			mismatch.upstreamCommit[0] ^= 1;
-			auto client = Client("sample.mod", "Sample", mismatch, state);
-			require(registry.RegisterClient(&client, &handle) ==
-					DMUI_RESULT_FINGERPRINT_MISMATCH,
-				"commit mismatch was accepted");
-			mismatch = fingerprint;
-			++mismatch.sizeOfImGuiIO;
-			client.expectedImGui = &mismatch;
-			require(registry.RegisterClient(&client, &handle) ==
-					DMUI_RESULT_FINGERPRINT_MISMATCH,
-				"layout mismatch was accepted");
-			mismatch = fingerprint;
-			mismatch.flags = 0;
-			client.expectedImGui = &mismatch;
-			require(registry.RegisterClient(&client, &handle) ==
-					DMUI_RESULT_FINGERPRINT_MISMATCH,
-				"docking mismatch was accepted");
-			mismatch = fingerprint;
-			++mismatch.sizeOfImTextureID;
-			client.expectedImGui = &mismatch;
-			require(registry.RegisterClient(&client, &handle) ==
-					DMUI_RESULT_FINGERPRINT_MISMATCH,
-				"texture ID mismatch was accepted");
-			mismatch = fingerprint;
-			++mismatch.offsetOfImDrawVertUv;
-			client.expectedImGui = &mismatch;
-			require(registry.RegisterClient(&client, &handle) ==
-					DMUI_RESULT_FINGERPRINT_MISMATCH,
-				"draw vertex layout mismatch was accepted");
-			mismatch = fingerprint;
-			mismatch.layoutSignature ^= 1;
-			client.expectedImGui = &mismatch;
-			require(registry.RegisterClient(&client, &handle) ==
-					DMUI_RESULT_FINGERPRINT_MISMATCH,
-				"layout signature mismatch was accepted");
-		});
-
 		runner.test("swapchain handoff requires a registered renderer replacement client", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
-			const auto regular = AddClient(registry, "regular.mod", "Regular", fingerprint, state);
+			const auto regular = AddClient(registry, "regular.mod", "Regular", state);
 			require(registry.ValidateSwapChainClient(regular) ==
 					DMUI_RESULT_CLIENT_CAPABILITY_REQUIRED,
 				"a regular client gained renderer replacement access");
 			require(registry.ValidateSwapChainClient(9999) == DMUI_RESULT_CLIENT_NOT_FOUND,
 				"an unknown client gained renderer replacement access");
 
-			auto renderer = Client("renderer.mod", "Renderer", fingerprint, state);
+			auto renderer = Client("renderer.mod", "Renderer", state);
 			renderer.capabilities = DMUI_CLIENT_CAPABILITY_RENDERER_REPLACEMENT;
 			DMUI_ClientHandle rendererHandle{};
 			require(registry.RegisterClient(
@@ -3628,7 +3628,7 @@ namespace vmm_tests
 			require(registry.ValidateSwapChainClient(rendererHandle) == DMUI_RESULT_OK,
 				"renderer replacement capability was not retained");
 
-			auto unknown = Client("unknown.mod", "Unknown", fingerprint, state);
+			auto unknown = Client("unknown.mod", "Unknown", state);
 			unknown.capabilities = 0x80000000u;
 			DMUI_ClientHandle unknownHandle{};
 			require(registry.RegisterClient(
@@ -3638,16 +3638,15 @@ namespace vmm_tests
 		});
 
 		runner.test("duplicate client and page IDs are rejected in their scopes", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
-			const auto first = AddClient(registry, "a.mod", "A", fingerprint, state);
-			auto duplicate = Client("a.mod", "Other", fingerprint, state);
+			const auto first = AddClient(registry, "a.mod", "A", state);
+			auto duplicate = Client("a.mod", "Other", state);
 			DMUI_ClientHandle client{};
 			require(registry.RegisterClient(&duplicate, &client) ==
 					DMUI_RESULT_DUPLICATE_CLIENT_ID,
 				"duplicate client ID was accepted");
-			const auto second = AddClient(registry, "b.mod", "B", fingerprint, state);
+			const auto second = AddClient(registry, "b.mod", "B", state);
 			AddCategory(registry, first, "general", "General");
 			AddCategory(registry, second, "general", "General");
 			(void)AddPage(registry, first, "settings", "Settings", "general", 0,
@@ -3663,13 +3662,12 @@ namespace vmm_tests
 		});
 
 		runner.test("action registration validates descriptors clients duplicates and freeze", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			const auto first = AddClient(
-				registry, "actions.first", "First", fingerprint, state);
+				registry, "actions.first", "First", state);
 			const auto second = AddClient(
-				registry, "actions.second", "Second", fingerprint, state);
+				registry, "actions.second", "Second", state);
 			auto action = Action(
 				"copy-diagnostics", "Copy diagnostics", "clipboard-text", 0, state);
 			DMUI_ActionHandle handle{};
@@ -3724,11 +3722,10 @@ namespace vmm_tests
 		});
 
 		runner.test("frame observer registration validates descriptors clients and freeze", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			const auto client = AddClient(
-				registry, "observer.mod", "Observer", fingerprint, state);
+				registry, "observer.mod", "Observer", state);
 			auto observer = FrameObserver(state);
 			DMUI_FrameObserverHandle handle{ 99 };
 
@@ -3773,11 +3770,10 @@ namespace vmm_tests
 		});
 
 		runner.test("frame observer dispatch contains and disables callback failures", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			const auto client = AddClient(
-				registry, "observer.mod", "Observer", fingerprint, state);
+				registry, "observer.mod", "Observer", state);
 			auto observer = FrameObserver(state);
 			observer.callback = &ThrowDraw;
 			DMUI_FrameObserverHandle handle{};
@@ -3793,11 +3789,10 @@ namespace vmm_tests
 		});
 
 		runner.test("client actions order by sort key then stable ID", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			const auto client = AddClient(
-				registry, "actions.mod", "Actions", fingerprint, state);
+				registry, "actions.mod", "Actions", state);
 			(void)AddAction(
 				registry, client, "zulu", "Zulu", nullptr, 10, state);
 			(void)AddAction(
@@ -3815,14 +3810,12 @@ namespace vmm_tests
 		});
 
 		runner.test("pages register without a category", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			const auto client = AddClient(
 				registry,
 				"ungrouped.mod",
 				"Ungrouped",
-				fingerprint,
 				state);
 			const auto page = AddPage(
 				registry,
@@ -3846,13 +3839,12 @@ namespace vmm_tests
 		});
 
 		runner.test("categories require unique client-scoped stable IDs", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			const auto first =
-				AddClient(registry, "first.categories", "First", fingerprint, state);
+				AddClient(registry, "first.categories", "First", state);
 			const auto second =
-				AddClient(registry, "second.categories", "Second", fingerprint, state);
+				AddClient(registry, "second.categories", "Second", state);
 			AddCategory(registry, first, "general", "General");
 			AddCategory(registry, second, "general", "Other General");
 			AddCategory(registry, second, "second-only", "Second Only");
@@ -3909,11 +3901,10 @@ namespace vmm_tests
 		});
 
 		runner.test("category ordering uses sort key display name and stable ID", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			const auto client =
-				AddClient(registry, "ordered.categories", "Ordered", fingerprint, state);
+				AddClient(registry, "ordered.categories", "Ordered", state);
 			AddCategory(registry, client, "General-10", "General", 10);
 			AddCategory(registry, client, "Diagnostics11", "Diagnostics", 10);
 			AddCategory(registry, client, "alpha", "Alpha");
@@ -3972,12 +3963,11 @@ namespace vmm_tests
 		});
 
 		runner.test("registration copies strings and grows beyond the old capacity", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			char clientId[] = "copy.mod";
 			char clientName[] = "Copy";
-			auto clientDescriptor = Client(clientId, clientName, fingerprint, state);
+			auto clientDescriptor = Client(clientId, clientName, state);
 			DMUI_ClientHandle client{};
 			require(registry.RegisterClient(
 						&clientDescriptor, &client) == DMUI_RESULT_OK,
@@ -4024,12 +4014,11 @@ namespace vmm_tests
 		});
 
 		runner.test("frozen pages have deterministic client category and sort ordering", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
-			const auto zulu = AddClient(registry, "z.mod", "Zulu", fingerprint, state);
+			const auto zulu = AddClient(registry, "z.mod", "Zulu", state);
 			const auto alpha = AddClient(
-				registry, "a.mod", "Alpha", fingerprint, state);
+				registry, "a.mod", "Alpha", state);
 			AddCategory(registry, zulu, "b", "B");
 			AddCategory(registry, alpha, "b", "B", 10);
 			AddCategory(registry, alpha, "a", "A", 0);
@@ -4050,11 +4039,10 @@ namespace vmm_tests
 		});
 
 		runner.test("uncategorized pages order before headed groups", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			const auto client = AddClient(
-				registry, "mixed.mod", "Mixed", fingerprint, state);
+				registry, "mixed.mod", "Mixed", state);
 			AddCategory(registry, client, "general", "General");
 			const auto headed = AddPage(
 				registry, client, "headed", "Headed", "general", -100,
@@ -4113,12 +4101,11 @@ namespace vmm_tests
 		});
 
 		runner.test("navigation groups clients categories and settings pages deterministically", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
-			const auto bravo = AddClient(registry, "bravo.mod", "Bravo", fingerprint, state);
+			const auto bravo = AddClient(registry, "bravo.mod", "Bravo", state);
 			const auto alpha = AddClient(
-				registry, "alpha.mod", "Alpha", fingerprint, state);
+				registry, "alpha.mod", "Alpha", state);
 			AddCategory(registry, alpha, "general", "General");
 			AddCategory(registry, alpha, "advanced", "Advanced", -10);
 			AddCategory(registry, alpha, "hud", "HUD");
@@ -4151,26 +4138,22 @@ namespace vmm_tests
 		});
 
 		runner.test("navigation sections preserve declared origin and exact source identity", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
 			const auto nativeZulu = AddClient(
 				registry,
 				"native.zulu",
 				"Zulu Native",
-				fingerprint,
 				state);
 			const auto nativeAlpha = AddClient(
 				registry,
 				"native.alpha",
 				"Alpha Native",
-				fingerprint,
 				state);
 			const auto unnamed = AddClient(
 				registry,
 				"bridge.unnamed",
 				"Unnamed Bridge",
-				fingerprint,
 				state,
 				DMUI_CLIENT_ORIGIN_BRIDGED,
 				"");
@@ -4178,7 +4161,6 @@ namespace vmm_tests
 				registry,
 				"bridge.mcm-zulu",
 				"Zulu MCM",
-				fingerprint,
 				state,
 				DMUI_CLIENT_ORIGIN_BRIDGED,
 				"MCM");
@@ -4186,7 +4168,6 @@ namespace vmm_tests
 				registry,
 				"bridge.mcm-alpha",
 				"Alpha MCM",
-				fingerprint,
 				state,
 				DMUI_CLIENT_ORIGIN_BRIDGED,
 				"MCM");
@@ -4194,7 +4175,6 @@ namespace vmm_tests
 				registry,
 				"bridge.native-label",
 				"Native Label Bridge",
-				fingerprint,
 				state,
 				DMUI_CLIENT_ORIGIN_BRIDGED,
 				"Native");
@@ -4202,7 +4182,6 @@ namespace vmm_tests
 				registry,
 				"bridge.no-settings",
 				"No Settings",
-				fingerprint,
 				state,
 				DMUI_CLIENT_ORIGIN_BRIDGED,
 				"Unused");
@@ -4759,10 +4738,9 @@ namespace vmm_tests
 		});
 
 		runner.test("navigation selection honors requests then keeps a stable fallback", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
-			const auto client = AddClient(registry, "selection.mod", "Selection", fingerprint, state);
+			const auto client = AddClient(registry, "selection.mod", "Selection", state);
 			AddCategory(registry, client, "general", "General");
 			AddCategory(registry, client, "hud", "HUD");
 			const auto first = AddPage(registry, client, "first", "First", "general", 0,
@@ -6233,16 +6211,14 @@ namespace vmm_tests
 			require(!SelectClient(single, 1, selection) && selection.search == "keep",
 				"reselecting the active client changed state");
 
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState callback;
 			const auto zulu = AddClient(
-				registry, "z.external", "Zulu", fingerprint, callback);
+				registry, "z.external", "Zulu", callback);
 			const auto alpha = AddClient(
 				registry,
 				"alpha.mod",
 				"Alpha",
-				fingerprint,
 				callback);
 			AddCategory(registry, zulu, "general", "General");
 			AddCategory(registry, alpha, "general", "General");
@@ -6321,10 +6297,9 @@ namespace vmm_tests
 		});
 
 		runner.test("one-page navigation and failed-page presentation remain stable", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
-			const auto client = AddClient(registry, "single.mod", "Single", fingerprint, state);
+			const auto client = AddClient(registry, "single.mod", "Single", state);
 			AddCategory(registry, client, "general", "General");
 			const auto page = AddPage(registry, client, "only", "Only", "general", 0,
 				DMUI_PAGE_KIND_SETTINGS, state);
@@ -6701,12 +6676,11 @@ namespace vmm_tests
 		});
 
 		runner.test("registry freeze rejects late clients and pages", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
-			const auto client = AddClient(registry, "freeze.mod", "Freeze", fingerprint, state);
+			const auto client = AddClient(registry, "freeze.mod", "Freeze", state);
 			require(registry.Freeze(), "registry did not freeze");
-			auto lateClient = Client("late.mod", "Late", fingerprint, state);
+			auto lateClient = Client("late.mod", "Late", state);
 			DMUI_ClientHandle clientHandle{};
 			require(registry.RegisterClient(
 						&lateClient, &clientHandle) ==
@@ -6720,30 +6694,24 @@ namespace vmm_tests
 		});
 
 		runner.test("ready and unavailable notifications happen exactly once", [] {
-			const auto fingerprint = Fingerprint();
 			CallbackState readyState;
-			Registry readyRegistry{ fingerprint };
-			(void)AddClient(readyRegistry, "ready.mod", "Ready", fingerprint, readyState);
+			Registry readyRegistry;
+			(void)AddClient(readyRegistry, "ready.mod", "Ready", readyState);
 			require(readyRegistry.Freeze(), "ready registry did not freeze");
 			const DMUI_HostReadyInfo info{
 				sizeof(DMUI_HostReadyInfo),
-				DMUI_API_VERSION_CURRENT,
-				reinterpret_cast<void*>(0x1234),
-				nullptr,
-				nullptr,
-				nullptr
+				DMUI_API_VERSION_CURRENT
 			};
 			readyRegistry.NotifyReady(info);
 			readyRegistry.NotifyReady(info);
 			readyRegistry.NotifyUnavailable(DMUI_UNAVAILABLE_BACKEND_FAILED);
 			require(readyState.ready == 1 && readyState.unavailable == 0,
 				"ready client received duplicate or mixed notifications");
-			require(readyState.context == info.imguiContext, "ready context changed");
 
 			CallbackState unavailableState;
-			Registry unavailableRegistry{ fingerprint };
+			Registry unavailableRegistry;
 			(void)AddClient(
-				unavailableRegistry, "fallback.mod", "Fallback", fingerprint, unavailableState);
+				unavailableRegistry, "fallback.mod", "Fallback", unavailableState);
 			require(unavailableRegistry.Freeze(), "unavailable registry did not freeze");
 			unavailableRegistry.NotifyUnavailable(DMUI_UNAVAILABLE_BACKEND_FAILED);
 			unavailableRegistry.NotifyUnavailable(DMUI_UNAVAILABLE_HOST_DISABLED);
@@ -6755,19 +6723,14 @@ namespace vmm_tests
 		});
 
 		runner.test("throwing client callbacks are isolated by host guards", [] {
-			const auto fingerprint = Fingerprint();
 			const DMUI_HostReadyInfo info{
 				sizeof(DMUI_HostReadyInfo),
-				DMUI_API_VERSION_CURRENT,
-				reinterpret_cast<void*>(0x1234),
-				nullptr,
-				nullptr,
-				nullptr
+				DMUI_API_VERSION_CURRENT
 			};
 
 			CallbackState readyState;
-			Registry readyRegistry{ fingerprint };
-			auto readyClient = Client("throw-ready.mod", "Throw Ready", fingerprint, readyState);
+			Registry readyRegistry;
+			auto readyClient = Client("throw-ready.mod", "Throw Ready", readyState);
 			readyClient.onHostReady = &ThrowReady;
 			DMUI_ClientHandle readyHandle{};
 			require(readyRegistry.RegisterClient(
@@ -6789,13 +6752,13 @@ namespace vmm_tests
 				"a client with a throwing ready callback remained drawable");
 
 			CallbackState drawState;
-			Registry drawRegistry{ fingerprint };
+			Registry drawRegistry;
 			const auto drawClient = AddClient(
-				drawRegistry, "throw-draw.mod", "Throw Draw", fingerprint, drawState);
+				drawRegistry, "throw-draw.mod", "Throw Draw", drawState);
 			AddCategory(drawRegistry, drawClient, "general", "General");
 			auto drawPageDescriptor = Page(
 				"settings", "Settings", "general", 0, DMUI_PAGE_KIND_SETTINGS, drawState);
-			drawPageDescriptor.draw = &ThrowDraw;
+			drawPageDescriptor.draw = &ThrowDrawPage;
 			DMUI_PageHandle drawPage{};
 			require(drawRegistry.RegisterPage(
 						drawClient, &drawPageDescriptor, &drawPage) == DMUI_RESULT_OK,
@@ -6824,9 +6787,9 @@ namespace vmm_tests
 
 			CallbackState unavailableState;
 			CallbackState healthyState;
-			Registry unavailableRegistry{ fingerprint };
+			Registry unavailableRegistry;
 			auto unavailableClient = Client(
-				"throw-unavailable.mod", "Throw Unavailable", fingerprint, unavailableState);
+				"throw-unavailable.mod", "Throw Unavailable", unavailableState);
 			unavailableClient.onHostUnavailable = &ThrowUnavailable;
 			DMUI_ClientHandle unavailableHandle{};
 			require(unavailableRegistry.RegisterClient(
@@ -6834,7 +6797,7 @@ namespace vmm_tests
 						&unavailableHandle) == DMUI_RESULT_OK,
 				"throwing unavailable client was not registered");
 			(void)AddClient(
-				unavailableRegistry, "healthy.mod", "Healthy", fingerprint, healthyState);
+				unavailableRegistry, "healthy.mod", "Healthy", healthyState);
 			require(unavailableRegistry.Freeze(), "unavailable registry did not freeze");
 			unavailableRegistry.NotifyUnavailable(DMUI_UNAVAILABLE_BACKEND_FAILED);
 			require(healthyState.unavailable == 1,
@@ -6842,10 +6805,9 @@ namespace vmm_tests
 		});
 
 		runner.test("overlay frame demand is reference counted and never makes settings demand frames", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
-			const auto client = AddClient(registry, "frames.mod", "Frames", fingerprint, state);
+			const auto client = AddClient(registry, "frames.mod", "Frames", state);
 			AddCategory(registry, client, "general", "General");
 			AddCategory(registry, client, "hud", "HUD");
 			const auto settings = AddPage(registry, client, "settings", "Settings", "general", 0,
@@ -6871,10 +6833,9 @@ namespace vmm_tests
 		});
 
 		runner.test("page callbacks receive userdata and failed lookups stay isolated", [] {
-			const auto fingerprint = Fingerprint();
-			Registry registry{ fingerprint };
+			Registry registry;
 			CallbackState state;
-			const auto client = AddClient(registry, "draw.mod", "Draw", fingerprint, state);
+			const auto client = AddClient(registry, "draw.mod", "Draw", state);
 			AddCategory(registry, client, "general", "General");
 			const auto page = AddPage(registry, client, "draw", "Draw", "general", 0,
 				DMUI_PAGE_KIND_SETTINGS, state);
@@ -6889,6 +6850,28 @@ namespace vmm_tests
 			require(state.draws == 2, "action callback did not receive userdata");
 			require(registry.InvokeAction(action + 1) == DMUI_RESULT_ACTION_NOT_FOUND,
 				"unknown action was invoked");
+		});
+
+		runner.test("page UI errors cross the callback boundary without becoming false draws", [] {
+			Registry registry;
+			CallbackState state;
+			const auto client =
+				AddClient(registry, "ui-error.mod", "UI error", state);
+			AddCategory(registry, client, "general", "General");
+			auto descriptor =
+				Page("ui-error", "UI error", "general", 0,
+					DMUI_PAGE_KIND_SETTINGS, state);
+			descriptor.draw = &UnsupportedDrawPage;
+			DMUI_PageHandle page{};
+			require(
+				registry.RegisterPage(client, &descriptor, &page) ==
+					DMUI_RESULT_OK,
+				"UI-error page registration failed");
+			require(
+				registry.InvokePage(page) == DMUI_RESULT_UNSUPPORTED_ABI &&
+					registry.PageFailed(page) &&
+					registry.InvokePage(page) == DMUI_RESULT_CALLBACK_FAILED,
+				"UI error was not surfaced and isolated at the callback boundary");
 		});
 	}
 }

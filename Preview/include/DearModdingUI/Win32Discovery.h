@@ -21,6 +21,11 @@ namespace dmui::detail
 		return module;
 	}
 
+	[[nodiscard]] inline bool HostModulePresent() noexcept
+	{
+		return HostModule() != nullptr;
+	}
+
 	template <class Function>
 	[[nodiscard]] Function ResolveHostSymbol(const char* a_symbol) noexcept
 	{

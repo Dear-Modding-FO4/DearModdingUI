@@ -1,6 +1,7 @@
 #include <DearModdingUI/PresentationServices.h>
 #include <DearModdingUI/RenderExecution.h>
 #include <DearModdingUI/MenuDismissal.h>
+#include <DearModdingUI/UIAdapter.h>
 #include "Harness.h"
 
 #include <d3d11.h>
@@ -30,6 +31,12 @@ namespace vmm_tests
 		using Microsoft::WRL::ComPtr;
 		using namespace DearModdingUI;
 
+		[[nodiscard]] DMUI_Result AcceptUIClient(
+			DMUI_ClientHandle) noexcept
+		{
+			return DMUI_RESULT_OK;
+		}
+
 		class ImGuiFrame
 		{
 		public:
@@ -56,6 +63,11 @@ namespace vmm_tests
 			}
 
 		private:
+			UI::Testing::ValidationOverride m_uiValidation{ &AcceptUIClient };
+			dmui::ui::detail::ScopedContext m_uiContext{
+				&UI::API(),
+				1u
+			};
 			ImGuiContext* m_context{};
 		};
 
@@ -115,6 +127,11 @@ namespace vmm_tests
 			}
 
 		private:
+			UI::Testing::ValidationOverride m_uiValidation{ &AcceptUIClient };
+			dmui::ui::detail::ScopedContext m_uiContext{
+				&UI::API(),
+				1u
+			};
 			ImGuiContext* m_context{};
 		};
 

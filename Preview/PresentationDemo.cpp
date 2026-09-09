@@ -3,9 +3,6 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 
-#include <imgui/imgui.h>
-#include <imgui/imgui_internal.h>
-
 #include <DearModdingUI/Client.h>
 
 #include <array>
@@ -81,7 +78,7 @@ namespace DearModdingUIPreview
 						"Performance overlay" :
 						"Presentation showcase",
 					.categoryId = "services",
-					.summary = "Synthetic forwarding presentation state.",
+					.summary = "Synthetic stable UI presentation state.",
 					.kind = pageKind
 				},
 				[this] { Draw(); });
@@ -181,17 +178,17 @@ namespace DearModdingUIPreview
 
 		void Draw()
 		{
-			ImGui::TextUnformatted("Forwarding-only presentation services");
-			ImGui::Separator();
+			dmui::ui::TextUnformatted("Stable DMUI UI presentation services");
+			dmui::ui::Separator();
 			switch (kind)
 			{
 			case PresentationDemoKind::kOverlay:
-				ImGui::TextUnformatted("Frame pacing");
+				dmui::ui::TextUnformatted("Frame pacing");
 				DrawPlot("##overlay.plot", { 400.0f, 92.0f });
 				break;
 			case PresentationDemoKind::kImage:
 			{
-				ImGui::TextWrapped(
+				dmui::ui::TextWrapped(
 					"Decoded RGBA bytes use host-owned textures and transactional "
 					"updates. Imported SRVs remain supported beside them.");
 				EnsureCpuImages();
@@ -206,16 +203,14 @@ namespace DearModdingUIPreview
 					1,
 					0
 				};
-				ImGui::TextUnformatted("CPU create");
+				dmui::ui::TextUnformatted("CPU create");
 				if (initialCpuImage)
 					(void)client.DrawImage(initialCpuImage->Handle(), options);
-				ImGui::SameLine();
-				ImGui::BeginGroup();
-				ImGui::TextUnformatted("CPU update (same handle, new size)");
+				dmui::ui::SameLine();
+				dmui::ui::TextUnformatted("CPU update (same handle, new size)");
 				if (updatedCpuImage)
 					(void)client.DrawImage(updatedCpuImage->Handle(), options);
-				ImGui::EndGroup();
-				ImGui::TextUnformatted("Existing imported SRV");
+				dmui::ui::TextUnformatted("Existing imported SRV");
 				if (importedImage)
 				{
 					auto importedOptions = options;
@@ -226,12 +221,12 @@ namespace DearModdingUIPreview
 				break;
 			}
 			case PresentationDemoKind::kPlot:
-				ImGui::TextWrapped(
+				dmui::ui::TextWrapped(
 					"Reference lines are clipped to the host-owned plot interior.");
 				DrawPlot("Frame time", { 760.0f, 260.0f });
 				break;
 			case PresentationDemoKind::kDialog:
-				ImGui::TextWrapped(
+				dmui::ui::TextWrapped(
 					"The dialog keeps entered text while a rejected submission "
 					"is corrected.");
 				if (!dialog)

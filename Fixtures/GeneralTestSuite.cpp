@@ -3,8 +3,6 @@
 #include <GeneralTestFixtures.h>
 #include "TestHotkeyDescriptors.h"
 
-namespace ImGui = DmuiFixtureImGui;
-
 #include <Windows.h>
 #include <d3d11.h>
 #include <wrl/client.h>
@@ -39,21 +37,21 @@ namespace DmuiTestFixtures
 	{
 		const auto& page = Page(a_kind);
 		(void)a_client.DrawSectionHeader(page.displayName);
-		ImGui::TextWrapped("How to: %s", page.howTo);
-		ImGui::TextWrapped("Expected: %s", page.expected);
-		ImGui::Text(
+		dmui::ui::TextWrapped("How to: %s", page.howTo);
+		dmui::ui::TextWrapped("Expected: %s", page.expected);
+		dmui::ui::Text(
 			"Observed: %s%s%.*s",
 			OutcomeName(a_outcome),
 			a_observed.empty() ? "" : " - ",
 			static_cast<int>(a_observed.size()),
 			a_observed.data());
-		ImGui::Separator();
+		dmui::ui::Separator();
 	}
 }
 
 namespace DmuiTests
 {
-	namespace dmui = DmuiFixtureClient;
+	namespace dmui = ::dmui;
 
 	using namespace std::chrono_literals;
 	using namespace std::literals;
@@ -219,13 +217,12 @@ namespace DmuiTests
 					DmuiTestFixtures::kClientId,
 					DmuiTestFixtures::kClientDisplayName,
 					dmui::Version{ 0, 1 },
-					dmui::kForwardingClient,
 					"test-tube",
 					{},
 					{
 						.requiredServices = kRequiredServices,
-						.minimumForwardingVersion =
-							DMUI_FORWARDING_VERSION_CURRENT
+						.minimumUIRevision = DMUI_UI_REVISION_CURRENT,
+						.minimumUIAPISize = DMUI_UI_API_REQUIRED_SIZE
 					})
 			{
 				samples_.fill(0.0f);
@@ -259,14 +256,15 @@ namespace DmuiTests
 				LogInfo(
 					"dmui-test-client: preflight connect={} result={} "
 					"host-present={} unavailable-reason={} required-services=0x{:X} "
-					"minimum-forwarding={}.{}"sv,
+					"ui-abi={} minimum-ui-revision={} minimum-ui-size={}"sv,
 					connected,
 					DMUI_ResultToString(initializationResult_),
 					client_.HostPresent(),
 					static_cast<uint32_t>(client_.UnavailableReason()),
 					static_cast<uint64_t>(kRequiredServices),
-					DMUI_VERSION_MAJOR(DMUI_FORWARDING_VERSION_CURRENT),
-					DMUI_VERSION_MINOR(DMUI_FORWARDING_VERSION_CURRENT));
+					DMUI_UI_ABI_CURRENT,
+					DMUI_UI_REVISION_CURRENT,
+					DMUI_UI_API_REQUIRED_SIZE);
 				if (!connected)
 				{
 					initializationStatus_ = InitializationStatus::kUnavailable;
@@ -281,10 +279,12 @@ namespace DmuiTests
 					servicesResult_ = client_.LastResult();
 					LogInfo(
 						"dmui-test-client: service preflight result={} "
-						"forwarding={}.{} supported=0x{:X} required=0x{:X}"sv,
+						"ui-abi={} ui-revision={} ui-size={} "
+						"supported=0x{:X} required=0x{:X}"sv,
 						DMUI_ResultToString(servicesResult_),
-						DMUI_VERSION_MAJOR(services_.forwardingVersion),
-						DMUI_VERSION_MINOR(services_.forwardingVersion),
+						services_.uiABI,
+						services_.uiRevision,
+						services_.uiTableSize,
 						static_cast<uint64_t>(services_.supported),
 						static_cast<uint64_t>(kRequiredServices));
 				}
@@ -429,7 +429,7 @@ namespace DmuiTests
 				initializationResult_ = DMUI_RESULT_OK;
 				LogInfo(
 					"dmui-test-client: initialization complete; "
-					"registered forwarding client (API {}.{})"sv,
+					"registered stable-UI client (API {}.{})"sv,
 					DMUI_VERSION_MAJOR(DMUI_API_VERSION_CURRENT),
 					DMUI_VERSION_MINOR(DMUI_API_VERSION_CURRENT));
 				return true;
@@ -896,7 +896,7 @@ namespace DmuiTests
 				imageResult_ = client_.LastResult();
 				if (!image)
 				{
-					LogImageFailure("forwarded image import", imageResult_);
+					LogImageFailure("host image import", imageResult_);
 					imageView_.Reset();
 					imageTexture_.Reset();
 					return;
@@ -915,7 +915,7 @@ namespace DmuiTests
 			{
 				if (!image_)
 					{
-						ImGui::TextDisabled("Image waiting for renderer/import.");
+						dmui::ui::TextDisabled("Image waiting for renderer/import.");
 						return;
 					}
 				const auto extent = a_large ? 112.0f : 64.0f;
@@ -1157,14 +1157,14 @@ namespace DmuiTests
 			void DrawOverlay() noexcept
 			{
 				++overlayDraws_;
-				ImGui::TextUnformatted("DMUI TESTS / MANAGED OVERLAY");
-				ImGui::Separator();
-				ImGui::Text(
+				dmui::ui::TextUnformatted("DMUI TESTS / MANAGED OVERLAY");
+				dmui::ui::Separator();
+				dmui::ui::Text(
 					"observer=%llu  overlay=%llu  hidden-menu=%llu",
 					frameCount_,
 					overlayDraws_,
 					hiddenMenuObservations_);
-				ImGui::Text("timer=%.2f s", elapsedSeconds_);
+				dmui::ui::Text("timer=%.2f s", elapsedSeconds_);
 				QueueImage(false);
 				QueueCpuImage();
 
@@ -1239,7 +1239,7 @@ namespace DmuiTests
 					return true;
 
 				const auto changed = a_draw();
-				const auto completed = ImGui::IsItemDeactivatedAfterEdit();
+				const auto completed = dmui::ui::IsItemDeactivatedAfterEdit();
 				RecordEdit(a_counters, a_id, changed, completed);
 				const auto reset = client_.EndSettingsRow(true, !a_isDefault);
 				if (!reset)
@@ -1264,31 +1264,31 @@ namespace DmuiTests
 			void DrawSettings() noexcept
 			{
 				++settingsDraws_;
-				ImGui::TextWrapped(
-					"This page uses only the official forwarding API. "
+				dmui::ui::TextWrapped(
+					"This page uses only the official stable DMUI UI API. "
 					"Expected: host ready, all service bits present, and "
-					"forwarding version %u.%u.",
-					DMUI_VERSION_MAJOR(DMUI_FORWARDING_VERSION_CURRENT),
-					DMUI_VERSION_MINOR(DMUI_FORWARDING_VERSION_CURRENT));
-				ImGui::Text(
-					"Host: %s | API %u.%u | forwarding %u.%u | services 0x%llX",
+					"UI ABI %u revision %u.",
+					DMUI_UI_ABI_CURRENT,
+					DMUI_UI_REVISION_CURRENT);
+				dmui::ui::Text(
+					"Host: %s | API %u.%u | UI ABI %u rev %u | services 0x%llX",
 					HostStateName(hostState_.state),
 					DMUI_VERSION_MAJOR(DMUI_API_VERSION_CURRENT),
 					DMUI_VERSION_MINOR(DMUI_API_VERSION_CURRENT),
-					DMUI_VERSION_MAJOR(services_.forwardingVersion),
-					DMUI_VERSION_MINOR(services_.forwardingVersion),
+					services_.uiABI,
+					services_.uiRevision,
 					services_.supported);
-				ImGui::Text(
+				dmui::ui::Text(
 					"Observer %llu | hidden-menu samples %llu | settings draws %llu",
 					frameCount_,
 					hiddenMenuObservations_,
 					settingsDraws_);
-				ImGui::Text(
+				dmui::ui::Text(
 					"Initialization: %s | stage=%s | result=%s",
 					InitializationStatusName(initializationStatus_),
 					initializationStage_.data(),
 					DMUI_ResultToString(initializationResult_));
-				ImGui::Text(
+				dmui::ui::Text(
 					"Last results: state=%s image=%s overlay=%s plot=%s "
 					"notification=%s dialog=%s hotkey=%s services=%s",
 					DMUI_ResultToString(stateResult_),
@@ -1299,7 +1299,7 @@ namespace DmuiTests
 					DMUI_ResultToString(dialogResult_),
 					DMUI_ResultToString(hotkeyResult_),
 					DMUI_ResultToString(servicesResult_));
-				if (ImGui::Button("Log current results"))
+				if (dmui::ui::Button("Log current results"))
 					LogSnapshot("manual-button");
 
 				(void)client_.DrawSectionHeader("Expected outcomes");
@@ -1425,7 +1425,7 @@ namespace DmuiTests
 			void DrawNativeEdits() noexcept
 			{
 				(void)client_.DrawSectionHeader(
-					"Native forwarding edits and simulated persistence");
+					"Stable UI edits and simulated persistence");
 				const auto table = client_.BeginSettingsTable("native-edits");
 				if (!table)
 					return;
@@ -1435,10 +1435,10 @@ namespace DmuiTests
 				if (!DrawEditableRow(
 						"short-text",
 						"Native text",
-						"Live forwarded InputText; save is simulated on completion.",
+						"Live stable InputText; save is simulated on completion.",
 						std::strcmp(shortText_.data(), "smoke") == 0,
 						[this] {
-							return ImGui::InputText(
+							return dmui::ui::InputText(
 								"##Value",
 								shortText_.data(),
 								shortText_.size());
@@ -1453,19 +1453,18 @@ namespace DmuiTests
 				if (!DrawEditableRow(
 						"slider",
 						"Native slider",
-						"Forwarded scalar slider, range 0..100.",
+						"Stable scalar slider, range 0..100.",
 						sliderValue_ == 50.0f,
 						[this] {
 							const float minimum{};
 							const float maximum{ 100.0f };
-							return ImGui::SliderScalar(
+							return dmui::ui::SliderScalar(
 								"##Value",
-								ImGuiDataType_Float,
 								&sliderValue_,
 								&minimum,
 								&maximum,
 								"%.1f",
-								ImGuiSliderFlags_AlwaysClamp);
+								dmui::ui::SliderFlags::kAlwaysClamp);
 						},
 						sliderEdits_,
 						[this] { sliderValue_ = 50.0f; }))
@@ -1477,18 +1476,18 @@ namespace DmuiTests
 				if (!DrawEditableRow(
 						"multiline",
 						"Native multiline",
-						"Three-line forwarded editor; no disk writes are performed.",
+						"Three-line stable editor; no disk writes are performed.",
 						std::strcmp(
 							multiline_.data(),
 							"line one\nline two") == 0,
 						[this] {
-							return ImGui::InputTextMultiline(
+							return dmui::ui::InputTextMultiline(
 								"##Value",
 								multiline_.data(),
 								multiline_.size(),
 								{
 									0.0f,
-									ImGui::GetTextLineHeightWithSpacing() * 3.0f
+									dmui::ui::GetTextLineHeightWithSpacing() * 3.0f
 								});
 						},
 						multilineEdits_,
@@ -1512,7 +1511,7 @@ namespace DmuiTests
 				}
 				if (*counters)
 				{
-					ImGui::Text(
+					dmui::ui::Text(
 						"changed/completed/reset/saved: text %llu/%llu/%llu/%llu | "
 						"slider %llu/%llu/%llu/%llu | multiline "
 						"%llu/%llu/%llu/%llu | total saves %llu",
@@ -1549,7 +1548,7 @@ namespace DmuiTests
 						"Balances RequestFrame and ReleaseFrame.",
 						[this] {
 							auto enabled = overlayEnabled_;
-							if (ImGui::Checkbox("##Value", &enabled))
+							if (dmui::ui::Checkbox("##Value", &enabled))
 								SetOverlayEnabled(enabled);
 						}))
 				{
@@ -1561,7 +1560,7 @@ namespace DmuiTests
 						"Anchor",
 						"Free position can move only while the menu owns input.",
 						[this] {
-							if (ImGui::BeginCombo(
+							if (dmui::ui::BeginCombo(
 									"##Value",
 									AnchorName(overlayOptions_.anchor)))
 							{
@@ -1572,7 +1571,7 @@ namespace DmuiTests
 								{
 									const auto selected =
 										overlayOptions_.anchor == anchor;
-									if (ImGui::Selectable(
+									if (dmui::ui::Selectable(
 											AnchorName(anchor),
 											selected))
 									{
@@ -1580,9 +1579,9 @@ namespace DmuiTests
 										(void)ApplyOverlayConfiguration();
 									}
 									if (selected)
-										ImGui::SetItemDefaultFocus();
+										dmui::ui::SetItemDefaultFocus();
 								}
-								ImGui::EndCombo();
+								dmui::ui::EndCombo();
 							}
 						}))
 				{
@@ -1624,7 +1623,7 @@ namespace DmuiTests
 						[this] {
 							auto enabled =
 								overlayOptions_.allowArrangement != 0;
-							if (ImGui::Checkbox("##Value", &enabled))
+							if (dmui::ui::Checkbox("##Value", &enabled))
 							{
 								overlayOptions_.allowArrangement =
 									enabled ? 1u : 0u;
@@ -1647,7 +1646,7 @@ namespace DmuiTests
 				}
 				if (*placement)
 				{
-					ImGui::Text(
+					dmui::ui::Text(
 						"visible=%u pos=(%.1f, %.1f) size=(%.1f, %.1f) "
 						"generation=%llu completed=%llu requests/releases=%llu/%llu",
 						overlayPlacement_.visible,
@@ -1676,14 +1675,13 @@ namespace DmuiTests
 					a_label,
 					"Changes are applied through ConfigureOverlay.",
 					[this, &a_value, a_minimum, a_maximum] {
-						if (ImGui::SliderScalar(
+						if (dmui::ui::SliderScalar(
 								"##Value",
-								ImGuiDataType_Float,
 								&a_value,
 								&a_minimum,
 								&a_maximum,
 								"%.2f",
-								ImGuiSliderFlags_AlwaysClamp))
+								dmui::ui::SliderFlags::kAlwaysClamp))
 							(void)ApplyOverlayConfiguration();
 					});
 			}
@@ -1709,9 +1707,9 @@ namespace DmuiTests
 			void DrawImageControls() noexcept
 			{
 				(void)client_.DrawSectionHeader("Shared image resources");
-				ImGui::TextUnformatted("Host-owned CPU-pixel image");
+				dmui::ui::TextUnformatted("Host-owned CPU-pixel image");
 				QueueCpuImage();
-				ImGui::Text(
+				dmui::ui::Text(
 					"creates=%llu updates=%llu draws=%llu dimensions=%ux%u result=%s",
 					cpuImageCreateCount_,
 					cpuImageUpdateCount_,
@@ -1719,26 +1717,26 @@ namespace DmuiTests
 					cpuImageWidth_,
 					cpuImageHeight_,
 					DMUI_ResultToString(cpuImageResult_));
-				if (ImGui::Button("Update CPU image"))
+				if (dmui::ui::Button("Update CPU image"))
 					UpdateCpuImage();
-				ImGui::TextDisabled(
+				dmui::ui::TextDisabled(
 					"Expected: the same handle changes dimensions and pixels.");
 
-				ImGui::TextUnformatted("Existing imported D3D11 SRV");
+				dmui::ui::TextUnformatted("Existing imported D3D11 SRV");
 				QueueImage(true);
-				ImGui::Text(
+				dmui::ui::Text(
 					"imports=%llu draws=%llu releases=%llu status=%u generation=%llu",
 					imageImportCount_,
 					imageDrawCount_,
 					imageReleaseCount_,
 					imageStatus_,
 					imageGeneration_);
-				if (ImGui::Button("Cycle / recreate image"))
+				if (dmui::ui::Button("Cycle / recreate image"))
 					RequestImageCycle();
-				ImGui::SameLine();
-				if (ImGui::Button("Release after queued draw"))
+				dmui::ui::SameLine();
+				if (dmui::ui::Button("Release after queued draw"))
 					ReleaseAfterQueuedDraw();
-				ImGui::TextDisabled(
+				dmui::ui::TextDisabled(
 					"Expected: the already queued draw survives release; "
 					"the observer imports one replacement.");
 			}
@@ -1746,7 +1744,7 @@ namespace DmuiTests
 			void DrawNotificationAndDialogs() noexcept
 			{
 				(void)client_.DrawSectionHeader("Notifications and dialogs");
-				if (ImGui::Button("Post page notification"))
+				if (dmui::ui::Button("Post page notification"))
 				{
 					const auto posted = client_.PostNotification(
 						DMUI_STATUS_SEVERITY_SUCCESS,
@@ -1764,23 +1762,23 @@ namespace DmuiTests
 						DMUI_ResultToString(notificationResult_.load()),
 						pageNotifications_);
 				}
-				ImGui::SameLine();
-				if (ImGui::Button("Schedule delayed any-thread notification"))
+				dmui::ui::SameLine();
+				if (dmui::ui::Button("Schedule delayed any-thread notification"))
 					ScheduleDelayedNotification();
 
-				if (ImGui::Button("Request harmless confirm"))
+				if (dmui::ui::Button("Request harmless confirm"))
 					RequestConfirmDialog();
-				ImGui::SameLine();
-				if (ImGui::Button("Request validated text entry"))
+				dmui::ui::SameLine();
+				if (dmui::ui::Button("Request validated text entry"))
 					RequestTextDialog();
-				ImGui::SameLine();
+				dmui::ui::SameLine();
 				auto rejectWithoutMessage = rejectWithoutMessage_;
-				if (ImGui::Checkbox(
+				if (dmui::ui::Checkbox(
 						"Reject with nullptr error",
 						&rejectWithoutMessage))
 					rejectWithoutMessage_ = rejectWithoutMessage;
 
-				ImGui::Text(
+				dmui::ui::Text(
 					"dialog=%s id=%llu submitted=%llu accepted confirms=%llu "
 					"text accepts=%llu rejects=%llu cancels=%llu duplicates ignored=%llu",
 					DialogEventName(lastDialogEvent_),
@@ -1791,14 +1789,14 @@ namespace DmuiTests
 					textRejects_,
 					dialogCancellations_,
 					duplicateSubmissions_);
-				ImGui::Text(
+				dmui::ui::Text(
 					"notifications page=%llu delayed=%llu busy-rejected=%llu "
 					"suppressed=%llu",
 					pageNotifications_,
 					delayedNotifications_.load(),
 					workerBusyRejections_,
 					workerSuppressed_.load());
-				ImGui::TextDisabled(
+				dmui::ui::TextDisabled(
 					"Text rejects empty, \"reject\", or an in-memory duplicate "
 					"(initial duplicate: alpha). Rejection preserves text.");
 			}
@@ -2203,7 +2201,7 @@ namespace DmuiTests
 							"Enablement uses the official host manager.",
 							[this, &probe] {
 								auto enabled = probe.enabled;
-								if (ImGui::Checkbox("##Enabled", &enabled))
+								if (dmui::ui::Checkbox("##Enabled", &enabled))
 								{
 									const auto changed =
 										client_.SetHotkeyActionEnabled(
@@ -2221,8 +2219,8 @@ namespace DmuiTests
 										changed,
 										DMUI_ResultToString(hotkeyResult_));
 								}
-								ImGui::SameLine();
-								ImGui::Text(
+								dmui::ui::SameLine();
+								dmui::ui::Text(
 									"%s | %s | down/up %llu/%llu",
 									probe.binding.chord[0] ?
 										probe.binding.chord :
@@ -2237,7 +2235,7 @@ namespace DmuiTests
 					}
 				}
 				(void)client_.EndSettingsTable();
-				ImGui::TextDisabled(
+				dmui::ui::TextDisabled(
 					"Defaults: Ctrl+Shift+F10/F11 gameplay-unobstructed. "
 					"HOST_INPUT_INACTIVE, optional ALWAYS, letter A, and "
 					"digit 7 probes default to NONE; bind them in the host manager.");

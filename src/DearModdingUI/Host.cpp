@@ -11,14 +11,13 @@
 #include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
+#include <DearModdingUI/UIAdapter.h>
 #include <Platform/PlatformImgui.h>
 
 #include <REX/REX.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
-
-#include <DearModdingUI/ImGuiFingerprint.h>
 
 #include <algorithm>
 #include <atomic>
@@ -32,28 +31,14 @@
 #error "DearModdingUI requires the pinned Dear ImGui docking build"
 #endif
 
-static_assert(IMGUI_VERSION_NUM == DMUI_IMGUI_VERSION_NUM);
-static_assert(sizeof(DMUI_IMGUI_UPSTREAM_COMMIT) == 41);
-
 namespace DearModdingUI
 {
 	using namespace std::literals;
 
 	namespace
 	{
-		struct AllocatorState
-		{
-			ImGuiMemAllocFunc alloc{ nullptr };
-			ImGuiMemFreeFunc free{ nullptr };
-			void* userData{ nullptr };
-		};
-
 		struct Service
 		{
-			Service() :
-				registry(HostFingerprint())
-			{}
-
 			Registry registry;
 			std::atomic<DMUI_HostState> state{ DMUI_HOST_STATE_NOT_INITIALIZED };
 			std::atomic<DMUI_UnavailableReason> unavailableReason{ DMUI_UNAVAILABLE_NONE };
@@ -61,7 +46,6 @@ namespace DearModdingUI
 			std::atomic<bool> menuVisible{ false };
 			std::atomic<DMUI_PageHandle> selectedPage{ DMUI_INVALID_PAGE_HANDLE };
 			std::atomic<DMUI_PageHandle> activePage{ DMUI_INVALID_PAGE_HANDLE };
-			AllocatorState allocator;
 			StatusModel status;
 			DiagnosticStore diagnostics;
 		};
@@ -138,63 +122,6 @@ namespace DearModdingUI
 			if (state != DMUI_HOST_STATE_READY)
 				return StateResult(state);
 			return service.registry.ValidateClient(a_client);
-		}
-
-		[[nodiscard]] void* AllocCpp(size_t a_size, void* a_userData) noexcept
-		{
-			auto* allocator = static_cast<AllocatorState*>(a_userData);
-			try
-			{
-				return allocator && allocator->alloc ?
-					allocator->alloc(a_size, allocator->userData) :
-					nullptr;
-			}
-			catch (...)
-			{
-				return nullptr;
-			}
-		}
-
-		[[nodiscard]] void* DMUI_CALL Alloc(size_t a_size, void* a_userData) noexcept
-		{
-#if defined(_MSC_VER)
-			__try
-			{
-				return AllocCpp(a_size, a_userData);
-			}
-			__except (1)
-			{
-				return nullptr;
-			}
-#else
-			return AllocCpp(a_size, a_userData);
-#endif
-		}
-
-		void FreeCpp(void* a_allocation, void* a_userData) noexcept
-		{
-			auto* allocator = static_cast<AllocatorState*>(a_userData);
-			try
-			{
-				if (allocator && allocator->free)
-					allocator->free(a_allocation, allocator->userData);
-			}
-			catch (...)
-			{}
-		}
-
-		void DMUI_CALL Free(void* a_allocation, void* a_userData) noexcept
-		{
-#if defined(_MSC_VER)
-			__try
-			{
-				FreeCpp(a_allocation, a_userData);
-			}
-			__except (1)
-			{}
-#else
-			FreeCpp(a_allocation, a_userData);
-#endif
 		}
 
 		[[nodiscard]] DMUI_Result RegisterClient(
@@ -994,10 +921,22 @@ namespace DearModdingUI
 				return DMUI_RESULT_INVALID_ARGUMENT;
 			if (a_services->structSize < DMUI_HOST_SERVICES_INFO_0_1_SIZE)
 				return DMUI_RESULT_STRUCT_TOO_SMALL;
-			a_services->forwardingVersion = DMUI_FORWARDING_VERSION_CURRENT;
 			a_services->supportedServices =
 				PresentationServices::kSupportedServices;
 			return DMUI_RESULT_OK;
+		}
+
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryUIAPICpp(
+			uint32_t a_requestedUIAbi,
+			uint32_t a_minimumRevision,
+			uint32_t a_minimumTableSize,
+			DMUI_UIAPIInfo* a_info) noexcept
+		{
+			return UI::Query(
+				a_requestedUIAbi,
+				a_minimumRevision,
+				a_minimumTableSize,
+				a_info);
 		}
 
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiSetHotkeyActionEnabledCpp(
@@ -1619,6 +1558,21 @@ namespace DearModdingUI
 			});
 		}
 
+		[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryUIAPI(
+			uint32_t a_requestedUIAbi,
+			uint32_t a_minimumRevision,
+			uint32_t a_minimumTableSize,
+			DMUI_UIAPIInfo* a_info) noexcept
+		{
+			return GuardApiCall([&]() noexcept {
+				return ApiQueryUIAPICpp(
+					a_requestedUIAbi,
+					a_minimumRevision,
+					a_minimumTableSize,
+					a_info);
+			});
+		}
+
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiSetHotkeyActionEnabled(
 			DMUI_ClientHandle a_client,
 			DMUI_HotkeyActionHandle a_action,
@@ -1852,20 +1806,21 @@ namespace DearModdingUI
 				return false;
 			}
 			const auto result = a_invoke();
-			if (result == DMUI_RESULT_CALLBACK_FAILED)
+			if (result != DMUI_RESULT_OK)
 			{
 				const auto recovered = recovery->RecoverFailure();
 				LogImGuiRecovery(a_identity, recovered);
 				s_clientFontPushes.clear();
 				REX::ERROR(
 					"DearModdingUI: {} callback {} [id \"{}\" (\"{}\"), "
-					"client \"{}\" (\"{}\")] failed and was disabled"sv,
+					"client \"{}\" (\"{}\")] failed with {} and was disabled"sv,
 					a_identity.kind,
 					a_identity.handle,
 					a_identity.id,
 					a_identity.displayName,
 					a_identity.clientId,
-					a_identity.clientDisplayName);
+					a_identity.clientDisplayName,
+					DMUI_ResultToString(result));
 				return false;
 			}
 			const auto recovered = recovery->RecoverAfterCallback();
@@ -1898,18 +1853,12 @@ namespace DearModdingUI
 		}
 	}
 
-	const DMUI_ImGuiFingerprint& HostFingerprint() noexcept
-	{
-		static const DMUI_ImGuiFingerprint fingerprint = DMUI_MakeImGuiFingerprint();
-		return fingerprint;
-	}
-
 	const DMUI_HostAPI& HostAPI() noexcept
 	{
 		static const DMUI_HostAPI api{
 			sizeof(DMUI_HostAPI),
+			DMUI_HOST_ABI_CURRENT,
 			DMUI_API_VERSION_CURRENT,
-			&HostFingerprint(),
 			&ApiRegisterClient,
 			&ApiRegisterPage,
 			&ApiQueryState,
@@ -1961,7 +1910,8 @@ namespace DearModdingUI
 			&ApiCreateImage,
 			&ApiUpdateImage,
 			&ApiRegisterCategory,
-			&ApiOpenExternal
+			&ApiOpenExternal,
+			&ApiQueryUIAPI
 		};
 		return api;
 	}
@@ -2016,7 +1966,7 @@ namespace DearModdingUI
 		return true;
 	}
 
-	void CompleteBackendInitialization(void* a_imguiContext) noexcept
+	void CompleteBackendInitialization(void*) noexcept
 	{
 		auto& service = GetService();
 		auto expected = DMUI_HOST_STATE_INITIALIZING;
@@ -2026,17 +1976,9 @@ namespace DearModdingUI
 				std::memory_order_acq_rel))
 			return;
 
-		ImGui::GetAllocatorFunctions(
-			&service.allocator.alloc,
-			&service.allocator.free,
-			&service.allocator.userData);
 		const DMUI_HostReadyInfo info{
 			sizeof(DMUI_HostReadyInfo),
-			DMUI_API_VERSION_CURRENT,
-			a_imguiContext,
-			&Alloc,
-			&Free,
-			&service.allocator
+			DMUI_API_VERSION_CURRENT
 		};
 		service.registry.NotifyReady(info);
 	}
@@ -2315,37 +2257,10 @@ namespace DearModdingUI
 
 }
 
-DMUI_EXPORT DMUI_Result DMUI_CALL DMUI_GetStyleMetrics(
-	DMUI_StyleMetrics* a_metrics) noexcept
+DMUI_EXPORT const DMUI_HostAPI* DMUI_CALL DMUI_GetAPI(
+	uint32_t a_requestedHostAbi) noexcept
 {
-	if (!a_metrics)
-		return DMUI_RESULT_INVALID_ARGUMENT;
-	if (a_metrics->structSize < DMUI_STYLE_METRICS_0_1_SIZE)
-		return DMUI_RESULT_STRUCT_TOO_SMALL;
-	if (!ImGui::GetCurrentContext())
-		return DMUI_RESULT_HOST_NOT_READY;
-
-	const auto& style = ImGui::GetStyle();
-	a_metrics->itemSpacing = { style.ItemSpacing.x, style.ItemSpacing.y };
-	a_metrics->framePadding = { style.FramePadding.x, style.FramePadding.y };
-	a_metrics->itemInnerSpacing = { style.ItemInnerSpacing.x, style.ItemInnerSpacing.y };
-	a_metrics->cellPadding = { style.CellPadding.x, style.CellPadding.y };
-	a_metrics->windowPadding = { style.WindowPadding.x, style.WindowPadding.y };
-	a_metrics->indentSpacing = style.IndentSpacing;
-	a_metrics->scrollbarSize = style.ScrollbarSize;
-	a_metrics->fontSizeBase = style.FontSizeBase;
-	return DMUI_RESULT_OK;
-}
-
-DMUI_EXPORT uint32_t DMUI_CALL DMUI_GetImGuiVersionNum(void) noexcept
-{
-	return IMGUI_VERSION_NUM;
-}
-
-DMUI_EXPORT const DMUI_HostAPI* DMUI_CALL DMUI_GetHostAPI(
-	uint32_t a_requestedVersion) noexcept
-{
-	return DearModdingUI::Registry::SupportsVersion(a_requestedVersion) ?
+	return a_requestedHostAbi == DMUI_HOST_ABI_CURRENT ?
 		&DearModdingUI::HostAPI() :
 		nullptr;
 }

@@ -23,11 +23,9 @@ namespace DearModdingUI
 		uint32_t version{ 0 };
 		DMUI_ClientCapabilities capabilities{ DMUI_CLIENT_CAPABILITY_NONE };
 		DMUI_HostServices requiredServices{ DMUI_HOST_SERVICE_NONE };
-		uint32_t minimumForwardingVersion{};
 		DMUI_HostReadyCallback onHostReady{ nullptr };
 		DMUI_HostUnavailableCallback onHostUnavailable{ nullptr };
 		void* userData{ nullptr };
-		bool usesImGuiForwarding{ false };
 		bool notified{ false };
 		bool callbackFailed{ false };
 	};
@@ -101,7 +99,7 @@ namespace DearModdingUI
 	class Registry
 	{
 	public:
-		explicit Registry(DMUI_ImGuiFingerprint a_fingerprint);
+		Registry() = default;
 
 		[[nodiscard]] DMUI_Result RegisterClient(
 			const DMUI_ClientDescriptor* a_descriptor,
@@ -174,12 +172,6 @@ namespace DearModdingUI
 		void NotifyReady(const DMUI_HostReadyInfo& a_info) noexcept;
 		void NotifyUnavailable(DMUI_UnavailableReason a_reason) noexcept;
 
-		[[nodiscard]] const DMUI_ImGuiFingerprint& Fingerprint() const noexcept;
-		[[nodiscard]] static bool SupportsVersion(uint32_t a_requestedVersion) noexcept;
-		[[nodiscard]] static bool FingerprintsMatch(
-			const DMUI_ImGuiFingerprint& a_left,
-			const DMUI_ImGuiFingerprint& a_right) noexcept;
-
 	private:
 		enum class Notification : uint32_t
 		{
@@ -205,7 +197,6 @@ namespace DearModdingUI
 			DMUI_ClientHandle a_client,
 			DMUI_PageHandle a_page) const noexcept;
 
-		DMUI_ImGuiFingerprint m_fingerprint{};
 		mutable std::mutex m_mutex;
 		std::vector<RegisteredClient> m_clients;
 		std::vector<RegisteredCategory> m_categories;

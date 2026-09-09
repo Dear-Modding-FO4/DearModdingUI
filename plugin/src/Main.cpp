@@ -313,7 +313,6 @@ namespace DearModdingUI::MCM
 					clientId,
 					displayName,
 					dmui::Version{ version.major(), version.minor() },
-					dmui::kForwardingClient,
 					// MCM configs carry no icon field, so bridged mods cannot declare one.
 					"plugs-connected",
 					dmui::ClientOrigin{

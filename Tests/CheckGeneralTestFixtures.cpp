@@ -1,6 +1,7 @@
 #include "Harness.h"
 
 #include <GeneralTestFixtures.h>
+#include <DearModdingUI/UIAdapter.h>
 
 #include <algorithm>
 #include <array>
@@ -12,9 +13,6 @@
 #include <variant>
 #include <vector>
 
-namespace dmui = DmuiFixtureClient;
-namespace ImGui = DmuiFixtureImGui;
-
 namespace
 {
 	struct CapturedClient
@@ -24,7 +22,6 @@ namespace
 		std::string displayName;
 		DMUI_ClientOrigin origin{};
 		std::string bridgeSourceLabel;
-		bool forwarding{};
 	};
 
 	struct CapturedCategory
@@ -112,8 +109,7 @@ namespace
 			a_descriptor->origin,
 			a_descriptor->bridgeSourceLabel ?
 				a_descriptor->bridgeSourceLabel :
-				"",
-			a_descriptor->expectedImGui == nullptr
+				""
 		});
 		return DMUI_RESULT_OK;
 	}
@@ -222,6 +218,7 @@ namespace
 		static const auto api = [] {
 			DMUI_HostAPI result{};
 			result.structSize = sizeof(result);
+			result.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
 			result.apiVersion = DMUI_API_VERSION_CURRENT;
 			result.registerClient = &RegisterClient;
 			result.registerPage = &RegisterPage;
@@ -230,23 +227,38 @@ namespace
 			result.registerCategory = &RegisterCategory;
 			result.drawSectionHeader = &DrawSectionHeader;
 			result.drawBulletText = &DrawBulletText;
+			result.queryUIAPI = [](
+				uint32_t a_abi,
+				uint32_t a_revision,
+				uint32_t a_size,
+				DMUI_UIAPIInfo* a_info) noexcept -> DMUI_Result {
+				static const DMUI_UIAPI ui = DearModdingUI::UI::API();
+				if (!a_info ||
+					a_info->structSize < DMUI_UI_API_INFO_1_SIZE)
+					return DMUI_RESULT_STRUCT_TOO_SMALL;
+				a_info->abiVersion = ui.abiVersion;
+				a_info->revision = ui.revision;
+				a_info->tableSize = ui.structSize;
+				a_info->api = nullptr;
+				if (a_abi != ui.abiVersion ||
+					a_revision > ui.revision ||
+					a_size > ui.structSize)
+					return DMUI_RESULT_UNSUPPORTED_ABI;
+				a_info->api = &ui;
+				return DMUI_RESULT_OK;
+			};
 			return result;
 		}();
 		return api;
 	}
 }
 
-const DMUI_HostAPI* DMUI_CALL DMUI_GetHostAPI(
-	uint32_t a_requestedVersion) noexcept
+const DMUI_HostAPI* DMUI_CALL DMUI_GetAPI(
+	uint32_t a_requestedHostAbi) noexcept
 {
-	return a_requestedVersion == DMUI_API_VERSION_CURRENT ?
+	return a_requestedHostAbi == DMUI_HOST_ABI_CURRENT ?
 		&FixtureAPI() :
 		nullptr;
-}
-
-uint32_t DMUI_CALL DMUI_GetImGuiVersionNum() noexcept
-{
-	return ImGui::kForwardImGuiVersionNum;
 }
 
 namespace vmm_tests
@@ -330,7 +342,6 @@ namespace vmm_tests
 				"dearmodding.tests.registration-probe",
 				"[Fixture] Registration Probe",
 				dmui::Version{ 0, 1 },
-				dmui::kForwardingClient,
 				"test-tube");
 			require(client.Connect(), "fixture client did not connect through host discovery");
 			const auto registered = DmuiTestFixtures::RegisterExercises(
@@ -342,7 +353,6 @@ namespace vmm_tests
 
 			const auto& clients = s_fixtureHost.clients;
 			require(clients.size() == 1, "fixture client was not registered");
-			require(clients.back().forwarding, "fixture did not use forwarding");
 			require(
 				clients.back().id == "dearmodding.tests.registration-probe",
 				"registered fixture identity changed");
@@ -402,8 +412,6 @@ namespace vmm_tests
 				require(actual.id == expected.id, "synthetic client id changed");
 				require(actual.displayName == expected.displayName,
 					"synthetic client label changed");
-				require(actual.forwarding,
-					"synthetic client did not use forwarding");
 			}
 			require(
 				registeredClients[1].origin ==

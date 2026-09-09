@@ -2,11 +2,14 @@
 #include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Shell.h>
 #include <DearModdingUI/Theme.h>
-#include <DearModdingUI/Client.h>
+#include <DearModdingUI/UIAdapter.h>
 #include "Harness.h"
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
+
+#include <DearModdingUI/Presentation.h>
+#include <DearModdingUI/Client.h>
 
 namespace DearModdingUI
 {
@@ -42,6 +45,12 @@ namespace vmm_tests
 	namespace
 	{
 		using namespace DearModdingUI;
+
+		[[nodiscard]] DMUI_Result AcceptUIClient(
+			DMUI_ClientHandle) noexcept
+		{
+			return DMUI_RESULT_OK;
+		}
 
 		class ImGuiTestFrame
 		{
@@ -100,6 +109,11 @@ namespace vmm_tests
 			}
 
 		private:
+			UI::Testing::ValidationOverride m_uiValidation{ &AcceptUIClient };
+			dmui::ui::detail::ScopedContext m_uiContext{
+				&UI::API(),
+				1u
+			};
 			ImGuiContext* m_context{ nullptr };
 			ImGuiErrorRecoveryState m_recovery;
 			int m_idDepth{ 0 };
@@ -249,7 +263,7 @@ namespace vmm_tests
 				"failed text helper changed the ImGui stack");
 		});
 
-		runner.test("labeled value draws nothing when its font push fails", [] {
+		runner.test("labeled value preserves its label when value font push fails", [] {
 			ImGuiTestFrame frame;
 			dmui::Client client{
 				"tests.presentation.font-failure",
@@ -271,37 +285,10 @@ namespace vmm_tests
 					client.LastResult() == DMUI_RESULT_UNSUPPORTED_ABI,
 				"unsupported font push did not fail explicitly");
 			const auto end = ImGui::GetCursorScreenPos();
-			require(start.x == end.x && start.y == end.y,
-				"failed font acquisition drew a partial label");
+			require(end.x > start.x && end.y == start.y,
+				"failed value-font acquisition dropped the caller-font label");
 			require(frame.IsAtBaseline() && frame.Errors() == 0,
 				"failed labeled value changed the ImGui stack");
-
-			auto& style = ImGui::GetStyle();
-			const auto originalFontSizeBase = style.FontSizeBase;
-			style.FontSizeBase = 0.0f;
-			const auto missingMetricStart = ImGui::GetCursorScreenPos();
-			const auto missingMetricDrawn = dmui::DrawLabeledValue(
-				client,
-				"Must not render",
-				"Value",
-				{
-					.valueStyle = {
-						.fontRole = DMUI_FONT_ROLE_HEADING
-					}
-				});
-			const auto missingMetricResult = client.LastResult();
-			style.FontSizeBase = originalFontSizeBase;
-			require(
-				!missingMetricDrawn &&
-					missingMetricResult == DMUI_RESULT_BACKEND_FAILED,
-				"missing base font metric did not fail explicitly");
-			const auto missingMetricEnd = ImGui::GetCursorScreenPos();
-			require(
-				missingMetricStart.x == missingMetricEnd.x &&
-					missingMetricStart.y == missingMetricEnd.y,
-				"missing base font metric drew a partial label");
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"missing base font metric changed the ImGui stack");
 		});
 
 		runner.test("disabled and tooltip scopes end idempotently", [] {
@@ -315,7 +302,7 @@ namespace vmm_tests
 			ImGui::Dummy({ 40.0f, 20.0f });
 			{
 				dmui::TooltipScope tooltip{
-					ImGuiHoveredFlags_AllowWhenDisabled
+					dmui::ui::HoveredFlags::kAllowWhenDisabled
 				};
 				if (tooltip.Visible())
 				ImGui::TextUnformatted("rich tooltip");

@@ -32,8 +32,8 @@ namespace DearModdingUI::MCM
 				[text = mapped.presentation.text,
 				 alignment = mapped.presentation.alignment] {
 					const auto availableWidth =
-						ImGui::GetContentRegionAvail().x;
-					const auto textWidth = ImGui::CalcTextSize(
+						dmui::ui::GetContentRegionAvail().x;
+					const auto textWidth = dmui::ui::CalcTextSize(
 						text.c_str(),
 						nullptr,
 						false,
@@ -45,11 +45,11 @@ namespace DearModdingUI::MCM
 						offset = availableWidth - textWidth;
 					if (offset > 0.0f)
 					{
-						auto cursor = ImGui::GetCursorScreenPos();
+						auto cursor = dmui::ui::GetCursorScreenPos();
 						cursor.x += offset;
-						ImGui::SetCursorScreenPos(cursor);
+						dmui::ui::SetCursorScreenPos(cursor);
 					}
-					ImGui::TextWrapped("%s", text.c_str());
+					dmui::ui::TextWrapped("%s", text.c_str());
 				}
 			};
 		}

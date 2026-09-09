@@ -118,7 +118,6 @@ namespace DmuiTestFixtures
 					fixture.id,
 					fixture.displayName,
 					dmui::Version{ 0, 1 },
-					dmui::kForwardingClient,
 					"test-tube",
 					std::string_view{ fixture.id } ==
 							"dearmodding.tests.synthetic.status" ?

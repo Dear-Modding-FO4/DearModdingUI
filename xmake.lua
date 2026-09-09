@@ -176,10 +176,9 @@ target("dmui-tests", function()
         "Tests/**.cpp",
         "plugin/src/Win32FileListingAdapter.cpp",
         "Fixtures/GeneralTestFixtures.cpp",
-        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileForwardingNoHost.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileHostAPILayout.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileIconGlyphs.cpp",
-        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileImGuiForward.cpp",
+        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileUI.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileNoWindowsMacros.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileSettingsActions.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileVisualDecisions.cpp",
@@ -198,7 +197,8 @@ target("dmui-tests", function()
         "src/DearModdingUI/RenderExecution.cpp",
         "src/DearModdingUI/Registry.cpp",
         "src/DearModdingUI/SettingsTable.cpp",
-        "src/DearModdingUI/Status.cpp"
+        "src/DearModdingUI/Status.cpp",
+        "src/DearModdingUI/UIAdapter.cpp"
     )
     add_includedirs(
         "Preview/include",
@@ -215,6 +215,7 @@ target("dmui-tests", function()
     add_defines(
         "NDEBUG",
         "NOMINMAX",
+        "DMUI_UI_TESTING",
         "WIN32_LEAN_AND_MEAN"
     )
     add_cxxflags(
@@ -224,8 +225,7 @@ target("dmui-tests", function()
     )
     add_syslinks("bcrypt", "d3d11", "dxgi", "shell32")
     add_ldflags(
-        "/EXPORT:DMUI_GetHostAPI",
-        "/EXPORT:DMUI_GetImGuiVersionNum",
+        "/EXPORT:DMUI_GetAPI",
         { force = true }
     )
 end)
@@ -275,8 +275,8 @@ target("dmui-preview", function()
         "src/DearModdingUI/Shell.cpp",
         "src/DearModdingUI/Status.cpp",
         "src/DearModdingUI/Theme.cpp",
-        "src/Support/Runtime.cpp",
-        "Depends/cimgui/cimgui.cpp"
+        "src/DearModdingUI/UIAdapter.cpp",
+        "src/Support/Runtime.cpp"
     )
     add_includedirs(
         "Preview/include",
@@ -347,8 +347,7 @@ target(plugin_name, function()
 
     add_deps("imgui")
     add_files(
-        "src/**.cpp",
-        "Depends/cimgui/cimgui.cpp"
+        "src/**.cpp"
     )
     add_headerfiles("include/**.h")
     add_extrafiles("data/**", "README.md", "THIRD_PARTY_NOTICES.md")

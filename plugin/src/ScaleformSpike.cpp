@@ -351,7 +351,6 @@ namespace DearModdingUI::MCM
 					"dear-modding.mcm.scaleform-spike",
 					"Scaleform Context Spike",
 					dmui::Version{ version.major(), version.minor() },
-					dmui::kForwardingClient,
 					"",
 					dmui::ClientOrigin{
 						dmui::ClientOriginKind::kBridged,
@@ -443,50 +442,50 @@ namespace DearModdingUI::MCM
 					snapshot.isolated = isolated_;
 				}
 
-				ImGui::TextWrapped(
+				dmui::ui::TextWrapped(
 					"EXPERIMENTAL CONTEXT GATE ONLY. This page measures engine "
 					"bootstrap and private movie lifetime. A pass does not prove "
 					"pixel rendering, input delivery, real settings writes, or "
 					"embedded MCM compatibility.");
-				ImGui::Spacing();
-				ImGui::TextWrapped(
+				dmui::ui::Spacing();
+				dmui::ui::TextWrapped(
 					"No screenshot is generated, no native objects are fabricated, "
 					"and the isolated movie is never registered in or inserted into "
 					"the normal menu stack.");
-				ImGui::Separator();
+				dmui::ui::Separator();
 
-				ImGui::BeginDisabled(snapshot.inspectQueued);
-				if (ImGui::Button("Inspect real PauseMenu"))
+				dmui::ui::BeginDisabled(snapshot.inspectQueued);
+				if (dmui::ui::Button("Inspect real PauseMenu"))
 					RequestInspect();
-				ImGui::EndDisabled();
-				ImGui::SameLine();
-				ImGui::BeginDisabled(!snapshot.canStart);
-				if (ImGui::Button("Start isolated context"))
+				dmui::ui::EndDisabled();
+				dmui::ui::SameLine();
+				dmui::ui::BeginDisabled(!snapshot.canStart);
+				if (dmui::ui::Button("Start isolated context"))
 					RequestStart();
-				ImGui::EndDisabled();
-				ImGui::SameLine();
-				ImGui::BeginDisabled(!snapshot.canStop);
-				if (ImGui::Button("Stop"))
+				dmui::ui::EndDisabled();
+				dmui::ui::SameLine();
+				dmui::ui::BeginDisabled(!snapshot.canStop);
+				if (dmui::ui::Button("Stop"))
 					RequestStop("User requested safe teardown.");
-				ImGui::EndDisabled();
+				dmui::ui::EndDisabled();
 
-				ImGui::Spacing();
-				ImGui::Text(
+				dmui::ui::Spacing();
+				dmui::ui::Text(
 					"Isolated phase: %.*s",
 					static_cast<int>(PhaseText(snapshot.phase).size()),
 					PhaseText(snapshot.phase).data());
-				ImGui::Text(
+				dmui::ui::Text(
 					"Resource retained: %s",
 					snapshot.resourceRetained ? "yes" : "no");
-				ImGui::TextWrapped("%s", snapshot.reason.c_str());
+				dmui::ui::TextWrapped("%s", snapshot.reason.c_str());
 
-				ImGui::Separator();
-				ImGui::TextUnformatted("Real PauseMenu reference");
-				ImGui::TextWrapped("%s", snapshot.referenceStatus.c_str());
+				dmui::ui::Separator();
+				dmui::ui::TextUnformatted("Real PauseMenu reference");
+				dmui::ui::TextWrapped("%s", snapshot.referenceStatus.c_str());
 				DrawObservation(snapshot.reference);
 
-				ImGui::Separator();
-				ImGui::TextUnformatted("Private engine-loaded MainMenu");
+				dmui::ui::Separator();
+				dmui::ui::TextUnformatted("Private engine-loaded MainMenu");
 				DrawObservation(snapshot.isolated);
 			}
 
@@ -496,7 +495,7 @@ namespace DearModdingUI::MCM
 									  std::string_view a_label,
 									  std::string_view a_value) {
 					const auto line = std::format("{}: {}", a_label, a_value);
-					ImGui::TextUnformatted(line.c_str());
+					dmui::ui::TextUnformatted(line.c_str());
 				};
 				text("Context", a_observation.context);
 				text("Movie definition URL", a_observation.sourceMovieUrl);
