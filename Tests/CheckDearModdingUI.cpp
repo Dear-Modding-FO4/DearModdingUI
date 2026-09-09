@@ -3034,6 +3034,10 @@ namespace vmm_tests
 				links,
 				std::string_view{ "GitHub" },
 				&HomeQuickLink::label);
+			const auto nexus = std::ranges::find(
+				links,
+				std::string_view{ "Nexus Mods" },
+				&HomeQuickLink::label);
 			require(
 				std::ranges::all_of(
 					links,
@@ -3051,6 +3055,9 @@ namespace vmm_tests
 			require(
 				github != links.end() && github->enabled,
 				"the GitHub Home link was not enabled");
+			require(
+				nexus != links.end() && nexus->enabled,
+				"the Nexus Mods Home link was not enabled");
 		});
 
 		runner.test("link-row API arguments reject malformed descriptors", [] {

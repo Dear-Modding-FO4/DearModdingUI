@@ -17,10 +17,10 @@ namespace DearModdingUI
 				true },
 			HomeQuickLink{
 				"Nexus Mods",
+				"https://www.nexusmods.com/fallout4/mods/108874",
 				{},
-				"DearModdingUI is not published on Nexus Mods yet.",
 				{},
-				false }
+				true }
 		};
 	}
 
