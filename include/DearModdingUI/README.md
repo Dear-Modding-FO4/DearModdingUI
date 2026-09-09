@@ -412,8 +412,12 @@ The host validates the client handle and capability, combines the override with 
 device, immediate context, and current window, installs its final `Present`/`ResizeBuffers` dispatch,
 and retains its own COM references. Attachment is allowed while waiting for the first `Present` and
 after the host is ready. A ready retarget keeps the shared ImGui context and safely reinitializes the
-platform/renderer backends. An attachment racing backend initialization returns
-`DMUI_RESULT_RENDERER_BUSY`; an invalid or unhookable native object returns
+platform/renderer backends. Missing engine renderer data, initialization, window,
+swapchain, device, or context returns `DMUI_RESULT_HOST_NOT_READY`. An attachment
+racing backend initialization or a change to the captured renderer binding returns
+`DMUI_RESULT_RENDERER_BUSY`. The client may retain its final swapchain and retry
+either transient result later; the host does not queue a rejected call.
+An invalid or unhookable native object returns
 `DMUI_RESULT_SWAPCHAIN_REJECTED`. Regular clients receive
 `DMUI_RESULT_CLIENT_CAPABILITY_REQUIRED`.
 

@@ -278,6 +278,8 @@ namespace Addictol
 				return "the current renderer window has no HWND";
 			case RendererObservation::kBindingChanged:
 				return "the renderer binding changed while it was captured";
+			case RendererObservation::kInvalidBinding:
+				return "the attachment candidate is invalid";
 			case RendererObservation::kHookInstallationFailed:
 				return "the renderer binding was valid but swapchain hooks could not be installed";
 			default:
@@ -680,7 +682,12 @@ namespace Addictol
 			RendererSnapshot& a_snapshot,
 			RendererObservation& a_observation) noexcept
 		{
-			if (!a_swapChain || !CaptureRendererSnapshot(a_snapshot, a_observation))
+			if (!a_swapChain)
+			{
+				a_observation = RendererObservation::kInvalidBinding;
+				return false;
+			}
+			if (!CaptureRendererSnapshot(a_snapshot, a_observation))
 				return false;
 
 			a_swapChain->AddRef();
@@ -1671,7 +1678,10 @@ namespace Addictol
 				a_source,
 				s_attachmentLifecycle);
 			if (decision == AttachmentDecision::kReject)
+			{
+				a_observation = RendererObservation::kInvalidBinding;
 				return false;
+			}
 			if (decision == AttachmentDecision::kKeepCurrent)
 				return true;
 			if (!InstallSwapChainHooks(
@@ -1730,16 +1740,16 @@ namespace Addictol
 			return committed || observation == RendererObservation::kBindingChanged;
 		}
 
-		[[nodiscard]] static bool AttachExplicitSwapChain(
+		[[nodiscard]] static AttachmentResult AttachExplicitSwapChain(
 			IDXGISwapChain* a_swapChain) noexcept
 		{
 			RendererSnapshot snapshot{};
 			RendererObservation observation{ RendererObservation::kRendererDataMissing };
 			if (!PrepareExplicitSnapshot(a_swapChain, snapshot, observation))
 			{
-				REX::WARN("Platform Imgui: explicit swapchain override rejected ({})"sv,
+				REX::WARN("Platform Imgui: explicit swapchain override not attached ({})"sv,
 					DescribeRendererObservation(observation));
-				return false;
+				return FailedAttachmentResult(observation);
 			}
 			CompleteRendererSnapshot(snapshot);
 			const auto committed = CommitRendererSnapshot(
@@ -1750,7 +1760,9 @@ namespace Addictol
 			if (!committed)
 				REX::WARN("Platform Imgui: explicit swapchain override could not be committed ({})"sv,
 					DescribeRendererObservation(observation));
-			return committed;
+			return committed ?
+				AttachmentResult::kAttached :
+				FailedAttachmentResult(observation);
 		}
 
 		static void CheckReconciliationDeadline() noexcept
@@ -1870,7 +1882,8 @@ namespace Addictol
 		return true;
 	}
 
-	bool PlatformImgui::AttachSwapChain(IDXGISwapChain* a_swapChain) noexcept
+	ImguiPlatform::AttachmentResult PlatformImgui::AttachSwapChain(
+		IDXGISwapChain* a_swapChain) noexcept
 	{
 		return platformImguiDetail::AttachExplicitSwapChain(a_swapChain);
 	}

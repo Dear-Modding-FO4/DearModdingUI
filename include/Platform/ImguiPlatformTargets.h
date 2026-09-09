@@ -83,8 +83,37 @@ namespace Addictol::ImguiPlatform
 		kContextMissing,
 		kWindowMissing,
 		kBindingChanged,
+		kInvalidBinding,
 		kHookInstallationFailed
 	};
+
+	enum class AttachmentResult : uint32_t
+	{
+		kAttached,
+		kNotReady,
+		kBusy,
+		kRejected
+	};
+
+	[[nodiscard]] constexpr AttachmentResult FailedAttachmentResult(
+		RendererObservation a_observation) noexcept
+	{
+		switch (a_observation)
+		{
+		case RendererObservation::kRendererDataMissing:
+		case RendererObservation::kRendererNotInitialized:
+		case RendererObservation::kRendererWindowMissing:
+		case RendererObservation::kSwapChainMissing:
+		case RendererObservation::kDeviceMissing:
+		case RendererObservation::kContextMissing:
+		case RendererObservation::kWindowMissing:
+			return AttachmentResult::kNotReady;
+		case RendererObservation::kBindingChanged:
+			return AttachmentResult::kBusy;
+		default:
+			return AttachmentResult::kRejected;
+		}
+	}
 
 	struct RendererProbe
 	{

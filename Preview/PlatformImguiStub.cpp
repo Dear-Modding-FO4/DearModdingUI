@@ -2,9 +2,9 @@
 
 namespace Addictol::PlatformImgui
 {
-	bool AttachSwapChain(IDXGISwapChain*) noexcept
+	ImguiPlatform::AttachmentResult AttachSwapChain(IDXGISwapChain*) noexcept
 	{
-		return false;
+		return ImguiPlatform::AttachmentResult::kRejected;
 	}
 
 	bool QueryVideoMemory(uint64_t& a_used, uint64_t& a_budget) noexcept

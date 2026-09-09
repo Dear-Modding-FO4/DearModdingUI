@@ -1,5 +1,6 @@
 #include <Platform/ImguiPlatformTargets.h>
 #include <Platform/GameInput.h>
+#include <DearModdingUI/SwapChainAttachment.h>
 #include "Harness.h"
 
 #include <limits>
@@ -51,6 +52,55 @@ namespace vmm_tests
 					AttachmentLifecycle::kVacant) ==
 					AttachmentDecision::kAttach,
 				"the first renderer binding must attach");
+		});
+
+		runner.test("explicit attachment reports missing renderer prerequisites as retryable", [] {
+			constexpr std::array probes{
+				RendererProbe{},
+				RendererProbe{ true, false, true, { 1, 2, 3, 4 } },
+				RendererProbe{ true, true, false, { 1, 2, 3, 4 } },
+				RendererProbe{ true, true, true, { 0, 2, 3, 4 } },
+				RendererProbe{ true, true, true, { 1, 0, 3, 4 } },
+				RendererProbe{ true, true, true, { 1, 2, 0, 4 } },
+				RendererProbe{ true, true, true, { 1, 2, 3, 0 } }
+			};
+			for (const auto& probe : probes)
+			{
+				const auto observation = ObserveRenderer(probe);
+				require(
+					FailedAttachmentResult(observation) == AttachmentResult::kNotReady &&
+						DearModdingUI::SwapChainAttachmentResult(
+							FailedAttachmentResult(observation)) == DMUI_RESULT_HOST_NOT_READY,
+					"missing renderer prerequisite became a permanent rejection");
+			}
+		});
+
+		runner.test("explicit attachment separates binding races from actual rejection", [] {
+			require(
+				DearModdingUI::SwapChainAttachmentResult(
+					FailedAttachmentResult(RendererObservation::kBindingChanged)) ==
+					DMUI_RESULT_RENDERER_BUSY,
+				"binding publication race was not retryable");
+			for (const auto observation : {
+					 RendererObservation::kInvalidBinding,
+					 RendererObservation::kHookInstallationFailed,
+					 RendererObservation::kReady })
+			{
+				require(
+					DearModdingUI::SwapChainAttachmentResult(
+						FailedAttachmentResult(observation)) == DMUI_RESULT_SWAPCHAIN_REJECTED,
+					"real or unclassified attachment failure was made retryable");
+			}
+			require(
+				DearModdingUI::SwapChainAttachmentResult(AttachmentResult::kAttached) ==
+					DMUI_RESULT_OK,
+				"successful attachment no longer reports success");
+			require(
+				DecideAttachment(
+					{ 1, 2, 3, 4 }, {}, AttachmentSource::kRenderer,
+					AttachmentSource::kExplicit, AttachmentLifecycle::kActive) ==
+					AttachmentDecision::kReject,
+				"invalid candidate validation was weakened");
 		});
 
 		runner.test("unchanged reconciliation is a no-op that does not re-hook", [] {

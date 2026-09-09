@@ -10,6 +10,7 @@
 #include <DearModdingUI/PresentationServices.h>
 #include <DearModdingUI/SettingsTable.h>
 #include <DearModdingUI/Shell.h>
+#include <DearModdingUI/SwapChainAttachment.h>
 #include <DearModdingUI/Theme.h>
 #include <DearModdingUI/UIAdapter.h>
 #include <Platform/PlatformImgui.h>
@@ -395,10 +396,9 @@ namespace DearModdingUI
 			const auto clientResult = service.registry.ValidateSwapChainClient(a_client);
 			if (clientResult != DMUI_RESULT_OK)
 				return clientResult;
-			return Addictol::PlatformImgui::AttachSwapChain(
-					   static_cast<IDXGISwapChain*>(a_nativeSwapChain)) ?
-				DMUI_RESULT_OK :
-				DMUI_RESULT_SWAPCHAIN_REJECTED;
+			return SwapChainAttachmentResult(
+				Addictol::PlatformImgui::AttachSwapChain(
+					static_cast<IDXGISwapChain*>(a_nativeSwapChain)));
 		}
 
 		[[nodiscard]] DMUI_Result DMUI_CALL ApiSetStatusCpp(

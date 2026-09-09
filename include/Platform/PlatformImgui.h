@@ -30,7 +30,8 @@ namespace Addictol
 		[[nodiscard]] bool InitializeWindow() noexcept;
 
 		// Deliberate external override for a final or proxy game swapchain.
-		[[nodiscard]] bool AttachSwapChain(IDXGISwapChain* a_swapChain) noexcept;
+		[[nodiscard]] ImguiPlatform::AttachmentResult AttachSwapChain(
+			IDXGISwapChain* a_swapChain) noexcept;
 
 		void SetDrawingEnabled(bool a_enabled) noexcept;
 		void HandleGameTransition() noexcept;
