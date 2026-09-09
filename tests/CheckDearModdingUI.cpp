@@ -82,6 +82,48 @@ namespace vmm_tests
 		std::string s_externalVirtualFile;
 		std::string s_externalPhysicalFile;
 
+		struct SettingsMoveProbe
+		{
+			std::array<uint32_t, 2> flags{};
+			size_t calls{ 0 };
+			uint32_t firstError{ ERROR_ACCESS_DENIED };
+			uint32_t secondError{ ERROR_ACCESS_DENIED };
+			bool performSecondMove{ false };
+		};
+
+		bool ProbeSettingsMove(
+			void* a_context,
+			const std::filesystem::path& a_source,
+			const std::filesystem::path& a_destination,
+			uint32_t a_flags,
+			uint32_t& a_nativeError) noexcept
+		{
+			auto& probe = *static_cast<SettingsMoveProbe*>(a_context);
+			const auto index = probe.calls++;
+			if (index < probe.flags.size())
+				probe.flags[index] = a_flags;
+			if (index == 0)
+			{
+				a_nativeError = probe.firstError;
+				return false;
+			}
+			if (probe.performSecondMove)
+			{
+				if (MoveFileExW(
+						a_source.c_str(),
+						a_destination.c_str(),
+						a_flags))
+				{
+					a_nativeError = ERROR_SUCCESS;
+					return true;
+				}
+				a_nativeError = GetLastError();
+				return false;
+			}
+			a_nativeError = probe.secondError;
+			return false;
+		}
+
 		DMUI_Result FakeExternalFileResolver(
 			std::string_view a_virtualFile,
 			std::string& a_physicalFile,
@@ -4454,6 +4496,120 @@ namespace vmm_tests
 					observation.reason.find("Saved accepted settings") !=
 						std::string::npos,
 				"a successful write did not resolve persisted configuration health");
+			std::filesystem::remove_all(root, error);
+		});
+
+		runner.test("settings saves round trip through normal replacement and the error 17 fallback", [] {
+			const auto root =
+				std::filesystem::current_path() /
+				".Build" /
+				"Tests" /
+				"settings-persistence";
+			std::error_code error;
+			std::filesystem::remove_all(root, error);
+			std::filesystem::create_directories(root, error);
+			const auto path = root / "DearModdingUI.toml";
+			std::ofstream(path) << "old settings";
+
+			PersistedHostInterfaceSettings settings;
+			settings.menuToggleKey = "Home";
+			settings.sidebarLayout = "twopane";
+			settings.hotkeys.emplace("example.action", "Ctrl+H");
+			const auto saved = PersistHostInterfaceSettings(path, settings);
+			require(saved.saved && !saved.usedCrossVolumeFallback,
+				"a same-volume settings replacement did not succeed normally");
+			require(!std::filesystem::exists(path.string() + ".tmp"),
+				"a successful settings replacement retained its temporary file");
+
+			const auto loaded = LoadHostInterfaceSettings(path);
+			require(
+				loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
+					loaded.settings == settings,
+				"persisted host settings were not loadable through production parsing");
+
+			settings.menuToggleKey = "Insert";
+			SettingsMoveProbe probe;
+			probe.firstError = ERROR_NOT_SAME_DEVICE;
+			probe.performSecondMove = true;
+			const auto retried = PersistHostInterfaceSettings(
+				path,
+				settings,
+				{ &probe, &ProbeSettingsMove });
+			require(
+				retried.saved &&
+					retried.usedCrossVolumeFallback &&
+					probe.calls == 2 &&
+					(probe.flags[0] & MOVEFILE_COPY_ALLOWED) == 0 &&
+					(probe.flags[1] & MOVEFILE_COPY_ALLOWED) != 0,
+				"ERROR_NOT_SAME_DEVICE did not trigger the scoped copy fallback");
+			require(
+				LoadHostInterfaceSettings(path).settings == settings,
+				"the cross-volume fallback did not install the serialized settings");
+			require(!std::filesystem::exists(path.string() + ".tmp"),
+				"the copy fallback retained its temporary file");
+			std::filesystem::remove_all(root, error);
+		});
+
+		runner.test("failed settings saves preserve the configuration and explain the actual error", [] {
+			const auto root =
+				std::filesystem::current_path() /
+				".Build" /
+				"Tests" /
+				"settings-save-failure";
+			std::error_code error;
+			std::filesystem::remove_all(root, error);
+			std::filesystem::create_directories(root, error);
+			const auto path = root / "DearModdingUI.toml";
+			std::ofstream(path)
+				<< "[Additional]\n"
+				<< "sMenuToggleKey = \"Home\"\n";
+			auto temporary = path;
+			temporary += L".tmp";
+
+			PersistedHostInterfaceSettings settings;
+			settings.menuToggleKey = "Insert";
+			for (const auto firstError : { ERROR_ACCESS_DENIED, ERROR_NOT_SAME_DEVICE })
+			{
+				SettingsMoveProbe probe;
+				probe.firstError = firstError;
+				const auto saved = PersistHostInterfaceSettings(
+					path, settings, { &probe, &ProbeSettingsMove });
+				const auto explanation = DescribeWindowsError(ERROR_ACCESS_DENIED);
+				require(!saved.saved && saved.nativeError == ERROR_ACCESS_DENIED &&
+							probe.calls == (firstError == ERROR_NOT_SAME_DEVICE ? 2 : 1) &&
+							(probe.flags[0] & MOVEFILE_COPY_ALLOWED) == 0 &&
+							!std::filesystem::exists(temporary),
+					"failed replacement used an unrelated fallback or left temporary data");
+				require(explanation != "No system explanation is available" &&
+							saved.detail.find(explanation) != std::string::npos &&
+							saved.detail.find("Windows error 5") != std::string::npos,
+					"replacement failure omitted its readable system explanation");
+				if (firstError == ERROR_NOT_SAME_DEVICE)
+				{
+					require((probe.flags[1] & MOVEFILE_COPY_ALLOWED) != 0 &&
+								saved.detail.find(DescribeWindowsError(ERROR_NOT_SAME_DEVICE)) != std::string::npos,
+						"failed cross-volume retry lost the original error 17 explanation");
+				}
+				const auto loaded = LoadHostInterfaceSettings(path);
+				require(loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
+							loaded.settings.menuToggleKey == "Home",
+					"failed replacement changed the stored toggle key");
+			}
+
+			std::filesystem::create_directory(temporary);
+			const auto saved = PersistHostInterfaceSettings(path, settings);
+			const auto explanation = DescribeWindowsError(saved.nativeError);
+			const auto loaded = LoadHostInterfaceSettings(path);
+			require(
+				!saved.saved &&
+					saved.nativeError != ERROR_SUCCESS &&
+					saved.detail.find("Opening temporary settings file") !=
+						std::string::npos &&
+					explanation != "No system explanation is available" &&
+					saved.detail.find(explanation) != std::string::npos &&
+					loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
+					loaded.settings.menuToggleKey == "Home",
+				"a real temporary open failure changed the current TOML or omitted its system explanation");
 			std::filesystem::remove_all(root, error);
 		});
 

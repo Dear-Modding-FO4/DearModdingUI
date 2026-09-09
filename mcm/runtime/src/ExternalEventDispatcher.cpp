@@ -36,14 +36,14 @@ namespace DearModdingUI::MCM
 					a_handle,
 					RE::BSFixedString{ a_scriptName },
 					RE::BSFixedString{ a_callbackName },
-					[context](
+					[arguments = context->arguments](
 						RE::BSScrapArray<RE::BSScript::Variable>& a_target) {
 						a_target.resize(static_cast<uint32_t>(
-							context->arguments.size()));
+							arguments.size()));
 						for (uint32_t index = 0;
-							 index < context->arguments.size();
+							 index < arguments.size();
 							 ++index)
-							a_target[index] = context->arguments[index];
+							a_target[index] = arguments[index];
 						return true;
 					},
 					callback);

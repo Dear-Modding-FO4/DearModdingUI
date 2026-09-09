@@ -82,11 +82,10 @@ version in the source checkout.
 Host settings are stored in `Data/F4SE/Plugins/DearModdingUI.toml`. Window state and layout are preserved in `Data/F4SE/Plugins/DearModdingUI/imgui.ini`.
 
 ```toml
-[Menu]
+[Additional]
 # Hotkey to toggle the menu (End, Home, Insert, Delete, F1-F12)
 sMenuToggleKey = "End"
 
-[Interface]
 # Sidebar presentation style (tree, twopane, drilldown)
 sMenuSidebarLayout = "tree"
 ```

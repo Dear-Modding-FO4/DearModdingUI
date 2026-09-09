@@ -23,6 +23,7 @@
 #include <RE/B/BSScript_IStackCallbackFunctor.h>
 #include <RE/B/BSScaleformManager.h>
 #include <REX/CONVERT.h>
+#include <REX/FModule.h>
 #include <REX/REX.h>
 
 #include <Windows.h>
@@ -625,6 +626,9 @@ namespace DearModdingUI::MCM
 			REX::INFO(
 				"DearModdingUI-MCM: Papyrus runtime: not ready "
 				"(load a save to change mod settings and properties)"sv);
+			REX::INFO(
+				"DearModdingUI-MCM: Papyrus callable ABI: {}"sv,
+				REX::FModule::IsRuntimeOG() ? "OG (legacy MSVC)" : "NG/AE (modern MSVC)");
 		}
 
 		void DiscoverAndRegister(const TextResolver& a_textResolver) noexcept

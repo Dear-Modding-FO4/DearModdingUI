@@ -8,19 +8,13 @@
 
 #include <REX/REX.h>
 
-#include <Windows.h>
-
-#include <toml.hpp>
-
 #include <atomic>
 #include <exception>
 #include <filesystem>
 #include <format>
-#include <fstream>
 #include <mutex>
 #include <optional>
 #include <string>
-#include <system_error>
 
 namespace DearModdingUI::HostSettings
 {
@@ -224,66 +218,24 @@ namespace DearModdingUI::HostSettings
 		{
 			try
 			{
-				toml::value root{ toml::table{} };
-				root["Additional"] = toml::table{};
-				auto& section = root["Additional"];
-				section["bMenuMonochromeIcons"] = a_settings.monochromeIcons;
-				section["sMenuSidebarLayout"] = a_settings.sidebarLayout;
-				section["sMenuAccentColor"] = a_settings.accentColor;
-				section["fMenuWindowOpacity"] = static_cast<double>(
-					a_settings.windowBackgroundOpacity);
-				section["sMenuPaletteBackgroundColor"] =
-					a_settings.paletteBackgroundColor;
-				section["fMenuPaletteOpacity"] = static_cast<double>(
-					a_settings.paletteBackgroundOpacity);
-				section["bMenuBackgroundBlur"] = a_settings.backgroundBlur;
-				section["fMenuBackgroundBlurStrength"] = static_cast<double>(
-					a_settings.backgroundBlurStrength);
-				section["fMenuUiScale"] = static_cast<double>(a_settings.uiScale);
-				section["sMenuBodyFontFamily"] = a_settings.bodyFontFamily;
-				section["sMenuToggleKey"] = a_settings.menuToggleKey;
-				root["Hotkeys"] = toml::table{};
-				for (const auto& [id, chord] : a_settings.hotkeys)
-					root["Hotkeys"][id] = chord;
-
-				const auto path = ConfigPath();
-				std::filesystem::create_directories(path.parent_path());
-				auto temporary = path;
-				temporary += L".tmp";
+				const auto result = PersistHostInterfaceSettings(
+					ConfigPath(),
+					a_settings);
+				if (!result.saved)
 				{
-					std::ofstream output{
-						temporary,
-						std::ios::binary | std::ios::trunc
-					};
-					if (!output)
-					{
-						a_error = "DearModdingUI.toml could not be opened for writing.";
-						RecordSaveFailure(a_error);
-						return false;
-					}
-					output << toml::format(root);
-					output.flush();
-					if (!output)
-					{
-						a_error = "DearModdingUI.toml could not be written.";
-						RecordSaveFailure(a_error);
-						return false;
-					}
-				}
-
-				if (!MoveFileExW(
-						temporary.c_str(),
-						path.c_str(),
-						MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
-				{
-					const auto error = GetLastError();
-					std::error_code ignored;
-					std::filesystem::remove(temporary, ignored);
-					a_error = std::format(
-						"DearModdingUI.toml could not be replaced (error {}).",
-						error);
+					a_error = result.detail;
 					RecordSaveFailure(a_error);
 					return false;
+				}
+				if (result.usedCrossVolumeFallback)
+				{
+					REX::WARN(
+						"DearModdingUI: {} The fallback is copy-and-delete, not an atomic rename."sv,
+						result.detail);
+				}
+				else if (result.temporaryCleanupFailed)
+				{
+					REX::WARN("DearModdingUI: {}"sv, result.detail);
 				}
 				RecordSaveSuccess();
 				return true;

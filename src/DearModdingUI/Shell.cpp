@@ -45,6 +45,8 @@ namespace DearModdingUI
 	{
 		inline constexpr char kCommandPalettePopupId[] =
 			"Search mods, pages, and actions###DearModdingPalette";
+		inline constexpr char kStatusDetailsPopupId[] =
+			"Status details###DearModdingUIStatusDetails";
 		inline constexpr float kSidebarModFontScale{ 0.8f };
 		inline constexpr size_t kMinimumVisiblePageRows{ 3 };
 
@@ -63,6 +65,7 @@ namespace DearModdingUI
 				previewPresentationOverride;
 			NavigationPresentationState presentation;
 			std::string paletteQuery;
+			std::optional<StatusMessage> statusDetails;
 			size_t paletteSelection{ 0 };
 			SidebarLayoutKind sidebarLayout{ DEFAULT_SIDEBAR_LAYOUT };
 			bool paletteOpenRequested{ false };
@@ -2967,17 +2970,73 @@ namespace DearModdingUI
 			}
 		}
 
-		void DrawFooterStatus(
+		[[nodiscard]] bool DrawFooterStatus(
 			const StatusMessage& a_status,
 			float a_runMaxX) noexcept
 		{
+			const auto hasDetails =
+				a_status.severity == DMUI_STATUS_SEVERITY_ERROR;
 			DrawBulletTextEntry(
 				a_status.attributedText.c_str(),
 				{
 					.color = StatusTextColor(a_status.severity),
 					.ellipsisMaxX = a_runMaxX,
-					.overflowTooltip = true
+					.overflowTooltip = !hasDetails
 				});
+			if (!hasDetails)
+				return false;
+			if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
+			{
+				ImGui::SetTooltip(
+					"%s\n\nClick to view and copy the full error.",
+					a_status.attributedText.c_str());
+			}
+			if (ImGui::IsItemHovered())
+				ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+			return ImGui::IsItemClicked(ImGuiMouseButton_Left);
+		}
+
+		void DrawStatusDetails(ShellState& a_state) noexcept
+		{
+			if (!a_state.statusDetails)
+				return;
+
+			const auto* viewport = ImGui::GetMainViewport();
+			ImGui::SetNextWindowSize(
+				{
+					(std::min)(620.0f * Theme::Scale(), viewport->WorkSize.x * 0.9f),
+					0.0f
+				},
+				ImGuiCond_Appearing);
+			auto open = true;
+			auto closeRequested = false;
+			if (BeginPopupModalWithRoundedTitleBarButtons(
+					kStatusDetailsPopupId,
+					&open,
+					ImGuiWindowFlags_AlwaysAutoResize |
+						ImGuiWindowFlags_NoSavedSettings))
+			{
+				const auto& status = *a_state.statusDetails;
+				ImGui::TextDisabled("Error from %s", status.owner.c_str());
+				ImGui::Spacing();
+				ImGui::PushTextWrapPos(0.0f);
+				ImGui::TextWrapped("%s", status.message.c_str());
+				ImGui::PopTextWrapPos();
+				ImGui::Spacing();
+				ImGui::Separator();
+				ImGui::Spacing();
+				if (ImGui::Button("Copy details"))
+					ImGui::SetClipboardText(status.attributedText.c_str());
+				ImGui::SameLine();
+				if (ImGui::Button("Close"))
+				{
+					ImGui::CloseCurrentPopup();
+					closeRequested = true;
+				}
+				ImGui::EndPopup();
+			}
+			if (!open || closeRequested)
+				a_state.statusDetails.reset();
 		}
 
 		void DrawFooter(
@@ -3053,7 +3112,11 @@ namespace DearModdingUI
 			if (status)
 			{
 				ImGui::SameLine();
-				DrawFooterStatus(*status, controls.runMaxX);
+				if (DrawFooterStatus(*status, controls.runMaxX))
+				{
+					a_state.statusDetails = *status;
+					ImGui::OpenPopup(kStatusDetailsPopupId);
+				}
 			}
 			ImGui::PopClipRect();
 
@@ -3102,6 +3165,7 @@ namespace DearModdingUI
 			}
 			ImGui::SetCursorScreenPos(start);
 			ImGui::Dummy({ contentMaxX - start.x, rowHeight });
+			DrawStatusDetails(a_state);
 		}
 
 		void DrawRuledHeadingRules(
