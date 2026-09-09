@@ -73,9 +73,6 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             xmake package-release -P "$projectRoot"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            .\.Build\Tests\dmui-tests.exe
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
             foreach ($component in @('DearModdingUI','DearModdingUI-MCM')) {
               $zip = [IO.Compression.ZipFile]::OpenRead(
                 (Join-Path $projectRoot ".Build\packages\$component-$env:PRODUCT_VERSION-$variant.zip"))
@@ -103,6 +100,11 @@ jobs:
               throw 'Build wrote through an installation path.'
             }
           }
+      - name: Run runtime tests
+        shell: pwsh
+        run: |
+          .\.Build\Tests\dmui-tests.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check stable UI contract generation
         shell: pwsh
         run: |

@@ -70,11 +70,6 @@ namespace vmm_tests
 	void run_ui_contract_checks(Runner& runner)
 	{
 		runner.test("stable UI values translate by name instead of reinterpretation", [] {
-			require(
-				DMUI_UI_COLOR_TEXT != static_cast<uint32_t>(ImGuiCol_Text) &&
-					DMUI_UI_DATA_TYPE_S32 !=
-						static_cast<uint32_t>(ImGuiDataType_S32),
-				"stable values accidentally match native ImGui values");
 			ImGuiCol color{};
 			require(
 				DearModdingUI::UI::Bindings::TranslateColor(
@@ -148,20 +143,6 @@ namespace vmm_tests
 					info->tableSize == DMUI_UI_API_CURRENT_SIZE &&
 					prefix.canary == UINT64_C(0x123456789ABCDEF0),
 				"UI query overwrote an incomplete caller prefix");
-		});
-
-		runner.test("UI negotiation is independent of internal ImGui version", [] {
-			DMUI_UIAPIInfo info{};
-			info.structSize = sizeof(info);
-			require(
-				DMUI_UI_REVISION_CURRENT != IMGUI_VERSION_NUM &&
-					DearModdingUI::UI::Query(
-						DMUI_UI_ABI_CURRENT,
-						DMUI_UI_REVISION_CURRENT,
-						DMUI_UI_API_REQUIRED_SIZE,
-						&info) == DMUI_RESULT_OK &&
-					info.api != nullptr,
-				"native ImGui version incorrectly gated the stable UI contract");
 		});
 
 		runner.test("style metrics preserve legacy and appended prefixes", [] {

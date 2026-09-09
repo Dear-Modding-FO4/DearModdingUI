@@ -68,6 +68,12 @@ xmake build -P "$projectRoot" -y dmui-tests
 .\.Build\Tests\dmui-tests.exe
 ```
 
+Prefer behavior exercised through production code over snapshots of release
+versions, visual defaults, fixture data, or source text. Preserve ABI contracts,
+ownership, state transitions, failure paths, and real I/O boundaries. Consolidate
+overlapping setup without dropping distinct failure cases, and name tests for the
+path they actually exercise rather than implying host integration through a fake.
+
 ## Standalone preview
 
 The standalone preview runs the UI renderer in a desktop window with synthetic data, allowing you to iterate on UI components without launching Fallout 4:

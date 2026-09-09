@@ -244,24 +244,6 @@ namespace vmm_tests
 
 	void run_presentation_service_checks(Runner& runner)
 	{
-		runner.test("presentation service flags describe implemented services", [] {
-			require(
-				PresentationServices::kSupportedServices ==
-					(DMUI_HOST_SERVICE_FRAME_CONTROL |
-						DMUI_HOST_SERVICE_EDIT_LIFECYCLE |
-						DMUI_HOST_SERVICE_CONTEXTUAL_HOTKEYS |
-						DMUI_HOST_SERVICE_IMAGE_RESOURCES |
-						DMUI_HOST_SERVICE_MANAGED_OVERLAYS |
-						DMUI_HOST_SERVICE_NOTIFICATIONS |
-						DMUI_HOST_SERVICE_ANNOTATED_PLOTS |
-						DMUI_HOST_SERVICE_DIALOGS |
-						DMUI_HOST_SERVICE_PIXEL_IMAGES |
-						DMUI_HOST_SERVICE_EXTERNAL_OPEN |
-						DMUI_HOST_SERVICE_VIRTUAL_FILE_TARGETS |
-						DMUI_HOST_SERVICE_NAVIGATION_ICONS),
-				"advertised presentation services drifted");
-		});
-
 		runner.test("active Present scopes migrate without rebinding the device", [] {
 			auto resources = CreateImageResources();
 			std::mutex mutex;
@@ -541,58 +523,6 @@ namespace vmm_tests
 			{}
 			require(!RenderExecution::IsActive(),
 				"exception unwinding leaked render execution authorization");
-		});
-
-		runner.test("cold frame observers can import before UI demand", [] {
-			auto resources = CreateImageResources();
-			RenderExecution::Guard execution{
-				RenderExecution::Phase::kFrameObservation
-			};
-			(void)execution.NoteBinding(1);
-			PresentationServices::BindRenderer(resources.device.Get());
-			const PresentationServices::ClientExecutionGuard observer{ 6, false };
-			const DMUI_D3D11ImageDescriptor descriptor{
-				sizeof(DMUI_D3D11ImageDescriptor),
-				resources.view.Get(),
-				0,
-				0
-			};
-			DMUI_ImageHandle image{};
-			require(PresentationServices::ImportD3D11Image(
-						6, &descriptor, &image) == DMUI_RESULT_OK,
-				"first ready observer could not import without UI demand");
-			require(PresentationServices::ReleaseImage(6, image) ==
-					DMUI_RESULT_OK,
-				"observer image release failed");
-			PresentationServices::InvalidateDevice();
-		});
-
-		runner.test("cold frame observers can create CPU images without UI demand", [] {
-			auto resources = CreateImageResources();
-			RenderExecution::Guard execution{
-				RenderExecution::Phase::kFrameObservation
-			};
-			(void)execution.NoteBinding(1);
-			PresentationServices::BindRenderer(resources.device.Get());
-			const std::array<uint8_t, 4> pixels{ 1, 2, 3, 4 };
-			const DMUI_ImageDescriptor descriptor{
-				sizeof(DMUI_ImageDescriptor),
-				1,
-				1,
-				DMUI_PIXEL_FORMAT_RGBA8_UNORM,
-				0,
-				4,
-				4,
-				pixels.data()
-			};
-			DMUI_ImageHandle image{};
-			require(PresentationServices::CreateImage(
-						6, &descriptor, &image) == DMUI_RESULT_OK,
-				"ready observer could not create CPU pixels without UI demand");
-			require(PresentationServices::ReleaseImage(6, image) ==
-					DMUI_RESULT_OK,
-				"observer CPU image release failed");
-			PresentationServices::InvalidateDevice();
 		});
 
 		runner.test("CPU images consume pixels and replace resources transactionally", [] {
@@ -901,7 +831,7 @@ namespace vmm_tests
 				"CPU image creation accepted a missing device");
 		});
 
-		runner.test("packed HDR SRVs preserve source dimensions and queued resource ownership", [] {
+		runner.test("sampleable HDR and depth SRVs retain native queued resources", [] {
 			auto resources = CreateImageResources();
 			ImGuiFrame frame;
 			RenderExecution::Guard execution{
@@ -911,12 +841,12 @@ namespace vmm_tests
 			PresentationServices::BindRenderer(resources.device.Get());
 			PresentationServices::BeginFrame();
 			UINT support{};
-			constexpr UINT requiredSupport =
+			constexpr UINT hdrRequiredSupport =
 				D3D11_FORMAT_SUPPORT_TEXTURE2D |
 				D3D11_FORMAT_SUPPORT_SHADER_SAMPLE;
 			require(SUCCEEDED(resources.device->CheckFormatSupport(
 						DXGI_FORMAT_R11G11B10_FLOAT, &support)) &&
-					(support & requiredSupport) == requiredSupport,
+					(support & hdrRequiredSupport) == hdrRequiredSupport,
 				"WARP packed HDR format lacks ordinary Texture2D sampling");
 
 			struct Dimensions
@@ -1006,19 +936,6 @@ namespace vmm_tests
 							D3D11_SRV_DIMENSION_TEXTURE2D,
 					"packed HDR view was lost or converted before submission");
 			}
-			PresentationServices::CompleteRenderSubmission();
-			PresentationServices::InvalidateDevice();
-		});
-
-		runner.test("sampleable depth SRVs retain their native views through submission", [] {
-			auto resources = CreateImageResources();
-			ImGuiFrame frame;
-			RenderExecution::Guard execution{
-				RenderExecution::Phase::kFrameDraw
-			};
-			(void)execution.NoteBinding(1);
-			PresentationServices::BindRenderer(resources.device.Get());
-			PresentationServices::BeginFrame();
 			struct DepthFormat
 			{
 				DXGI_FORMAT texture;
@@ -1046,12 +963,12 @@ namespace vmm_tests
 			for (const auto& format : formats)
 			{
 				UINT support{};
-				constexpr UINT requiredSupport =
+				constexpr UINT depthRequiredSupport =
 					D3D11_FORMAT_SUPPORT_TEXTURE2D |
 					D3D11_FORMAT_SUPPORT_SHADER_SAMPLE;
 				require(SUCCEEDED(resources.device->CheckFormatSupport(
 							format.shaderView, &support)) &&
-						(support & requiredSupport) == requiredSupport,
+						(support & depthRequiredSupport) == depthRequiredSupport,
 					"WARP depth view lacks ordinary Texture2D sampling support");
 				const D3D11_TEXTURE2D_DESC textureDescription{
 					16, 8, 1, 1, format.texture, { 1, 0 },

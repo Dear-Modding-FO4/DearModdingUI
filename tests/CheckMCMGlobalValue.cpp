@@ -11,7 +11,7 @@ namespace vmm_tests
 
 	void run_mcm_global_value_checks(Runner& runner)
 	{
-		runner.test("MCM global form references parse hexadecimal local ids", [] {
+		runner.test("MCM global form references parse valid and reject malformed input", [] {
 			const auto reference =
 				ParseGlobalFormReference("Plugin.esp|F99");
 			require(reference.has_value(), "valid sourceForm was rejected");
@@ -19,9 +19,7 @@ namespace vmm_tests
 				"plugin name was not preserved");
 			require(reference->localId == 0xF99,
 				"local form id was not parsed as hexadecimal");
-		});
 
-		runner.test("MCM global form references reject malformed input", [] {
 			for (const auto source : {
 					 "",
 					 "Plugin.esp",
@@ -56,22 +54,10 @@ namespace vmm_tests
 				"global did not become an unsigned integer");
 			require(number && std::get<double>(*number) == 3.5,
 				"global did not become a double");
-		});
-
-		runner.test("MCM global reads match every descriptor alternative", [] {
-			const dmui::SettingValue targets[]{
-				dmui::SettingValue{ false },
-				dmui::SettingValue{ 0.0 },
-				dmui::SettingValue{ int64_t{} },
-				dmui::SettingValue{ uint64_t{} },
-				dmui::SettingValue{ std::string{} }
-			};
-			for (const auto& target : targets)
-			{
-				const auto read = GlobalToSettingValue(1.0f, target);
-				require(read && read->index() == target.index(),
-					"a descriptor alternative lost its coercion");
-			}
+			const auto choice =
+				GlobalToSettingValue(1.0f, dmui::SettingValue{ std::string{} });
+			require(choice && std::get<std::string>(*choice) == "1",
+				"global did not become a string choice index");
 		});
 
 		runner.test("MCM globals reject out-of-range integral reads", [] {

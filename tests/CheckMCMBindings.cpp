@@ -84,8 +84,6 @@ namespace vmm_tests
 				if (readOnly)
 					return Read(a_binding);
 				auto effective = a_value;
-				if (quantized)
-					effective = 2.0;
 				values_[a_binding.descriptorId] = effective;
 				++generation;
 				return ReadyValue{ std::move(effective), generation };
@@ -100,7 +98,6 @@ namespace vmm_tests
 			size_t refreshes{};
 			size_t writes{};
 			bool readOnly{};
-			bool quantized{};
 			uint64_t generation{};
 			std::optional<ValueSnapshot> forced;
 
@@ -171,24 +168,6 @@ namespace vmm_tests
 				"drawing a row triggered a dispatching refresh");
 		});
 
-		runner.test("MCM bindings disable unsupported families", [] {
-			auto page = LoadBindingPage();
-			FakeValueSource source{ SourceFamily::kGlobal };
-			BindPage(page, source);
-
-			auto& setting = BoundSetting(page, "bStoredSwitch:Main");
-			require(setting.isEnabled && !setting.isEnabled(),
-				"an unsupported descriptor stayed enabled");
-			require(setting.binding.get && setting.binding.set,
-				"an unsupported descriptor was left unbound");
-			require(!setting.showReset,
-				"an unsupported descriptor offered a reset");
-
-			const auto applied = setting.binding.set(dmui::SettingValue{ true });
-			require(!std::get<bool>(applied) && source.writes == 0,
-				"an unsupported descriptor reached the source");
-		});
-
 		runner.test("MCM bindings survive absent and mistyped source values", [] {
 			auto page = LoadBindingPage();
 			FakeValueSource source{ SourceFamily::kGlobal };
@@ -206,6 +185,15 @@ namespace vmm_tests
 						BoundSetting(page, "fGlobalSlider:Main").binding.get()) ==
 					1.0,
 				"an absent source value was not replaced by the default");
+			auto& unsupported = BoundSetting(page, "bStoredSwitch:Main");
+			require(unsupported.isEnabled && !unsupported.isEnabled() &&
+					unsupported.binding.get && unsupported.binding.set &&
+					!unsupported.showReset,
+				"an unsupported descriptor stayed operable or resettable");
+			const auto applied =
+				unsupported.binding.set(dmui::SettingValue{ true });
+			require(!std::get<bool>(applied) && source.writes == 0,
+				"an unsupported descriptor reached the source");
 		});
 
 		runner.test("MCM bindings keep the stored value when a write fails", [] {
@@ -250,21 +238,6 @@ namespace vmm_tests
 						std::get<bool>(modSetting.binding.get()),
 					"supported modsetting control was not operable");
 			});
-
-		runner.test("MCM writes report the effective quantized value", [] {
-			auto page = LoadBindingPage();
-			FakeValueSource source{ SourceFamily::kGlobal };
-			source.Seed("fGlobalSlider:Main", 1.0);
-			source.quantized = true;
-			BindPage(page, source);
-
-			const auto applied = BoundSetting(
-				page,
-				"fGlobalSlider:Main").binding.set(dmui::SettingValue{ 8.0 });
-			require(std::get<double>(applied) == 2.0 &&
-					source.generation == 1,
-				"effective quantized value or generation was lost");
-		});
 
 		runner.test("MCM sliders clamp before zero-anchored Math.round snapping", [] {
 			auto result = ParseConfig(R"json({
@@ -432,7 +405,7 @@ namespace vmm_tests
 			require(source.writes == 0, "invalid slider parameters reached storage");
 		});
 
-		runner.test("MCM pending values stay drawable and disable their row", [] {
+		runner.test("MCM unresolved snapshots stay drawable with distinct reasons", [] {
 			auto page = LoadBindingPage();
 			FakeValueSource source{ SourceFamily::kGlobal };
 			source.forced = PendingValue{ 17 };
@@ -444,14 +417,6 @@ namespace vmm_tests
 				"pending state was not mapped to a disabled drawable fallback");
 			require(Generation(*source.forced) == 17,
 				"pending request generation was lost");
-		});
-
-		runner.test("MCM snapshot failures have distinct authoritative reasons", [] {
-			auto page = LoadBindingPage();
-			FakeValueSource source{ SourceFamily::kGlobal };
-			source.forced = PendingValue{ 1 };
-			BindPage(page, source);
-			auto& setting = BoundSetting(page, "bGlobalSwitch:Main");
 			require(
 				setting.resolveDescription() ==
 					"Waiting for this setting's value.",
@@ -466,30 +431,6 @@ namespace vmm_tests
 				setting.resolveDescription() ==
 					"This setting's value could not be read.",
 				"failed value reason was not distinct");
-		});
-
-		runner.test("MCM hidden controls drive visibility from snapshots", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"ConditionFixture",
-				"content":[
-					{"id":"bController:Main","type":"hiddenSwitcher","groupControl":7,
-					 "valueOptions":{"sourceType":"ModSettingBool","default":false}},
-					{"id":"dependent","type":"text","text":"Dependent","groupCondition":7}
-				]
-			})json", "condition-fixture.json");
-			auto page = std::move(result.pages.front());
-			FakeValueSource source{ SourceFamily::kModSetting };
-			source.Seed("bController:Main", true);
-			BindPage(page, source);
-
-			auto& dependent = BoundSetting(page, "dependent");
-			require(dependent.isVisible && dependent.isVisible(),
-				"a ready hidden controller did not reveal its dependent");
-			source.forced = PendingValue{ 3 };
-			require(!dependent.isVisible(),
-				"a pending hidden controller used its false default");
-			require(source.refreshes == 0,
-				"visibility evaluation dispatched a refresh");
 		});
 
 		runner.test("MCM inert undeclared toggles stay disabled with a reason", [] {

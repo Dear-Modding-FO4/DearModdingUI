@@ -157,96 +157,8 @@ namespace vmm_tests
 
 	void run_mcm_availability_checks(Runner& runner)
 	{
-		runner.test("MCM mod-setting state matrix has exact operability reasons", [] {
-			constexpr std::array cases{
-				std::tuple{ McmState{ false, false },
-					false,
-					InertReason::kMcmNotInstalled },
-				std::tuple{ McmState{ false, true },
-					false,
-					InertReason::kMcmNotInstalled },
-				std::tuple{ McmState{ true, false },
-					false,
-					InertReason::kRuntimeNotReady },
-				std::tuple{
-					McmState{ true, true },
-					true,
-					InertReason::kNone
-				}
-			};
-			for (const auto& [state, expected, reason] : cases)
-			{
-				require(
-					IsControlOperable(state, SourceFamily::kModSetting) == expected &&
-						ResolveControlInertReason(
-							state,
-							SourceFamily::kModSetting) == reason &&
-						Describe(reason).text ==
-							(expected ?
-								 std::string_view{} :
-								 reason == InertReason::kMcmNotInstalled ?
-									 "Mod Configuration Menu is not installed." :
-									 "Load a save to change these settings."),
-					"mod-setting installation/readiness state was conflated");
-			}
-		});
-
-		runner.test("MCM local rows stay interactive in every runtime state", [] {
-			auto page = LocalStatePage();
+		runner.test("MCM production composition gates every value route", [] {
 			ReadySource source;
-			auto state = McmState{};
-			BindPage(page, source, [&state] { return state; });
-			auto& descriptor = Descriptor(page);
-			for (const auto installed : { false, true })
-			{
-				for (const auto ready : { false, true })
-				{
-					state = { installed, ready };
-					require(
-						IsControlOperable(
-							state,
-							SourceFamily::kModSetting,
-							ValueRoute::kLocalUiState) &&
-							descriptor.isEnabled &&
-							descriptor.isEnabled() &&
-							descriptor.resolveDescription().empty(),
-						"local UI state depended on MCM or Papyrus");
-				}
-			}
-		});
-
-		runner.test("MCM global rows stay operable without a loaded game", [] {
-			auto page = StatePage("GlobalValue");
-			ReadySource source;
-			BindPage(page, source, [] { return McmState{ false, false }; });
-			require(
-				IsControlOperable({ false, false }, SourceFamily::kGlobal) &&
-					IsControlOperable({ true, false }, SourceFamily::kGlobal) &&
-					Descriptor(page).isEnabled &&
-					Descriptor(page).isEnabled(),
-				"global access regressed to require MCM or a loaded game");
-		});
-
-		runner.test("MCM property rows require a loaded game", [] {
-			require(
-				!IsControlOperable({ false, false }, SourceFamily::kProperty) &&
-					!IsControlOperable({ true, false }, SourceFamily::kProperty) &&
-					IsControlOperable({ false, true }, SourceFamily::kProperty) &&
-					Describe(ResolveControlInertReason(
-							{ true, false },
-							SourceFamily::kProperty))
-							.text ==
-						"Load a save to change these settings.",
-				"property dispatch did not track Papyrus readiness");
-		});
-
-		runner.test("MCM production composition keeps reason and enablement aligned", [] {
-			auto page = StatePage();
-			ReadySource source;
-			auto state = McmState{ true, false };
-			BindPage(page, source, [&state] { return state; });
-			auto& descriptor = Descriptor(page);
-
 			constexpr std::array cases{
 				std::tuple{ McmState{ false, false },
 					false,
@@ -273,9 +185,12 @@ namespace vmm_tests
 			};
 			for (const auto& [next, enabled, reason, note] : cases)
 			{
-				state = next;
+				auto page = StatePage();
+				auto state = next;
+				BindPage(page, source, [&state] { return state; });
 				page.settings.prepareView(page.settings);
 				const auto inert = page.rows.front().resolveInertState();
+				auto& descriptor = Descriptor(page);
 				require(
 					descriptor.isEnabled &&
 						descriptor.isEnabled() == enabled &&
@@ -284,6 +199,52 @@ namespace vmm_tests
 						descriptor.resolveDescription().empty() &&
 						EnvironmentNote(page) == note,
 					"production composition drifted from its authoritative reason");
+			}
+
+			for (const auto state : {
+					 McmState{ false, false },
+					 McmState{ true, false },
+					 McmState{ false, true },
+					 McmState{ true, true } })
+			{
+				auto global = StatePage("GlobalValue");
+				BindPage(global, source, [state] { return state; });
+				global.settings.prepareView(global.settings);
+				require(Descriptor(global).isEnabled &&
+						Descriptor(global).isEnabled() &&
+						global.rows.front().resolveInertState().governingReason ==
+							InertReason::kNone,
+					"global composition depended on MCM or Papyrus readiness");
+
+				auto local = LocalStatePage();
+				BindPage(local, source, [state] { return state; });
+				local.settings.prepareView(local.settings);
+				require(Descriptor(local).isEnabled &&
+						Descriptor(local).isEnabled() &&
+						local.rows.front().resolveInertState().governingReason ==
+							InertReason::kNone &&
+						Descriptor(local).resolveDescription().empty(),
+					"local UI composition depended on MCM or Papyrus readiness");
+			}
+
+			for (const auto state : {
+					 McmState{ false, false },
+					 McmState{ true, false },
+					 McmState{ false, true } })
+			{
+				auto property = StatePage("PropertyValueBool");
+				BindPage(property, source, [state] { return state; });
+				property.settings.prepareView(property.settings);
+				const auto expected = state.runtimeReady;
+				require(Descriptor(property).isEnabled &&
+						Descriptor(property).isEnabled() == expected &&
+						property.rows.front()
+								.resolveInertState()
+								.governingReason ==
+							(expected ?
+								 InertReason::kNone :
+								 InertReason::kRuntimeNotReady),
+					"property composition did not track Papyrus readiness");
 			}
 		});
 

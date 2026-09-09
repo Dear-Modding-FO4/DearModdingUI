@@ -94,10 +94,7 @@ namespace vmm_tests
 			observation.timingInitialized = false;
 			require(!ContextGatePassed(observation),
 				"uninitialized timing passed the context gate");
-		});
-
-		runner.test("Scaleform context failure reports only missing capabilities", [] {
-			auto observation = CompleteContext();
+			observation = CompleteContext();
 			observation.setBackgroundVisible = Fact::kMissing;
 			observation.mcmVersionMethod = Fact::kMissing;
 			observation.mcmVersionCall = CallFact::kMethodMissing;
@@ -112,7 +109,7 @@ namespace vmm_tests
 				"failure explanation disagreed with the calibrated context gate");
 		});
 
-		runner.test("Scaleform spike rejects a duplicate start", [] {
+		runner.test("Scaleform spike no-resource lifecycle rejects duplicate start and settles timeout", [] {
 			RunState state;
 			const auto first = state.RequestStart();
 			const auto duplicate = state.RequestStart();
@@ -121,6 +118,14 @@ namespace vmm_tests
 			require(
 				duplicate.generation == first.generation,
 				"duplicate start should not advance the generation");
+			require(state.BeginLoad(first.generation), "load should begin");
+			require(
+				state.BeginTerminal(first.generation, Terminal::kTimedOut),
+				"timeout should be accepted");
+			require(
+				state.CurrentPhase() == Phase::kTimedOut,
+				"timeout should be terminal when nothing is retained");
+			require(!state.NeedsOwnerTick(), "terminal timeout should not tick");
 		});
 
 		runner.test("Scaleform spike cancellation invalidates queued work", [] {
@@ -139,19 +144,6 @@ namespace vmm_tests
 			require(
 				state.CurrentPhase() == Phase::kReleasing,
 				"cancelling a retained resource should begin teardown");
-		});
-
-		runner.test("Scaleform spike timeout is terminal without a resource", [] {
-			RunState state;
-			const auto start = state.RequestStart();
-			require(state.BeginLoad(start.generation), "load should begin");
-			require(
-				state.BeginTerminal(start.generation, Terminal::kTimedOut),
-				"timeout should be accepted");
-			require(
-				state.CurrentPhase() == Phase::kTimedOut,
-				"timeout should be terminal when nothing is retained");
-			require(!state.NeedsOwnerTick(), "terminal timeout should not tick");
 		});
 
 		runner.test("Scaleform spike release cannot complete prematurely", [] {

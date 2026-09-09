@@ -1,7 +1,6 @@
 #include <DearModdingUI/Hotkeys.h>
 #include <DearModdingUI/RenderExecution.h>
 #include "Harness.h"
-#include <TestHotkeyDescriptors.h>
 
 #include <algorithm>
 #include <map>
@@ -79,63 +78,7 @@ namespace vmm_tests
 
 	void run_hotkey_checks(Runner& runner)
 	{
-		runner.test("DMUI test hotkeys register with exact defaults", [] {
-			using DmuiTests::kHotkeyDescriptors;
-
-			constexpr std::array expectedPolicies{
-				DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED,
-				DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED,
-				DMUI_HOTKEY_CONTEXT_HOST_INPUT_INACTIVE,
-				DMUI_HOTKEY_CONTEXT_ALWAYS,
-				DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED,
-				DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED
-			};
-			constexpr std::array expectedChords{
-				"Ctrl+Shift+F10",
-				"Ctrl+Shift+F11",
-				"none",
-				"none",
-				"none",
-				"none"
-			};
-
-			HotkeyRegistry registry;
-			CallbackState state;
-			for (size_t index = 0; index < kHotkeyDescriptors.size(); ++index)
-			{
-				const auto& test = kHotkeyDescriptors[index];
-				require(
-					test.policy == expectedPolicies[index],
-					std::string{ test.id } + " policy changed");
-				const DMUI_HotkeyActionDescriptor descriptor{
-					sizeof(DMUI_HotkeyActionDescriptor),
-					test.id,
-					test.name,
-					test.suggested,
-					&HotkeyCallback,
-					&state,
-					test.policy,
-					0
-				};
-				DMUI_HotkeyActionHandle handle{};
-				require(
-					registry.Register(1, &descriptor, &handle) == DMUI_RESULT_OK,
-					std::string{ test.id } + " failed registry validation");
-
-				const auto binding = Query(registry, 1, handle);
-				const auto expectedState = index < 2 ?
-					DMUI_HOTKEY_BINDING_BOUND :
-					DMUI_HOTKEY_BINDING_UNBOUND_NEVER_SET;
-				require(
-					binding.state == expectedState,
-					std::string{ test.id } + " default state changed");
-				require(
-					std::string{ binding.chord } == expectedChords[index],
-					std::string{ test.id } + " effective chord changed");
-			}
-		});
-
-		runner.test("hotkey action ids require a namespace and valid segments", [] {
+		runner.test("hotkey registration validates ids, chords, and global identity", [] {
 			require(ValidHotkeyActionId("Addictol.Telemetry.ToggleOverlay"),
 				"a valid namespaced id was rejected");
 			require(!ValidHotkeyActionId("ToggleOverlay"), "an unnamespaced id was accepted");
@@ -153,6 +96,13 @@ namespace vmm_tests
 			require(registry.Register(1, &unknown, &handle) ==
 					DMUI_RESULT_UNKNOWN_CHORD,
 				"registration did not report an unknown chord");
+			auto valid = Descriptor("Example.Toggle", "F10", state);
+			require(registry.Register(1, &valid, &handle) == DMUI_RESULT_OK,
+				"valid hotkey registration failed");
+			auto duplicate = Descriptor("Example.Toggle", "F11", state);
+			require(registry.Register(2, &duplicate, &handle) ==
+					DMUI_RESULT_DUPLICATE_ACTION_ID,
+				"a cross-client duplicate was accepted");
 		});
 
 		runner.test("hotkey chord strings round trip including none", [] {
@@ -262,19 +212,12 @@ namespace vmm_tests
 				"never-set state was not reported");
 		});
 
-		runner.test("duplicate hotkey action ids are rejected globally", [] {
+		runner.test("default conflicts reassign when the winning action unregisters", [] {
 			HotkeyRegistry registry;
-			CallbackState state;
-			(void)Register(registry, 1, "Example.Toggle", "F10", state);
-			auto duplicate = Descriptor("Example.Toggle", "F11", state);
-			DMUI_HotkeyActionHandle handle{};
-			require(registry.Register(2, &duplicate, &handle) ==
-					DMUI_RESULT_DUPLICATE_ACTION_ID,
-				"a cross-client duplicate was accepted");
-		});
-
-		runner.test("taken defaults produce a distinct unbound state", [] {
-			HotkeyRegistry registry;
+			RenderExecution::Guard execution{
+				RenderExecution::Phase::kFrameObservation
+			};
+			(void)execution.NoteBinding(1);
 			CallbackState state;
 			const auto later = Register(registry, 1, "Zulu.Toggle", "F10", state);
 			const auto earlier = Register(registry, 2, "Alpha.Toggle", "F10", state);
@@ -283,23 +226,53 @@ namespace vmm_tests
 			require(Query(registry, 1, later).state ==
 					DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT,
 				"the taken default was not distinguished");
+			require(registry.Unregister(2, earlier) == DMUI_RESULT_OK,
+				"winning hotkey unregister failed");
+			require(Query(registry, 1, later).state == DMUI_HOTKEY_BINDING_BOUND,
+				"the freed chord was not reassigned");
 		});
 
-		runner.test("orphaned hotkey overrides are retained and surfaced", [] {
+		runner.test("persisted overrides survive orphaning and re-registration", [] {
 			HotkeyRegistry registry;
 			registry.InitializeOverrides({
 				{ "RemovedMod.Toggle", "Shift+F11" }
 			});
+			RenderExecution::Guard execution{
+				RenderExecution::Phase::kFrameObservation
+			};
+			(void)execution.NoteBinding(1);
 			CallbackState state;
-			(void)Register(registry, 1, "PresentMod.Toggle", "F10", state);
+			auto action = Register(registry, 1, "Example.Toggle", "F10", state);
+			require(registry.SetOverride("Example.Toggle", "Ctrl+F11") ==
+					DMUI_RESULT_OK,
+				"override setup failed");
+			require(registry.Unregister(1, action) == DMUI_RESULT_OK,
+				"hotkey unregister failed");
 			const auto snapshot = registry.Snapshot();
-			const auto orphan = std::ranges::find(
+			const auto removed = std::ranges::find(
 				snapshot, std::string{ "RemovedMod.Toggle" }, &HotkeyActionSnapshot::id);
-			require(orphan != snapshot.end(), "the orphaned override was dropped");
-			require(!orphan->registered, "the orphan was shown as registered");
-			require(orphan->overrideChord == "Shift+F11", "the orphan chord changed");
-			require(registry.Overrides().contains("RemovedMod.Toggle"),
-				"the orphan was not retained for persistence");
+			const auto orphanedAction = std::ranges::find(
+				snapshot, std::string{ "Example.Toggle" }, &HotkeyActionSnapshot::id);
+			require(removed != snapshot.end() && !removed->registered &&
+					removed->overrideChord == "Shift+F11",
+				"pre-existing orphaned override was dropped or changed");
+			require(orphanedAction != snapshot.end() &&
+					!orphanedAction->registered &&
+					orphanedAction->overrideChord == "Ctrl+F11",
+				"unregistered action was not retained as an orphan");
+			require(std::ranges::count(
+					snapshot, std::string{ "Example.Toggle" }, &HotkeyActionSnapshot::id) == 1,
+				"the tombstone duplicated the orphan row");
+			require(registry.Overrides().contains("RemovedMod.Toggle") &&
+					registry.Overrides().contains("Example.Toggle"),
+				"orphaned overrides were not retained for persistence");
+			const auto stale = action;
+			action = Register(registry, 1, "Example.Toggle", "F10", state);
+			const auto binding = Query(registry, 1, action);
+			require(action > stale &&
+					binding.state == DMUI_HOTKEY_BINDING_BOUND &&
+					std::string{ binding.chord } == "Ctrl+F11",
+				"re-registration reused a handle or lost its persisted override");
 		});
 
 		runner.test("hotkey callbacks defer both edges to dispatch", [] {
@@ -323,34 +296,7 @@ namespace vmm_tests
 				"same-frame edges were collapsed, repeated, or reordered");
 		});
 
-		runner.test("unregister stops hotkey dispatch", [] {
-			HotkeyRegistry registry;
-			RenderExecution::Guard execution{
-				RenderExecution::Phase::kFrameObservation
-			};
-			(void)execution.NoteBinding(1);
-			CallbackState state;
-			const auto action = Register(registry, 1, "Example.Toggle", "F10", state);
-			require(registry.Unregister(1, action) == DMUI_RESULT_OK,
-				"hotkey unregister failed");
-			require(registry.HandleKey(0x79, 0, true, false) ==
-					HotkeyMessageResult::kPassThrough,
-				"an unregistered press was swallowed");
-			require(registry.HandleKey(0x79, 0, false, false) ==
-					HotkeyMessageResult::kPassThrough,
-				"an unregistered release was swallowed");
-			registry.DispatchQueued();
-			require(state.edgeCount == 0, "an unregistered action dispatched");
-			DMUI_HotkeyBindingInfo stale{};
-			stale.structSize = sizeof(stale);
-			require(registry.Query(1, action, &stale) == DMUI_RESULT_ACTION_NOT_FOUND,
-				"a stale handle resolved after unregister");
-			const auto replacement = Register(
-				registry, 1, "Example.Toggle", "F10", state);
-			require(replacement > action, "an unregistered handle was reused");
-		});
-
-		runner.test("unregister rejects another client action", [] {
+		runner.test("unregister enforces client ownership and render execution", [] {
 			HotkeyRegistry registry;
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameObservation
@@ -362,16 +308,6 @@ namespace vmm_tests
 				"another client unregistered the action");
 			require(Query(registry, 1, action).state == DMUI_HOTKEY_BINDING_BOUND,
 				"rejected unregister removed the action");
-		});
-
-		runner.test("unregister rejects a non-render thread", [] {
-			HotkeyRegistry registry;
-			RenderExecution::Guard execution{
-				RenderExecution::Phase::kFrameObservation
-			};
-			(void)execution.NoteBinding(1);
-			CallbackState state;
-			const auto action = Register(registry, 1, "Example.Toggle", "F10", state);
 			DMUI_Result result{ DMUI_RESULT_OK };
 			std::thread worker{ [&] {
 				result = registry.Unregister(1, action);
@@ -403,51 +339,14 @@ namespace vmm_tests
 				"the canceled pair release was not swallowed");
 			registry.DispatchQueued();
 			require(state.edgeCount == 0, "a dead action release was dispatched");
-		});
-
-		runner.test("persisted override survives hotkey re-registration", [] {
-			HotkeyRegistry registry;
-			RenderExecution::Guard execution{
-				RenderExecution::Phase::kFrameObservation
-			};
-			(void)execution.NoteBinding(1);
-			CallbackState state;
-			auto action = Register(registry, 1, "Example.Toggle", "F10", state);
-			require(registry.SetOverride("Example.Toggle", "Shift+F11") == DMUI_RESULT_OK,
-				"override setup failed");
-			require(registry.Unregister(1, action) == DMUI_RESULT_OK,
-				"hotkey unregister failed");
-			const auto snapshot = registry.Snapshot();
-			const auto orphan = std::ranges::find(
-				snapshot, std::string{ "Example.Toggle" }, &HotkeyActionSnapshot::id);
-			require(orphan != snapshot.end() && !orphan->registered,
-				"the override was not retained as an orphan");
-			require(std::ranges::count(
-					snapshot, std::string{ "Example.Toggle" }, &HotkeyActionSnapshot::id) == 1,
-				"the tombstone duplicated the orphan row");
-			action = Register(registry, 1, "Example.Toggle", "F10", state);
-			const auto binding = Query(registry, 1, action);
-			require(binding.state == DMUI_HOTKEY_BINDING_BOUND &&
-					std::string{ binding.chord } == "Shift+F11",
-				"the retained override was not reapplied");
-		});
-
-		runner.test("unregister frees a conflicted chord", [] {
-			HotkeyRegistry registry;
-			RenderExecution::Guard execution{
-				RenderExecution::Phase::kFrameObservation
-			};
-			(void)execution.NoteBinding(1);
-			CallbackState state;
-			const auto winner = Register(registry, 1, "Alpha.Toggle", "F10", state);
-			const auto conflicted = Register(registry, 2, "Zulu.Toggle", "F10", state);
-			require(Query(registry, 2, conflicted).state ==
-					DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT,
-				"the setup action was not conflicted");
-			require(registry.Unregister(1, winner) == DMUI_RESULT_OK,
-				"hotkey unregister failed");
-			require(Query(registry, 2, conflicted).state == DMUI_HOTKEY_BINDING_BOUND,
-				"the freed chord was not reassigned");
+			DMUI_HotkeyBindingInfo stale{};
+			stale.structSize = sizeof(stale);
+			require(registry.Query(1, action, &stale) ==
+					DMUI_RESULT_ACTION_NOT_FOUND,
+				"a stale handle resolved after unregister");
+			require(registry.HandleKey(0x79, 0, true, false) ==
+					HotkeyMessageResult::kPassThrough,
+				"an unregistered action consumed a new press");
 		});
 
 		runner.test("unbound hotkey chords pass through untouched", [] {

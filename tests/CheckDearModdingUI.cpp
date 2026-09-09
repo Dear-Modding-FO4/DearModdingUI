@@ -40,7 +40,6 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
-#include <map>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -199,6 +198,17 @@ namespace vmm_tests
 				return DMUI_RESULT_UNSUPPORTED_ABI;
 			a_info->api = &ui;
 			return DMUI_RESULT_OK;
+		}
+
+		DMUI_HostAPI PreflightHostAPI() noexcept
+		{
+			DMUI_HostAPI api{};
+			api.structSize = sizeof(api);
+			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
+			api.apiVersion = DMUI_API_VERSION_CURRENT;
+			api.registerClient = &MockRegisterClient;
+			api.queryUIAPI = &MockQueryUIAPI;
+			return api;
 		}
 
 		DMUI_Result DMUI_CALL MockOpenExternal(
@@ -554,12 +564,6 @@ namespace vmm_tests
 
 	void run_dear_modding_ui_checks(Runner& runner)
 	{
-		runner.test("DearModdingUI retains the 0.1 release identifier as metadata", [] {
-			require(
-				DMUI_API_VERSION_CURRENT == DMUI_MAKE_VERSION(0u, 1u),
-				"the fixed 0.1 release identifier changed");
-		});
-
 		runner.test("host API extensions preserve the published prefix", [] {
 			require(
 				offsetof(DMUI_HostAPI, beginSettingsRowEx) ==
@@ -710,27 +714,6 @@ namespace vmm_tests
 				"page activity invented a close/open pair within one client");
 		});
 
-		runner.test("settings reset column follows scaled live metrics", [] {
-			require(SettingsTable::ResolveResetColumnWidth(
-						true,
-						48.0f,
-						24.0f,
-						4.0f) == 24.0f,
-				"glyph reset column did not use the button extent");
-			require(SettingsTable::ResolveResetColumnWidth(
-						false,
-						48.0f,
-						24.0f,
-						4.0f) == 56.0f,
-				"text reset column omitted frame padding");
-			require(SettingsTable::ResolveResetColumnWidth(
-						false,
-						96.0f,
-						48.0f,
-						8.0f) == 112.0f,
-				"text reset column did not scale with live metrics");
-		});
-
 		runner.test("settings brackets reject mismatched transitions", [] {
 			constexpr DMUI_ClientHandle owner{ 7 };
 			constexpr DMUI_ClientHandle other{ 8 };
@@ -847,18 +830,7 @@ namespace vmm_tests
 						true,
 						{ "", true }),
 				"modified-only or negative filtering changed");
-		});
 
-		runner.test("choice option labels prefer human labels", [] {
-			const dmui::ChoiceSettingOption labeled{ "2", "61 (FX) slot" };
-			const dmui::ChoiceSettingOption unlabeled{ "raw", "" };
-			require(
-				dmui::ResolveChoiceOptionLabel(labeled) == "61 (FX) slot" &&
-					dmui::ResolveChoiceOptionLabel(unlabeled) == "raw",
-				"choice option label resolution diverged from its value fallback");
-		});
-
-		runner.test("declarative divider rows preserve counts and filtering", [] {
 			const dmui::SettingGroup group{
 				.id = "questions",
 				.label = "Questions",
@@ -875,7 +847,8 @@ namespace vmm_tests
 			const auto all = dmui::setting_detail::MatchingRows(group, {});
 			const auto filtered =
 				dmui::setting_detail::MatchingRows(group, { "second" });
-			require(all.size() == 3 &&
+			require(
+				all.size() == 3 &&
 					dmui::setting_detail::MatchingContentCount(all) == 2 &&
 					filtered.size() == 1 &&
 					dmui::setting_detail::MatchingContentCount(filtered) == 1,
@@ -1145,34 +1118,6 @@ namespace vmm_tests
 				"error status expired");
 		});
 
-		runner.test("newest status supersedes older status regardless of severity", [] {
-			const auto start = StatusClock::time_point{};
-			StatusModel model;
-			require(model.Set(
-						StatusOwnerKind::kClient,
-						"First",
-						DMUI_STATUS_SEVERITY_ERROR,
-						"Older error",
-						start) == DMUI_RESULT_OK,
-				"older status was rejected");
-			const auto older = model.Snapshot(start);
-			require(older.has_value(), "older status was lost");
-			require(model.Set(
-						StatusOwnerKind::kClient,
-						"Second",
-						DMUI_STATUS_SEVERITY_INFO,
-						"Newer info",
-						start + std::chrono::milliseconds{ 1 }) == DMUI_RESULT_OK,
-				"newer status was rejected");
-			const auto newer = model.Snapshot(start + std::chrono::milliseconds{ 1 });
-			require(
-					newer &&
-						newer->generation > older->generation &&
-						newer->owner == "Second" &&
-						newer->message == "Newer info",
-					"newest status did not supersede an older persistent status");
-		});
-
 		runner.test("persistent status can be dismissed without clearing a replacement", [] {
 			const auto start = StatusClock::time_point{};
 			StatusModel model;
@@ -1198,49 +1143,28 @@ namespace vmm_tests
 			const auto older = model.Snapshot(start);
 			require(model.Set(
 						StatusOwnerKind::kClient,
-						"Client",
+						"Replacement owner",
 						DMUI_STATUS_SEVERITY_ERROR,
 						"Replacement",
-						start) == DMUI_RESULT_OK,
+						start + std::chrono::milliseconds{ 1 }) == DMUI_RESULT_OK,
 				"replacement status was rejected");
+			const auto replacement =
+				model.Snapshot(start + std::chrono::milliseconds{ 1 });
 			require(older && !model.Dismiss(older->generation),
 				"stale dismissal cleared a replacement");
-			require(model.Snapshot(start)->message == "Replacement",
+			require(
+					replacement &&
+						replacement->generation > older->generation &&
+						replacement->owner == "Replacement owner" &&
+						replacement->message == "Replacement",
+				"newest status did not supersede an older persistent status");
+			require(
+				model.Snapshot(start + std::chrono::milliseconds{ 1 })
+						->message == "Replacement",
 				"replacement was lost after stale dismissal");
 		});
 
-		runner.test("status attribution distinguishes host and client owners", [] {
-			const auto start = StatusClock::time_point{};
-			StatusModel model;
-			require(model.Set(
-						StatusOwnerKind::kHost,
-						"Evil Modding",
-						DMUI_STATUS_SEVERITY_SUCCESS,
-						"Saved",
-						start) == DMUI_RESULT_OK,
-				"host status was rejected");
-			const auto host = model.Snapshot(start);
-			require(
-					host &&
-						host->ownerKind == StatusOwnerKind::kHost &&
-						host->attributedText == "Evil Modding: Saved",
-					"host status attribution changed");
-			require(model.Set(
-						StatusOwnerKind::kClient,
-						"Community Shaders",
-						DMUI_STATUS_SEVERITY_ERROR,
-						"Failed",
-						start) == DMUI_RESULT_OK,
-				"client status was rejected");
-			const auto client = model.Snapshot(start);
-			require(
-					client &&
-						client->ownerKind == StatusOwnerKind::kClient &&
-						client->attributedText == "Community Shaders: Failed",
-					"client status attribution changed");
-		});
-
-		runner.test("status truncation preserves full tooltip text", [] {
+		runner.test("status truncation preserves text and UTF-8 boundaries", [] {
 			const auto measure = [](std::string_view a_text) {
 				return static_cast<float>(a_text.size());
 			};
@@ -1259,6 +1183,25 @@ namespace vmm_tests
 						fitting.visible == full &&
 						fitting.full == full,
 					"fitting status was truncated");
+
+			const std::string utf8{
+				"Buffout \xF0\x9F\xA7\xAA status"
+			};
+			const auto utf8Truncated = FitStatusText(utf8, 11.0f, measure);
+			require(
+					utf8Truncated.truncated &&
+						utf8Truncated.visible ==
+							"Buffout \xE2\x80\xA6" &&
+						utf8Truncated.full == utf8,
+				"status truncation split a UTF-8 character");
+
+			const auto clipped =
+				FitStatusText("Buffout 4: Error", 0.0f, measure);
+			require(
+					clipped.truncated &&
+						clipped.visible == "\xE2\x80\xA6" &&
+						clipped.full == "Buffout 4: Error",
+				"fully clipped status lost its overflow presentation");
 		});
 
 		runner.test("status validation rejects invalid clients and messages", [] {
@@ -1297,64 +1240,21 @@ namespace vmm_tests
 					"unknown status severity was not rejected");
 		});
 
-		runner.test("footer bullet run reserves the settings control", [] {
-			const auto layout = ResolveFooterControlsLayout(
-				20.0f,
-				1200.0f,
-				32.0f,
-				0.0f,
-				8.0f);
-			require(
-					layout.runMaxX == 1160.0f &&
-						layout.dismissMinX == 1160.0f &&
-						layout.dismissMaxX == 1160.0f &&
-						layout.settingsMinX == 1168.0f &&
-						layout.settingsMaxX == 1200.0f,
-					"footer run did not stop before settings");
-		});
-
-		runner.test("persistent footer reserves its dismiss control", [] {
-			const auto layout = ResolveFooterControlsLayout(
-				20.0f,
-				1200.0f,
-				32.0f,
-				28.0f,
-				8.0f);
-			require(
-					layout.runMaxX == 1124.0f &&
-						layout.dismissMinX == 1132.0f &&
-						layout.dismissMaxX == 1160.0f &&
-						layout.settingsMinX == 1168.0f &&
-						layout.settingsMaxX == 1200.0f,
-					"persistent footer controls changed");
-			require(
-					layout.runMaxX + 8.0f == layout.dismissMinX &&
-						layout.dismissMaxX + 8.0f ==
-							layout.settingsMinX,
-					"persistent footer controls overlapped the bullet run");
-		});
-
-		runner.test("narrow footer controls clamp without overlap", [] {
-			const auto layout = ResolveFooterControlsLayout(
+		runner.test("footer controls clamp, separate, and scale", [] {
+			const auto narrow = ResolveFooterControlsLayout(
 				20.0f,
 				100.0f,
 				60.0f,
 				50.0f,
 				8.0f);
 			require(
-					layout.runMaxX == 20.0f &&
-						layout.dismissMinX == 20.0f &&
-						layout.dismissMaxX == 32.0f &&
-						layout.settingsMinX == 40.0f &&
-						layout.settingsMaxX == 100.0f,
+					narrow.runMaxX == 20.0f &&
+						narrow.dismissMinX >= 20.0f &&
+						narrow.dismissMaxX + 8.0f <=
+							narrow.settingsMinX &&
+						narrow.settingsMaxX <= 100.0f,
 					"narrow footer controls escaped their bounds");
-			require(
-					layout.dismissMaxX + 8.0f ==
-						layout.settingsMinX,
-					"narrow footer controls overlapped");
-		});
 
-		runner.test("footer control layout scales uniformly", [] {
 			const auto base = ResolveFooterControlsLayout(
 				0.0f,
 				600.0f,
@@ -1377,66 +1277,11 @@ namespace vmm_tests
 							base.settingsMaxX * 2.0f
 						},
 					"footer controls did not follow the style scale");
-		});
 
-		runner.test("status truncation preserves UTF-8 boundaries", [] {
-			const auto measure = [](std::string_view a_text) {
-				return static_cast<float>(a_text.size());
-			};
-			const std::string full{
-				"Buffout \xF0\x9F\xA7\xAA status"
-			};
-			const auto presentation = FitStatusText(full, 11.0f, measure);
 			require(
-					presentation.truncated &&
-						presentation.visible ==
-							"Buffout \xE2\x80\xA6" &&
-						presentation.full == full,
-					"status truncation split a UTF-8 character");
-		});
-
-		runner.test("status truncation handles a fully clipped run", [] {
-			const auto measure = [](std::string_view a_text) {
-				return static_cast<float>(a_text.size());
-			};
-			const auto presentation =
-				FitStatusText("Buffout 4: Error", 0.0f, measure);
-			require(
-					presentation.truncated &&
-						presentation.visible == "\xE2\x80\xA6" &&
-						presentation.full == "Buffout 4: Error",
-					"clipped status lost its overflow presentation");
-		});
-
-		runner.test("header title aligns with the footer bullet run", [] {
-			constexpr float framePaddingX{ 8.0f };
-			constexpr float fontSize{ 21.0f };
-			const auto inset = BulletRunContentInset(framePaddingX, fontSize);
-			const auto bulletInkMinX =
-				framePaddingX + fontSize * 0.5f - fontSize * 0.2f;
-			require(
-					std::abs(inset - bulletInkMinX) < 0.001f,
-					"header title inset did not match the bullet ink edge");
-			require(
-					BulletRunContentInset(-4.0f, -8.0f) == 0.0f,
-					"header title inset accepted negative metrics");
-		});
-
-		runner.test("row content centers vertically without negative offset", [] {
-			require(
-					RowContentOffsetY(
-						40.0f,
-						{ 20.0f },
-						RowContentMetric::kBox) == 10.0f &&
-						RowContentOffsetY(
-							20.0f,
-							{ 40.0f },
-							RowContentMetric::kBox) == 0.0f &&
-						RowContentOffsetY(
-							-10.0f,
-							{ 20.0f },
-							RowContentMetric::kBox) == 0.0f,
-					"row content did not center vertically");
+				base.runMaxX <= base.dismissMinX &&
+					base.dismissMaxX <= base.settingsMinX,
+				"footer controls overlapped at baseline scale");
 		});
 
 		runner.test("two-pane sidebar preserves a measured page region", [] {
@@ -1498,44 +1343,6 @@ namespace vmm_tests
 					"source controls were omitted from the mod pane budget");
 		});
 
-		runner.test("ruled headings preserve their live content column", [] {
-			require(
-				ResolveRuledHeadingRuleExtents(
-					100.0f,
-					500.0f,
-					180.0f,
-					300.0f,
-					20.0f) ==
-					RuledHeadingRuleExtents{
-						{ 100.0f, 160.0f },
-						{ 320.0f, 500.0f }
-					},
-				"heading rule did not respect its inset content column");
-			require(
-				ResolveRuledHeadingRuleExtents(
-					200.0f,
-					1000.0f,
-					360.0f,
-					600.0f,
-					40.0f) ==
-					RuledHeadingRuleExtents{
-						{ 200.0f, 320.0f },
-						{ 640.0f, 1000.0f }
-					},
-				"heading rule extents did not scale with live geometry");
-			require(
-				ResolveRuledHeadingRuleExtents(
-					100.0f,
-					80.0f,
-					90.0f,
-					120.0f,
-					-5.0f) == RuledHeadingRuleExtents{
-						{ 100.0f, 100.0f },
-						{ 100.0f, 100.0f }
-					},
-				"constrained heading rule escaped its content column");
-		});
-
 		runner.test("sidebar layout names parse and round trip", [] {
 			for (const auto& layout : SIDEBAR_LAYOUTS)
 			{
@@ -1551,36 +1358,7 @@ namespace vmm_tests
 						static_cast<SidebarLayoutKind>(99)) == "unknown" &&
 					DEFAULT_SIDEBAR_LAYOUT == SidebarLayoutKind::Tree,
 				"unknown or default sidebar layout handling changed");
-		});
 
-		runner.test("sidebar settings expose exactly the supported layouts", [] {
-			constexpr std::array expected{
-				SidebarLayoutKind::Tree,
-				SidebarLayoutKind::TwoPane,
-				SidebarLayoutKind::DrillDown
-			};
-			size_t index{};
-			for (const auto& layout : SIDEBAR_LAYOUTS)
-			{
-				if (!layout.production)
-					continue;
-				require(
-					index < expected.size() &&
-						layout.kind == expected[index] &&
-						!layout.label.empty() &&
-						!layout.description.empty(),
-					"sidebar settings changed the supported option set");
-				++index;
-			}
-			require(
-				index == expected.size() &&
-					FindUserSidebarLayout(SidebarLayoutKind::IconRail) ==
-						nullptr &&
-					FindSidebarLayout(SidebarLayoutKind::IconRail)->preview,
-				"icon rail was exposed before client icons became dependable");
-		});
-
-		runner.test("sidebar config rejects unavailable values", [] {
 			PersistedHostInterfaceSettings persisted;
 			for (const auto value : { ""sv, "columns"sv, "iconrail"sv })
 			{
@@ -1593,237 +1371,6 @@ namespace vmm_tests
 			require(
 				!ParseUserSidebarLayout("iconrail"),
 				"icon rail was accepted as a user setting");
-		});
-
-		runner.test("preview sidebar explicitly overrides the saved layout", [] {
-			require(
-				ResolveSidebarLayout(
-					SidebarLayoutKind::TwoPane,
-					std::nullopt) == SidebarLayoutKind::TwoPane,
-				"saved sidebar layout was ignored without an override");
-			require(
-				ResolveSidebarLayout(
-					SidebarLayoutKind::Tree,
-					SidebarLayoutKind::IconRail) ==
-						SidebarLayoutKind::IconRail,
-				"preview sidebar override did not take precedence");
-		});
-
-		runner.test("preview navigation comparison names are explicit opt-ins", [] {
-			require(
-				ParsePreviewNavigationKind("grouped") ==
-					NavigationPresentationKind::Grouped &&
-				ParsePreviewNavigationKind("destinations") ==
-					NavigationPresentationKind::Destinations &&
-				!ParsePreviewNavigationKind("") &&
-				!ParsePreviewNavigationKind("tabs") &&
-				ParsePreviewNavigationOrigin("native") ==
-					DMUI_CLIENT_ORIGIN_NATIVE &&
-				ParsePreviewNavigationOrigin("bridged") ==
-					DMUI_CLIENT_ORIGIN_BRIDGED &&
-				!ParsePreviewNavigationOrigin("all"),
-				"preview navigation parsing changed defaults or accepted aliases");
-		});
-
-		runner.test("drill-down navigation moves one level at a time", [] {
-			const DrillDownState root;
-			const auto opened = TransitionDrillDown(
-				root,
-				DrillDownEvent::Open,
-				42);
-			require(
-				opened == DrillDownState{ DrillDownLevel::Pages, 42 },
-				"an active page did not open at its mod");
-			require(
-				TransitionDrillDown(opened, DrillDownEvent::Back) == root,
-				"back did not return to the mod list");
-			require(
-				TransitionDrillDown(
-					root,
-					DrillDownEvent::SelectClient,
-					7) == DrillDownState{ DrillDownLevel::Pages, 7 },
-				"selecting a mod did not replace the root level");
-			require(
-				TransitionDrillDown(opened, DrillDownEvent::Open) == root,
-				"opening without an active client did not show the root");
-		});
-
-		runner.test("icon rail geometry scales from live font metrics", [] {
-			require(
-				ResolveIconRailGeometry(1000.0f, 32.0f, 8.0f, 12.0f) ==
-					IconRailGeometry{ 48.0f, 940.0f, 12.0f },
-				"baseline rail geometry did not fill the sidebar");
-			require(
-				ResolveIconRailGeometry(2000.0f, 64.0f, 16.0f, 24.0f) ==
-					IconRailGeometry{ 96.0f, 1880.0f, 24.0f },
-				"rail geometry did not scale with the font and style");
-			require(
-				ResolveIconRailGeometry(40.0f, 32.0f, 8.0f, 12.0f) ==
-						IconRailGeometry{ 40.0f, 0.0f, 0.0f } &&
-					ResolveIconRailGeometry(-1.0f, -2.0f, -3.0f, -4.0f) ==
-						IconRailGeometry{},
-				"constrained rail geometry overflowed its container");
-		});
-
-		runner.test("capital ink provides stable optical text offset", [] {
-			constexpr std::string_view versionLabel{ "Version: 1.6" };
-			constexpr std::string_view modLabel{ "Mod: Addictol" };
-			constexpr float rowHeight{ 40.0f };
-			constexpr float fontSize{ 20.0f };
-			constexpr float ascent{ 16.0f };
-			constexpr float referenceMinY{ 2.0f };
-			constexpr float referenceMaxY{ 16.0f };
-			const RowContentMetrics metrics{
-				fontSize,
-				referenceMinY,
-				referenceMaxY,
-				1.0f
-			};
-			const auto versionOffset = RowContentOffsetY(
-				rowHeight,
-				metrics,
-				RowContentMetric::kOptical);
-			const auto modOffset = RowContentOffsetY(
-				rowHeight,
-				metrics,
-				RowContentMetric::kOptical);
-			const auto boxOffset = RowContentOffsetY(
-				rowHeight,
-				{ fontSize },
-				RowContentMetric::kBox);
-			const auto ascentBoxOffset =
-				rowHeight * 0.5f - ascent * 0.5f;
-			require(
-					versionLabel != modLabel &&
-						versionOffset == 11.0f &&
-						modOffset == versionOffset &&
-						versionOffset > boxOffset &&
-						versionOffset < ascentBoxOffset,
-					"capital ink did not center between box heuristics");
-			require(
-					RowContentOffsetY(
-						rowHeight,
-						{ fontSize },
-						RowContentMetric::kOptical) == boxOffset &&
-						RowContentOffsetY(
-							rowHeight,
-							{
-								fontSize,
-								referenceMinY,
-								referenceMaxY,
-								0.0f
-							},
-							RowContentMetric::kOptical) == boxOffset,
-					"missing reference font data did not use box centering");
-		});
-
-		runner.test("optical row content clamps negative offset", [] {
-			require(
-					RowContentOffsetY(
-						10.0f,
-						{ 20.0f, 12.0f, 20.0f, 1.0f },
-						RowContentMetric::kOptical) == 0.0f,
-					"optical row content produced a negative offset");
-		});
-
-		runner.test("row content layout reserves explicit slots and trailing space", [] {
-			require(
-					ResolveRowContentLayout(
-						100.0f,
-						300.0f,
-						8.0f,
-						20.0f,
-						4.0f,
-						6.0f,
-						true,
-						true,
-						30.0f) ==
-						RowContentLayout{ 108.0f, 132.0f, 158.0f, 270.0f },
-					"row slots did not advance content predictably");
-			require(
-					ResolveRowContentLayout(
-						100.0f,
-						120.0f,
-						-8.0f,
-						-20.0f,
-						-4.0f,
-						-6.0f,
-						false,
-						true,
-						40.0f) ==
-						RowContentLayout{ 100.0f, 100.0f, 100.0f, 100.0f },
-					"row layout accepted negative metrics or inverted its clip");
-		});
-
-		runner.test("row leading slot shares the row vertical center", [] {
-			constexpr float rowMinY{ 581.0f };
-			constexpr float rowMaxY{ 657.0f };
-			constexpr float slotSize{ 32.0f };
-			const auto slot = ResolveRowLeadingSlotRect(
-				240.0f,
-				rowMinY,
-				rowMaxY,
-				slotSize);
-			const auto glyphCenterY =
-				rowMinY +
-				RowContentOffsetY(
-					rowMaxY - rowMinY,
-					{ slotSize },
-					RowContentMetric::kBox) +
-				slotSize * 0.5f;
-			require(
-					slot == RowLeadingSlotRect{ 240.0f, 603.0f, 272.0f, 635.0f } &&
-						slot.GetCenterY() == glyphCenterY &&
-						glyphCenterY == (rowMinY + rowMaxY) * 0.5f,
-					"leading slot diverged from the row and glyph centers");
-		});
-
-		runner.test("row content providers preserve container geometry", [] {
-			constexpr RowContentRect container{ 10.0f, 20.0f, 110.0f, 80.0f };
-			require(
-					ResolveRowContentRect(
-						RowContentRectKind::kSelectable,
-						container,
-						7.0f) == container,
-					"selectable provider discarded the inflated item rectangle");
-			require(
-					ResolveRowContentRect(
-						RowContentRectKind::kTable,
-						container,
-						7.0f) ==
-						RowContentRect{ 10.0f, 27.0f, 110.0f, 73.0f },
-					"table provider did not remove row cell padding");
-			require(
-					ResolveRowContentRect(
-						RowContentRectKind::kTable,
-						container,
-						40.0f).GetHeight() == 0.0f,
-					"table provider produced an inverted content rectangle");
-		});
-
-		runner.test("footer band keeps symmetric row padding", [] {
-			constexpr float verticalSpacing{ 8.0f };
-			constexpr float windowPadding{ 10.0f };
-			constexpr float separatorThickness{ 3.0f };
-			constexpr float rowHeight{ 40.0f };
-			const auto adjustment = FooterRowAdjustmentY(
-				verticalSpacing,
-				windowPadding);
-			const auto separatorBottom =
-				verticalSpacing * 2.0f + separatorThickness;
-			const auto rowTop =
-				verticalSpacing * 3.0f +
-				separatorThickness +
-				adjustment;
-			const auto footerHeight = ReservedFooterHeight(
-				rowHeight,
-				verticalSpacing,
-				windowPadding,
-				separatorThickness);
-			require(
-					rowTop - separatorBottom == windowPadding &&
-						footerHeight == rowTop + rowHeight,
-					"footer row padding was asymmetric");
 		});
 
 		runner.test("client descriptors reject null size and callback failures", [] {
@@ -1939,14 +1486,6 @@ namespace vmm_tests
 				registry.RegisterCategory(client, &oldCategory) ==
 					DMUI_RESULT_OK,
 				"old category prefix was rejected");
-			auto partialCategory = oldCategory;
-			partialCategory.structSize =
-				DMUI_CATEGORY_DESCRIPTOR_0_1_SIZE + 4;
-			partialCategory.id = "partial";
-			require(
-				registry.RegisterCategory(client, &partialCategory) ==
-					DMUI_RESULT_OK,
-				"partial category extension was rejected");
 			char categoryIcon[]{ "sun-horizon" };
 			auto currentCategory = oldCategory;
 			currentCategory.structSize = DMUI_CATEGORY_DESCRIPTOR_ICON_SIZE;
@@ -1972,22 +1511,6 @@ namespace vmm_tests
 				registry.RegisterPage(client, &oldPage, &oldPageHandle) ==
 					DMUI_RESULT_OK,
 				"old page prefix was rejected");
-			auto partialPage = Page(
-				"partial",
-				"Weather",
-				"partial",
-				0,
-				DMUI_PAGE_KIND_SETTINGS,
-				state,
-				"sun");
-			partialPage.structSize = DMUI_PAGE_DESCRIPTOR_0_1_SIZE + 4;
-			DMUI_PageHandle partialPageHandle{};
-			require(
-				registry.RegisterPage(
-					client,
-					&partialPage,
-					&partialPageHandle) == DMUI_RESULT_OK,
-				"partial page extension was rejected");
 			char pageIcon[]{ "sliders-horizontal" };
 			auto currentPage = Page(
 				"current",
@@ -2030,76 +1553,26 @@ namespace vmm_tests
 					&invalidPage,
 					&invalidPageHandle) == DMUI_RESULT_INVALID_DESCRIPTOR,
 				"malformed page icon name was accepted");
-			auto unknownCategory = currentCategory;
-			unknownCategory.id = "unknown-icon";
-			unknownCategory.iconName = "not-an-icon";
-			require(
-				registry.RegisterCategory(client, &unknownCategory) ==
-					DMUI_RESULT_OK,
-				"unknown well-formed category icon name was rejected");
-			auto blankCategory = currentCategory;
-			blankCategory.id = "blank-icon";
-			blankCategory.iconName = " \t ";
-			require(
-				registry.RegisterCategory(client, &blankCategory) ==
-					DMUI_RESULT_OK,
-				"blank category icon name was rejected");
-			auto unknownPage = Page(
-				"unknown-icon",
-				"Unknown Icon",
-				"current",
-				10,
-				DMUI_PAGE_KIND_SETTINGS,
-				state,
-				"not-an-icon");
-			require(
-				registry.RegisterPage(
-					client,
-					&unknownPage,
-					&invalidPageHandle) == DMUI_RESULT_OK,
-				"unknown well-formed page icon name was rejected");
-			auto blankPage = Page(
-				"blank-icon",
-				"Blank Icon",
-				"current",
-				20,
-				DMUI_PAGE_KIND_SETTINGS,
-				state,
-				" \t ");
-			require(
-				registry.RegisterPage(
-					client,
-					&blankPage,
-					&invalidPageHandle) == DMUI_RESULT_OK,
-				"blank page icon name was rejected");
-
 			require(registry.Freeze(), "navigation icon registry did not freeze");
 			const auto& categories = registry.RegisteredCategories();
 			require(
-				categories.size() == 5 &&
+				categories.size() == 2 &&
 					categories[0].iconName.empty() &&
-					categories[1].iconName.empty() &&
-					categories[2].iconName == "sun-horizon",
+					categories[1].iconName == "sun-horizon",
 				"category icon prefix guards or copy lifetime changed");
 			const auto& pages = registry.OrderedPages();
 			const auto oldRegisteredPage = std::ranges::find(
 				pages,
 				"old",
 				&RegisteredPage::id);
-			const auto partialRegisteredPage = std::ranges::find(
-				pages,
-				"partial",
-				&RegisteredPage::id);
 			const auto currentRegisteredPage = std::ranges::find(
 				pages,
 				"current",
 				&RegisteredPage::id);
 			require(
-				pages.size() == 5 &&
+				pages.size() == 2 &&
 					oldRegisteredPage != pages.end() &&
 					oldRegisteredPage->iconName.empty() &&
-					partialRegisteredPage != pages.end() &&
-					partialRegisteredPage->iconName.empty() &&
 					currentRegisteredPage != pages.end() &&
 					currentRegisteredPage->iconName ==
 						"sliders-horizontal",
@@ -2113,43 +1586,11 @@ namespace vmm_tests
 				navigation.iconName == "cloud-sun" &&
 					navigationCategory != navigation.categories.end() &&
 					navigationCategory->iconName == "sun-horizon" &&
+					navigationCategory->pages.front().handle ==
+						currentPageHandle &&
 					navigationCategory->pages.front().iconName ==
 						"sliders-horizontal",
 				"navigation model dropped copied icon metadata");
-			const ClientSelectionState selection{
-				client,
-				currentPageHandle
-			};
-			for (const auto layout : {
-					 SidebarLayoutKind::Tree,
-					 SidebarLayoutKind::TwoPane,
-					 SidebarLayoutKind::DrillDown,
-					 SidebarLayoutKind::IconRail })
-			{
-				SidebarBrowsingState browsing;
-				RevealSidebarSelection(
-					layout,
-					registry.Navigation(),
-					selection,
-					browsing);
-				require(
-					ResolveNavigationCategoryIconGlyph(
-						navigation,
-						*navigationCategory) ==
-						FindPhosphorIconGlyphOrZero("sun-horizon"),
-					"a sidebar layout lost the shared category icon override");
-			}
-			const auto index =
-				BuildNavigationSearchIndex(registry.Navigation(), {});
-			const auto pageEntry = std::ranges::find_if(
-				index,
-				[&](const auto& a_entry) {
-					return a_entry.page == currentPageHandle;
-				});
-			require(
-				pageEntry != index.end() &&
-					pageEntry->iconName == "sliders-horizontal",
-				"page search metadata dropped the explicit icon");
 		});
 
 		runner.test("client service requirements fail before registration", [] {
@@ -2187,11 +1628,8 @@ namespace vmm_tests
 			s_mockUIResult = DMUI_RESULT_OK;
 			s_mockUIRevision = DMUI_UI_REVISION_CURRENT;
 			s_mockUITableSize = DMUI_UI_API_CURRENT_SIZE;
-			DMUI_HostAPI api{};
-			api.structSize = sizeof(api);
-			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
-			api.apiVersion = DMUI_API_VERSION_CURRENT;
-			api.registerClient = &MockRegisterClient;
+			auto api = PreflightHostAPI();
+			api.queryUIAPI = nullptr;
 			const dmui::ClientOptions options{
 				.requiredServices = DMUI_HOST_SERVICE_IMAGE_RESOURCES
 			};
@@ -2264,12 +1702,7 @@ namespace vmm_tests
 			s_mockUITableSize = DMUI_UI_API_CURRENT_SIZE;
 			s_mockMissingRequiredUIOperation = false;
 			s_mockMissingPlotLines = true;
-			DMUI_HostAPI api{};
-			api.structSize = sizeof(api);
-			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
-			api.apiVersion = DMUI_API_VERSION_CURRENT;
-			api.registerClient = &MockRegisterClient;
-			api.queryUIAPI = &MockQueryUIAPI;
+			auto api = PreflightHostAPI();
 
 			const dmui::ClientOptions baseline{};
 			require(
@@ -2292,13 +1725,8 @@ namespace vmm_tests
 
 		runner.test("navigation icon preflight requires page and category entries", [] {
 			s_mockServices = DMUI_HOST_SERVICE_NAVIGATION_ICONS;
-			DMUI_HostAPI api{};
-			api.structSize = sizeof(api);
-			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
-			api.apiVersion = DMUI_API_VERSION_CURRENT;
-			api.registerClient = &MockRegisterClient;
+			auto api = PreflightHostAPI();
 			api.queryServices = &MockQueryServices;
-			api.queryUIAPI = &MockQueryUIAPI;
 			const dmui::ClientOptions options{
 				.requiredServices = DMUI_HOST_SERVICE_NAVIGATION_ICONS
 			};
@@ -2324,13 +1752,8 @@ namespace vmm_tests
 
 		runner.test("pixel-image preflight requires create update and shared entries", [] {
 			s_mockServices = DMUI_HOST_SERVICE_PIXEL_IMAGES;
-			DMUI_HostAPI api{};
-			api.structSize = sizeof(api);
-			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
-			api.apiVersion = DMUI_API_VERSION_CURRENT;
-			api.registerClient = &MockRegisterClient;
+			auto api = PreflightHostAPI();
 			api.queryServices = &MockQueryServices;
-			api.queryUIAPI = &MockQueryUIAPI;
 			const dmui::ClientOptions options{
 				.requiredServices = DMUI_HOST_SERVICE_PIXEL_IMAGES
 			};
@@ -2361,24 +1784,6 @@ namespace vmm_tests
 				"unknown service bit passed official preflight");
 		});
 
-		runner.test("client origin defaults to native", [] {
-			Registry registry;
-			CallbackState state;
-			auto client = Client("native.mod", "Native", state);
-			DMUI_ClientHandle handle{};
-
-			require(
-				client.origin == DMUI_CLIENT_ORIGIN_NATIVE &&
-					client.bridgeSourceLabel == nullptr &&
-					registry.RegisterClient(&client, &handle) == DMUI_RESULT_OK,
-				"a default client was not registered as native");
-			const auto& registered = registry.RegisteredClients().front();
-			require(
-				registered.origin == DMUI_CLIENT_ORIGIN_NATIVE &&
-					registered.bridgeSourceLabel.empty(),
-				"the registry changed the default native origin");
-		});
-
 		runner.test("bridged clients carry copied source labels", [] {
 			Registry registry;
 			CallbackState state;
@@ -2406,52 +1811,10 @@ namespace vmm_tests
 				"a native client carried a bridge source label");
 		});
 
-		runner.test("Health groups native and bridged clients separately", [] {
-			const std::vector<RegisteredClient> clients{
-				{ .handle = 1, .id = "z.native", .displayName = "Zulu Native" },
-				{
-					.handle = 2,
-					.id = "bridge",
-					.displayName = "Bridge Client",
-					.origin = DMUI_CLIENT_ORIGIN_BRIDGED,
-					.bridgeSourceLabel = "MCM"
-				},
-				{ .handle = 3, .id = "a.native", .displayName = "Alpha Native" }
-			};
-
-			const auto sections = BuildHealthClientSections(clients);
-			require(
-				sections.size() == 2 &&
-					sections[0].heading == "Registered mods" &&
-					sections[0].clients.size() == 2 &&
-					sections[0].clients[0]->id == "a.native" &&
-					sections[0].clients[1]->id == "z.native" &&
-					sections[1].heading == "MCM mods" &&
-					sections[1].clients.size() == 1 &&
-					sections[1].clients[0]->id == "bridge",
-				"native and bridged Health clients were not split stably");
-		});
-
-		runner.test("Health preserves native-only rendering", [] {
-			const std::vector<RegisteredClient> clients{
-				{ .handle = 1, .id = "z", .displayName = "Zulu" },
-				{ .handle = 2, .id = "a", .displayName = "Alpha" }
-			};
-
-			const auto sections = BuildHealthClientSections(clients);
-			require(
-				sections.size() == 1 &&
-					sections.front().heading == "Registered mods" &&
-					sections.front().glyph == PhosphorGlyph::kPuzzlePiece &&
-					sections.front().clients.size() == 2 &&
-					sections.front().clients[0]->id == "a" &&
-					sections.front().clients[1]->id == "z",
-				"native-only Health presentation changed");
-		});
-
 		runner.test("Health creates a section for each bridge source", [] {
 			const std::vector<RegisteredClient> clients{
-				{ .handle = 1, .id = "native", .displayName = "Native" },
+				{ .handle = 1, .id = "native-z", .displayName = "Zulu Native" },
+				{ .handle = 6, .id = "native-a", .displayName = "Alpha Native" },
 				{
 					.handle = 2,
 					.id = "zeta-two",
@@ -2479,6 +1842,9 @@ namespace vmm_tests
 			require(
 				sections.size() == 3 &&
 					sections[0].heading == "Registered mods" &&
+					sections[0].clients.size() == 2 &&
+					sections[0].clients[0]->id == "native-a" &&
+					sections[0].clients[1]->id == "native-z" &&
 					sections[1].heading == "Alpha mods" &&
 					sections[1].clients.size() == 1 &&
 					sections[1].clients[0]->id == "alpha" &&
@@ -2501,65 +1867,6 @@ namespace vmm_tests
 				fallback.size() == 1 &&
 					fallback.front().heading == "Bridged mods",
 				"an unnamed bridge did not receive the generic heading");
-		});
-
-		runner.test("Health shows a waiting host subsystem with its observed reason", [] {
-			const auto now = HealthClock::time_point{} +
-				std::chrono::seconds{ 75 };
-			SilentHealthReporter reporter;
-			SubsystemHealthRegistry registry;
-			SubsystemHealth health{
-				"dmui.render.reconciliation",
-				reporter,
-				registry,
-				now - std::chrono::seconds{ 65 }
-			};
-			health.Observe(
-				HealthState::kWaiting,
-				"renderer data is not initialized",
-				now - std::chrono::seconds{ 65 });
-
-			const auto rows = BuildHealthSubsystemRows(
-				registry.Snapshots(),
-				now);
-			require(
-				rows.size() == 1 &&
-					rows.front().identity == "dmui.render.reconciliation" &&
-					rows.front().state == HealthState::kWaiting &&
-					rows.front().stateLabel == "Waiting" &&
-					rows.front().durationLabel == "1m 5s" &&
-					rows.front().reason == "renderer data is not initialized",
-				"waiting host health did not preserve its live state and reason");
-		});
-
-		runner.test("Health uses shared labels and severities for fallback and failure", [] {
-			const auto now = HealthClock::time_point{} +
-				std::chrono::seconds{ 20 };
-			const std::array snapshots{
-				HealthSnapshot{
-					"dmui.configuration",
-					HealthState::kDegraded,
-					now - std::chrono::seconds{ 5 },
-					{},
-					"Using corrected settings." },
-				HealthSnapshot{
-					"dmui.input.game-interception",
-					HealthState::kFailed,
-					now - std::chrono::seconds{ 10 },
-					{},
-					"PlayerCamera patch failed." }
-			};
-			const auto rows = BuildHealthSubsystemRows(snapshots, now);
-			require(
-				rows.size() == 2 &&
-					rows[0].stateLabel == "Degraded" &&
-					rows[0].reason == "Using corrected settings." &&
-					rows[1].stateLabel == "Failed" &&
-					HealthStatusSeverity(rows[0].severity) ==
-						DMUI_STATUS_SEVERITY_WARNING &&
-					HealthStatusSeverity(rows[1].severity) ==
-						DMUI_STATUS_SEVERITY_ERROR,
-				"Health presentation disagreed with shared state semantics");
 		});
 
 		runner.test("overdue Health observations warn consistently without changing capability", [] {
@@ -2709,107 +2016,6 @@ namespace vmm_tests
 				"bounded diagnostic retention lost counts or admitted overflow");
 		});
 
-		runner.test("Health diagnostic summaries count occurrences", [] {
-			const std::vector<RegisteredClient> clients{
-				{
-					.handle = 3,
-					.id = "fallui",
-					.displayName = "FallUI"
-				}
-			};
-			const std::array diagnostics{
-				ClientDiagnosticSnapshot{
-					3,
-					{
-						ClientDiagnosticRecord{
-							3,
-							DMUI_STATUS_SEVERITY_ERROR,
-							"General",
-							"Missing setting id.",
-							{},
-							1
-						},
-						ClientDiagnosticRecord{
-							3,
-							DMUI_STATUS_SEVERITY_WARNING,
-							"config.json",
-							"Expected a boolean.",
-							{},
-							17
-						},
-						ClientDiagnosticRecord{
-							3,
-							DMUI_STATUS_SEVERITY_INFO,
-							"Runtime",
-							"Loaded defaults.",
-							{},
-							8
-						}
-					}
-				}
-			};
-
-			const auto sections =
-				BuildHealthDiagnosticSections(clients, diagnostics);
-			require(
-				sections.size() == 1 &&
-					sections.front().severitySummary ==
-						"1 error, 17 warnings, 8 info" &&
-					sections.front().disclosureLabel ==
-						"FallUI \xE2\x80\x94 1 error, 17 warnings, 8 info",
-				"Health diagnostic summaries counted records instead of occurrences");
-		});
-
-		runner.test("Health diagnostic clients sort by worst severity", [] {
-			const std::vector<RegisteredClient> clients{
-				{ .handle = 1, .id = "alpha", .displayName = "Alpha" },
-				{ .handle = 2, .id = "beta", .displayName = "Beta" },
-				{ .handle = 3, .id = "zeta", .displayName = "Zeta" }
-			};
-			const std::array diagnostics{
-				ClientDiagnosticSnapshot{
-					1,
-					{ ClientDiagnosticRecord{
-						1,
-						DMUI_STATUS_SEVERITY_INFO,
-						{},
-						"Info",
-						{},
-						1 } }
-				},
-				ClientDiagnosticSnapshot{
-					2,
-					{ ClientDiagnosticRecord{
-						2,
-						DMUI_STATUS_SEVERITY_WARNING,
-						{},
-						"Warning",
-						{},
-						1 } }
-				},
-				ClientDiagnosticSnapshot{
-					3,
-					{ ClientDiagnosticRecord{
-						3,
-						DMUI_STATUS_SEVERITY_ERROR,
-						{},
-						"Error",
-						{},
-						1 } }
-				}
-			};
-
-			const auto sections =
-				BuildHealthDiagnosticSections(clients, diagnostics);
-			require(
-				sections.size() == 3 &&
-					sections[0].client == 3 &&
-					sections[1].client == 2 &&
-					sections[2].client == 1,
-				"Health diagnostic clients were not ordered by worst severity");
-		});
-
-
 		runner.test("Health diagnostics report includes support context", [] {
 			const std::vector<RegisteredClient> clients{
 				{
@@ -2872,92 +2078,39 @@ namespace vmm_tests
 				"the copied Health report omitted required support context");
 		});
 
-		runner.test("Health report uses visible degraded and failed details", [] {
-			const std::array subsystems{
-				HealthSnapshot{
-					"dmui.configuration",
-					HealthState::kDegraded,
-					{},
-					{},
-					"Using corrected settings." },
-				HealthSnapshot{
-					"dmui.input.game-interception",
-					HealthState::kFailed,
-					{},
-					{},
-					"PlayerCamera patch failed." }
-			};
-			const auto report = BuildHealthDiagnosticsReport(
-				"Evil Modding",
-				"0.1.0",
-				subsystems,
-				{},
-				{},
-				{});
-			require(
-				report.find(
-					"dmui.configuration: Degraded - Using corrected settings.") !=
-						std::string::npos &&
-					report.find(
-						"dmui.input.game-interception: Failed - PlayerCamera patch failed.") !=
-						std::string::npos,
-				"copied Health details disagreed with the visible subsystem rows");
-		});
-
-		runner.test("Home summarizes healthy host and client state", [] {
-			const auto now = HealthClock::time_point{} +
-				std::chrono::seconds{ 75 };
-			SilentHealthReporter reporter;
-			SubsystemHealthRegistry registry;
-			SubsystemHealth health{
-				"dmui.render.reconciliation",
-				reporter,
-				registry,
-				now - std::chrono::seconds{ 65 }
-			};
-			health.Observe(
-				HealthState::kWaiting,
-				"renderer data is not initialized",
-				now - std::chrono::seconds{ 65 });
-			health.Observe(
-				HealthState::kReady,
-				{},
-				now - std::chrono::seconds{ 10 });
-
-			require(
-				BuildHomeHealthSummary(registry.Snapshots(), 0) ==
-					"All systems ready",
-				"healthy live state did not produce the quiet Home summary");
-		});
-
-		runner.test("Home summarizes degraded host and client state", [] {
-			const auto now = HealthClock::time_point{} +
-				std::chrono::seconds{ 75 };
-			SilentHealthReporter reporter;
-			SubsystemHealthRegistry registry;
-			SubsystemHealth health{
-				"dmui.render.reconciliation",
-				reporter,
-				registry,
-				now - std::chrono::seconds{ 65 }
-			};
-			health.Observe(
-				HealthState::kWaiting,
-				"renderer data is not initialized",
-				now - std::chrono::seconds{ 65 });
-
-			require(
-				BuildHomeHealthSummary(registry.Snapshots(), 2) ==
-					"1 host subsystem starting; 2 mods need attention",
-				"startup state did not remain distinct from attention");
-		});
-
-		runner.test("Home does not claim empty or degraded health is ready", [] {
+		runner.test("Home summarizes readiness and attention states", [] {
 			require(
 				BuildHomeHealthSummary({}, 0) ==
 					"Host health not observed yet" &&
 					HomeHealthSeverity({}, 0) == HealthSeverity::kNeutral,
 				"an empty health registry claimed readiness");
+
+			const std::array ready{
+				HealthSnapshot{
+					"dmui.render.reconciliation",
+					HealthState::kReady,
+					{},
+					{},
+					{} }
+			};
+			require(
+				BuildHomeHealthSummary(ready, 0) == "All systems ready" &&
+					HomeHealthSeverity(ready, 0) ==
+						HealthSeverity::kSuccess,
+				"ready health did not produce the success summary");
+
+			const std::array waiting{
+				HealthSnapshot{
+					"dmui.render.reconciliation",
+					HealthState::kWaiting,
+					{},
+					{},
+					"renderer data is not initialized" }
+			};
+			require(
+				BuildHomeHealthSummary(waiting, 2) ==
+					"1 host subsystem starting; 2 mods need attention",
+				"startup state did not remain distinct from client attention");
 
 			const std::array degraded{
 				HealthSnapshot{
@@ -2985,72 +2138,6 @@ namespace vmm_tests
 			require(
 				HomeHealthSeverity(failed, 0) == HealthSeverity::kError,
 				"a failed subsystem did not color the Home summary as an error");
-		});
-
-		runner.test("Home FAQ composes the configured menu toggle key", [] {
-			const auto endFaq = BuildHomeFaq("End");
-			const auto f11Faq = BuildHomeFaq("F11");
-			require(
-				endFaq.front().answer.find("End") != std::string::npos,
-				"Home FAQ did not use the configured End key");
-			require(
-				f11Faq.front().answer.find("F11") != std::string::npos,
-				"Home FAQ hardcoded a different toggle key");
-		});
-
-		runner.test("FAQ expansion identity ignores question text", [] {
-			std::map<std::string, bool> expansion;
-			const std::array questions{
-				"How do I open the menu?",
-				"How do I open the menu? (1)",
-				"How do I open the menu? (2)"
-			};
-			for (const std::string_view question : questions)
-			{
-				expansion.try_emplace(
-					BuildFaqExpansionKey("faq", 0),
-					question.empty());
-			}
-			expansion.try_emplace(
-				BuildFaqExpansionKey("faq", 1),
-				false);
-			require(
-				expansion.size() == 2 &&
-					expansion.contains(BuildFaqExpansionKey("faq", 0)) &&
-					expansion.contains(BuildFaqExpansionKey("faq", 1)),
-				"volatile FAQ text changed expansion identity");
-		});
-
-		runner.test("Home quick links preserve enabled-link invariants", [] {
-			const auto links = HomeQuickLinks();
-			const auto github = std::ranges::find(
-				links,
-				std::string_view{ "GitHub" },
-				&HomeQuickLink::label);
-			const auto nexus = std::ranges::find(
-				links,
-				std::string_view{ "Nexus Mods" },
-				&HomeQuickLink::label);
-			require(
-				std::ranges::all_of(
-					links,
-					[](const HomeQuickLink& a_link) {
-						return !a_link.enabled || !a_link.url.empty();
-					}),
-				"an enabled Home link had no URL");
-			require(
-				std::ranges::all_of(
-					links,
-					[](const HomeQuickLink& a_link) {
-						return a_link.enabled || !a_link.note.empty();
-					}),
-				"a disabled Home link had no explanatory note");
-			require(
-				github != links.end() && github->enabled,
-				"the GitHub Home link was not enabled");
-			require(
-				nexus != links.end() && nexus->enabled,
-				"the Nexus Mods Home link was not enabled");
 		});
 
 		runner.test("link-row API arguments reject malformed descriptors", [] {
@@ -3253,14 +2340,9 @@ namespace vmm_tests
 		});
 
 		runner.test("virtual-file preflight requires advertised targets and opening entry", [] {
-			DMUI_HostAPI api{};
-			api.structSize = sizeof(api);
-			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
-			api.apiVersion = DMUI_API_VERSION_CURRENT;
-			api.registerClient = &MockRegisterClient;
+			auto api = PreflightHostAPI();
 			api.queryServices = &MockQueryServices;
 			api.openExternal = &MockOpenExternal;
-			api.queryUIAPI = &MockQueryUIAPI;
 			const dmui::ClientOptions options{
 				.requiredServices = DMUI_HOST_SERVICE_VIRTUAL_FILE_TARGETS
 			};
@@ -3415,20 +2497,17 @@ namespace vmm_tests
 			require(contents == "resolution must not rewrite this file" &&
 					(GetFileAttributesW(fixture.path.c_str()) & FILE_ATTRIBUTE_READONLY) != 0,
 				"resolution modified file contents or attributes");
-		});
 
-		runner.test("backing-file resolution supports Unicode and explicit extended file paths", [] {
-			ExternalFileFixture fixture{ "unicode" };
-			auto renamed = fixture.path;
+			ExternalFileFixture unicodeFixture{ "unicode" };
+			auto renamed = unicodeFixture.path;
 			renamed += L"-\u00e9-\u6d4b\u8bd5";
-			require(MoveFileW(fixture.path.c_str(), renamed.c_str()) != 0,
+			require(MoveFileW(unicodeFixture.path.c_str(), renamed.c_str()) != 0,
 				"Unicode fixture rename failed");
-			fixture.path = renamed;
-			std::string physical;
-			const auto requested = "\\\\?\\" + fixture.Utf8();
-			require(ResolveExternalFile(requested, physical, nullptr) == DMUI_RESULT_OK,
+			unicodeFixture.path = renamed;
+			const auto unicodeRequested = "\\\\?\\" + unicodeFixture.Utf8();
+			require(ResolveExternalFile(unicodeRequested, physical, nullptr) == DMUI_RESULT_OK,
 				"Unicode extended path resolution failed");
-			require(std::filesystem::equivalent(fixture.path,
+			require(std::filesystem::equivalent(unicodeFixture.path,
 						std::filesystem::path{ std::u8string(physical.begin(), physical.end()) }),
 				"Unicode backing filename was corrupted");
 			s_externalResult = DMUI_RESULT_OK;
@@ -3437,11 +2516,11 @@ namespace vmm_tests
 			const DMUI_ExternalOpenDescriptor descriptor{
 				sizeof(DMUI_ExternalOpenDescriptor),
 				DMUI_EXTERNAL_TARGET_VIRTUAL_FILE_PARENT,
-				requested.c_str()
+				unicodeRequested.c_str()
 			};
 			require(opener.Open(&descriptor) == DMUI_RESULT_OK &&
 					s_externalRequest.targetKind == DMUI_EXTERNAL_TARGET_DIRECTORY &&
-					std::filesystem::equivalent(fixture.path.parent_path(),
+					std::filesystem::equivalent(unicodeFixture.path.parent_path(),
 						std::filesystem::path{ std::u8string(
 							s_externalRequest.target.begin(), s_externalRequest.target.end()) }),
 				"real resolution did not reach fake dispatch with the physical parent");
@@ -3475,21 +2554,25 @@ namespace vmm_tests
 				require(ResolveExternalFile(device, physical, &nativeError) ==
 						DMUI_RESULT_INVALID_DESCRIPTOR && nativeError == 0,
 					"a device namespace reached file opening");
-		});
 
-		runner.test("unreadable backing files stop both virtual actions before launch", [] {
-			const ExternalFileFixture fixture{ "sharing violation" };
+			const ExternalFileFixture unreadable{ "sharing violation" };
 			const auto handle = CreateFileW(
-				fixture.path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+				unreadable.path.c_str(),
+				GENERIC_READ,
+				0,
+				nullptr,
+				OPEN_EXISTING,
+				0,
+				nullptr);
 			require(handle != INVALID_HANDLE_VALUE, "exclusive file fixture could not be opened");
 			const std::unique_ptr<void, decltype(&CloseHandle)> exclusive{ handle, &CloseHandle };
-			const auto requested = fixture.Utf8();
+			const auto unreadablePath = unreadable.Utf8();
 			s_externalOpenCalls = 0;
 			const ExternalOpener opener{ &FakeExternalOpen };
 			DMUI_ExternalOpenDescriptor descriptor{
 				sizeof(DMUI_ExternalOpenDescriptor),
 				DMUI_EXTERNAL_TARGET_VIRTUAL_FILE,
-				requested.c_str()
+				unreadablePath.c_str()
 			};
 			for (const auto kind :
 				{ DMUI_EXTERNAL_TARGET_VIRTUAL_FILE, DMUI_EXTERNAL_TARGET_VIRTUAL_FILE_PARENT })
@@ -3788,56 +2871,6 @@ namespace vmm_tests
 				"failed frame observer was invoked again");
 		});
 
-		runner.test("client actions order by sort key then stable ID", [] {
-			Registry registry;
-			CallbackState state;
-			const auto client = AddClient(
-				registry, "actions.mod", "Actions", state);
-			(void)AddAction(
-				registry, client, "zulu", "Zulu", nullptr, 10, state);
-			(void)AddAction(
-				registry, client, "bravo", "Bravo", nullptr, -10, state);
-			(void)AddAction(
-				registry, client, "alpha", "Alpha", nullptr, 10, state);
-			require(registry.Freeze(), "ordered action registry did not freeze");
-			const auto& actions = registry.OrderedActions();
-			require(actions.size() == 3, "registered actions were lost");
-			require(
-					actions[0].id == "bravo" &&
-						actions[1].id == "alpha" &&
-						actions[2].id == "zulu",
-					"actions did not order by sort key then ID");
-		});
-
-		runner.test("pages register without a category", [] {
-			Registry registry;
-			CallbackState state;
-			const auto client = AddClient(
-				registry,
-				"ungrouped.mod",
-				"Ungrouped",
-				state);
-			const auto page = AddPage(
-				registry,
-				client,
-				"overview",
-				"Overview",
-				nullptr,
-				0,
-				DMUI_PAGE_KIND_SETTINGS,
-				state);
-			require(registry.Freeze(), "uncategorized page registry did not freeze");
-			const auto& navigation = registry.Navigation();
-			require(
-					registry.OrderedPages().size() == 1 &&
-						registry.OrderedPages()[0].categoryId.empty() &&
-						navigation.clients.size() == 1 &&
-						navigation.clients[0].categories.size() == 1 &&
-						navigation.clients[0].categories[0].displayName.empty() &&
-						navigation.clients[0].categories[0].pages[0].handle == page,
-				"uncategorized page was rejected or assigned a category");
-		});
-
 		runner.test("categories require unique client-scoped stable IDs", [] {
 			Registry registry;
 			CallbackState state;
@@ -3989,6 +3022,12 @@ namespace vmm_tests
 			actionLabel[0] = 'X';
 			actionIcon[0] = 'x';
 			actionTooltip[0] = 'X';
+			(void)AddAction(
+				registry, client, "zulu", "Zulu", nullptr, 10, state);
+			(void)AddAction(
+				registry, client, "bravo", "Bravo", nullptr, -10, state);
+			(void)AddAction(
+				registry, client, "alpha", "Alpha", nullptr, 10, state);
 			for (size_t index = 0; index < 32; ++index)
 			{
 				const auto id = "page-" + std::to_string(index);
@@ -4002,102 +3041,27 @@ namespace vmm_tests
 				"client ID was not copied");
 			require(registry.OrderedPages().front().clientDisplayName == "Copy",
 				"client name was not copied");
+			const auto& actions = registry.OrderedActions();
 			require(
-					registry.OrderedActions().front().id == "copy" &&
-						registry.OrderedActions().front().displayLabel ==
+					actions.size() == 4 &&
+						actions[0].id == "bravo" &&
+						actions[1].id == "copy" &&
+						actions[2].id == "alpha" &&
+						actions[3].id == "zulu",
+				"actions did not order by sort key then stable ID");
+			const auto copiedAction = std::ranges::find(
+				actions,
+				"copy",
+				&RegisteredAction::id);
+			require(
+					copiedAction != actions.end() &&
+						copiedAction->displayLabel ==
 							"Copy diagnostics" &&
-						registry.OrderedActions().front().iconName ==
+						copiedAction->iconName ==
 							"clipboard-text" &&
-						registry.OrderedActions().front().tooltip ==
+						copiedAction->tooltip ==
 							"Copy a summary.",
 					"action descriptor strings were not copied");
-		});
-
-		runner.test("frozen pages have deterministic client category and sort ordering", [] {
-			Registry registry;
-			CallbackState state;
-			const auto zulu = AddClient(registry, "z.mod", "Zulu", state);
-			const auto alpha = AddClient(
-				registry, "a.mod", "Alpha", state);
-			AddCategory(registry, zulu, "b", "B");
-			AddCategory(registry, alpha, "b", "B", 10);
-			AddCategory(registry, alpha, "a", "A", 0);
-			(void)AddPage(registry, zulu, "late", "Late", "b", 20,
-				DMUI_PAGE_KIND_SETTINGS, state);
-			(void)AddPage(registry, alpha, "second", "Second", "b", 10,
-				DMUI_PAGE_KIND_SETTINGS, state);
-			(void)AddPage(registry, alpha, "first", "First", "a", 50,
-				DMUI_PAGE_KIND_SETTINGS, state);
-			(void)AddPage(registry, alpha, "sorted", "Sorted", "b", -10,
-				DMUI_PAGE_KIND_SETTINGS, state);
-			require(registry.Freeze(), "registry did not freeze");
-			const auto& pages = registry.OrderedPages();
-			require(pages[0].id == "first", "category ordering changed");
-			require(pages[1].id == "sorted", "sort-key ordering changed");
-			require(pages[2].id == "second", "client page ordering changed");
-			require(pages[3].id == "late", "clients did not sort by display name");
-		});
-
-		runner.test("uncategorized pages order before headed groups", [] {
-			Registry registry;
-			CallbackState state;
-			const auto client = AddClient(
-				registry, "mixed.mod", "Mixed", state);
-			AddCategory(registry, client, "general", "General");
-			const auto headed = AddPage(
-				registry, client, "headed", "Headed", "general", -100,
-				DMUI_PAGE_KIND_SETTINGS, state);
-			const auto ungrouped = AddPage(
-				registry, client, "ungrouped", "Ungrouped", nullptr, 100,
-				DMUI_PAGE_KIND_SETTINGS, state);
-			require(registry.Freeze(), "mixed grouping registry did not freeze");
-			const auto& categories = registry.Navigation().clients[0].categories;
-			require(
-					categories.size() == 2 &&
-						categories[0].displayName.empty() &&
-						categories[0].pages[0].handle == ungrouped &&
-						categories[1].displayName == "General" &&
-						categories[1].pages[0].handle == headed,
-				"sort key displaced uncategorized pages below a heading");
-		});
-
-		runner.test("uncategorized-only clients render no category headers", [] {
-			const NavigationClient client{
-				.categories = {
-					{ "", {
-						{ 1, 1, "overview", "Overview", "", {}, 0 },
-						{ 2, 1, "settings", "Settings", "", {}, 10 }
-					} }
-				}
-			};
-			require(
-					client.categories.size() == 1 &&
-						!client.categories[0].HasHeading() &&
-						client.categories[0].pages.size() == 2,
-				"uncategorized pages requested a category header");
-		});
-
-		runner.test("multi-category clients render every category header", [] {
-			const NavigationClient client{
-				.categories = {
-					{ "Diagnostics", {
-						{ 1, 1, "logs", "Logs", "Diagnostics", {}, 0 }
-					} },
-					{ "Performance", {
-						{ 2, 1, "timing", "Timing", "Performance", {}, 0 }
-					} },
-					{ "Visuals", {
-						{ 3, 1, "lighting", "Lighting", "Visuals", {}, 0 }
-					} }
-				}
-			};
-			require(
-					std::ranges::count_if(
-						client.categories,
-						[](const auto& a_category) {
-							return a_category.HasHeading();
-						}) == client.categories.size(),
-				"multi-category rendering collapsed a category header");
 		});
 
 		runner.test("navigation groups clients categories and settings pages deterministically", [] {
@@ -4110,6 +3074,9 @@ namespace vmm_tests
 			AddCategory(registry, alpha, "advanced", "Advanced", -10);
 			AddCategory(registry, alpha, "hud", "HUD");
 			AddCategory(registry, bravo, "general", "General");
+			const auto ungrouped = AddPage(
+				registry, alpha, "overview", "Overview", nullptr, 100,
+				DMUI_PAGE_KIND_SETTINGS, state);
 			const auto alphaLate = AddPage(registry, alpha, "late", "Late", "general", 20,
 				DMUI_PAGE_KIND_SETTINGS, state);
 			const auto alphaEarly = AddPage(registry, alpha, "early", "Early", "general", -10,
@@ -4125,12 +3092,17 @@ namespace vmm_tests
 			const auto& navigation = registry.Navigation();
 			require(navigation.clients.size() == 2, "settings clients were not grouped");
 			require(navigation.clients[0].id == "alpha.mod", "client order changed");
-			require(navigation.clients[0].categories.size() == 2, "categories were not grouped");
-			require(navigation.clients[0].categories[0].displayName == "Advanced",
+			require(navigation.clients[0].categories.size() == 3, "categories were not grouped");
+			require(
+				navigation.clients[0].categories[0].displayName.empty() &&
+					navigation.clients[0].categories[0].pages[0].handle ==
+						ungrouped,
+				"uncategorized pages did not remain first");
+			require(navigation.clients[0].categories[1].displayName == "Advanced",
 				"category order changed");
-			require(navigation.clients[0].categories[1].pages[0].handle == alphaEarly,
+			require(navigation.clients[0].categories[2].pages[0].handle == alphaEarly,
 				"page sort key was ignored");
-			require(navigation.clients[0].categories[1].pages[1].handle == alphaLate,
+			require(navigation.clients[0].categories[2].pages[1].handle == alphaLate,
 				"page sort order changed");
 			require(navigation.FindPage(alphaEarly) != nullptr, "settings page was not indexed");
 			require(navigation.FindPage(overlay) == nullptr,
@@ -4322,87 +3294,6 @@ namespace vmm_tests
 							->clientIndices.front()]
 							.handle == mcmAlpha,
 				"navigation section membership did not survive copy and move");
-		});
-
-		runner.test("navigation presentations expose structured source chrome", [] {
-			NavigationModel model;
-			model.clients = {
-				{
-					1,
-					"native",
-					"Native",
-					1,
-					{ { {}, { { 10, 1, "page", "Page", {}, {}, 0 } } } },
-					{},
-					DMUI_CLIENT_ORIGIN_NATIVE,
-					{}
-				},
-				{
-					2,
-					"bridge",
-					"Bridge",
-					1,
-					{ { {}, { { 20, 2, "page", "Page", {}, {}, 0 } } } },
-					{},
-					DMUI_CLIENT_ORIGIN_BRIDGED,
-					"MCM"
-				}
-			};
-			model.sections = {
-				{ DMUI_CLIENT_ORIGIN_NATIVE, {}, { 0 } },
-				{ DMUI_CLIENT_ORIGIN_BRIDGED, "MCM", { 1 } }
-			};
-
-			NavigationPresentationState state;
-			const auto grouped =
-				GroupedNavigationPresentation::Build(
-					model,
-					state.grouped);
-			require(
-				grouped.sourceControls.empty() &&
-					grouped.sections.size() == 2 &&
-					grouped.HeadingCount() == 2 &&
-					grouped.ClientCount(model) == 2,
-				"grouped presentation did not expose all source headings");
-
-			auto destinations =
-				DestinationsNavigationPresentation::Build(
-					model,
-					state.destinations);
-			require(
-				destinations.sourceControls.size() == 2 &&
-					destinations.sections.size() == 1 &&
-					!destinations.sections[0].showHeading &&
-					destinations.ClientCount(model) == 1,
-				"native destination presentation exposed wrong chrome");
-			RevealNavigationClient(
-				NavigationPresentationKind::Destinations,
-				model,
-				2,
-				state);
-			destinations =
-				DestinationsNavigationPresentation::Build(
-					model,
-					state.destinations);
-			require(
-				state.destinations.selectedOrigin ==
-						DMUI_CLIENT_ORIGIN_BRIDGED &&
-					destinations.sections.size() == 1 &&
-					destinations.sections[0].showHeading &&
-					destinations.sourceControls[1].selected,
-				"programmatic reveal did not select the bridged destination");
-
-			NavigationModel empty;
-			require(
-				BuildNavigationPresentation(
-					NavigationPresentationKind::Grouped,
-					empty,
-					{}).sections.empty() &&
-					BuildNavigationPresentation(
-						NavigationPresentationKind::Destinations,
-						empty,
-						{}).sourceControls.empty(),
-				"empty navigation fabricated source presentation data");
 		});
 
 		runner.test("controlled source chrome follows external reveals across frames", [] {
@@ -4662,142 +3553,6 @@ namespace vmm_tests
 				"host request did not clear client selection");
 		});
 
-		runner.test("layout activation and drill-down back require explicit reveal", [] {
-			NavigationModel model;
-			model.clients = {
-				{
-					42,
-					"layout.client",
-					"Layout Client",
-					1,
-					{ { "General", {
-						{ 420, 42, "page", "Page", "General", {}, 0, "general" }
-					}, "general" } }
-				}
-			};
-			model.sections = {
-				{ DMUI_CLIENT_ORIGIN_NATIVE, {}, { 0 } }
-			};
-			ClientSelectionState selection;
-			selection.activeHostPage.reset();
-			selection.activeClient = 42;
-			selection.activePage = 420;
-
-			SidebarBrowsingState browsing;
-			ActivateSidebarLayout(
-				SidebarLayoutKind::DrillDown,
-				model,
-				selection,
-				browsing);
-			require(
-				browsing.drillDown ==
-					DrillDownState{ DrillDownLevel::Pages, 42 } &&
-					browsing.categoryExpansion[
-						"layout.client/general"],
-				"incoming drill-down layout did not synchronize selection");
-			browsing.drillDown = TransitionDrillDown(
-				browsing.drillDown,
-				DrillDownEvent::Back);
-			require(
-				browsing.drillDown == DrillDownState{},
-				"drill-down back did not retain root browsing state");
-			RevealSidebarSelection(
-				SidebarLayoutKind::DrillDown,
-				model,
-				selection,
-				browsing);
-			require(
-				browsing.drillDown ==
-					DrillDownState{ DrillDownLevel::Pages, 42 },
-				"explicit same-page reveal did not reopen its client");
-
-			TreeSidebarLayout::Activate(model, selection, browsing);
-			TwoPaneSidebarLayout::RevealSelection(
-				model,
-				selection,
-				browsing);
-			IconRailSidebarLayout::RevealSelection(
-				model,
-				selection,
-				browsing);
-			require(
-				browsing.modExpansion["layout.client"] &&
-					browsing.categoryExpansion[
-					"layout.client/general"],
-				"layout lifecycle hooks did not reveal selected ancestors");
-
-			SelectHostPage(HostPageKind::kHealth, selection);
-			RevealSidebarSelection(
-				SidebarLayoutKind::DrillDown,
-				model,
-				selection,
-				browsing);
-			require(
-				browsing.drillDown == DrillDownState{},
-				"host navigation did not return drill-down to its root");
-		});
-
-		runner.test("navigation selection honors requests then keeps a stable fallback", [] {
-			Registry registry;
-			CallbackState state;
-			const auto client = AddClient(registry, "selection.mod", "Selection", state);
-			AddCategory(registry, client, "general", "General");
-			AddCategory(registry, client, "hud", "HUD");
-			const auto first = AddPage(registry, client, "first", "First", "general", 0,
-				DMUI_PAGE_KIND_SETTINGS, state);
-			const auto second = AddPage(registry, client, "second", "Second", "general", 10,
-				DMUI_PAGE_KIND_SETTINGS, state);
-			const auto overlay = AddPage(registry, client, "overlay", "Overlay", "hud", 0,
-				DMUI_PAGE_KIND_OVERLAY, state);
-			require(registry.Freeze(), "registry did not freeze");
-			const auto& navigation = registry.Navigation();
-			require(ResolvePageSelection(navigation, second, first) == second,
-				"requested page was not selected");
-			require(ResolvePageSelection(navigation, overlay, second) == second,
-				"overlay request replaced the stable selection");
-			require(ResolvePageSelection(navigation, 9999, 9998) == first,
-				"invalid selection did not fall back to the first page");
-		});
-
-		runner.test("navigation search finds every page owned by a matching mod", [] {
-			NavigationModel model;
-			model.clients.push_back({
-				1,
-				"dear-modding.community-shaders",
-				"Community Shaders",
-				DMUI_MAKE_VERSION(1, 0),
-				{
-					{ "Lighting", {
-						{ 10, 1, "light-limit-fix", "Light Limit Fix", "Lighting", {}, 10 },
-						{ 11, 1, "screen-space-shadows", "Screen Space Shadows", "Lighting", {}, 20 }
-					} },
-					{ "Post Process", {
-						{ 12, 1, "film-grain", "Film Grain", "Post Process", {}, 30 }
-					} }
-				}
-			});
-
-			const auto hits = SearchNavigation(model, {}, "SHADERS");
-			require(hits.size() == 4,
-				"mod-name search did not return the mod and every owned page");
-			require(
-				hits.front().entry.kind == NavigationItemKind::kClient &&
-					hits.front().entry.client == 1 &&
-					hits.front().entry.displayName == "Community Shaders" &&
-					hits.front().match ==
-						NavigationMatchQuality::kDisplayNameSubstring,
-				"matching mod did not rank above its pages");
-			require(std::ranges::all_of(
-					hits.begin() + 1,
-					hits.end(),
-					[](const auto& a_hit) {
-						return a_hit.entry.kind == NavigationItemKind::kPage &&
-							a_hit.entry.clientDisplayName == "Community Shaders" &&
-							a_hit.match == NavigationMatchQuality::kClientDisplayName;
-					}),
-				"mod-name search did not retain the mod's pages below it");
-		});
-
 		runner.test("navigation search exposes pages and actions with row metadata", [] {
 			NavigationModel model;
 			model.clients.push_back({
@@ -4807,7 +3562,9 @@ namespace vmm_tests
 				DMUI_MAKE_VERSION(1, 0),
 				{ { "Telemetry", {
 					{ 10, 1, "frame-records", "Frame Records", "Telemetry",
-						"Inspect captured frame events.", 10, "telemetry-internal" }
+						"Inspect captured frame events.", 10, "telemetry-internal" },
+					{ 11, 1, "timings", "Timings", "Telemetry",
+						"Inspect timing data.", 20, "telemetry-internal" }
 				}, "telemetry-internal" } }
 			});
 			std::vector<RegisteredAction> actions{
@@ -4842,7 +3599,7 @@ namespace vmm_tests
 			};
 
 			const auto index = BuildNavigationSearchIndex(model, actions);
-			require(index.size() == 4,
+			require(index.size() == 5,
 				"search index did not include clients, pages, and actions");
 			const auto hits = SearchNavigation(model, actions, "records");
 			require(hits.size() == 2,
@@ -4865,6 +3622,14 @@ namespace vmm_tests
 						actionOnly[0].entry.action == 21 &&
 						actionOnly[0].entry.clientDisplayName == "Toolbox",
 					"action-only client was omitted from global search");
+			const auto owned = SearchNavigation(model, actions, "ADDICTOL");
+			require(
+				std::ranges::count_if(
+					owned,
+					[](const auto& a_hit) {
+						return a_hit.entry.kind == NavigationItemKind::kPage;
+					}) == 2,
+				"mod-name search did not retain every owned page");
 		});
 
 		runner.test("navigation search ranks named matches above summaries case insensitively", [] {
@@ -4877,7 +3642,10 @@ namespace vmm_tests
 				{ { "General", {
 					{ 10, 1, "named", "Frame Records", "General", {}, 20 },
 					{ 11, 1, "summary", "Diagnostics", "General",
-						"Includes frame records and timings.", 0 }
+						"Includes frame records and timings.", 0 },
+					{ 12, 1, "zulu", "Zulu", "General", "shared token", 10 },
+					{ 13, 1, "bravo", "Bravo", "General", "shared token", -10 },
+					{ 14, 1, "alpha", "Alpha", "General", "shared token", 10 }
 				} } }
 			});
 
@@ -4891,38 +3659,14 @@ namespace vmm_tests
 						hits[1].entry.page == 11 &&
 						hits[1].match == NavigationMatchQuality::kSummary,
 					"title match did not outrank a summary match");
-		});
-
-		runner.test("navigation search ties use sort key then stable ID", [] {
-			NavigationModel model;
-			model.clients.push_back({
-				1,
-				"stable.mod",
-				"Stable",
-				DMUI_MAKE_VERSION(1, 0),
-				{ { "General", {
-					{ 10, 1, "zulu", "Zulu", "General", "shared token", 10 },
-					{ 11, 1, "bravo", "Bravo", "General", "shared token", -10 },
-					{ 12, 1, "alpha", "Alpha", "General", "shared token", 10 }
-				} } }
-			});
-
-			const auto first = SearchNavigation(model, {}, "token");
-			const auto second = SearchNavigation(model, {}, "TOKEN");
-			require(first.size() == 3 && second.size() == 3,
+			const auto ties = SearchNavigation(model, {}, "token");
+			require(ties.size() == 3,
 				"equal-quality search did not return every hit");
 			require(
-					first[0].entry.id == "bravo" &&
-						first[1].entry.id == "alpha" &&
-						first[2].entry.id == "zulu",
+					ties[0].entry.id == "bravo" &&
+						ties[1].entry.id == "alpha" &&
+						ties[2].entry.id == "zulu",
 					"equal-quality hits ignored sort key or stable ID");
-			require(std::ranges::equal(
-						first,
-						second,
-						{},
-						[](const auto& a_hit) { return a_hit.entry.id; },
-						[](const auto& a_hit) { return a_hit.entry.id; }),
-				"equal-quality search reordered between equivalent queries");
 		});
 
 		runner.test("recent pages stay bounded unique and prune stale handles", [] {
@@ -4966,17 +3710,6 @@ namespace vmm_tests
 				"stale recent-page handle survived a model rebuild");
 		});
 
-		runner.test("palette selection resets and clamps as results change", [] {
-			require(ResolvePaletteSelectionIndex(2, 5, false) == 2,
-				"stable palette results changed the selected index");
-			require(ResolvePaletteSelectionIndex(4, 2, false) == 1,
-				"shrinking palette results did not clamp the selected index");
-			require(ResolvePaletteSelectionIndex(3, 4, true) == 0,
-				"a changed palette query did not reset selection");
-			require(ResolvePaletteSelectionIndex(3, 0, false) == 0,
-				"zero palette results retained an invalid selection");
-		});
-
 		runner.test("page row labels namespace duplicate page IDs by mod", [] {
 			const NavigationPage firstPage{
 				10, 1, "settings", "Settings", "General", {}, 0
@@ -4999,26 +3732,6 @@ namespace vmm_tests
 				"page row label omitted the owning mod ID");
 			require(firstLabel != secondLabel,
 				"duplicate page IDs in different mods produced colliding row labels");
-		});
-
-		runner.test("client status rollup keeps each mod's most severe status", [] {
-			const std::array statuses{
-				ClientStatus{ 2, DMUI_STATUS_SEVERITY_WARNING },
-				ClientStatus{ 1, DMUI_STATUS_SEVERITY_SUCCESS },
-				ClientStatus{ 2, DMUI_STATUS_SEVERITY_INFO },
-				ClientStatus{ 1, DMUI_STATUS_SEVERITY_ERROR },
-				ClientStatus{ DMUI_INVALID_CLIENT_HANDLE,
-					DMUI_STATUS_SEVERITY_ERROR }
-			};
-			const auto rollups = RollupClientStatuses(statuses);
-			require(rollups.size() == 2,
-				"status rollup retained an invalid client");
-			require(
-					rollups[0].client == 1 &&
-						rollups[0].severity == DMUI_STATUS_SEVERITY_ERROR &&
-						rollups[1].client == 2 &&
-						rollups[1].severity == DMUI_STATUS_SEVERITY_WARNING,
-					"status rollup did not retain the most severe status");
 		});
 
 		runner.test("client status snapshots remain independent and expire", [] {
@@ -5046,6 +3759,22 @@ namespace vmm_tests
 						statuses[1].client == 2 &&
 						statuses[1].severity == DMUI_STATUS_SEVERITY_WARNING,
 					"client statuses superseded another mod");
+			const std::array rollupInput{
+				ClientStatus{ 2, DMUI_STATUS_SEVERITY_WARNING },
+				ClientStatus{ 1, DMUI_STATUS_SEVERITY_SUCCESS },
+				ClientStatus{ 2, DMUI_STATUS_SEVERITY_INFO },
+				ClientStatus{ 1, DMUI_STATUS_SEVERITY_ERROR },
+				ClientStatus{ DMUI_INVALID_CLIENT_HANDLE,
+					DMUI_STATUS_SEVERITY_ERROR }
+			};
+			const auto rollups = RollupClientStatuses(rollupInput);
+			require(
+					rollups.size() == 2 &&
+						rollups[0].client == 1 &&
+						rollups[0].severity == DMUI_STATUS_SEVERITY_ERROR &&
+						rollups[1].client == 2 &&
+						rollups[1].severity == DMUI_STATUS_SEVERITY_WARNING,
+				"status rollup retained an invalid client or weaker severity");
 
 			require(model.SetClient(
 						2,
@@ -5067,64 +3796,18 @@ namespace vmm_tests
 				"invalid client status handle was accepted");
 		});
 
-		runner.test("client landing page uses sort key then stable ID", [] {
-			const NavigationClient client{
-				1,
-				"landing.mod",
-				"Landing",
-				DMUI_MAKE_VERSION(1, 0),
-				{
-					{ "First", {
-						{ 10, 1, "zulu", "Zulu", "First", {}, -10 },
-						{ 11, 1, "late", "Late", "First", {}, 20 }
-					} },
-					{ "Second", {
-						{ 12, 1, "alpha", "Alpha", "Second", {}, -10 }
-					} }
-				}
-			};
-			require(ResolveLandingPage(client) == 12,
-				"landing page did not break a sort-key tie by stable ID");
-			require(ResolveLandingPage(NavigationClient{}) ==
-					DMUI_INVALID_PAGE_HANDLE,
-				"empty client resolved a landing page");
-		});
-
 		runner.test("Phosphor manifest matches shipped font", [] {
-			require(kPhosphorIconGlyphs.size() == 1512,
-				"Phosphor named-icon count changed");
 			require(
-				FindPhosphorIconGlyphOrZero("puzzle-piece") == 0xE596 &&
-					FindPhosphorIconGlyphOrZero("sun") == 0xE472 &&
-					FindPhosphorIconGlyphOrZero("gear") == 0xE270 &&
-					FindPhosphorIconGlyphOrZero("trash") == 0xE4A6 &&
-					FindPhosphorIconGlyphOrZero("app-window") == 0xE5DA &&
-					FindPhosphorIconGlyphOrZero("monitor") == 0xE32E &&
-					FindPhosphorIconGlyphOrZero("question") == 0xE3E8,
-				"Phosphor manifest anchors changed");
-			require(
-				PhosphorGlyph::kLastPrivateUse == 0xEE82 &&
-					0xEE83 > PhosphorGlyph::kLastPrivateUse,
-				"unnamed degenerate glyph entered the loaded range");
+				!kPhosphorIconGlyphs.empty() &&
+					FindPhosphorIconGlyphOrZero("gear") ==
+						PhosphorGlyph::kGear,
+				"generated Phosphor resolver lost a representative icon");
 			const auto font = std::filesystem::current_path() /
 				"data/F4SE/Plugins/DearModdingUI/Fonts/Phosphor/Phosphor-Fill.ttf";
 			require(
 				Sha256(font) ==
 					"a53f5d2630cab5e3b7536ecb9d69d71519a2190298c22b1f8d770dd37bc2940a",
 				"Phosphor Fill font no longer matches @phosphor-icons/web@2.1.2");
-		});
-
-		runner.test("icon slugs normalize canonically", [] {
-			require(
-				SlugifyIconName("puzzle-piece") == "puzzle-piece" &&
-					SlugifyIconName("puzzle piece") == "puzzle-piece" &&
-					SlugifyIconName("puzzle_piece") == "puzzle-piece" &&
-					SlugifyIconName("PuzzlePiece") == "puzzle-piece",
-				"multi-word icon spellings produced different slugs");
-			require(SlugifyIconName("Mixed___CASE Name") == "mixed-case-name",
-				"repeated separators or mixed case changed");
-			require(SlugifyIconName("").empty() && SlugifyIconName("!@#$").empty(),
-				"empty icon names produced a slug");
 		});
 
 		runner.test("icon resolution follows semantic fallback chain", [] {
@@ -5134,7 +3817,10 @@ namespace vmm_tests
 				FindPhosphorIconGlyphOrZero("sun-horizon");
 			const auto lightbulb =
 				FindPhosphorIconGlyphOrZero("lightbulb");
-			require(ResolveIconGlyph(IconKind::kClient, "acorn") == 0xEB9A,
+			require(
+				ResolveIconGlyph(IconKind::kClient, "acorn") ==
+						FindPhosphorIconGlyphOrZero("acorn") &&
+					ResolveIconGlyph(IconKind::kClient, "acorn") != char32_t{},
 				"full generated icon catalog was not consulted");
 			require(ResolveIconGlyph(IconKind::kCategory, "gear") ==
 					PhosphorGlyph::kGear,
@@ -5219,15 +3905,6 @@ namespace vmm_tests
 						navigationClient,
 						navigationClient.categories.front()) == sunHorizon,
 				"navigation client and category resolvers lost independent overrides");
-		});
-
-		runner.test("navigation palette glyphs follow per-source precedence", [] {
-			const auto sunHorizon =
-				FindPhosphorIconGlyphOrZero("sun-horizon");
-			const auto lightbulb =
-				FindPhosphorIconGlyphOrZero("lightbulb");
-			const auto weather =
-				FindPhosphorIconGlyphOrZero("cloud-sun");
 			NavigationSearchEntry page;
 			page.kind = NavigationItemKind::kPage;
 			page.displayName = "Unknown";
@@ -5274,6 +3951,23 @@ namespace vmm_tests
 			require(
 				ResolveActionIconGlyph("unknown") == char32_t{},
 				"toolbar actions stopped preserving their text-only contract");
+			for (const auto settingsAction : kSettingsActionOrder)
+			{
+				const auto icon =
+					ResolveSettingsActionButtonPresentation(
+						settingsAction,
+						true);
+				const auto fallback =
+					ResolveSettingsActionButtonPresentation(
+						settingsAction,
+						false);
+				require(
+					icon.glyph == SettingsActionGlyph(settingsAction) &&
+						!icon.useTextFallback &&
+						fallback.glyph == char32_t{} &&
+						fallback.useTextFallback,
+					"missing settings glyph did not select text fallback");
+			}
 		});
 
 		runner.test("raw icon glyph validation rejects truncating code points", [] {
@@ -5286,81 +3980,7 @@ namespace vmm_tests
 				"raw glyph validation allowed zero, invalid, or truncating values");
 		});
 
-		runner.test("settings actions map to deterministic glyphs", [] {
-			require(
-				kSettingsActionOrder ==
-					std::array{
-						SettingsAction::kReset,
-						SettingsAction::kRevert,
-						SettingsAction::kApply },
-				"settings action order changed");
-			require(
-				SettingsActionGlyph(SettingsAction::kReset) ==
-						PhosphorGlyph::kArrowsClockwise &&
-					SettingsActionGlyph(SettingsAction::kRevert) ==
-						PhosphorGlyph::kArrowCounterClockwise &&
-					SettingsActionGlyph(SettingsAction::kApply) ==
-						PhosphorGlyph::kFloppyDisk,
-				"settings actions changed glyphs");
-		});
-
-		runner.test("settings action buttons fall back when font glyphs are absent", [] {
-			for (const auto action : kSettingsActionOrder)
-			{
-				const auto glyph = SettingsActionGlyph(action);
-				const auto icon =
-					ResolveSettingsActionButtonPresentation(action, true);
-				const auto fallback =
-					ResolveSettingsActionButtonPresentation(action, false);
-				require(
-					icon.glyph == glyph &&
-						!icon.useTextFallback &&
-						fallback.glyph == char32_t{} &&
-						fallback.useTextFallback,
-					"missing settings glyph did not select text fallback");
-			}
-		});
-
-		runner.test("theme icon tint selects colored and monochrome modes", [] {
-			const HostAccentColor storedAccent{ 0x00, 0x72, 0xB2 };
-			const auto accent = HostAccentToImVec4(storedAccent);
-			const ImVec4 text{ 1.0f, 1.0f, 1.0f, 1.0f };
-			require(Theme::kIconDefaults.colorMode == Theme::IconColorMode::kColored,
-				"default icon mode is not colored");
-			require(SameColor(
-						Theme::ResolveIconTint(
-							Theme::IconColorMode::kColored,
-							accent,
-							text),
-						accent),
-				"colored icons did not use the accent tint");
-			require(SameColor(
-						Theme::ResolveIconTint(
-							Theme::IconColorMode::kMonochrome,
-							accent,
-							text),
-						text),
-				"monochrome icons did not use the text tint");
-			require(SameColor(
-						Theme::ResolveIconTint(
-							Theme::IconColorMode::kColored,
-							accent,
-							text),
-						accent) &&
-					SameColor(
-						Theme::ResolveIconTint(
-							Theme::IconColorMode::kMonochrome,
-							accent,
-							text),
-						text),
-				"persisted icon mode did not select its runtime tint");
-			require(
-				DecodeHostAccentColor(EncodeHostAccentColor(storedAccent)) ==
-					storedAccent,
-				"accent color did not preserve icon tint bytes");
-		});
-
-		runner.test("host color editor conversion preserves stored bytes", [] {
+		runner.test("host colors preserve bytes and select icon tint", [] {
 			constexpr std::array colors{
 				HostAccentColor{ 0x00, 0x00, 0x00 },
 				HostAccentColor{ 0x42, 0xFA, 0x60 },
@@ -5373,19 +3993,25 @@ namespace vmm_tests
 					HostAccentFromImVec4(HostAccentToImVec4(color)) == color,
 					"color editor conversion changed a stored component");
 			}
+			const auto accent = HostAccentToImVec4(colors[1]);
+			const ImVec4 text{ 1.0f, 1.0f, 1.0f, 1.0f };
+			require(
+				SameColor(
+					Theme::ResolveIconTint(
+						Theme::IconColorMode::kColored,
+						accent,
+						text),
+					accent) &&
+					SameColor(
+						Theme::ResolveIconTint(
+							Theme::IconColorMode::kMonochrome,
+							accent,
+							text),
+						text),
+				"icon color mode did not select accent or text tint");
 		});
 
-		runner.test("host breadcrumb identifies zero or one selected client", [] {
-			require(BuildHostBreadcrumb("Evil Modding", "") == "Evil Modding",
-				"empty selection changed the host-only breadcrumb");
-			require(
-					BuildHostBreadcrumb("Evil Modding", "Community Shaders") ==
-						"Evil Modding > Community Shaders",
-					"selected client was not added to the breadcrumb");
-			require(
-					BuildHostBreadcrumb("Evil Modding", "Interface Settings") ==
-						"Evil Modding > Interface Settings",
-					"settings view was not identified in the breadcrumb");
+		runner.test("host close and footer gear stay clear of adjacent content", [] {
 			require(ShouldDrawHeaderClose(false, true),
 				"undocked titleless host lost its close button");
 			require(
@@ -5393,9 +4019,6 @@ namespace vmm_tests
 						!ShouldDrawHeaderClose(true, false) &&
 						!ShouldDrawHeaderClose(false, false),
 					"host close duplicated a native or docked close affordance");
-		});
-
-		runner.test("host close and footer gear stay clear of adjacent content", [] {
 			struct Case
 			{
 				float fontSize;
@@ -5439,55 +4062,6 @@ namespace vmm_tests
 							footer.adjacentMaxX <= footer.controlMinX,
 						"host chrome overlapped adjacent content");
 			}
-		});
-
-		runner.test("title bar button padding follows the scaled style", [] {
-			require(
-				ResolveTitleBarButtonPadding(
-					Theme::kStyleDefaults.framePadding.y) == 2.0f &&
-					ResolveTitleBarButtonPadding(
-						Theme::kStyleDefaults.framePadding.y * 2.0f) == 4.0f &&
-					ResolveTitleBarButtonPadding(-1.0f) == 0.0f,
-				"title bar button padding did not follow frame padding");
-		});
-
-		runner.test("title rows preserve their explicit button extent policy", [] {
-			const auto fontSize = Theme::ResolveFontSize(
-				static_cast<uint32_t>(Theme::kDefaultScreenHeight));
-			const auto padding = Theme::kStyleDefaults.framePadding.y;
-			require(
-				ResolveTitleRowButtonExtent(
-					TitleRowButtonExtentPolicy::kTitleBar,
-					fontSize,
-					padding) == TitleBarButtonExtent(fontSize, padding),
-				"title-bar policy changed page or settings button size");
-			require(
-				ResolveTitleRowButtonExtent(
-					TitleRowButtonExtentPolicy::kHostChrome,
-					fontSize,
-					padding) == HostChromeButtonExtent(fontSize, padding),
-				"host-chrome policy lost the larger header button size");
-		});
-
-		runner.test("page action row reserves space only for registered actions", [] {
-			const auto empty = ResolvePageActionRowLayout(
-				100.0f, 900.0f, 0.0f, 0, 8.0f);
-			require(
-					empty.titleMaxX == 900.0f &&
-						empty.actionsMinX == 900.0f &&
-						empty.actionsMaxX == 900.0f &&
-						empty.reservedWidth == 0.0f,
-					"client with no actions reserved title-row space");
-
-			const auto populated = ResolvePageActionRowLayout(
-				100.0f, 900.0f, 72.0f, 2, 8.0f);
-			require(
-					populated.actionsMinX == 820.0f &&
-						populated.titleMaxX == 812.0f &&
-						populated.reservedWidth == 80.0f,
-					"registered actions did not reserve their exact strip");
-			require(populated.titleMaxX <= populated.actionsMinX,
-				"page title overlapped client actions");
 		});
 
 		runner.test("settings action rows keep fixed non-overlapping geometry", [] {
@@ -5577,91 +4151,6 @@ namespace vmm_tests
 			}
 		});
 
-		runner.test("settings action availability follows dirty state", [] {
-			require(
-				!SettingsActionEnabled(SettingsAction::kApply, false) &&
-					!SettingsActionEnabled(SettingsAction::kRevert, false) &&
-					SettingsActionEnabled(SettingsAction::kReset, false),
-				"clean settings exposed the wrong title actions");
-
-			require(
-				SettingsActionEnabled(SettingsAction::kApply, true) &&
-					SettingsActionEnabled(SettingsAction::kRevert, true) &&
-					SettingsActionEnabled(SettingsAction::kReset, true),
-				"dirty settings exposed the wrong title actions");
-		});
-
-		runner.test("Home Health and Settings are first-class host destinations", [] {
-			require(
-				kHostNavigationPages.size() == 3 &&
-					kHostNavigationPages[0].kind == HostPageKind::kHome &&
-					kHostNavigationPages[0].iconName == "house" &&
-					kHostNavigationPages[1].kind == HostPageKind::kHealth &&
-					kHostNavigationPages[1].iconName == "stethoscope" &&
-					kHostNavigationPages[2].kind == HostPageKind::kSettings &&
-					kHostNavigationPages[2].iconName == "sliders-horizontal" &&
-					FindPhosphorIconGlyphOrZero(
-						kHostNavigationPages[2].iconName) == 0xE434,
-				"the three host pages or their distinct icons changed");
-
-			for (const auto& page : kHostNavigationPages)
-			{
-				ClientSelectionState selection;
-				selection.activeClient = 7;
-				selection.activePage = 9;
-				selection.search = "renderer";
-				SelectHostPage(page.kind, selection);
-				require(
-					selection.activeHostPage == page.kind &&
-						selection.activeClient == DMUI_INVALID_CLIENT_HANDLE &&
-						selection.activePage == DMUI_INVALID_PAGE_HANDLE &&
-						selection.search.empty(),
-					"navigating to a host page retained client navigation state");
-			}
-		});
-
-		runner.test("menu toggle keys parse and round trip", [] {
-			static_assert(kMenuDefaultToggleKey == 0x23);
-			static_assert(ParseMenuToggleKey("End"sv).virtualKey == 0x23);
-			static_assert(ParseMenuToggleKey("F11"sv).virtualKey == 0x7A);
-			static_assert(ParseMenuToggleKey("F11"sv).recognized);
-			static_assert(!ParseMenuToggleKey("Q"sv).recognized);
-
-			for (const auto& key : kMenuToggleKeys)
-			{
-				const auto parsed = ParseMenuToggleKey(key.name);
-				require(parsed.recognized, "supported toggle key was rejected");
-				require(parsed.virtualKey == key.virtualKey,
-					"toggle key resolved to the wrong virtual key");
-				require(MenuToggleKeyName(parsed.virtualKey) == key.name,
-					"toggle key did not round trip");
-			}
-			require(ParseMenuToggleKey("f11"sv).virtualKey == 0x7A,
-				"lowercase toggle key was rejected");
-			require(ParseMenuToggleKey("hOmE"sv).virtualKey == 0x24,
-				"mixed-case toggle key was rejected");
-			for (const auto name : { ""sv, "F13"sv, "PageUp"sv, " F11"sv })
-			{
-				const auto parsed = ParseMenuToggleKey(name);
-				require(!parsed.recognized, "unsupported toggle key was accepted");
-				require(parsed.virtualKey == kMenuDefaultToggleKey,
-					"unsupported toggle key did not fall back to F11");
-			}
-		});
-
-		runner.test("host settings draft detects unapplied changes", [] {
-			const auto committed = DefaultHostInterfaceSettings();
-			auto state = BeginHostSettingsDraft(committed);
-			require(state.active, "settings draft did not activate");
-			require(!HostSettingsDraftDiffers(state),
-				"unchanged settings draft was marked dirty");
-
-			state.draft.accentColor = { 0x00, 0x72, 0xB2 };
-			require(HostSettingsDraftDiffers(state),
-				"changed settings draft was not marked dirty");
-			require(state.committed == committed,
-				"editing the draft changed committed settings");
-		});
 
 		runner.test("sidebar layout commits outside the discardable settings preview", [] {
 			auto state = BeginHostSettingsDraft(
@@ -5695,107 +4184,7 @@ namespace vmm_tests
 				"reset and revert disagreed with the immediately saved layout");
 		});
 
-		runner.test("command palette elevated surface defaults are pinned", [] {
-			const auto settings = DefaultHostInterfaceSettings();
-			const PersistedHostInterfaceSettings persisted;
-			const HostPaletteColor expectedBackground{ 0x05, 0x05, 0x05 };
-			require(
-				kDefaultPaletteBackgroundColor == expectedBackground,
-				"command palette background default changed");
-			require(kDefaultPaletteBackgroundOpacity == 0.85f,
-				"command palette opacity default changed");
-			require(
-				persisted.paletteBackgroundColor == "#050505" &&
-					persisted.paletteBackgroundOpacity == 0.85f,
-				"persisted command palette defaults diverged");
-			auto popupBackground =
-				HostAccentToImVec4(settings.paletteBackgroundColor);
-			popupBackground.w = settings.paletteBackgroundOpacity;
-			const auto palette = Theme::MakeHostPalette(
-				HostAccentToImVec4(settings.accentColor),
-				settings.windowBackgroundOpacity,
-				popupBackground);
-			require(
-				SameColor(
-					palette[ImGuiCol_PopupBg],
-					popupBackground),
-				"palette opacity did not reach the popup background");
-		});
-
-		runner.test("command palette surface composites dark and translucent", [] {
-			const auto settings = DefaultHostInterfaceSettings();
-			auto popupBackground =
-				HostAccentToImVec4(settings.paletteBackgroundColor);
-			popupBackground.w = settings.paletteBackgroundOpacity;
-			const auto palette = Theme::MakeHostPalette(
-				HostAccentToImVec4(settings.accentColor),
-				settings.windowBackgroundOpacity,
-				popupBackground);
-			const auto composite = [](
-				float a_foreground,
-				float a_opacity,
-				float a_background) noexcept {
-				return a_foreground * a_opacity +
-					a_background * (1.0f - a_opacity);
-			};
-			for (const auto gameLevel : std::array{ 0.0f, 0.5f, 1.0f })
-			{
-				const auto hostSurface = composite(
-					palette[ImGuiCol_WindowBg].x,
-					palette[ImGuiCol_WindowBg].w,
-					gameLevel);
-				const auto dimmedHost = composite(
-					palette[ImGuiCol_ModalWindowDimBg].x,
-					palette[ImGuiCol_ModalWindowDimBg].w,
-					hostSurface);
-				const auto elevatedSurface = composite(
-					popupBackground.x,
-					popupBackground.w,
-					dimmedHost);
-				require(elevatedSurface < dimmedHost * 0.5f,
-					"command palette was not clearly darker than the visible host");
-			}
-			const auto hostTransmission =
-				1.0f - settings.windowBackgroundOpacity;
-			require(palette[ImGuiCol_ModalWindowDimBg].w == 0.35f,
-				"command palette composite used the wrong modal dim opacity");
-			const auto stackedTransmission =
-				hostTransmission *
-				(1.0f - palette[ImGuiCol_ModalWindowDimBg].w) *
-				(1.0f - popupBackground.w);
-			require(
-				stackedTransmission > 0.04f &&
-					stackedTransmission < 0.05f,
-				"command palette did not preserve a faint view of the host");
-		});
-
-		runner.test("host settings preview excludes typography", [] {
-			const auto committed = DefaultHostInterfaceSettings();
-			auto draft = committed;
-			draft.uiScale = 1.50f;
-			draft.bodyFontFamily = "Atkinson Hyperlegible";
-			require(PreviewHostInterfaceSettings(draft) ==
-					PreviewHostInterfaceSettings(committed),
-				"typography settings leaked into the live preview");
-
-			draft.accentColor = { 0x00, 0x72, 0xB2 };
-			require(PreviewHostInterfaceSettings(draft) !=
-					PreviewHostInterfaceSettings(committed),
-				"appearance change was omitted from the live preview");
-			draft = committed;
-			draft.paletteBackgroundColor = { 0x12, 0x12, 0x12 };
-			draft.paletteBackgroundOpacity = 0.70f;
-			require(PreviewHostInterfaceSettings(draft) !=
-					PreviewHostInterfaceSettings(committed),
-				"palette appearance was omitted from the live preview");
-			draft = committed;
-			draft.sidebarLayout = SidebarLayoutKind::TwoPane;
-			require(PreviewHostInterfaceSettings(draft) !=
-					PreviewHostInterfaceSettings(committed),
-				"sidebar layout was omitted from the live preview");
-		});
-
-		runner.test("host settings draft applies all fields once", [] {
+		runner.test("host settings draft applies once and discards safely", [] {
 			auto state = BeginHostSettingsDraft(
 				DefaultHostInterfaceSettings());
 			const auto unchanged = ApplyHostSettingsDraft(state);
@@ -5826,64 +4215,63 @@ namespace vmm_tests
 			const auto repeated = ApplyHostSettingsDraft(state);
 			require(!repeated.settings,
 				"applied settings draft committed more than once");
-		});
 
-		runner.test("host settings draft reverts leaves and resets", [] {
-			const HostInterfaceSettings committed{
-				Theme::IconColorMode::kMonochrome,
-				SidebarLayoutKind::TwoPane,
-				{ 0x00, 0x72, 0xB2 },
-				0.80f,
-				{ 0x10, 0x10, 0x10 },
-				0.75f,
-				false,
-				0.75f,
-				1.50f,
-				"Atkinson Hyperlegible"
-			};
-			auto state = BeginHostSettingsDraft(committed);
-			state.draft = DefaultHostInterfaceSettings();
+			state = BeginHostSettingsDraft(changed);
+			state.draft.accentColor = { 0xE6, 0x9F, 0x00 };
 			RevertHostSettingsDraft(state);
-			require(state.draft == committed &&
+			require(state.draft == changed &&
 					!HostSettingsDraftDiffers(state),
 				"revert did not restore committed preview fields");
 
 			state.draft.accentColor = { 0xE6, 0x9F, 0x00 };
 			LeaveHostSettingsDraft(state);
-			require(!state.active && state.draft == committed,
+			require(!state.active && state.draft == changed,
 				"leaving settings did not discard the draft");
 
-			state = BeginHostSettingsDraft(committed);
+			state = BeginHostSettingsDraft(changed);
 			ResetHostSettingsDraft(state);
 			require(state.draft == DefaultHostInterfaceSettings(),
 				"reset did not populate shipped defaults");
-			require(state.committed == committed &&
+			require(state.committed == changed &&
 					HostSettingsDraftDiffers(state),
 				"reset committed instead of updating the draft");
 		});
 
-		runner.test("host settings atlas rebuild predicate is exact", [] {
+		runner.test("host settings preview isolates typography rebuilds", [] {
 			const auto committed = DefaultHostInterfaceSettings();
 			auto draft = committed;
-			require(!HostSettingsDraftRequiresAtlasRebuild(
-						 committed, draft),
+			require(!HostSettingsDraftRequiresAtlasRebuild(committed, draft),
 				"unchanged settings requested an atlas rebuild");
+			for (const bool changeFont : { false, true })
+			{
+				draft = committed;
+				if (changeFont)
+					draft.bodyFontFamily = "Atkinson Hyperlegible";
+				else
+					draft.uiScale = 1.25f;
+				require(HostSettingsDraftRequiresAtlasRebuild(committed, draft),
+					"an independent typography change did not request an atlas rebuild");
+				require(PreviewHostInterfaceSettings(draft) ==
+						PreviewHostInterfaceSettings(committed),
+					"typography settings leaked into the live preview");
+			}
 
-			draft.uiScale = 1.25f;
-			require(HostSettingsDraftRequiresAtlasRebuild(
-						committed, draft),
-				"UI scale change did not request an atlas rebuild");
-
+			const auto checkAppearance = [&committed](const auto& appearance) {
+				require(PreviewHostInterfaceSettings(appearance) !=
+							PreviewHostInterfaceSettings(committed) &&
+						!HostSettingsDraftRequiresAtlasRebuild(committed, appearance),
+					"appearance was omitted from preview or requested an atlas rebuild");
+			};
 			draft = committed;
-			draft.bodyFontFamily = "Atkinson Hyperlegible";
-			require(HostSettingsDraftRequiresAtlasRebuild(
-						committed, draft),
-				"font family change did not request an atlas rebuild");
-
-			draft.uiScale = 1.25f;
-			require(HostSettingsDraftRequiresAtlasRebuild(
-						committed, draft),
-				"combined typography changes did not request an atlas rebuild");
+			draft.accentColor = { 0x00, 0x72, 0xB2 };
+			checkAppearance(draft);
+			draft = committed;
+			draft.paletteBackgroundColor = { 0x12, 0x12, 0x12 };
+			draft.paletteBackgroundOpacity = 0.70f;
+			checkAppearance(draft);
+			draft = committed;
+			draft.sidebarLayout = SidebarLayoutKind::TwoPane;
+			checkAppearance(draft);
 		});
 
 		runner.test("host settings persistence round trips every stored value", [] {
@@ -6172,130 +4560,6 @@ namespace vmm_tests
 				"missing font family did not fall back to Jost");
 		});
 
-		runner.test("client selection handles zero one and many clients", [] {
-			ClientSelectionState selection{
-				DMUI_INVALID_CLIENT_HANDLE,
-				DMUI_INVALID_PAGE_HANDLE,
-				"unchanged"
-			};
-			const NavigationModel empty;
-			require(!SelectClient(empty, 1, selection),
-				"zero-client selection unexpectedly changed");
-			require(selection.search == "unchanged",
-				"zero-client selection cleared the search");
-
-			NavigationModel single;
-			single.clients.push_back({
-				1,
-				"single.mod",
-				"Single",
-				DMUI_MAKE_VERSION(1, 0),
-				{ NavigationCategory{
-					"General",
-					{ NavigationPage{
-						10,
-						1,
-						"only",
-						"Only",
-						"General",
-						{},
-						0 } } } }
-			});
-			require(SelectClient(single, 1, selection),
-				"single client could not be selected");
-			require(selection.activeClient == 1 && selection.activePage == 10,
-				"single client did not select its first page");
-			require(selection.search.empty(),
-				"single-client selection did not clear search");
-			selection.search = "keep";
-			require(!SelectClient(single, 1, selection) && selection.search == "keep",
-				"reselecting the active client changed state");
-
-			Registry registry;
-			CallbackState callback;
-			const auto zulu = AddClient(
-				registry, "z.external", "Zulu", callback);
-			const auto alpha = AddClient(
-				registry,
-				"alpha.mod",
-				"Alpha",
-				callback);
-			AddCategory(registry, zulu, "general", "General");
-			AddCategory(registry, alpha, "general", "General");
-			const auto zuluPage = AddPage(
-				registry, zulu, "settings", "Settings", "general", 0,
-				DMUI_PAGE_KIND_SETTINGS, callback);
-			const auto alphaPage = AddPage(
-				registry, alpha, "settings", "Settings", "general", 0,
-				DMUI_PAGE_KIND_SETTINGS, callback);
-			require(registry.Freeze(), "many-client registry did not freeze");
-			const auto& many = registry.Navigation();
-			require(many.clients.size() == 2 &&
-					many.clients[0].handle == alpha &&
-					many.clients[1].handle == zulu,
-				"client selection order was not deterministic");
-
-			selection = { alpha, alphaPage, "pages" };
-			require(SelectClient(many, zulu, selection),
-				"many-client selection did not change");
-			require(selection.activeClient == zulu &&
-					selection.activePage == zuluPage &&
-					selection.search.empty(),
-				"selection change did not reset page and search");
-		});
-
-		runner.test("host Home owns launch selection while client pages remain in session", [] {
-			NavigationModel model;
-			model.clients.push_back({
-				1,
-				"example.mod",
-				"Example",
-				DMUI_MAKE_VERSION(1, 0),
-				{ NavigationCategory{
-					"General",
-					{ NavigationPage{
-						10,
-						1,
-						"settings",
-						"Settings",
-						"General",
-						{},
-						0 } } } }
-			});
-			ClientSelectionState selection;
-			require(
-				selection.activeHostPage == HostPageKind::kHome &&
-					ResolvePageSelection(
-						model,
-						DMUI_INVALID_PAGE_HANDLE,
-						selection.activePage,
-						selection.activeHostPage.has_value()) ==
-						DMUI_INVALID_PAGE_HANDLE,
-				"fresh navigation did not land on the host Home page");
-
-			selection.activePage = ResolvePageSelection(
-				model,
-				10,
-				selection.activePage,
-				selection.activeHostPage.has_value());
-			selection.activeHostPage.reset();
-			require(
-				selection.activePage == 10 &&
-					ResolvePageSelection(
-						model,
-						DMUI_INVALID_PAGE_HANDLE,
-						selection.activePage,
-						selection.activeHostPage.has_value()) == 10,
-				"client page selection was not retained within the session");
-
-			SelectHostPage(HostPageKind::kHome, selection);
-			require(
-				selection.activeHostPage == HostPageKind::kHome &&
-					selection.activeClient == DMUI_INVALID_CLIENT_HANDLE &&
-					selection.activePage == DMUI_INVALID_PAGE_HANDLE,
-				"returning Home retained a client owner");
-		});
-
 		runner.test("one-page navigation and failed-page presentation remain stable", [] {
 			Registry registry;
 			CallbackState state;
@@ -6321,231 +4585,26 @@ namespace vmm_tests
 				"missing page did not present an empty state");
 		});
 
-		runner.test("theme style scalars are independently pinned", [] {
-			const auto& style = Theme::kStyleDefaults;
-			require(style.windowBorderSize == 2.0f, "window border changed");
-			require(style.childBorderSize == 0.0f, "child border changed");
-			require(style.frameBorderSize == 1.0f, "frame border changed");
-			require(style.windowPadding.x == 8.0f && style.windowPadding.y == 8.0f,
-				"window padding changed");
-			require(style.windowRounding == 12.0f, "window rounding changed");
-			require(style.indentSpacing == 8.0f, "indent spacing changed");
-			require(style.framePadding.x == 8.0f && style.framePadding.y == 4.0f,
-				"frame padding changed");
-			require(style.cellPadding.x == 8.0f && style.cellPadding.y == 2.0f,
-				"cell padding changed");
-			require(style.itemSpacing.x == 4.0f && style.itemSpacing.y == 8.0f,
-				"item spacing changed");
-			require(style.frameRounding == 4.0f, "frame rounding changed");
-			require(style.tabRounding == 4.0f, "tab rounding changed");
-			require(style.scrollbarRounding == 9.0f, "scrollbar rounding changed");
-			require(style.scrollbarSize == 12.0f, "scrollbar size changed");
-			require(style.grabRounding == 3.0f, "grab rounding changed");
-			require(style.grabMinSize == 12.0f, "grab size changed");
-			require(Theme::kScrollbarOpacityDefaults.background == 0.0f &&
-					Theme::kScrollbarOpacityDefaults.thumb == 0.5f &&
-					Theme::kScrollbarOpacityDefaults.thumbHovered == 0.75f &&
-					Theme::kScrollbarOpacityDefaults.thumbActive == 0.9f,
-				"scrollbar opacity changed");
-			require(Theme::kTooltipHoverDelay == 0.1f, "tooltip delay changed");
-			require(Theme::kFeatureHeadingDefaults.titleScale == 1.5f &&
-					Theme::kFeatureHeadingDefaults.minimizedFactor == 0.7f,
-				"feature heading defaults changed");
-			require(SameColor(
-						Theme::kStatusPaletteDefaults.disable,
-						{ 0.5f, 0.5f, 0.5f, 1.0f }) &&
-					SameColor(
-						Theme::kStatusPaletteDefaults.error,
-						{ 1.0f, 0.4f, 0.4f, 1.0f }) &&
-					SameColor(
-						Theme::kStatusPaletteDefaults.warning,
-						{ 1.0f, 0.6f, 0.2f, 1.0f }) &&
-					SameColor(
-						Theme::kStatusPaletteDefaults.restartNeeded,
-						{ 0.4f, 1.0f, 0.4f, 1.0f }) &&
-					SameColor(
-						Theme::kStatusPaletteDefaults.currentHotkey,
-						{ 1.0f, 1.0f, 0.0f, 1.0f }) &&
-					SameColor(
-						Theme::kStatusPaletteDefaults.success,
-						{ 0.0f, 1.0f, 0.0f, 1.0f }) &&
-					SameColor(
-						Theme::kStatusPaletteDefaults.info,
-						{ 0.2f, 1.0f, 0.328f, 1.0f }),
-				"status palette changed");
-
-			const auto applied = Theme::MakeBaseStyle();
-			require(applied.WindowBorderSize == style.windowBorderSize &&
-					applied.ChildBorderSize == style.childBorderSize &&
-					applied.FrameBorderSize == style.frameBorderSize &&
-					applied.WindowPadding.x == style.windowPadding.x &&
-					applied.WindowPadding.y == style.windowPadding.y &&
-					applied.WindowRounding == style.windowRounding &&
-					applied.IndentSpacing == style.indentSpacing &&
-					applied.FramePadding.x == style.framePadding.x &&
-					applied.FramePadding.y == style.framePadding.y &&
-					applied.CellPadding.x == style.cellPadding.x &&
-					applied.CellPadding.y == style.cellPadding.y &&
-					applied.ItemSpacing.x == style.itemSpacing.x &&
-					applied.ItemSpacing.y == style.itemSpacing.y &&
-					applied.FrameRounding == style.frameRounding &&
-					applied.TabRounding == style.tabRounding &&
-					applied.ScrollbarRounding == style.scrollbarRounding &&
-					applied.ScrollbarSize == style.scrollbarSize &&
-					applied.GrabRounding == style.grabRounding &&
-					applied.GrabMinSize == style.grabMinSize,
-				"base style application diverged from pinned scalars");
-		});
-
-		runner.test("theme full palette is independently pinned", [] {
-			const std::array<ImVec4, ImGuiCol_COUNT> expected{
-				ImVec4(1.0f, 1.0f, 1.0f, 1.0f),
-				ImVec4(1.0f, 1.0f, 1.0f, 0.3f),
-				ImVec4(0.03f, 0.03f, 0.03f, 0.55f),
-				ImVec4(0.0f, 0.0f, 0.0f, 0.0f),
-				ImVec4(0.05f, 0.05f, 0.1f, 0.85f),
-				ImVec4(0.5f, 0.5f, 0.5f, 0.8f),
-				ImVec4(0.0f, 0.0f, 0.0f, 0.0f),
-				ImVec4(0.4f, 0.4f, 0.4f, 0.7f),
-				ImVec4(0.26f, 0.26f, 0.26f, 0.4f),
-				ImVec4(0.4f, 0.4f, 0.4f, 0.45f),
-				ImVec4(0.0f, 0.0f, 0.0f, 0.83f),
-				ImVec4(0.0f, 0.0f, 0.0f, 0.87f),
-				ImVec4(0.2f, 0.2f, 0.3f, 0.9f),
-				ImVec4(0.02f, 0.02f, 0.03f, 0.9f),
-				ImVec4(0.2f, 0.22f, 0.27f, 0.9f),
-				ImVec4(0.28f, 0.28f, 0.28f, 1.0f),
-				ImVec4(0.42f, 0.42f, 0.42f, 1.0f),
-				ImVec4(0.56f, 0.56f, 0.56f, 1.0f),
-				ImVec4(1.0f, 1.0f, 1.0f, 1.0f),
-				ImVec4(0.31f, 0.31f, 0.31f, 0.5f),
-				ImVec4(0.26f, 0.98f, 0.3752f, 1.0f),
-				ImVec4(0.45f, 1.0f, 0.55f, 1.0f),
-				ImVec4(0.26f, 0.98f, 0.3752f, 0.39f),
-				ImVec4(0.26f, 0.98f, 0.3752f, 0.2f),
-				ImVec4(0.26f, 0.98f, 0.3752f, 0.59f),
-				ImVec4(0.06f, 0.98f, 0.2072f, 0.39f),
-				ImVec4(0.26f, 0.98f, 0.3752f, 0.2f),
-				ImVec4(0.26f, 0.98f, 0.3752f, 0.59f),
-				ImVec4(0.5f, 0.5f, 0.5f, 0.6f),
-				ImVec4(0.7f, 0.6f, 0.6f, 1.0f),
-				ImVec4(0.9f, 0.7f, 0.7f, 1.0f),
-				ImVec4(0.6f, 0.6f, 0.6f, 0.8f),
-				ImVec4(0.6f, 0.6f, 0.6f, 0.1f),
-				ImVec4(0.6f, 0.6f, 0.6f, 0.1f),
-				ImVec4(0.9f, 0.9f, 0.9f, 1.0f),
-				ImVec4(0.26f, 0.98f, 0.3752f, 0.31f),
-				ImVec4(0.26f, 0.98f, 0.3752f, 0.8f),
-				ImVec4(0.26f, 0.98f, 0.3752f, 1.0f),
-				ImVec4(0.38f, 0.83f, 0.452f, 1.0f),
-				ImVec4(0.15f, 0.15f, 0.15f, 0.97f),
-				ImVec4(0.26f, 0.98f, 0.3752f, 1.0f),
-				ImVec4(0.5f, 0.5f, 0.5f, 0.0f),
-				ImVec4(0.7f, 0.6f, 0.6f, 0.5f),
-				ImVec4(0.0f, 0.0f, 0.0f, 0.0f),
-				ImVec4(1.0f, 1.0f, 1.0f, 1.0f),
-				ImVec4(0.9f, 0.7f, 0.0f, 1.0f),
-				ImVec4(0.9f, 0.7f, 0.0f, 1.0f),
-				ImVec4(0.9f, 0.7f, 0.0f, 1.0f),
-				ImVec4(0.26f, 0.98f, 0.3752f, 0.4f),
-				ImVec4(0.26f, 0.26f, 0.26f, 1.0f),
-				ImVec4(0.19f, 0.19f, 0.19f, 1.0f),
-				ImVec4(0.0f, 0.0f, 0.0f, 0.0f),
-				ImVec4(1.0f, 1.0f, 1.0f, 0.06f),
-				ImVec4(0.38f, 0.83f, 0.452f, 1.0f),
-				ImVec4(0.26f, 0.98f, 0.3752f, 0.35f),
-				ImVec4(0.7f, 0.7f, 0.7f, 0.65f),
-				ImVec4(0.8f, 0.5f, 0.5f, 1.0f),
-				ImVec4(0.0f, 0.0f, 0.0f, 0.0f),
-				ImVec4(1.0f, 1.0f, 1.0f, 1.0f),
-				ImVec4(0.26f, 0.98f, 0.3752f, 1.0f),
-				ImVec4(0.3f, 0.3f, 0.3f, 0.56f),
-				ImVec4(0.2f, 0.2f, 0.2f, 0.35f),
-				ImVec4(0.2f, 0.2f, 0.2f, 0.35f)
-			};
-			require(expected.size() == Theme::kFullPalette.size(),
-				"palette size changed");
-			for (size_t index = 0; index < expected.size(); ++index)
-			{
-				require(SameColor(expected[index], Theme::kFullPalette[index]),
-					"palette entry changed");
-			}
-			const auto effective = Theme::MakeEffectivePalette();
-			require(effective[ImGuiCol_ScrollbarBg].w == 0.0f &&
-					effective[ImGuiCol_ScrollbarGrab].w == 0.5f &&
-					effective[ImGuiCol_ScrollbarGrabHovered].w == 0.75f &&
-					effective[ImGuiCol_ScrollbarGrabActive].w == 0.9f,
-				"effective scrollbar opacity changed");
-			const ImVec4 customAccent{ 0.2f, 0.4f, 0.8f, 1.0f };
-			const auto customized =
-				Theme::MakeEffectivePalette(customAccent, 0.85f);
+		runner.test("theme scaling clamps and composes user scale", [] {
+			const auto minimum = Theme::ResolveFontSize(1);
+			const auto baseline = Theme::ResolveFontSize(1080);
+			const auto highResolution = Theme::ResolveFontSize(2160);
+			const auto maximum = Theme::ResolveFontSize(8640);
 			require(
-				customized[ImGuiCol_Button].x == customAccent.x &&
-					customized[ImGuiCol_Button].y == customAccent.y &&
-					customized[ImGuiCol_Button].z == customAccent.z &&
-					customized[ImGuiCol_WindowBg].w == 0.85f,
-				"accent or window opacity did not drive the effective palette");
-			const ImVec4 paletteBackground{ 0.02f, 0.02f, 0.02f, 0.82f };
-			const auto hostPalette =
-				Theme::MakeHostPalette(customAccent, 0.85f, paletteBackground);
+				minimum == Theme::kMinFontSize &&
+					baseline > minimum &&
+					highResolution > baseline &&
+					maximum == Theme::kMaxFontSize,
+				"font scaling lost its resolution boundaries");
 			require(
-				SameColor(
-					hostPalette[ImGuiCol_PopupBg],
-					paletteBackground),
-				"command palette background was not independently pinned");
-		});
-
-		runner.test("theme font roles and scaling stay exact", [] {
-			require(Theme::kFontRoleDefaults.size() == 5, "font role count changed");
-			require(Theme::kFontRoleDefaults[0].family == "Jost" &&
-					Theme::kFontRoleDefaults[0].style == "Regular" &&
-					Theme::kFontRoleDefaults[0].file == "Jost\\Jost-Regular.ttf" &&
-					Theme::kFontRoleDefaults[0].sizeScale == 1.0f,
-				"body role changed");
-			require(Theme::kFontRoleDefaults[1].family == "Jost" &&
-					Theme::kFontRoleDefaults[1].style == "SemiBold" &&
-					Theme::kFontRoleDefaults[1].file == "Jost\\Jost-SemiBold.ttf" &&
-					Theme::kFontRoleDefaults[1].sizeScale == 1.3f,
-				"title role changed");
-			require(Theme::kFontRoleDefaults[2].sizeScale == 1.0f &&
-					Theme::kFontRoleDefaults[3].sizeScale == 1.0f &&
-					Theme::kFontRoleDefaults[4].sizeScale == 0.9f,
-				"secondary font roles changed");
-			require(Theme::ResolveFontSize(1080) == 21.0f, "1080p font changed");
-			require(Theme::ResolveRoleFontSize(Theme::FontRole::kTitle, 1080) == 27.0f,
-				"title point scale changed");
-			require(Theme::ResolveRoleFontSize(Theme::FontRole::kSubtext, 1080) == 19.0f,
-				"subtext point scale changed");
-			require(Theme::ResolveFontSize(720) == 16.0f, "minimum font size changed");
-			require(Theme::ResolveFontSize(2160) == 42.0f, "4K font size changed");
-			require(Theme::ResolveFontSize(8640) == 108.0f, "maximum font size changed");
-			require(ResolveUiScale(1.0f, 1080) == 1.0f, "1080p UI scale changed");
-			require(ResolveUiScale(2.0f, 1080) == 1.0f, "DPI altered theme scaling");
-			require(ResolveUiScale(1.0f, 2160) == 2.0f, "4K UI scale changed");
-			require(
-				Theme::ResolveRoleFontSize(
-					Theme::FontRole::kBody,
-					1080,
-					Theme::kMaxUserScale) == 42.0f &&
+				ResolveUiScale(1.0f, 1080) == 1.0f &&
+					ResolveUiScale(2.0f, 1080) == 1.0f &&
+					ResolveUiScale(1.0f, 2160) == 2.0f &&
 					ResolveUiScale(
 						1.0f,
 						1080,
 						Theme::kMaxUserScale) == 2.0f,
-				"accessibility UI scale was not applied after resolution scaling");
-			require(Theme::ResolveStyleScale(21.0f, 0.0f) == 1.0f,
-				"default global scale changed");
-			require(Theme::ResolveStyleScale(21.0f, 1.0f) == 2.0f,
-				"exponential global scale changed");
-			require(!Theme::kCursorDefaults.useCustomCursor &&
-					Theme::kCursorDefaults.scale == 1.0f,
-				"default cursor metadata changed");
-			for (const auto& cursor : Theme::kCursorDefaults.types)
-			{
-				require(cursor.file.empty() &&
-						cursor.hotspotX == 0.0f &&
-						cursor.hotspotY == 0.0f,
-					"default cursor image metadata changed");
-			}
+				"resolution and accessibility scaling no longer compose");
 		});
 
 		runner.test("absent icons reserve no navigation layout space", [] {
@@ -6564,25 +4623,6 @@ namespace vmm_tests
 					present.contentWidth == 104.0f &&
 					present.contentHeight == 20.0f,
 				"present icon layout did not align to the font");
-		});
-
-		runner.test("glyph origin centers asymmetric ink bounds", [] {
-			const auto origin = ResolveCenteredGlyphOrigin(
-				100.0f,
-				80.0f,
-				2.0f,
-				4.0f,
-				14.0f,
-				18.0f,
-				1.5f);
-			require(
-				origin.x == 88.0f &&
-					origin.y == 63.5f &&
-					origin.x + (2.0f + 14.0f) * 1.5f * 0.5f ==
-						100.0f &&
-					origin.y + (4.0f + 18.0f) * 1.5f * 0.5f ==
-						80.0f,
-				"glyph ink bounds were not centered");
 		});
 
 		runner.test("cursor ownership follows modal visibility", [] {

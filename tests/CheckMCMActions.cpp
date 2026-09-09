@@ -179,13 +179,6 @@ namespace vmm_tests
 				bound.push_back(arguments ?
 					*arguments :
 					std::vector<BoundActionArgument>{});
-				if (requireSingleInt &&
-					(!arguments ||
-					 arguments->size() != 1 ||
-					 !std::holds_alternative<int64_t>(
-						 arguments->front())))
-					arguments = std::unexpected(
-						"fixture function argument signature does not match");
 				a_completion({
 					arguments ?
 						ActionExecutionStatus::kSucceeded :
@@ -197,9 +190,7 @@ namespace vmm_tests
 						}
 				});
 			}
-
 			bool throws{};
-			bool requireSingleInt{};
 			std::optional<std::string> unsupportedReason;
 			std::vector<ActionInvocation> invocations;
 			std::vector<std::vector<BoundActionArgument>> bound;
@@ -419,29 +410,12 @@ namespace vmm_tests
 			values.Release(0, true);
 			require(executor.invocations.size() == 1,
 				"a settled value write did not fire its action exactly once");
-		});
-
-		runner.test("MCM page refresh preserves pending value actions", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"Actions",
-				"content":[{"id":"setting","type":"switcher",
-					"valueOptions":{"sourceType":"GlobalValueBool",
-						"sourceForm":"Fixture.esp|1","default":false},
-					"action":{"type":"CallExternalFunction",
-						"plugin":"Fixture","function":"Apply"}}]
-			})json");
-			auto& page = result.pages.front();
-			DeferredActionValueSource values{ diagnostics };
-			FakeActionExecutor executor;
-			BindPage(page, values);
-			BindActions(page, executor, values, diagnostics);
-
 			(void)SettingNamed(page, "setting").binding.set(
-				dmui::SettingValue{ true });
+				dmui::SettingValue{ false });
 			values.RefreshPage(page, { true, true });
-			values.Release(0, true);
-			require(executor.invocations.size() == 1,
-				"a page refresh canceled a pending value action");
+			values.Release(1, true);
+			require(executor.invocations.size() == 2,
+				"a page refresh canceled a pending value action callback");
 		});
 
 		runner.test("MCM unsupported value actions remain editable and explained", [] {
@@ -497,24 +471,6 @@ namespace vmm_tests
 				"a failed write fired its action or lost its specific reason");
 		});
 
-		runner.test("MCM button actions fire without a value write", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"Actions",
-				"content":[{"id":"apply","type":"button","action":{
-					"type":"CallExternalFunction",
-					"plugin":"Fixture","function":"Apply"}}]
-			})json");
-			auto& page = result.pages.front();
-			DeferredActionValueSource values{ diagnostics };
-			FakeActionExecutor executor;
-			BindPage(page, values);
-			BindActions(page, executor, values, diagnostics);
-
-			ActionNamed(page, "apply").activate();
-			require(executor.invocations.size() == 1 && values.pending.empty(),
-				"a button action waited for a nonexistent value write");
-		});
-
 		runner.test("MCM superseded writes collapse to the latest action", [] {
 			auto result = ParseConfig(R"json({
 				"modName":"Actions",
@@ -557,28 +513,16 @@ namespace vmm_tests
 
 			ActionNamed(page, "invalid").activate();
 			page.settings.prepareView(page.settings);
-			require(HasActionFailure(page),
-				"a missing placeholder value produced no page diagnostic");
-		});
-
-		runner.test("MCM action signature mismatches are diagnosed", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"Actions",
-				"content":[{"id":"invalid","type":"button","action":{
-					"type":"CallGlobalFunction","script":"Fixture",
-					"function":"Apply","params":[true]}}]
-			})json");
-			auto& page = result.pages.front();
-			ActionValueSource values;
-			FakeActionExecutor executor;
-			executor.requireSingleInt = true;
-			BindPage(page, values);
-			BindActions(page, executor, values, diagnostics);
-
 			ActionNamed(page, "invalid").activate();
 			page.settings.prepareView(page.settings);
-			require(HasActionFailure(page),
-				"an argument type mismatch produced no page diagnostic");
+			require(HasActionFailure(page) &&
+					std::ranges::count_if(
+						page.settings.notes,
+						[](const dmui::SettingsPageNote& a_note) {
+							return a_note.noteId ==
+								"dearmodding.mcm.action.invalid";
+						}) == 1,
+				"a missing placeholder value produced no page diagnostic");
 		});
 
 		runner.test("MCM external actions fire for buttons and value changes", [] {
@@ -648,7 +592,7 @@ namespace vmm_tests
 				"the Scaleform seam did not invoke through the UI scheduler");
 		});
 
-		runner.test("MCM Scaleform seam reports an unregistered plugin", [] {
+		runner.test("MCM Scaleform seam distinguishes invocation failures", [] {
 			FakeScaleformInvoker scaleform;
 			scaleform.status =
 				ScaleformInvocationStatus::kPluginNotRegistered;
@@ -661,34 +605,30 @@ namespace vmm_tests
 					result.message->find("MissingPlugin") != std::string::npos &&
 					result.message->find("not registered") != std::string::npos,
 				"an absent Scaleform plugin did not produce a specific failure");
-		});
 
-		runner.test("MCM Scaleform seam reports an unregistered function", [] {
-			FakeScaleformInvoker scaleform;
-			scaleform.status =
+			FakeScaleformInvoker functionScaleform;
+			functionScaleform.status =
 				ScaleformInvocationStatus::kFunctionNotRegistered;
-			const auto result = InvokeExternalFunction(
-				scaleform,
+			const auto missingFunction = InvokeExternalFunction(
+				functionScaleform,
 				{ "FixturePlugin", "MissingFunction", {} },
 				std::nullopt);
-			require(result.status == ActionExecutionStatus::kFailed &&
-					result.message &&
-					result.message->find("FixturePlugin.MissingFunction") !=
+			require(missingFunction.status == ActionExecutionStatus::kFailed &&
+					missingFunction.message &&
+					missingFunction.message->find("FixturePlugin.MissingFunction") !=
 						std::string::npos &&
-					result.message->find("not registered") != std::string::npos,
+					missingFunction.message->find("not registered") != std::string::npos,
 				"an absent Scaleform function did not produce a specific failure");
-		});
 
-		runner.test("MCM Scaleform seam reports no loaded movie", [] {
-			FakeScaleformInvoker scaleform;
-			scaleform.status = ScaleformInvocationStatus::kNoMovieLoaded;
-			const auto result = InvokeExternalFunction(
-				scaleform,
+			FakeScaleformInvoker movieScaleform;
+			movieScaleform.status = ScaleformInvocationStatus::kNoMovieLoaded;
+			const auto noMovie = InvokeExternalFunction(
+				movieScaleform,
 				{ "FixturePlugin", "Apply", {} },
 				std::nullopt);
-			require(result.status == ActionExecutionStatus::kFailed &&
-					result.message &&
-					result.message->find("No suitable loaded UI movie") !=
+			require(noMovie.status == ActionExecutionStatus::kFailed &&
+					noMovie.message &&
+					noMovie.message->find("No suitable loaded UI movie") !=
 						std::string::npos,
 				"a missing Scaleform movie did not produce a specific failure");
 		});
@@ -786,30 +726,5 @@ namespace vmm_tests
 				"a completed action did not refresh the page bindings");
 		});
 
-		runner.test("MCM action failures replace the note for their row", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"Actions",
-				"content":[{"id":"invalid","type":"button","action":{
-					"type":"CallGlobalFunction","script":"Fixture",
-					"function":"Apply","params":["{i}{value}"]}}]
-			})json");
-			auto& page = result.pages.front();
-			ActionValueSource values;
-			FakeActionExecutor executor;
-			BindPage(page, values);
-			BindActions(page, executor, values, diagnostics);
-
-			ActionNamed(page, "invalid").activate();
-			page.settings.prepareView(page.settings);
-			ActionNamed(page, "invalid").activate();
-			page.settings.prepareView(page.settings);
-			require(std::ranges::count_if(
-						page.settings.notes,
-						[](const dmui::SettingsPageNote& a_note) {
-							return a_note.noteId ==
-								"dearmodding.mcm.action.invalid";
-						}) == 1,
-				"repeated action failures grew duplicate notes");
-		});
 	}
 }

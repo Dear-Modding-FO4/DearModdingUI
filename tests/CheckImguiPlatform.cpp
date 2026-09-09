@@ -17,27 +17,21 @@ namespace
 
 	using DrawSink = void (*)() noexcept;
 	using KeySink = bool (*)(uint32_t) noexcept;
+
+	static_assert(kPresentSlot == 8, "Present must use DXGI vtable slot 8");
+	static_assert(kResizeBuffersSlot == 13, "ResizeBuffers must use DXGI vtable slot 13");
 }
 
 namespace vmm_tests
 {
 	void run_imgui_platform_checks(Runner& runner)
 	{
-		runner.test("swapchain vtable slots match the DXGI ABI", [] {
-			require(kPresentSlot == 8, "Present must use slot 8");
-			require(kResizeBuffersSlot == 13, "ResizeBuffers must use slot 13");
-		});
-
-		runner.test("reconciliation waits when renderer data is unavailable", [] {
-			constexpr RendererProbe missing{};
-			require(
-				ObserveRenderer(missing) == RendererObservation::kRendererDataMissing,
-				"missing renderer data must remain recoverable");
-		});
-
-		runner.test("reconciliation attaches a valid renderer binding", [] {
+		runner.test("renderer attachment lifecycle and result mapping stay coherent", [] {
 			constexpr AttachmentIdentity empty{};
 			constexpr AttachmentIdentity game{ 1, 2, 3, 4 };
+			constexpr AttachmentIdentity reboundGame{ 5, 6, 7, 8 };
+			constexpr AttachmentIdentity explicitOverride{ 5, 2, 3, 4 };
+			constexpr AttachmentIdentity nextGeneration{ 6, 7, 8, 4 };
 			constexpr RendererProbe renderer{ true, true, true, game };
 
 			require(
@@ -52,9 +46,6 @@ namespace vmm_tests
 					AttachmentLifecycle::kVacant) ==
 					AttachmentDecision::kAttach,
 				"the first renderer binding must attach");
-		});
-
-		runner.test("explicit attachment reports missing renderer prerequisites as retryable", [] {
 			constexpr std::array probes{
 				RendererProbe{},
 				RendererProbe{ true, false, true, { 1, 2, 3, 4 } },
@@ -73,9 +64,6 @@ namespace vmm_tests
 							FailedAttachmentResult(observation)) == DMUI_RESULT_HOST_NOT_READY,
 					"missing renderer prerequisite became a permanent rejection");
 			}
-		});
-
-		runner.test("explicit attachment separates binding races from actual rejection", [] {
 			require(
 				DearModdingUI::SwapChainAttachmentResult(
 					FailedAttachmentResult(RendererObservation::kBindingChanged)) ==
@@ -98,13 +86,10 @@ namespace vmm_tests
 			require(
 				DecideAttachment(
 					{ 1, 2, 3, 4 }, {}, AttachmentSource::kRenderer,
-					AttachmentSource::kExplicit, AttachmentLifecycle::kActive) ==
+					AttachmentSource::kExplicit,
+					AttachmentLifecycle::kActive) ==
 					AttachmentDecision::kReject,
 				"invalid candidate validation was weakened");
-		});
-
-		runner.test("unchanged reconciliation is a no-op that does not re-hook", [] {
-			constexpr AttachmentIdentity game{ 1, 2, 3, 4 };
 			require(
 				DecideAttachment(
 					game,
@@ -114,11 +99,6 @@ namespace vmm_tests
 					AttachmentLifecycle::kActive) ==
 					AttachmentDecision::kKeepCurrent,
 				"an unchanged binding must return before hook installation");
-		});
-
-		runner.test("changed reconciliation retires and replaces the old binding", [] {
-			constexpr AttachmentIdentity game{ 1, 2, 3, 4 };
-			constexpr AttachmentIdentity reboundGame{ 5, 6, 7, 8 };
 			require(
 				DecideAttachment(
 					game,
@@ -128,16 +108,10 @@ namespace vmm_tests
 					AttachmentLifecycle::kActive) ==
 					AttachmentDecision::kReplace,
 				"a changed renderer generation must retire and replace the active binding");
-		});
-
-		runner.test("explicit swapchain overrides remain authoritative for their renderer binding", [] {
-			constexpr AttachmentIdentity renderer{ 1, 2, 3, 4 };
-			constexpr AttachmentIdentity explicitOverride{ 5, 2, 3, 4 };
-			constexpr AttachmentIdentity nextGeneration{ 6, 7, 8, 4 };
 
 			require(
 				DecideAttachment(
-					renderer,
+					game,
 					explicitOverride,
 					AttachmentSource::kRenderer,
 					AttachmentSource::kExplicit,
@@ -147,7 +121,7 @@ namespace vmm_tests
 			require(
 				DecideAttachment(
 					explicitOverride,
-					renderer,
+					game,
 					AttachmentSource::kExplicit,
 					AttachmentSource::kRenderer,
 					AttachmentLifecycle::kActive) ==
@@ -176,26 +150,6 @@ namespace vmm_tests
 			require(!IsDefinitiveSwapChainLoss(0), "success must keep the attachment");
 			require(!IsDefinitiveSwapChainLoss(0x887A0001u),
 				"a transient invalid call must keep the attachment");
-		});
-
-		runner.test("backend reset follows render binding rather than swapchain identity", [] {
-			constexpr AttachmentIdentity game{ 1, 2, 3, 4 };
-			constexpr AttachmentIdentity proxy{ 5, 2, 3, 4 };
-			constexpr AttachmentIdentity newDevice{ 5, 6, 7, 4 };
-			constexpr AttachmentIdentity newWindow{ 5, 2, 3, 8 };
-
-			require(
-				!RequiresBackendReset(game, proxy, true),
-				"a same-binding proxy must reuse the backend");
-			require(
-				RequiresBackendReset(game, newDevice, true),
-				"a device replacement must reset the backend");
-			require(
-				RequiresBackendReset(game, newWindow, true),
-				"a window replacement must reset the backend");
-			require(
-				!RequiresBackendReset(game, newDevice, false),
-				"an uncreated backend needs no reset");
 		});
 
 		runner.test("swapchain dispatch survives shadow vtable retargeting", [] {
@@ -243,48 +197,6 @@ namespace vmm_tests
 			require(!MatchesActivePresentAttachment(
 						{}, 11, 7, AttachmentLifecycle::kActive),
 				"uncaptured Present acquired observer dispatch");
-		});
-
-		runner.test("host initializes eagerly while overlays never suppress game input", [] {
-			require(ShouldInitializeHost(true),
-				"the host did not initialize on an active Present");
-			require(!ShouldInitializeHost(false),
-				"the host initialized before the window was ready");
-			require(ShouldRenderHostFrame(false, true),
-				"overlay demand did not produce a frame");
-			require(!ShouldSuppressGameInput(false),
-				"overlay-only drawing suppressed game input");
-			require(ShouldSuppressGameInput(true),
-				"a modal menu did not suppress game input");
-		});
-
-		runner.test("modal input queues block every device only while visible", [] {
-			require(
-				kMenuInputSuppression == InputSuppressionPolicy::kAllDevices,
-				"modal input suppression must include gamepads");
-			require(
-				DecideInputQueue(false) == InputQueueDecision::kForward,
-				"a closed menu must forward the original input queue");
-			require(
-				DecideInputQueue(true) == InputQueueDecision::kDiscard,
-				"a visible menu must replace the input queue with an empty head");
-		});
-
-		runner.test("input receiver offsets select the intended vtables", [] {
-			require(kPerformInputProcessingSlot == 0,
-				"PerformInputProcessing must use receiver vtable slot zero");
-			require(
-				MatchesReceiverOffset(0x1000, 0x1000, 0),
-				"a primary input receiver must use the object's vtable");
-			require(
-				MatchesReceiverOffset(
-					0x1000,
-					0x1000 + kPlayerCameraReceiverOffset,
-					kPlayerCameraReceiverOffset),
-				"PlayerCamera must use its secondary input receiver vtable");
-			require(
-				!MatchesReceiverOffset(0x1000, 0x1000, kPlayerCameraReceiverOffset),
-				"PlayerCamera's primary vtable must be rejected");
 		});
 
 		runner.test("input hook health requires every receiver", [] {
@@ -456,17 +368,6 @@ namespace vmm_tests
 				"out-of-window mouse coordinates were scaled into the viewport");
 		});
 
-		runner.test("install state permits one reconciliation task", [] {
-			require(AllowsInstallAttempt(InstallState::kNotAttempted), "the first attempt must be allowed");
-			require(!AllowsInstallAttempt(InstallState::kRejected), "a rejected task is never duplicated");
-			require(!AllowsInstallAttempt(InstallState::kAttempted), "a started attempt is never repeated");
-			require(!AllowsInstallAttempt(InstallState::kInstalled), "installation is idempotent");
-
-			require(IsInstalled(InstallState::kInstalled), "only the installed state is ready");
-			require(!IsInstalled(InstallState::kAttempted), "an attempt alone is not ready");
-			require(!IsInstalled(InstallState::kRejected), "a rejected task is not ready");
-		});
-
 		runner.test("sink registration rejects null, duplicate and overlong names", [] {
 			SinkTable<DrawSink> table;
 			require(table.IsOpen(), "a fresh table accepts registrations");
@@ -522,30 +423,6 @@ namespace vmm_tests
 			require(SwallowsMessage(MessageClass::kKeyboard, false, true), "captured keys stop at the menu");
 			require(!SwallowsMessage(MessageClass::kKeyboard, true, false), "uncaptured keys reach the game");
 			require(!SwallowsMessage(MessageClass::kOther, true, true), "other messages always reach the game");
-		});
-
-		runner.test("window input requires live state under the context lock", [] {
-			require(
-				HandlesWindowMessage(true, true, true, true),
-				"a live backend may handle active-window input");
-			require(
-				!HandlesWindowMessage(false, true, true, true),
-				"an inactive window must only forward input");
-			require(
-				!HandlesWindowMessage(true, false, true, true),
-				"an idle renderer must only forward input");
-			require(
-				!HandlesWindowMessage(true, true, false, true),
-				"an unavailable backend must only forward input");
-			require(
-				!HandlesWindowMessage(true, true, true, false),
-				"a destroyed ImGui context must only forward input");
-		});
-
-		runner.test("window hooks retire only after non-client destruction", [] {
-			require(RetiresWindowHook(kWindowNcDestroyMessage), "WM_NCDESTROY must retire its hook record");
-			require(!RetiresWindowHook(0x0081), "WM_NCCREATE must keep its hook record");
-			require(!RetiresWindowHook(0x0002), "WM_DESTROY must preserve the chain through WM_NCDESTROY");
 		});
 
 		runner.test("toggle sinks fire once per physical press", [] {

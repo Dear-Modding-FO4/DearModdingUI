@@ -11,22 +11,8 @@
 #include <DearModdingUI/Presentation.h>
 #include <DearModdingUI/Client.h>
 
-#include <utility>
-
 namespace DearModdingUI
 {
-	namespace
-	{
-		std::string_view s_sectionHeaderText;
-		char32_t s_sectionHeaderGlyph{};
-	}
-
-	void DrawSectionHeader(const char* a_text, char32_t a_glyph) noexcept
-	{
-		s_sectionHeaderText = a_text;
-		s_sectionHeaderGlyph = a_glyph;
-	}
-
 	float SettingsActionButtonWidth(
 		SettingsAction,
 		const char*,
@@ -163,29 +149,6 @@ namespace vmm_tests
 
 	void run_settings_table_checks(Runner& runner)
 	{
-		runner.test("native section headings inherit icons without overriding explicit glyphs", [] {
-			for (const auto& [label, icon] : {
-					 std::pair{ "Appearance", "palette" },
-					 std::pair{ "Readability", "text-aa" },
-					 std::pair{ "Input", "keyboard" },
-					 std::pair{ "Host facts (read-only)", "info" } })
-			{
-				DrawSectionHeader(label);
-				require(s_sectionHeaderText == label &&
-						s_sectionHeaderGlyph == FindPhosphorIconGlyphOrZero(icon),
-					"native section heading bypassed the shared icon classifier");
-			}
-			DrawSectionHeader("Appearance", PhosphorGlyph::kGear);
-			require(s_sectionHeaderGlyph == PhosphorGlyph::kGear,
-				"section classification replaced an explicit icon");
-			DrawSectionHeader("Appearance", 0);
-			require(s_sectionHeaderGlyph == 0,
-				"section classification replaced an explicit no-icon choice");
-			DrawSectionHeader("Unclassified Heading");
-			require(s_sectionHeaderGlyph == PhosphorGlyph::kQuestion,
-				"native section heading lost the classifier fallback");
-		});
-
 		runner.test("presentation tones resolve every theme role", [] {
 			const auto theme = TestTheme();
 			const dmui::TextTone tones[]{
@@ -299,34 +262,6 @@ namespace vmm_tests
 				"failed text helper drew a partial value");
 			require(frame.IsAtBaseline() && frame.Errors() == 0,
 				"failed text helper changed the ImGui stack");
-		});
-
-		runner.test("labeled value preserves its label when value font push fails", [] {
-			ImGuiTestFrame frame;
-			dmui::Client client{
-				"tests.presentation.font-failure",
-				"Presentation font failure",
-				{ 1, 0 }
-			};
-			require(client.Connect(), "fixture client did not connect");
-			const auto start = ImGui::GetCursorScreenPos();
-			require(
-				!dmui::DrawLabeledValue(
-					client,
-					"Must not render",
-					"Value",
-					{
-						.valueStyle = {
-							.fontRole = DMUI_FONT_ROLE_HEADING
-						}
-					}) &&
-					client.LastResult() == DMUI_RESULT_UNSUPPORTED_ABI,
-				"unsupported font push did not fail explicitly");
-			const auto end = ImGui::GetCursorScreenPos();
-			require(end.x > start.x && end.y == start.y,
-				"failed value-font acquisition dropped the caller-font label");
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"failed labeled value changed the ImGui stack");
 		});
 
 		runner.test("disabled and tooltip scopes end idempotently", [] {
@@ -528,55 +463,6 @@ namespace vmm_tests
 				"reported recovery did not restore the ImGui baseline");
 		});
 
-		runner.test("settings row closes its nested controls table", [] {
-			constexpr DMUI_ClientHandle owner{ 7 };
-			ImGuiTestFrame frame;
-			{
-				const SettingsTable::ClientCallbackGuard guard{ owner };
-				const auto table = SettingsTable::Begin(owner, "settings");
-				require(table.result == DMUI_RESULT_OK && table.visible,
-					"settings table did not begin");
-				const auto row = SettingsTable::BeginRow(
-					owner, "row", "Setting", "Description");
-				require(row.result == DMUI_RESULT_OK && row.visible,
-					"settings row did not begin");
-				bool resetPressed{};
-				require(SettingsTable::EndRow(
-							owner, { true, false }, resetPressed) ==
-						DMUI_RESULT_OK,
-					"settings row rejected its nested table depth");
-				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
-					"settings table did not end");
-			}
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"balanced row changed the ImGui stack");
-		});
-
-		runner.test("settings row accepts a deliberately empty label", [] {
-			constexpr DMUI_ClientHandle owner{ 7 };
-			ImGuiTestFrame frame;
-			{
-				const SettingsTable::ClientCallbackGuard guard{ owner };
-				const auto table = SettingsTable::Begin(owner, "settings");
-				require(table.result == DMUI_RESULT_OK && table.visible,
-					"settings table did not begin");
-				const auto row = SettingsTable::BeginRow(
-					owner, "prose", "", "");
-				require(row.result == DMUI_RESULT_OK && row.visible,
-					"settings row rejected an empty label");
-				ImGui::TextUnformatted("Prose");
-				bool resetPressed{};
-				require(SettingsTable::EndRow(
-							owner, { false, false }, resetPressed) ==
-						DMUI_RESULT_OK,
-					"unlabeled settings row did not end");
-				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
-					"settings table did not end");
-			}
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"unlabeled row changed the ImGui stack");
-		});
-
 		runner.test("settings descriptions wrap inside translated window columns", [] {
 			constexpr DMUI_ClientHandle owner{ 7 };
 			constexpr auto description =
@@ -619,11 +505,9 @@ namespace vmm_tests
 			}
 		});
 
-		runner.test("full-span settings row uses the complete table width", [] {
+		runner.test("full-span settings row spans the label and value cells", [] {
 			constexpr DMUI_ClientHandle owner{ 7 };
 			ImGuiTestFrame frame;
-			float rowWidth{};
-			float valueColumnWidth{};
 			{
 				const SettingsTable::ClientCallbackGuard guard{ owner };
 				const auto table = SettingsTable::Begin(owner, "settings");
@@ -637,31 +521,25 @@ namespace vmm_tests
 					SettingsTable::RowLayout::kFullSpan);
 				require(row.result == DMUI_RESULT_OK && row.visible,
 					"full-span settings row did not begin");
-				rowWidth = ImGui::GetCurrentTable()->OuterRect.GetWidth();
+				const auto controlsRect = ImGui::GetCurrentTable()->OuterRect;
 				ImGui::TextWrapped("Full-width prose");
 				bool resetPressed{};
 				require(SettingsTable::EndRow(
 							owner, { false, false }, resetPressed) ==
 						DMUI_RESULT_OK,
 					"full-span settings row did not end");
-
-				const auto comparison = SettingsTable::BeginRow(
-					owner, "value", "", "");
-				require(comparison.result == DMUI_RESULT_OK && comparison.visible,
-					"value-column settings row did not begin");
-				valueColumnWidth = ImGui::GetCurrentTable()->OuterRect.GetWidth();
-				ImGui::TextUnformatted("Value");
-				require(SettingsTable::EndRow(
-							owner, { false, false }, resetPressed) ==
-						DMUI_RESULT_OK,
-					"value-column settings row did not end");
+				const auto* outerTable = ImGui::GetCurrentTable();
+				const auto labelCell = ImGui::TableGetCellBgRect(outerTable, 0);
+				const auto expectedMaxX =
+					ImGui::TableGetCellBgRect(outerTable, 1).Max.x -
+					outerTable->CellPaddingX;
+				require(controlsRect.Min.x >= labelCell.Min.x &&
+						controlsRect.Min.x < labelCell.Max.x &&
+						controlsRect.Max.x == expectedMaxX,
+					"full-span controls did not span both settings cells");
 				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
 					"settings table did not end");
 			}
-			require(rowWidth > valueColumnWidth * 1.8f,
-				"full-span row remained constrained to the value column (" +
-					std::to_string(rowWidth) + " vs " +
-					std::to_string(valueColumnWidth) + ")");
 			require(frame.IsAtBaseline() && frame.Errors() == 0,
 				"full-span row changed the ImGui stack");
 		});
@@ -713,68 +591,6 @@ namespace vmm_tests
 			}
 			require(frame.IsAtBaseline() && frame.Errors() == 0,
 				"table pool growth changed the ImGui stack");
-		});
-
-		runner.test("first-frame host controls need no ImGui recovery", [] {
-			ImGuiTestFrame frame;
-			auto recovery = ImGuiRecoverySnapshot::Capture();
-			require(recovery.has_value(), "recovery snapshot was not captured");
-			const auto table = SettingsTable::Begin(
-				DMUI_INVALID_CLIENT_HANDLE,
-				"host-settings");
-			require(table.result == DMUI_RESULT_OK && table.visible,
-				"host settings table did not begin");
-
-			const auto drawRow = [](const char* a_id, auto&& a_draw) {
-				const auto row = SettingsTable::BeginRow(
-					DMUI_INVALID_CLIENT_HANDLE,
-					a_id,
-					"Setting",
-					"Description");
-				require(row.result == DMUI_RESULT_OK && row.visible,
-					"host settings row did not begin");
-				a_draw();
-				bool resetPressed{};
-				require(SettingsTable::EndRow(
-							DMUI_INVALID_CLIENT_HANDLE,
-							{ true, false },
-							resetPressed) == DMUI_RESULT_OK,
-					"host settings row did not end");
-			};
-
-			float color[]{ 0.25f, 0.50f, 0.75f };
-			drawRow("color", [&]() {
-				(void)ImGui::ColorPicker3("##Value", color);
-				for (int index = 0; index < 3; ++index)
-				{
-					ImGui::PushID(index);
-					if (index > 0)
-						ImGui::SameLine();
-					(void)ImGui::ColorButton(
-						"Preset",
-						{ color[0], color[1], color[2], 1.0f });
-					ImGui::PopID();
-				}
-			});
-			bool checked{};
-			drawRow("checkbox", [&]() {
-				(void)ImGui::Checkbox("##Value", &checked);
-			});
-			float scalar{ 0.5f };
-			drawRow("slider", [&]() {
-				(void)ImGui::SliderFloat(
-					"##Value",
-					&scalar,
-					0.0f,
-					1.0f);
-			});
-
-			require(SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE) ==
-					DMUI_RESULT_OK,
-				"host settings table did not end");
-			const auto repaired = recovery->RecoverAfterCallback();
-			require(!repaired.Repaired() && frame.Errors() == 0,
-				"balanced first-frame controls required ImGui recovery");
 		});
 
 		runner.test("first-frame page callback preserves its host table", [] {

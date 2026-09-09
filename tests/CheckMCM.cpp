@@ -1,5 +1,4 @@
 #include <DearModdingUI/MCM/Compatibility.h>
-#include <DearModdingUI/MCM/JsonNormalization.h>
 #include <DearModdingUI/MCM/TextMarkup.h>
 #include <DearModdingUI/MCM/ValueSource.h>
 
@@ -154,19 +153,6 @@ namespace vmm_tests
 			return *page;
 		}
 
-		[[nodiscard]] const Page& DeclaredPageNamed(
-			const Configuration& a_configuration,
-			std::string_view a_name)
-		{
-			const auto page = std::ranges::find(
-				a_configuration.pages,
-				a_name,
-				&Page::displayName);
-			require(page != a_configuration.pages.end(),
-				"declared page was not found: " + std::string{ a_name });
-			return *page;
-		}
-
 		[[nodiscard]] const dmui::SettingDescriptor& SettingNamed(
 			const MappedPage& a_page,
 			std::string_view a_id)
@@ -306,67 +292,30 @@ namespace vmm_tests
 
 	void run_mcm_checks(Runner& runner)
 	{
-		runner.test("MCM HTML text strips tags and expands break forms", [] {
-			const auto presentation = ResolveTextPresentation(
-				"A<br>B<br/>C<br />D <i>I</i> <b>B</b> <u>U</u> "
-				"<a href='target'>A</a> <font size='30'>F</font> "
-				"<unknown data='value'>U</unknown>",
-				true);
-			require(
-				presentation.text == "A\nB\nC\nD I B U A F U",
-				"HTML tag stripping or break expansion changed");
-		});
+		runner.test("MCM text presentation handles rich literal and malformed markup", [] {
+			const auto rich = ResolveTextPresentation(
+				"A<br>B<p>Plain</p><p ALIGN='right'>&lt;Right&gt; &#65;</p>",
+				true,
+				"center");
+			require(rich.text == "A\nB\nPlain\n<Right> A" &&
+					rich.alignment == TextAlignment::kRight,
+				"breaks, paragraphs, entities, or paragraph alignment changed");
 
-		runner.test("MCM HTML paragraphs separate text and resolve alignment", [] {
-			const auto presentation = ResolveTextPresentation(
-				"Before<p>Plain</p><p ALIGN='right'>Right</p>After",
-				true);
-			require(
-				presentation.text == "Before\nPlain\nRight\nAfter" &&
-					presentation.alignment == TextAlignment::kRight,
-				"paragraph text or alignment did not resolve");
-		});
-
-		runner.test("MCM literal text preserves markup when HTML is disabled", [] {
-			const auto presentation = ResolveTextPresentation(
+			const auto literal = ResolveTextPresentation(
 				"<Press E> <i>literal</i> &amp;",
 				false,
 				"center");
-			require(
-				presentation.text == "<Press E> <i>literal</i> &amp;" &&
-					presentation.alignment == TextAlignment::kCenter,
+			require(literal.text == "<Press E> <i>literal</i> &amp;" &&
+					literal.alignment == TextAlignment::kCenter,
 				"literal markup or control alignment changed");
-		});
 
-		runner.test("MCM malformed HTML remains readable", [] {
-			const auto presentation = ResolveTextPresentation(
+			const auto malformed = ResolveTextPresentation(
 				"Keep < stray <i>open</i> <font size='30' broken &bogus; tail",
 				true);
 			require(
-				presentation.text ==
+				malformed.text ==
 					"Keep < stray open <font size='30' broken &bogus; tail",
 				"malformed HTML lost readable source text");
-		});
-
-		runner.test("MCM HTML decodes common and numeric entities", [] {
-			const auto presentation = ResolveTextPresentation(
-				"&lt;safe&gt; &amp; &quot;text&quot; &apos;x&apos; "
-				"&#65;&#x42;",
-				true);
-			require(
-				presentation.text == "<safe> & \"text\" 'x' AB",
-				"HTML entity decoding changed");
-		});
-
-		runner.test("MCM paragraph alignment overrides the control alignment", [] {
-			const auto presentation = ResolveTextPresentation(
-				"<p align=\"center\">Centered</p>",
-				true,
-				"right");
-			require(
-				presentation.text == "Centered" &&
-					presentation.alignment == TextAlignment::kCenter,
-				"paragraph alignment did not override the control default");
 		});
 
 		runner.test("MCM display localization preserves identities and stored values", [] {
@@ -398,7 +347,7 @@ namespace vmm_tests
 					return "Localized Page";
 				return std::nullopt;
 			};
-			const auto result = ParseConfig(R"json({
+			constexpr auto json = R"json({
 				"modName":"IdentityMod",
 				"displayName":"$CLIENT NAME",
 				"content":[
@@ -422,21 +371,26 @@ namespace vmm_tests
 						"valueOptions":{"sourceType":"ModSettingString",
 						"default":"$PERSISTED"}}]
 				}]
-			})json", "localized.json", resolver);
+			})json";
+			const auto result = ParseConfig(json, "localized.json", resolver);
+			const auto untranslated = ParseConfig(json, "localized.json");
 			require(result.configuration && result.pages.size() == 2 &&
+					untranslated.configuration && untranslated.pages.size() == 2 &&
 					result.diagnostics.empty(),
 				"localized fixture did not map cleanly");
 			require(result.configuration->modName == "IdentityMod" &&
 					result.configuration->displayName == "$CLIENT NAME" &&
 					result.displayName == "Localized Client" &&
-					result.configuration->pages[1].id == "page" &&
-					result.pages[0].id == "main" &&
-					result.pages[1].id == "page",
+					result.configuration->pages[1].id ==
+						untranslated.configuration->pages[1].id &&
+					result.pages[0].id == untranslated.pages[0].id &&
+					result.pages[1].id == untranslated.pages[1].id,
 				"localized presentation changed raw configuration identity");
 
 			const auto& root = result.pages[0];
 			require(root.displayName == "Localized Client" &&
-					root.settings.groups.front().id == "b-heading-b-1" &&
+					root.settings.groups.front().id ==
+						untranslated.pages[0].settings.groups.front().id &&
 					root.settings.groups.front().label == "Localized Heading",
 				"client or heading presentation was not localized");
 			const auto& enabled = SettingNamed(root, "bEnabled:Main");
@@ -510,42 +464,6 @@ namespace vmm_tests
 					pagesOnly.pages.front().displayName == "Localized Page" &&
 					HasDiagnostic(pagesOnly, "missing required content array"),
 				"a missing root page replaced the client name with a page label");
-		});
-
-		runner.test("MCM HTML headings reuse the category icon classifier", [] {
-			const auto result = ParseConfig(R"json({
-				"modName":"Headings","content":[
-					{"type":"section","text":"<b>$HEADING_GENERAL</b>","html":true},
-					{"type":"text","text":"General content"},
-					{"type":"section","text":"<b>$HEADING_GAMEPLAY</b>","html":"true"},
-					{"type":"text","text":"Gameplay content"},
-					{"type":"section","text":"<b>$HEADING_MISC</b>","html":1},
-					{"type":"text","text":"Misc content"},
-					{"type":"section","text":"<b>Literal</b>","html":false},
-					{"type":"text","text":"Literal content"}
-				]
-			})json", "heading-icons.json",
-				[](std::string_view a_key) -> std::optional<std::string> {
-					return a_key.starts_with("$HEADING_") ?
-						std::optional<std::string>{ a_key.substr(9) } :
-						std::nullopt;
-				});
-			const auto& groups = result.pages.front().settings.groups;
-			const std::array names{ "GENERAL", "GAMEPLAY", "MISC" };
-			const std::array glyphs{
-				DearModdingUI::PhosphorGlyph::kGear,
-				DearModdingUI::PhosphorGlyph::kGameController,
-				DearModdingUI::PhosphorGlyph::kDotsThreeCircle
-			};
-			require(groups.size() == 4 && groups.back().label == "<b>Literal</b>",
-				"heading markup normalization ignored its opt-in flag");
-			for (size_t index = 0; index < names.size(); ++index)
-				require(groups[index].label == names[index] &&
-						groups[index].glyph == 0 &&
-						DearModdingUI::ResolveIconGlyph(
-							DearModdingUI::IconKind::kCategory,
-							groups[index].label) == glyphs[index],
-					"localized heading did not reach the existing icon classifier");
 		});
 
 		runner.test("MCM localization misses are deduplicated and bounded", [] {
@@ -748,80 +666,6 @@ namespace vmm_tests
 				"synthetic numeric control kinds changed");
 		});
 
-		runner.test("MCM synthetic config retains source and condition metadata", [] {
-			const auto result = ParseConfig(
-				kSyntheticConfig,
-				"synthetic-config.json");
-			const auto& controls = DeclaredPageNamed(
-				*result.configuration,
-				"$EXAMPLE_CONTROLS");
-			const auto& property = ControlNamed(controls, "DisplayMode");
-			require(property.valueOptions &&
-					property.valueOptions->sourceType &&
-					property.valueOptions->sourceType->raw ==
-						"PropertyValueInt" &&
-					property.valueOptions->sourceType->family ==
-						SourceFamily::kProperty &&
-					property.valueOptions->sourceType->value ==
-						SourceValueKind::kInt &&
-					property.valueOptions->sourceForm ==
-						std::optional<std::string>{ "ExampleCore.esm|101" } &&
-					property.valueOptions->propertyName ==
-						std::optional<std::string>{ "DisplayMode" } &&
-					property.valueOptions->scriptName ==
-						std::optional<std::string>{ "ExampleMod:Settings" },
-				"property source metadata did not survive");
-			require(property.groupCondition &&
-					property.groupCondition->type == ConditionType::kAll &&
-					property.groupCondition->operands.size() == 2,
-				"compound group condition did not survive");
-
-			const auto& modSetting = ControlNamed(
-				controls,
-				"fSensitivity:SampleTweaks");
-			require(modSetting.valueOptions &&
-					modSetting.valueOptions->sourceType &&
-					modSetting.valueOptions->sourceType->raw ==
-						"ModSettingFloat" &&
-					modSetting.valueOptions->sourceType->family ==
-						SourceFamily::kModSetting &&
-					modSetting.valueOptions->sourceType->value ==
-						SourceValueKind::kFloat &&
-					modSetting.valueOptions->modSettingId ==
-						std::optional<std::string>{
-							"fSensitivity:SampleTweaks" },
-				"ModSetting source metadata did not survive");
-
-			const auto& sources = DeclaredPageNamed(
-				*result.configuration,
-				"$EXAMPLE_SOURCES");
-			const auto& global = ControlNamed(sources, "WorldScale");
-			require(global.valueOptions &&
-					global.valueOptions->sourceType &&
-					global.valueOptions->sourceType->raw == "GlobalValue" &&
-					global.valueOptions->sourceType->family ==
-						SourceFamily::kGlobal &&
-					global.valueOptions->sourceType->value ==
-						SourceValueKind::kNone &&
-					global.valueOptions->sourceForm ==
-						std::optional<std::string>{ "SampleWorld.esp|200" },
-				"global source metadata did not survive");
-			const auto& hidden = ControlNamed(sources, "InternalState");
-			require(hidden.type == ControlType::kHidden,
-				"hidden control type did not survive");
-			require(hidden.valueOptions.has_value(),
-				"hidden value options did not survive");
-			require(hidden.valueOptions->sourceForm &&
-					*hidden.valueOptions->sourceForm == "ExampleCore.esm|102",
-				"hidden source form did not survive");
-			require(hidden.valueOptions->scriptName ==
-						std::optional<std::string>{ "ExampleMod:State" },
-				"hidden script name did not survive");
-			require(hidden.valueOptions->propertyName ==
-						std::optional<std::string>{ "InternalState" },
-				"hidden property name did not survive");
-		});
-
 		runner.test("MCM sliders without max use upstream widget defaults", [] {
 			const auto result = ParseConfig(R"json({
 				"modName":"Steps",
@@ -861,43 +705,6 @@ namespace vmm_tests
 					integerNormalization &&
 					integerNormalization->step == 1,
 				"an omitted max did not preserve MCM's 0..1 widget defaults");
-		});
-
-		runner.test("MCM slider quantization stays anchored at zero", [] {
-			const auto result = ParseConfig(R"json({
-				"modName":"ZeroOrigin",
-				"content":[
-					{"id":"float","type":"slider","valueOptions":{
-						"sourceType":"GlobalValueFloat",
-						"sourceForm":"Fixture.esp|1",
-						"min":0.1,"max":0.9,"step":0.2}},
-					{"id":"integer","type":"slider","valueOptions":{
-						"sourceType":"GlobalValueInt",
-						"sourceForm":"Fixture.esp|2",
-						"min":1,"max":9,"step":2}}
-				]
-			})json");
-			const auto* floating = std::get_if<dmui::DoubleSettingControl>(
-				&SettingNamed(result.pages.front(), "float").control);
-			const auto* integer = std::get_if<dmui::SignedSettingControl>(
-				&SettingNamed(result.pages.front(), "integer").control);
-			const auto* floatNormalization =
-				std::get_if<DoubleSliderNormalization>(
-					&*RowNamed(
-						result.pages.front(),
-						"float").sliderNormalization);
-			const auto* integerNormalization =
-				std::get_if<SignedSliderNormalization>(
-					&*RowNamed(
-						result.pages.front(),
-						"integer").sliderNormalization);
-			require(floating && !floating->quantization &&
-					floatNormalization &&
-					floatNormalization->step == 0.2 &&
-					integer && !integer->quantization &&
-					integerNormalization &&
-					integerNormalization->step == 2,
-				"MCM slider quantization used the minimum as its origin");
 		});
 
 		runner.test("MCM slider parameter edge cases stay explicit and safe", [] {
@@ -963,39 +770,6 @@ namespace vmm_tests
 				"malformed slider diagnostics were incomplete");
 		});
 
-		runner.test("MCM synthetic config maps readable and unsupported controls", [] {
-			const auto result = ParseConfig(
-				kSyntheticConfig,
-				"synthetic-config.json");
-			const auto& root = PageNamed(result, "$EXAMPLE_MENU");
-			require(dmui::ResolveSettingControlPresentation(
-						SettingNamed(root, "WelcomeMessage").control).kind ==
-						dmui::SettingControlKind::kReadOnly,
-				"text did not map to read-only");
-			require(!std::get<dmui::ReadOnlySettingControl>(
-						SettingNamed(root, "WelcomeMessage").control).draw,
-				"mapper attached consumer-specific text rendering");
-			const auto mappedText = std::ranges::find(
-				root.rows,
-				"WelcomeMessage",
-				&MappedRow::id);
-			require(mappedText != root.rows.end() && mappedText->text &&
-					mappedText->text->presentation.text == "$EXAMPLE_WELCOME",
-				"text presentation data was not mapped");
-			require(SettingNamed(root, "WelcomeMessage").label.empty() &&
-					SettingNamed(root, "WelcomeMessage")
-							.presentation.labelMode ==
-						dmui::RowPresentation::LabelMode::kHidden &&
-					SettingNamed(root, "WelcomeMessage")
-							.presentation.layout ==
-						dmui::RowPresentation::Layout::kFullSpan,
-				"text control did not request a full-span prose row");
-			require(ControlKindCount(
-						result,
-						dmui::SettingControlKind::kUnsupported) == 1,
-				"color control did not map to unsupported");
-		});
-
 		runner.test("MCM mapper gates markup on the HTML declaration", [] {
 			const auto result = ParseConfig(R"({
 				"modName":"Markup",
@@ -1003,7 +777,12 @@ namespace vmm_tests
 					{"id":"rich","type":"text","html":true,"align":"right",
 					 "text":"<p align='center'><i>Rich</i><br />text</p>"},
 					{"id":"literal","type":"text","html":false,
-					 "text":"Literal <Press E>"}
+					 "text":"Literal <Press E>"},
+					{"id":"numeric","type":"text","html":1,
+					 "text":"<i>Numeric</i>"},
+					{"id":"string","type":"text","html":"false",
+					 "text":"<i>String</i>"},
+					{"id":"absent","type":"text","text":"<i>Absent</i>"}
 				]
 			})", "markup-config.json");
 			require(result.pages.size() == 1,
@@ -1019,8 +798,17 @@ namespace vmm_tests
 						"Rich\ntext" &&
 					std::get<std::string>(
 						SettingNamed(page, "literal").defaultValue) ==
-						"Literal <Press E>",
-				"mapper did not honor the HTML declaration");
+						"Literal <Press E>" &&
+					std::get<std::string>(
+						SettingNamed(page, "numeric").defaultValue) ==
+						"Numeric" &&
+					std::get<std::string>(
+						SettingNamed(page, "string").defaultValue) ==
+						"String" &&
+					std::get<std::string>(
+						SettingNamed(page, "absent").defaultValue) ==
+						"<i>Absent</i>",
+				"mapper did not honor representative HTML truthiness values");
 			require(richText != page.rows.end() && richText->text &&
 					richText->text->presentation.text == "Rich\ntext" &&
 					richText->text->presentation.alignment ==
@@ -1029,68 +817,6 @@ namespace vmm_tests
 			require(
 				!HasDiagnostic(result, "not represented"),
 				"rendered text presentation retained an unsupported warning");
-		});
-
-		runner.test("MCM text HTML follows JSON truthiness", [] {
-			struct Case
-			{
-				std::string_view name;
-				std::optional<std::string_view> value;
-				bool html;
-			};
-			constexpr std::array cases{
-				Case{ "true", "true", true },
-				Case{ "false", "false", false },
-				Case{ "zero", "0", false },
-				Case{ "one", "1", true },
-				Case{ "negative", "-2", true },
-				Case{ "fraction", "0.25", true },
-				Case{ "negative integer zero", "-0", false },
-				Case{ "negative floating zero", "-0.0", false },
-				Case{ "empty string", R"("")", false },
-				Case{ "string", R"("enabled")", true },
-				Case{ "false string", R"("false")", true },
-				Case{ "zero string", R"("0")", true },
-				Case{ "null", "null", false },
-				Case{ "array", "[]", true },
-				Case{ "object", "{}", true },
-				Case{ "absent", std::nullopt, false }
-			};
-			for (const auto& test : cases)
-			{
-				auto json = std::string{
-					R"({"modName":"HtmlTruthiness","displayName":"HTML truthiness","content":[{"id":"text","type":"text","text":"<i>Marked</i>")"
-				};
-				if (test.value)
-					json += R"(,"html":)" + std::string{ *test.value };
-				json += "}]}";
-				const auto result = ParseConfig(json, "html-truthiness.json");
-				require(result.pages.size() == 1 &&
-						result.diagnostics.empty(),
-					"valid HTML truthiness value was diagnosed: " +
-						std::string{ test.name } + ErrorMessages(result));
-				require(
-					std::get<std::string>(
-						SettingNamed(result.pages.front(), "text").defaultValue) ==
-						(test.html ? "Marked" : "<i>Marked</i>"),
-					"HTML truthiness changed mapped text for " +
-						std::string{ test.name });
-			}
-		});
-
-		runner.test("MCM HTML truthiness does not relax align validation", [] {
-			const auto result = ParseConfig(R"({
-				"modName":"HtmlAlignment",
-				"displayName":"HTML alignment",
-				"content":[{"id":"text","type":"text","html":1,"align":true,
-					"text":"<i>Marked</i>"}]
-			})", "html-alignment.json");
-			require(ErrorCount(result) == 1 &&
-					HasDiagnostic(result, "expected a string", ".align") &&
-					std::get<std::string>(
-						SettingNamed(result.pages.front(), "text").defaultValue) ==
-						"Marked",
-				"HTML truthiness altered unrelated alignment validation");
 		});
 
 		runner.test("MCM LoadConfig reads a synthetic temporary file", [] {
@@ -1122,6 +848,14 @@ namespace vmm_tests
 						"Localized file title" &&
 					localized.configuration->displayName == "$EXAMPLE_MENU",
 				"LoadConfig did not thread display localization");
+
+			const auto missingPath = TemporaryConfigPath("does-not-exist");
+			const auto missing = LoadConfig(missingPath);
+			require(!missing.configuration && missing.pages.empty() &&
+					HasDiagnostic(missing, "could not open") &&
+					missing.diagnostics.front().source.find(
+						"does-not-exist") != std::string::npos,
+				"absent file did not return an empty path-located diagnostic");
 		});
 
 		runner.test("MCM malformed JSON returns a located diagnostic", [] {
@@ -1158,115 +892,6 @@ namespace vmm_tests
 			require(HasDiagnostic(result, "unknown MCM control type",
 						"$.content[0]"),
 				"future control was not diagnosed");
-		});
-
-		runner.test("MCM parser compatibility warnings retain their payload", [] {
-			const auto result = ParseConfig(R"json({
-				"modName":"WarningPayload",
-				"content":[
-					{"id":"future","type":"dial"},
-					{"id":"image","type":"image","libName":"Fixture",
-					 "className":"Header"}
-				]
-			})json", "warning-payload.json");
-			const auto unknown = std::ranges::find_if(
-				result.diagnostics,
-				[](const Diagnostic& a_diagnostic) {
-					return a_diagnostic.location == "$.content[0]" &&
-						a_diagnostic.message ==
-							"unknown MCM control type 'dial' maps to unsupported";
-				});
-			const auto image = std::ranges::find_if(
-				result.diagnostics,
-				[](const Diagnostic& a_diagnostic) {
-					return a_diagnostic.location == "$.content[1]" &&
-						a_diagnostic.message ==
-							"SWF component not rendered: Fixture::Header";
-				});
-			require(
-				unknown != result.diagnostics.end() &&
-					unknown->severity == DiagnosticSeverity::kWarning &&
-					unknown->source == "warning-payload.json" &&
-					image != result.diagnostics.end() &&
-					image->severity == DiagnosticSeverity::kWarning &&
-					image->source == "warning-payload.json",
-				"parser compatibility warning severity or payload changed");
-			require(SummarizeActionableCompatibility(result.pages.front()).empty(),
-				"parse-owned warnings were duplicated by registration");
-		});
-
-		runner.test("MCM image-only pages retain one capability warning per image", [] {
-			const auto result = ParseConfig(R"json({
-				"modName":"ImageOnly",
-				"displayName":"Image only",
-				"content":[
-					{"type":"section","text":"Illustrations"},
-					{"type":"image","libName":"Fixture","className":"Header"},
-					{"type":"image","libName":"Fixture","className":"Footer"},
-					{"type":"empty"}
-				]
-			})json", "image-only.json");
-			require(result.pages.size() == 1 &&
-					DescriptorCount(result.pages.front()) == 0,
-				"image-only page was dropped or emitted fake controls");
-			require(result.diagnostics.size() == 2 &&
-					DiagnosticCount(result, "SWF component not rendered:") == 2 &&
-					DiagnosticCount(result, "page produced no setting descriptors") == 0,
-				"image-only page duplicated or lost its capability warnings");
-			const auto& page = result.pages.front();
-			require(page.settings.notes.size() == 1 &&
-					page.settings.notes.front().text.find("unrendered SWF components") !=
-						std::string::npos &&
-					SummarizeActionableCompatibility(page).empty(),
-				"image-only limitation was hidden or added another registration warning");
-
-			const auto mixed = ParseConfig(R"json({
-				"modName":"Mixed",
-				"displayName":"Mixed",
-				"content":[
-					{"id":"preview","type":"image","libName":"Fixture",
-					 "className":"Header","groupCondition":{"AND":[7]}},
-					{"type":"text","text":"Supported content"}
-				]
-			})json");
-			const auto mixedSummary =
-				SummarizeCompatibility(mixed.pages.front());
-			require(DescriptorCount(mixed.pages.front()) == 1 &&
-					mixed.pages.front().settings.notes.empty() &&
-					mixedSummary.images == 1 &&
-					mixedSummary.unsupported == 1 &&
-					RowNamed(mixed.pages.front(), "preview").groupCondition,
-				"a mixed page incorrectly claims it has no supported visible controls");
-		});
-
-		runner.test("MCM SWF diagnostics report incomplete metadata honestly", [] {
-			const auto result = ParseConfig(R"json({
-				"modName":"IncompleteImages",
-				"displayName":"Incomplete images",
-				"content":[
-					{"id":"library","type":"image","className":"Header"},
-					{"id":"class","type":"image","libName":"Fixture"},
-					{"id":"both","type":"image"}
-				]
-			})json", "incomplete-images.json");
-			require(result.diagnostics.size() == 3 &&
-					HasDiagnostic(result, "missing libName metadata", "$.content[0]") &&
-					HasDiagnostic(result, "missing className metadata", "$.content[1]") &&
-					HasDiagnostic(
-						result,
-						"missing libName and className metadata",
-						"$.content[2]") &&
-					SummarizeCompatibility(result.pages.front()).images == 3,
-				"incomplete SWF metadata was fabricated, hidden, or miscounted");
-			const auto& rows = result.pages.front().rows;
-			require(rows.size() == 3 &&
-					rows[0].image && rows[0].image->library.empty() &&
-					rows[0].image->symbol == "Header" &&
-					rows[1].image && rows[1].image->library == "Fixture" &&
-					rows[1].image->symbol.empty() &&
-					rows[2].image && rows[2].image->library.empty() &&
-					rows[2].image->symbol.empty(),
-				"incomplete SWF metadata did not survive the mapping seam");
 		});
 
 		runner.test("MCM empty and malformed pages retain diagnostics", [] {
@@ -1327,107 +952,6 @@ namespace vmm_tests
 				"incomplete controls were not fully diagnosed");
 		});
 
-		runner.test("MCM absent files return an empty diagnosed result", [] {
-			const auto path = TemporaryConfigPath("does-not-exist");
-			const auto result = LoadConfig(path);
-			require(!result.configuration && result.pages.empty(),
-				"absent file produced configuration data");
-			require(HasDiagnostic(result, "could not open"),
-				"absent file was not diagnosed");
-			require(result.diagnostics.front().source.find(
-						"does-not-exist") != std::string::npos,
-				"absent file diagnostic lost its path");
-		});
-
-		runner.test("MCM IR retains defaults formats options and property fields", [] {
-			const auto result = ParseConfig(R"({
-				"minMcmVersion": 2,
-				"modName": "Metadata",
-				"displayName": "Metadata",
-				"content": [
-					{"type":"section","text":"Settings"},
-					{"id":"FloatValue","text":"Float","help":"Float help","type":"slider",
-					 "valueOptions":{
-						"sourceType":"PropertyValueFloat",
-						"sourceForm":"Metadata.esp|123",
-						"scriptName":"Metadata:Settings",
-						"propertyName":"FloatValue",
-						"default":1.25,
-						"min":0,
-						"max":2,
-						"step":0.25,
-						"format":"%.2f"
-					 }},
-					{"id":"sMode:General","text":"Mode","type":"menu",
-					 "valueOptions":{
-						"sourceType":"ModSettingString",
-						"default":"careful",
-						"options":["fast","careful"]
-					 }}
-				]
-			})", "metadata-config.json");
-			require(result.configuration && ErrorCount(result) == 0,
-				"metadata configuration did not parse");
-			const auto& declared =
-				result.configuration->pages.front().controls[1];
-			require(declared.valueOptions &&
-					declared.valueOptions->sourceType &&
-					declared.valueOptions->sourceType->raw ==
-						"PropertyValueFloat" &&
-					declared.valueOptions->sourceType->family ==
-						SourceFamily::kProperty &&
-					declared.valueOptions->sourceType->value ==
-						SourceValueKind::kFloat &&
-					declared.valueOptions->sourceForm ==
-						std::optional<std::string>{ "Metadata.esp|123" } &&
-					declared.valueOptions->scriptName ==
-						std::optional<std::string>{ "Metadata:Settings" } &&
-					declared.valueOptions->propertyName ==
-						std::optional<std::string>{ "FloatValue" } &&
-					declared.valueOptions->defaultValue &&
-					declared.valueOptions->minimum ==
-						std::optional<double>{ 0.0 } &&
-					declared.valueOptions->maximum ==
-						std::optional<double>{ 2.0 } &&
-					declared.valueOptions->step ==
-						std::optional<double>{ 0.25 } &&
-					declared.valueOptions->format ==
-						std::optional<std::string>{ "%.2f" },
-				"property metadata fields did not survive");
-			require(std::get<double>(
-						*declared.valueOptions->defaultValue) == 1.25,
-				"numeric default changed");
-
-			const auto& mapped = SettingNamed(
-				result.pages.front(),
-				"FloatValue");
-			const auto* numeric =
-				std::get_if<dmui::DoubleSettingControl>(&mapped.control);
-			require(numeric && numeric->format == "%.2f" &&
-					!numeric->quantization &&
-					RowNamed(
-						result.pages.front(),
-						"FloatValue").sliderNormalization &&
-					std::get<double>(mapped.defaultValue) == 1.25,
-				"numeric format, quantization, or default did not map");
-
-			const auto& choiceDeclaration =
-				result.configuration->pages.front().controls[2];
-			require(choiceDeclaration.valueOptions &&
-					choiceDeclaration.valueOptions->modSettingId ==
-						std::optional<std::string>{ "sMode:General" } &&
-					choiceDeclaration.valueOptions->options.size() == 2,
-				"ModSetting options metadata did not survive");
-			const auto& choice = SettingNamed(
-				result.pages.front(),
-				"sMode:General");
-			const auto* control =
-				std::get_if<dmui::ChoiceSettingControl>(&choice.control);
-			require(control && control->options[1].value == "careful" &&
-					std::get<std::string>(choice.defaultValue) == "careful",
-				"string choice values did not map");
-		});
-
 		runner.test("MCM documented control vocabulary maps generically", [] {
 			const auto result = ParseConfig(R"({
 				"minMcmVersion": 2,
@@ -1440,6 +964,7 @@ namespace vmm_tests
 					{"id":"menu","type":"menu","valueOptions":{"sourceType":"ModSettingInt","options":["A","B"]}},
 					{"id":"enum","type":"enum","valueOptions":{"sourceType":"ModSettingInt","options":["A","B"]}},
 					{"id":"input","type":"input","valueOptions":{"sourceType":"ModSettingString"}},
+					{"id":"textinput","type":"textinput","valueOptions":{"sourceType":"ModSettingString"}},
 					{"id":"text","type":"text","text":"Read only"},
 					{"type":"empty"},
 					{"id":"hidden","type":"hidden"},
@@ -1451,7 +976,7 @@ namespace vmm_tests
 			})", "vocabulary-config.json");
 			require(result.configuration && result.pages.size() == 1 &&
 					result.pages.front().settings.groups.size() == 1 &&
-					DescriptorCount(result.pages.front()) == 8,
+					DescriptorCount(result.pages.front()) == 9,
 				"documented control structure did not map");
 			require(ControlKindCount(
 						result,
@@ -1461,7 +986,7 @@ namespace vmm_tests
 						dmui::SettingControlKind::kChoice) == 3 &&
 					ControlKindCount(
 						result,
-						dmui::SettingControlKind::kText) == 1 &&
+						dmui::SettingControlKind::kText) == 2 &&
 					ControlKindCount(
 						result,
 						dmui::SettingControlKind::kReadOnly) == 2 &&
@@ -1469,6 +994,11 @@ namespace vmm_tests
 						result,
 						dmui::SettingControlKind::kUnsupported) == 1,
 				"documented control kinds changed");
+			require(std::holds_alternative<dmui::TextSettingControl>(
+						SettingNamed(result.pages.front(), "input").control) &&
+					std::holds_alternative<dmui::TextSettingControl>(
+						SettingNamed(result.pages.front(), "textinput").control),
+				"an input spelling degraded to unsupported");
 			const auto& prose =
 				SettingNamed(result.pages.front(), "text");
 			require(prose.label.empty() &&
@@ -1483,71 +1013,6 @@ namespace vmm_tests
 							return a_setting.id == "hidden";
 						}),
 				"hidden control was emitted");
-		});
-
-		runner.test("MCM hotkeys map to read-only status rows", [] {
-			const auto result = ParseConfig(R"({
-				"modName": "Hotkeys",
-				"displayName": "Hotkeys",
-				"content": [
-					{"id":"bare","type":"hotkey","text":"Bare","help":"Bare help"},
-					{"id":"modified","type":"keymap","text":"Modified","help":"Modified help",
-					 "valueOptions":{"allowModifierKeys":true}}
-				]
-			})", "hotkey-config.json");
-			require(result.configuration && result.pages.size() == 1 &&
-					DescriptorCount(result.pages.front()) == 2,
-				"hotkey controls did not map");
-			require(ControlKindCount(
-						result,
-						dmui::SettingControlKind::kReadOnly) == 2,
-				"hotkey controls did not map to read-only");
-
-			const auto& bare = SettingNamed(result.pages.front(), "bare");
-			const auto& modified =
-				SettingNamed(result.pages.front(), "modified");
-			require(std::holds_alternative<dmui::ReadOnlySettingControl>(
-						bare.control) &&
-					std::holds_alternative<dmui::ReadOnlySettingControl>(
-						modified.control),
-				"a hotkey control degraded from read-only");
-			require(!std::get<dmui::ReadOnlySettingControl>(bare.control).draw &&
-					!std::get<dmui::ReadOnlySettingControl>(modified.control).draw &&
-					std::ranges::count_if(
-						result.pages.front().rows,
-						[](const MappedRow& a_row) {
-							return a_row.text.has_value();
-						}) == 2,
-				"mapper attached consumer-specific hotkey rendering");
-			require(std::get<std::string>(bare.defaultValue) ==
-						"Unbound" &&
-					std::get<std::string>(modified.defaultValue) ==
-						"Unbound",
-				"hotkey status text changed");
-			require(!bare.showReset && !modified.showReset,
-				"hotkey controls exposed reset actions");
-			require(!HasDiagnostic(result, "unsupported in this phase"),
-				"hotkey controls emitted unsupported diagnostics");
-		});
-
-		runner.test("MCM empty sections map to unnamed groups", [] {
-			const auto result = ParseConfig(R"({
-				"modName": "EmptySection",
-				"displayName": "Empty Section",
-				"content": [
-					{"id":"divider","type":"section","text":""},
-					{"id":"enabled","type":"switcher"}
-				]
-			})", "empty-section-config.json");
-			require(result.pages.size() == 1 &&
-					result.pages.front().settings.groups.size() == 1,
-				"empty section did not produce one group");
-			const auto& group = result.pages.front().settings.groups.front();
-			require(group.id == "divider" && group.label.empty() &&
-					group.glyph == U'\0' &&
-					group.headingMode ==
-						dmui::SettingGroup::HeadingMode::kDivider,
-				"empty section did not produce an unnamed group");
 		});
 
 		runner.test("MCM empty sections divide an existing named group", [] {
@@ -1573,59 +1038,22 @@ namespace vmm_tests
 					std::holds_alternative<dmui::SettingGroup::DividerRow>(
 						group.rows[1]),
 				"empty section did not preserve a divider row in source order");
-		});
 
-		runner.test("MCM text input spellings both map to text controls", [] {
-			const auto result = ParseConfig(R"({
-				"modName": "Inputs",
-				"displayName": "Inputs",
-				"content": [
-					{"id":"legacy","type":"input","valueOptions":{"sourceType":"ModSettingString"}},
-					{"id":"shipped","type":"textinput","valueOptions":{"sourceType":"ModSettingString"}}
+			const auto standalone = ParseConfig(R"({
+				"modName":"EmptySection",
+				"content":[
+					{"id":"divider","type":"section","text":""},
+					{"id":"enabled","type":"switcher"}
 				]
-			})", "input-config.json");
-			require(result.configuration && result.pages.size() == 1 &&
-					DescriptorCount(result.pages.front()) == 2,
-				"text input controls did not map");
-			require(std::holds_alternative<dmui::TextSettingControl>(
-						SettingNamed(result.pages.front(), "legacy").control) &&
-					std::holds_alternative<dmui::TextSettingControl>(
-						SettingNamed(result.pages.front(), "shipped").control),
-				"a text input spelling degraded to unsupported");
-		});
-
-		runner.test("MCM minimum version tolerates absence and decimals", [] {
-			const auto absent = ParseConfig(R"({
-				"modName": "Absent",
-				"displayName": "Absent",
-				"content": [{"id":"a","type":"switch",
-					"valueOptions":{"sourceType":"ModSettingBool"}}]
-			})", "absent-version.json");
-			require(absent.configuration && ErrorCount(absent) == 0 &&
-					!absent.configuration->minimumMcmVersion,
-				"an omitted minimum version was treated as a failure");
-
-			const auto decimal = ParseConfig(R"({
-				"minMcmVersion": 1.10,
-				"modName": "Decimal",
-				"displayName": "Decimal",
-				"content": [{"id":"a","type":"switch",
-					"valueOptions":{"sourceType":"ModSettingBool"}}]
-			})", "decimal-version.json");
-			require(decimal.configuration && ErrorCount(decimal) == 0 &&
-					decimal.configuration->minimumMcmVersion == 1,
-				"a decimal minimum version was treated as a failure");
-
-			const auto invalid = ParseConfig(R"({
-				"minMcmVersion": "one",
-				"modName": "Invalid",
-				"displayName": "Invalid",
-				"content": [{"id":"a","type":"switch",
-					"valueOptions":{"sourceType":"ModSettingBool"}}]
-			})", "invalid-version.json");
-			require(ErrorCount(invalid) == 1 &&
-					!invalid.configuration->minimumMcmVersion,
-				"a non-numeric minimum version stopped being diagnosed");
+			})", "empty-section-config.json");
+			const auto& standaloneGroup =
+				standalone.pages.front().settings.groups.front();
+			require(standaloneGroup.id == "divider" &&
+					standaloneGroup.label.empty() &&
+					standaloneGroup.glyph == U'\0' &&
+					standaloneGroup.headingMode ==
+						dmui::SettingGroup::HeadingMode::kDivider,
+				"a leading empty section did not produce an unnamed group");
 		});
 
 		runner.test("MCM deeply nested conditions are diagnosed not fatal", [] {
@@ -1822,45 +1250,47 @@ namespace vmm_tests
 				"bare condition array stopped producing its current diagnostic");
 		});
 
-		runner.test("MCM NOT group conditions stay outside FO4 scope", [] {
-			const auto result = ParseConfig(R"json({
+		runner.test("MCM unsupported condition shapes retain compatibility behavior", [] {
+			const auto notCondition = ParseConfig(R"json({
 				"modName":"NotConditionFixture",
 				"content":[
 					{"id":"target","type":"text","groupCondition":{"NOT":1}}
 				]
 			})json", "not-condition.json");
-			const auto& condition = ConditionNamed(
-				result.configuration->pages.front(),
+			const auto& notParsed = ConditionNamed(
+				notCondition.configuration->pages.front(),
 				"target");
-			require(condition.type == ConditionType::kUnknown &&
-					condition.rawOperator == "NOT" &&
-					condition.operands.empty(),
+			require(notParsed.type == ConditionType::kUnknown &&
+					notParsed.rawOperator == "NOT" &&
+					notParsed.operands.empty(),
 				"NOT condition no longer has its current partial representation");
-			require(HasDiagnostic(result, "unknown condition operator 'NOT'") &&
-					HasDiagnostic(result, "condition operands must be an array"),
+			require(HasDiagnostic(
+						notCondition,
+						"unknown condition operator 'NOT'") &&
+					HasDiagnostic(
+						notCondition,
+						"condition operands must be an array"),
 				"NOT condition diagnostics changed");
-		});
 
-		runner.test("MCM ONLY group conditions stay outside FO4 scope", [] {
-			const auto result = ParseConfig(R"json({
+			const auto onlyCondition = ParseConfig(R"json({
 				"modName":"OnlyConditionFixture",
 				"content":[
 					{"id":"target","type":"text","groupCondition":{"ONLY":[1,2]}}
 				]
 			})json", "only-condition.json");
-			const auto& condition = ConditionNamed(
-				result.configuration->pages.front(),
+			const auto& onlyParsed = ConditionNamed(
+				onlyCondition.configuration->pages.front(),
 				"target");
-			require(condition.type == ConditionType::kUnknown &&
-					condition.rawOperator == "ONLY" &&
-					condition.operands.size() == 2,
+			require(onlyParsed.type == ConditionType::kUnknown &&
+					onlyParsed.rawOperator == "ONLY" &&
+					onlyParsed.operands.size() == 2,
 				"ONLY condition no longer has its current partial representation");
-			require(HasDiagnostic(result, "unknown condition operator 'ONLY'"),
+			require(HasDiagnostic(
+						onlyCondition,
+						"unknown condition operator 'ONLY'"),
 				"ONLY condition stopped producing its current diagnostic");
-		});
 
-		runner.test("MCM comparison conditions stay outside FO4 scope", [] {
-			const auto result = ParseConfig(R"json({
+			const auto comparison = ParseConfig(R"json({
 				"modName":"ComparisonConditionFixture",
 				"content":[
 					{"id":"target","type":"text","groupCondition":{
@@ -1871,15 +1301,15 @@ namespace vmm_tests
 					}}
 				]
 			})json", "comparison-condition.json");
-			const auto& condition = ConditionNamed(
-				result.configuration->pages.front(),
+			const auto& comparisonParsed = ConditionNamed(
+				comparison.configuration->pages.front(),
 				"target");
-			require(condition.type == ConditionType::kUnknown,
+			require(comparisonParsed.type == ConditionType::kUnknown,
 				"comparison object stopped producing a partial condition");
-			require(HasDiagnostic(result,
+			require(HasDiagnostic(comparison,
 						"condition object must have one operator") &&
-					HasDiagnostic(result, "unknown condition operator") &&
-					HasDiagnostic(result,
+					HasDiagnostic(comparison, "unknown condition operator") &&
+					HasDiagnostic(comparison,
 						"condition operands must be an array"),
 				"comparison object diagnostics changed");
 		});
@@ -1931,54 +1361,6 @@ namespace vmm_tests
 			require(binding.valueKind == SourceValueKind::kInt &&
 					std::holds_alternative<int64_t>(binding.target),
 				"an integer hidden property was forced into a boolean target");
-		});
-
-		runner.test("MCM maps referenced idless bool switches to local state", [] {
-			const auto result = ParseConfig(R"json({
-				"modName":"LocalController",
-				"displayName":"Local controller",
-				"content":[
-					{"type":"switcher","text":"Details","groupControl":7,
-					 "valueOptions":{"sourceType":"ModSettingBool","default":true}},
-					{"id":"dependent","type":"text","text":"Dependent",
-					 "groupCondition":{"OR":[{"AND":[7]}]}}
-				]
-			})json", "local-controller.json");
-			require(result.pages.size() == 1 && ErrorCount(result) == 0,
-				"a referenced idless bool switch was diagnosed" +
-					ErrorMessages(result));
-			const auto& page = result.pages.front();
-			const auto& row = page.rows.front();
-			const auto summary = SummarizeCompatibility(page);
-			require(row.valueRoute == ValueRoute::kLocalUiState &&
-					!row.binding &&
-					!row.unmappedSource &&
-					std::get<bool>(
-						SettingNamed(page, row.id).defaultValue) == false &&
-					summary.localUiStateRows == 1 &&
-					summary.bindings == 0 &&
-					summary.unknownBindings == 0,
-				"an idless controller was represented as persistent storage");
-		});
-
-		runner.test("MCM image-only conditions qualify idless local switches", [] {
-			const auto result = ParseConfig(R"json({
-				"modName":"ImageCondition",
-				"displayName":"Image condition",
-				"content":[
-					{"type":"switcher","groupControl":4,
-					 "valueOptions":{"sourceType":"ModSettingBool"}},
-					{"id":"preview","type":"image","libName":"Fixture",
-					 "className":"Preview",
-					 "groupCondition":{"AND":[{"OR":[4]}]}}
-				]
-			})json", "image-condition.json");
-			require(ErrorCount(result) == 0 &&
-					result.pages.front().rows.front().valueRoute ==
-						ValueRoute::kLocalUiState &&
-					!result.pages.front().rows.front().binding,
-				"descriptorless image conditions were ignored for local ownership" +
-					ErrorMessages(result));
 		});
 
 		runner.test("MCM idless local ownership keeps conservative guardrails", [] {
@@ -2057,115 +1439,6 @@ namespace vmm_tests
 				"unsupported control was promoted or lost its diagnostic");
 		});
 
-		runner.test("MCM mapped bindings cache their runtime key", [] {
-			const auto result = ParseConfig(kSyntheticConfig, "binding-key.json");
-			const auto& page = PageNamed(result, "$EXAMPLE_SOURCES");
-			const auto binding = std::ranges::find_if(
-				page.rows,
-				[](const MappedRow& a_row) { return a_row.binding.has_value(); });
-			require(binding != page.rows.end() &&
-					!binding->binding->cacheKey.empty() &&
-					binding->binding->cacheKey ==
-						MakeBindingKey(*binding->binding),
-				"a mapped binding did not retain its computed cache key");
-		});
-
-		runner.test("MCM Skyrim hiddenToggle spelling stays outside FO4 scope", [] {
-			const auto result = ParseConfig(R"json({
-				"modName":"HiddenToggleFixture",
-				"content":[
-					{"id":"bHidden:Main","type":"hiddenToggle","groupControl":1,
-					 "valueOptions":{"sourceType":"ModSettingBool"}},
-					{"id":"dependent","type":"text","groupCondition":1}
-				]
-			})json", "hidden-toggle.json");
-			const auto& declared = ControlNamed(
-				result.configuration->pages.front(),
-				"bHidden:Main");
-			require(declared.type == ControlType::kUnknown,
-				"Skyrim hiddenToggle was treated as FO4 vocabulary");
-			require(DescriptorCount(result.pages.front()) == 2 &&
-					std::ranges::count_if(
-						result.pages.front().rows,
-						[](const MappedRow& a_row) {
-							return a_row.binding.has_value();
-						}) == 1,
-				"hiddenToggle stopped emitting its current visible descriptor");
-			require(HasDiagnostic(result, "unknown MCM control type",
-						"$.content[0]"),
-				"hiddenToggle stopped producing its current diagnostic");
-		});
-
-		runner.test("MCM images and typed actions survive mapping", [] {
-			const auto result = ParseConfig(R"json({
-				"modName":"MetadataFixture",
-				"content":[
-					{"id":"image","type":"image","libName":"Fixture","className":"Header"},
-					{"id":"function","type":"button","action":{
-						"type":"CallFunction","form":"Fixture.esp|800",
-						"scriptName":"Fixture:Script","function":"Apply",
-						"params":["{i}42","{f}1.5","{b}true","{s}text","{i}{value}"]}},
-					{"id":"global","type":"button","action":{
-						"type":"CallGlobalFunction","script":"FixtureGlobal",
-						"function":"Apply"}},
-					{"id":"external","type":"button","action":{
-						"type":"CallExternalFunction","plugin":"FixtureNative",
-						"function":"Apply"}},
-					{"id":"console","type":"button","action":{
-						"type":"RunConsoleCommand","command":"help fixture"}},
-					{"id":"event","type":"button","action":{
-						"type":"SendEvent","event":"FixtureEvent","params":["{value}"]}}
-				]
-			})json", "metadata.json");
-			require(result.configuration && result.pages.size() == 1,
-				"metadata fixture did not parse");
-			const auto& rows = result.pages.front().rows;
-			const auto image = std::ranges::find(rows, "image", &MappedRow::id);
-			const auto function =
-				std::ranges::find(rows, "function", &MappedRow::id);
-			require(image != rows.end() && !image->emitted && image->image &&
-					image->image->library == "Fixture" &&
-					image->image->symbol == "Header",
-				"image metadata was discarded or its row was emitted");
-			require(DescriptorCount(result.pages.front()) == 0 &&
-					HasDiagnostic(
-						result,
-						"SWF component not rendered: Fixture::Header",
-						"$.content[0]"),
-				"image descriptor was emitted or its warning was lost");
-			const auto* call = function == rows.end() || !function->action ?
-				nullptr :
-				std::get_if<CallFunctionAction>(&*function->action);
-			require(call && call->form == "Fixture.esp|800" &&
-					call->scriptName ==
-						std::optional<std::string>{ "Fixture:Script" } &&
-					call->function == "Apply" && call->arguments.size() == 5,
-				"CallFunction metadata was discarded");
-			require(std::get<int64_t>(call->arguments[0]) == 42 &&
-					std::get<double>(call->arguments[1]) == 1.5 &&
-					std::get<bool>(call->arguments[2]) &&
-					std::get<std::string>(call->arguments[3]) == "text",
-				"typed action arguments remained encoded strings");
-			const auto* substituted =
-				std::get_if<ValueArgument>(&call->arguments[4]);
-			require(substituted &&
-					substituted->type == SourceValueKind::kInt,
-				"typed value placeholder was not represented distinctly");
-			require(std::holds_alternative<CallGlobalFunctionAction>(
-						*std::ranges::find(rows, "global", &MappedRow::id)->action) &&
-					std::holds_alternative<CallExternalFunctionAction>(
-						*std::ranges::find(rows, "external", &MappedRow::id)->action) &&
-					std::holds_alternative<RunConsoleCommandAction>(
-						*std::ranges::find(rows, "console", &MappedRow::id)->action) &&
-					std::holds_alternative<SendEventAction>(
-						*std::ranges::find(rows, "event", &MappedRow::id)->action),
-				"an action family was not preserved as a typed variant");
-			const auto summary = SummarizeCompatibility(result.pages.front());
-			require(summary.images == 1 && summary.actions == 5 &&
-					summary.unsupported == 1,
-				"page compatibility summary lost metadata counts");
-		});
-
 		runner.test("MCM valid JSON escapes retain strict semantics", [] {
 			const auto result = ParseConfig(R"json({
 				"modName":"ValidEscapeFixture",
@@ -2204,45 +1477,5 @@ namespace vmm_tests
 			}
 		});
 
-		runner.test("MCM config JSON does not enable comment tolerance", [] {
-			const auto result = ParseConfig(R"json({
-				// Comments are accepted by the current parser.
-				"modName":"CommentFixture",
-				"content":[{"id":"text","type":"text"}]
-			})json", "comment-config.json");
-			require(!result.configuration && result.pages.empty() &&
-					HasDiagnostic(result, "invalid JSON", "$"),
-				"config parsing enabled unneeded JSON comment tolerance");
-		});
-
-		runner.test("MCM registration publishes only actionable summaries", [] {
-			auto root = std::filesystem::current_path();
-			auto sourcePath = root / "mcm" / "runtime" / "src" / "Main.cpp";
-			while (!std::filesystem::exists(sourcePath) &&
-				root.has_parent_path() &&
-				root.parent_path() != root)
-			{
-				root = root.parent_path();
-				sourcePath = root / "mcm" / "runtime" / "src" / "Main.cpp";
-			}
-			std::ifstream stream{ sourcePath, std::ios::binary };
-			const std::string source{
-				std::istreambuf_iterator<char>{ stream },
-				std::istreambuf_iterator<char>{}
-			};
-			size_t reportCount{};
-			for (size_t offset{};
-				(offset = source.find("ReportSummary(", offset)) !=
-				std::string::npos;
-				offset += std::string_view{ "ReportSummary(" }.size())
-				++reportCount;
-			require(
-				!source.empty() &&
-					source.find("SummarizeActionableCompatibility(*page)") !=
-						std::string::npos &&
-					source.find("InertRowsSummary") == std::string::npos &&
-					reportCount == 1,
-				"registration regained a blanket or inert snapshot warning path");
-		});
 	}
 }

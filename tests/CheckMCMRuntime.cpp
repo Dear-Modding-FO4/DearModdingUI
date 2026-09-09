@@ -178,7 +178,7 @@ namespace vmm_tests
 
 	void run_mcm_runtime_checks(Runner& runner)
 	{
-		runner.test("MCM value cache transitions from missing through pending", [] {
+		runner.test("MCM value cache rejects stale and unknown completions", [] {
 			ValueCache cache;
 			require(std::holds_alternative<MissingValue>(cache.Read("setting")),
 				"a new cache entry was not missing");
@@ -192,10 +192,6 @@ namespace vmm_tests
 					std::get<bool>(
 						std::get<ReadyValue>(cache.Read("setting")).value),
 				"a matching completion did not become ready");
-		});
-
-		runner.test("MCM late refresh cannot overwrite a newer write", [] {
-			ValueCache cache;
 			const auto refresh = cache.BeginRefresh("setting");
 			const auto written = cache.Store("setting", dmui::SettingValue{ true });
 			require(Generation(written.snapshot) > refresh,
@@ -208,10 +204,6 @@ namespace vmm_tests
 			require(std::get<bool>(current.value) &&
 					current.generation == Generation(written.snapshot),
 				"a stale completion replaced the newer write");
-		});
-
-		runner.test("MCM cache completion misses do not create ready values", [] {
-			ValueCache cache;
 			require(!cache.Complete("missing", ReadyValue{ true, 0 }) &&
 					std::holds_alternative<MissingValue>(cache.Read("missing")),
 				"a rejected completion inserted a default ready value");
@@ -273,75 +265,29 @@ namespace vmm_tests
 				"setting change events ignored declaration or control id gating");
 		});
 
-		runner.test("MCM menu events match shipped names and zero argument arity", [] {
+		runner.test("MCM menu events follow a full overlay and mod lifecycle", [] {
+			McmEventLifecycle lifecycle;
 			std::vector<McmExternalEvent> events;
-			AppendEvents(events, OverlayOpenedExternalEvents());
-			AppendEvents(events, MenuOpenedExternalEvents("Fixture"));
-			AppendEvents(events, MenuClosedExternalEvents("Fixture"));
-			AppendEvents(events, OverlayClosedExternalEvents());
-			require(events == std::vector<McmExternalEvent>{
-						{ "OnMCMOpen", {} },
-						{ "OnMCMMenuOpen", {} },
-						{ "OnMCMMenuOpen|Fixture", {} },
-						{ "OnMCMMenuClose|Fixture", {} },
-						{ "OnMCMClose", {} }
-					},
-				"MCM menu event names or shipped zero-argument arity changed");
-		});
-
-		runner.test("MCM overlay opening emits whole and mod menu events", [] {
-			McmEventLifecycle lifecycle;
-			require(lifecycle.PageActivated("ModA") ==
-					std::vector<McmExternalEvent>{
-						{ "OnMCMOpen", {} },
-						{ "OnMCMMenuOpen", {} },
-						{ "OnMCMMenuOpen|ModA", {} }
-					},
-				"opening the overlay on a mod emitted the wrong event sequence");
-		});
-
-		runner.test("MCM mod transitions omit whole menu close and open events", [] {
-			McmEventLifecycle lifecycle;
-			(void)lifecycle.PageActivated("ModA");
-			auto events = lifecycle.PageDeactivated("ModA", true);
+			AppendEvents(events, lifecycle.PageActivated("ModA"));
+			AppendEvents(events, lifecycle.PageDeactivated("ModA", true));
 			AppendEvents(events, lifecycle.PageActivated("ModB"));
+			AppendEvents(events, lifecycle.PageDeactivated("ModB", true));
+			AppendEvents(events, lifecycle.OverlayVisibilityChanged(false));
 			require(events == std::vector<McmExternalEvent>{
+						{ "OnMCMOpen", {} },
+						{ "OnMCMMenuOpen", {} },
+						{ "OnMCMMenuOpen|ModA", {} },
 						{ "OnMCMMenuClose|ModA", {} },
 						{ "OnMCMMenuOpen", {} },
-						{ "OnMCMMenuOpen|ModB", {} }
-					},
-				"switching MCM mods over-fired whole menu events");
-		});
-
-		runner.test("MCM overlay closing emits mod close then whole menu close", [] {
-			McmEventLifecycle lifecycle;
-			(void)lifecycle.PageActivated("ModB");
-			require(lifecycle.PageDeactivated("ModB", false) ==
-					std::vector<McmExternalEvent>{
+						{ "OnMCMMenuOpen|ModB", {} },
 						{ "OnMCMMenuClose|ModB", {} },
 						{ "OnMCMClose", {} }
 					},
-				"closing the overlay emitted the wrong event sequence");
-		});
+				"menu names, zero-argument arity, transition filtering, or delayed close changed");
 
-		runner.test("MCM whole close waits for the overlay after leaving mod pages", [] {
-			McmEventLifecycle lifecycle;
-			(void)lifecycle.PageActivated("ModA");
-			auto events = lifecycle.PageDeactivated("ModA", true);
-			AppendEvents(
-				events,
-				lifecycle.OverlayVisibilityChanged(false));
-			require(events == std::vector<McmExternalEvent>{
-						{ "OnMCMMenuClose|ModA", {} },
-						{ "OnMCMClose", {} }
-					},
-				"whole menu close fired before the overlay actually closed");
-		});
-
-		runner.test("MCM filtered menu events require a nonempty mod name", [] {
-			McmEventLifecycle lifecycle;
-			const auto opened = lifecycle.PageActivated("");
-			const auto closed = lifecycle.PageDeactivated("", false);
+			McmEventLifecycle empty;
+			const auto opened = empty.PageActivated("");
+			const auto closed = empty.PageDeactivated("", false);
 			require(opened == std::vector<McmExternalEvent>{
 						{ "OnMCMOpen", {} },
 						{ "OnMCMMenuOpen", {} }
@@ -513,9 +459,7 @@ namespace vmm_tests
 					!row.writeValue &&
 					source.events.changes.empty(),
 				"idless local state touched storage, emitted an event, or failed to collapse");
-		});
 
-		runner.test("MCM explicit local ownership survives descriptorless references", [] {
 			for (const auto* type : { "section", "spacer" })
 			{
 				auto result = ParseConfig(
@@ -575,60 +519,27 @@ namespace vmm_tests
 				"an operable controller stopped reading its real value source");
 		});
 
-		runner.test("MCM missing conditions fail open with a diagnostic", [] {
-			auto page = ConditionPage();
-			SnapshotSource source;
-			source.snapshot = MissingValue{ 3 };
-			BindPage(page, source);
-			page.settings.prepareView(page.settings);
+		runner.test("MCM missing and failed conditions fail open with diagnostics", [] {
+			for (const auto snapshot : std::array<ValueSnapshot, 2>{
+					 ValueSnapshot{ MissingValue{ 3 } },
+					 ValueSnapshot{ FailedValue{ 4 } } })
+			{
+				auto page = ConditionPage();
+				SnapshotSource source;
+				source.snapshot = snapshot;
+				BindPage(page, source);
+				page.settings.prepareView(page.settings);
 
-			const auto summary = SummarizeCompatibility(page, source);
-			require(Dependent(page).isVisible &&
-					Dependent(page).isVisible() &&
-					summary.unevaluableConditions == 1,
-				"a missing dependency hid its dependent");
-			require(HasConditionNote(page),
-				"a missing dependency produced no page diagnostic");
-			require(SummarizeActionableCompatibility(page).empty(),
-				"an unvisited value snapshot created a permanent startup warning");
-		});
-
-		runner.test("MCM not-ready state stays a live availability note", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"NotReady",
-				"content":[{"id":"bOption:Main","type":"switcher",
-					"valueOptions":{"sourceType":"ModSettingBool",
-						"default":false}}]
-			})json");
-			auto& page = result.pages.front();
-			auto& binding = *page.rows.front().binding;
-			std::get<ModSettingBinding>(binding.source).declaration =
-				DeclarationState::kDeclared;
-			SnapshotSource source;
-			BindPage(page, source, [] { return McmState{ true, false }; });
-			page.settings.prepareView(page.settings);
-
-			require(
-				page.rows.front().resolveInertState().governingReason ==
-						InertReason::kRuntimeNotReady &&
-					SummarizeActionableCompatibility(page).empty(),
-				"a pre-save runtime state created a permanent startup warning");
-		});
-
-		runner.test("MCM failed conditions fail open with a diagnostic", [] {
-			auto page = ConditionPage();
-			SnapshotSource source;
-			source.snapshot = FailedValue{ 3 };
-			BindPage(page, source);
-			page.settings.prepareView(page.settings);
-
-			const auto summary = SummarizeCompatibility(page, source);
-			require(Dependent(page).isVisible &&
-					Dependent(page).isVisible() &&
-					summary.unevaluableConditions == 1,
-				"a failed dependency hid its dependent");
-			require(HasConditionNote(page),
-				"a failed dependency produced no page diagnostic");
+				const auto summary = SummarizeCompatibility(page, source);
+				require(Dependent(page).isVisible &&
+						Dependent(page).isVisible() &&
+						summary.unevaluableConditions == 1,
+					"an unavailable dependency hid its dependent");
+				require(HasConditionNote(page),
+					"an unavailable dependency produced no page diagnostic");
+				require(SummarizeActionableCompatibility(page).empty(),
+					"an unavailable snapshot created a permanent startup warning");
+			}
 		});
 
 		runner.test("MCM condition notes survive unrelated note reordering", [] {

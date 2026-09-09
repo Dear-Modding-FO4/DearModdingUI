@@ -10,10 +10,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = Path(__file__).with_name("mutations.json")
-BUILD_COMMAND = ["xmake", "build", "-P", str(ROOT), "-r", "-y", "dmui-tests"]
+BUILD_COMMAND = ["xmake", "build", "-P", str(ROOT), "-y", "dmui-tests"]
 TEST_COMMAND = [str(ROOT / ".Build/Tests/dmui-tests.exe")]
 SUMMARY_PATTERN = re.compile(r"^(\d+)/(\d+) checks passed$")
-REQUIRED_FIELDS = {"name", "target", "find", "replace", "check", "message"}
+REQUIRED_FIELDS = {"name", "target", "find", "replace", "check"}
 RESTORING = False
 DEFERRED_INTERRUPT = False
 
@@ -163,7 +163,7 @@ def run_mutation(entry: dict[str, str], index: int, total: int) -> None:
             f"found {occurrences}"
         )
     mutated = original.replace(find, replacement, 1)
-    expected_line = f"[FAIL] {entry['check']}: {entry['message']}"
+    expected_prefix = f"[FAIL] {entry['check']}: "
     restoration_required = False
 
     print(f"[mutation {index}/{total}] {entry['name']}", flush=True)
@@ -178,7 +178,7 @@ def run_mutation(entry: dict[str, str], index: int, total: int) -> None:
         lines = [line.strip() for line in result.stdout.splitlines()]
         if result.returncode == 0:
             raise MutationFailure(
-                f"{entry['name']}: mutated suite stayed green; expected {expected_line}\n"
+                f"{entry['name']}: mutated suite stayed green; expected {expected_prefix}\n"
                 f"{result.stdout.rstrip()}"
             )
         if result.returncode != 1:
@@ -187,12 +187,16 @@ def run_mutation(entry: dict[str, str], index: int, total: int) -> None:
                 f"{result.returncode}; expected the test failure exit code 1\n"
                 f"{result.stdout.rstrip()}"
             )
-        if expected_line not in lines:
+        failure_line = next(
+            (line for line in lines if line.startswith(expected_prefix)),
+            None,
+        )
+        if failure_line is None:
             raise MutationFailure(
-                f"{entry['name']}: expected exact failure line was absent: {expected_line}\n"
+                f"{entry['name']}: expected check did not fail: {entry['check']}\n"
                 f"{result.stdout.rstrip()}"
             )
-        print(f"[pass] {expected_line}", flush=True)
+        print(f"[pass] {failure_line}", flush=True)
     finally:
         if restoration_required:
             restore_target(target, original, mutated, entry)

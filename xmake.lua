@@ -176,8 +176,6 @@ target("dmui-tests", function()
         "tests/*.cpp",
         "mcm/runtime/src/Win32FileListingAdapter.cpp",
         "tests/fixtures/GeneralTestFixtures.cpp",
-        "tests/fixtures/mcm-fixtures.cpp",
-        "tests/fixtures/navigation-fixtures.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileHostAPILayout.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileIconGlyphs.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileUI.cpp",

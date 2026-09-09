@@ -431,8 +431,9 @@ retires the attachment, releases host-owned COM/resources, and requests immediat
 `queryServices` reports semantic host-service flags. The appended
 `queryUIAPI` entry separately negotiates DMUI UI ABI family 1, a minimum
 revision, and an additive function-table prefix. This identity is independent
-of the 0.1 release label, 0.1.0 product version, and the host's internal Dear
-ImGui version. Clients set `requiredServices`, `minimumUIRevision`, and
+of the API release label, the product version declared in
+[xmake.lua](../../xmake.lua), and the host's internal Dear ImGui version.
+Clients set `requiredServices`, `minimumUIRevision`, and
 `minimumUIAPISize` in `ClientOptions`; the wrapper validates both services and
 all required UI operations before `registerClient`.
 

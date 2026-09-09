@@ -20,9 +20,12 @@ xmake package-release -P "$projectRoot"
 The installable outputs are:
 
 - `.Build\packages\test\DearModdingUI\`
-- `.Build\packages\DearModdingUI-0.1.0-test.zip`
+- `.Build\packages\DearModdingUI-<version>-test.zip`
 - `.Build\packages\test\DearModdingUI-MCM\`
-- `.Build\packages\DearModdingUI-MCM-0.1.0-test.zip`
+- `.Build\packages\DearModdingUI-MCM-<version>-test.zip`
+
+`<version>` is read by the build and packaging tasks from `plugin_version` in
+[xmake.lua](../../xmake.lua); these filenames do not require a separate version update.
 
 The core archive contains the host and general test client. Install the separate
 MCM test archive as well when exercising the real bridge and its Scaleform probe.

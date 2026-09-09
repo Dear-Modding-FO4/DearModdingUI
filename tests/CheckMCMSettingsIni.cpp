@@ -13,11 +13,18 @@ namespace vmm_tests
 	{
 		using namespace DearModdingUI::MCM;
 
-		constexpr std::string_view kSettingsIniFixture = R"ini([Main]
+		constexpr std::string_view kSettingsIniFixture = R"ini(
+; leading comment
+# another comment
+malformed
+=missing
+bImplicit=1
+[Main]
 bEnabled=1
 iRetries=3
 fScale=1.25
 sProfile=Default:Careful
+bEnabled=0
 
 [Advanced]
 bDiagnostics=0
@@ -57,12 +64,13 @@ bDiagnostics=0
 	{
 		runner.test("MCM settings ini declarations are parsed", [] {
 			const auto settings = ParseSettingsIni(kSettingsIniFixture);
-			require(settings.available && settings.declarations.size() == 5,
+			require(settings.available && settings.declarations.size() == 6,
 				"settings declarations were not collected");
-			require(settings.Contains({ "bEnabled", "Main" }) &&
+			require(settings.Contains({ "bImplicit", "Main" }) &&
+					settings.Contains({ "bEnabled", "Main" }) &&
 					settings.Contains({ "sProfile", "Main" }) &&
 					settings.Contains({ "bDiagnostics", "Advanced" }),
-				"section or typed key declarations were lost");
+				"sections, comments, malformed lines, duplicates, or colons changed declarations");
 		});
 
 		runner.test("MCM setting ids normalize section and key", [] {
@@ -113,27 +121,6 @@ bDiagnostics=0
 				SummarizeActionableCompatibility(result.pages.front()) ==
 					"Compatibility: 6 undeclared persisted settings.",
 				"undeclared persisted settings lost their registration warning");
-		});
-
-		runner.test("MCM settings ini ignores comments and malformed lines", [] {
-			const auto settings = ParseSettingsIni(R"ini(
-; comment
-# comment
-malformed
-=missing
-bImplicit=1
-[Main]
-bEnabled=1
-[ ]
-bIgnored=1
-[Advanced]
-sPath=C:\Games:Fallout
-)ini");
-			require(settings.declarations.size() == 3 &&
-					settings.Contains({ "bImplicit", "Main" }) &&
-					settings.Contains({ "bEnabled", "Main" }) &&
-					settings.Contains({ "sPath", "Advanced" }),
-				"comments, malformed lines, or colons in values changed declarations");
 		});
 
 		runner.test("MCM absent settings ini leaves declarations unknown", [] {

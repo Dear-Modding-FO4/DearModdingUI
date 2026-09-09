@@ -259,6 +259,28 @@ namespace vmm_tests
 								std::string::npos;
 						}),
 				"dropdownFiles incorrectly required static options");
+
+			const auto property = ParseConfig(R"json({
+				"modName":"PropertyFiles",
+				"content":[
+					{"id":"propertyFile","type":"dropdownFiles",
+					 "valueOptions":{
+						"sourceType":"PropertyValueString",
+						"sourceForm":"Fixture.esp|1",
+						"propertyName":"SelectedFile",
+						"path":"Data/Interface/Files"
+					 }}
+				]
+			})json", "property-files.json");
+			const auto& propertyRow = property.pages.front().rows.front();
+			require(propertyRow.binding &&
+					propertyRow.binding->Family() == SourceFamily::kProperty &&
+					propertyRow.binding->valueKind == SourceValueKind::kString &&
+					propertyRow.fileChoices &&
+					propertyRow.fileChoices->path ==
+						std::optional<std::string>{ "Data/Interface/Files" } &&
+					propertyRow.fileChoices->mask == "*",
+				"property string file dropdown or omitted mask was not supported");
 		});
 
 		runner.test("MCM dropdownFiles validates path and string source", [] {
@@ -283,28 +305,6 @@ namespace vmm_tests
 						}) &&
 					!result.pages.front().rows.front().binding,
 				"invalid dropdownFiles metadata stayed writable");
-		});
-
-		runner.test("MCM dropdownFiles supports property strings and default mask", [] {
-			const auto result = ParseConfig(R"json({
-				"modName":"PropertyFiles",
-				"content":[
-					{"id":"propertyFile","type":"dropdownFiles",
-					 "valueOptions":{
-						"sourceType":"PropertyValueString",
-						"sourceForm":"Fixture.esp|1",
-						"propertyName":"SelectedFile",
-						"path":"Data/Interface/Files"
-					 }}
-				]
-			})json", "property-files.json");
-			const auto& row = result.pages.front().rows.front();
-			require(row.binding &&
-					row.binding->Family() == SourceFamily::kProperty &&
-					row.binding->valueKind == SourceValueKind::kString &&
-					row.fileChoices &&
-					row.fileChoices->mask == "*",
-				"property string file dropdown or omitted mask was not supported");
 		});
 
 		runner.test(

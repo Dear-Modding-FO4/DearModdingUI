@@ -71,6 +71,10 @@ Data\
 
 Download the latest packages from the [Releases](https://github.com/Dear-Modding-FO4/DearModdingUI/releases/latest) page.
 
+The build and package version comes from `plugin_version` in [xmake.lua](xmake.lua).
+The release badge above tracks the latest published release, which may lag the
+version in the source checkout.
+
 ---
 
 ## Configuration

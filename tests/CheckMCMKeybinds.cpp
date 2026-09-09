@@ -88,34 +88,7 @@ namespace vmm_tests
 
 	void run_mcm_keybind_checks(Runner& runner)
 	{
-		runner.test("MCM keybind files parse definitions and user bindings", [] {
-			const auto definitions = ParseKeybindDefinitions(R"json({
-				"modName":"MyMod",
-				"keybinds":[
-					{"id":"keyPlain","desc":"Plain","action":{"type":"SendEvent","event":"Plain"}},
-					{"id":"keyModified","desc":"Modified","action":{"type":"RunConsoleCommand","command":"help"}}
-				]
-			})json");
-			const auto bindings = ParseUserKeybinds(R"json({
-				"version":1,
-				"keybinds":[
-					{"keycode":30,"modifiers":0,"modName":"MyMod","id":"keyPlain"},
-					{"keycode":37,"modifiers":3,"modName":"MyMod","id":"keyModified"}
-				]
-			})json");
-			require(definitions.state == KeybindFileState::kLoaded &&
-					definitions.modName == "MyMod" &&
-					definitions.Contains("keyPlain") &&
-					definitions.Contains("keyModified"),
-				"definition ids or mod name were not parsed");
-			const auto* modified = bindings.Find("MyMod", "keyModified");
-			require(bindings.state == KeybindFileState::kLoaded &&
-					modified && modified->keycode == 37 &&
-					modified->modifiers == 3,
-				"user binding tuple was not parsed");
-		});
-
-		runner.test("MCM keybind loaders read caller-supplied paths", [] {
+		runner.test("MCM keybind loaders ingest definitions and user bindings", [] {
 			const auto root =
 				std::filesystem::temp_directory_path() / "dmui-mcm-keybind-loader";
 			const auto definitionsPath = root / "Config" / "keybinds.json";
@@ -124,19 +97,29 @@ namespace vmm_tests
 			std::filesystem::create_directories(bindingsPath.parent_path());
 			{
 				std::ofstream definitions{ definitionsPath, std::ios::binary };
-				definitions << R"({"modName":"PathMod","keybinds":[{"id":"keyPath"}]})";
+				definitions << R"({"modName":"PathMod","keybinds":[
+					{"id":"keyPlain","desc":"Plain","action":{"type":"SendEvent","event":"Plain"}},
+					{"id":"keyModified","desc":"Modified","action":{"type":"RunConsoleCommand","command":"help"}}
+				]})";
 				std::ofstream bindings{ bindingsPath, std::ios::binary };
-				bindings << R"({"version":1,"keybinds":[{"keycode":62,"modifiers":0,"modName":"PathMod","id":"keyPath"}]})";
+				bindings << R"({"version":1,"keybinds":[
+					{"keycode":30,"modifiers":0,"modName":"PathMod","id":"keyPlain"},
+					{"keycode":37,"modifiers":3,"modName":"PathMod","id":"keyModified"}
+				]})";
 			}
 			const auto definitions = LoadKeybindDefinitions(definitionsPath);
 			const auto bindings = LoadUserKeybinds(bindingsPath);
+			const auto* modified = bindings.Find("PathMod", "keyModified");
 			std::error_code error;
 			std::filesystem::remove_all(root, error);
 			require(definitions.state == KeybindFileState::kLoaded &&
-					definitions.Contains("keyPath") &&
+					definitions.modName == "PathMod" &&
+					definitions.Contains("keyPlain") &&
+					definitions.Contains("keyModified") &&
 					bindings.state == KeybindFileState::kLoaded &&
-					bindings.Find("PathMod", "keyPath"),
-				"loader paths were ignored or parsed incorrectly");
+					modified && modified->keycode == 37 &&
+					modified->modifiers == 3,
+				"loader paths or parsed keybind content changed");
 		});
 
 		runner.test("MCM keybind display resolves keys and modifiers", [] {
@@ -164,20 +147,7 @@ namespace vmm_tests
 						InertReason::kNone &&
 					SummarizeCompatibility(page).resolvedKeybinds == 2,
 				"resolved keybind state or count was lost");
-		});
-
-		runner.test("MCM key names pin unified macro range boundaries", [] {
-			require(kKeyboardKeyCount == 256 &&
-					kMouseButtonOffset == 256 &&
-					kMouseButtonCount == 8 &&
-					kMouseWheelOffset == 264 &&
-					kMouseWheelDirectionCount == 2 &&
-					kGamepadButtonOffset == 266 &&
-					kGamepadButtonCount == 16 &&
-					kMaximumMacroCode == 282,
-				"mirrored F4SE macro boundaries changed");
-			require(KeyName(0) == "Keycode 0" &&
-					KeyName(255) == "Keycode 255" &&
+			require(KeyName(255) == "Keycode 255" &&
 					KeyName(256) == "Mouse 1" &&
 					KeyName(263) == "Mouse 8" &&
 					KeyName(264) == "Mouse Wheel Up" &&
@@ -186,9 +156,8 @@ namespace vmm_tests
 					KeyName(281) == "Right Trigger" &&
 					KeyName(282) == "Keycode 282",
 				"keyboard, mouse, wheel, or gamepad boundaries changed");
-			require(KeyName(62) == "F4" &&
-					FormatKeybind(266, 7) == "Ctrl+Shift+Alt+D-Pad Up",
-				"standard keyboard or gamepad names changed");
+			require(FormatKeybind(266, 7) == "Ctrl+Shift+Alt+D-Pad Up",
+				"modifier order or gamepad naming changed");
 		});
 
 		runner.test("MCM keybind display distinguishes unbound and undeclared", [] {

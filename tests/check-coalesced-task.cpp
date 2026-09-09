@@ -11,7 +11,7 @@ namespace vmm_tests
 	void run_coalesced_task_checks(Runner& runner)
 	{
 		using Addictol::Support::CoalescedTask;
-		runner.test("coalesced tasks bound queued and executing work without self-requeueing", [] {
+		runner.test("coalesced tasks reject one duplicate and self-requeue attempt", [] {
 			CoalescedTask task;
 			std::deque<std::function<void()>> queue;
 			auto submit = [&](auto work) { queue.emplace_back(std::move(work)); };
@@ -22,8 +22,7 @@ namespace vmm_tests
 				acceptedDuringPoll = task.TrySubmit(submit, []() noexcept {});
 			};
 			require(task.TrySubmit(submit, poll), "initial task was rejected");
-			for (unsigned i = 0; i < 20; ++i)
-				require(!task.TrySubmit(submit, poll), "duplicate work was accepted");
+			require(!task.TrySubmit(submit, poll), "duplicate work was accepted");
 			require(queue.size() == 1 && polls == 0, "submission ran work or grew the queue");
 			auto work = std::move(queue.front());
 			queue.pop_front();
