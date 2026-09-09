@@ -1,7 +1,10 @@
 #include "Harness.h"
 
 #include <GeneralTestFixtures.h>
+#include <GeneralTestSuite.h>
 #include <DearModdingUI/UIAdapter.h>
+#include <mcm-fixtures.h>
+#include <navigation-fixtures.h>
 
 #include <algorithm>
 #include <array>
@@ -76,6 +79,7 @@ namespace
 		std::optional<size_t> failPageRegistrationAt;
 		size_t sectionHeaderDraws{};
 		size_t bulletTextDraws{};
+		size_t pageActivityObservers{};
 
 		void Reset()
 		{
@@ -90,6 +94,7 @@ namespace
 			failPageRegistrationAt.reset();
 			sectionHeaderDraws = 0;
 			bulletTextDraws = 0;
+			pageActivityObservers = 0;
 		}
 	};
 
@@ -213,6 +218,19 @@ namespace
 		return DMUI_RESULT_OK;
 	}
 
+	DMUI_Result DMUI_CALL RegisterPageActivityObserver(
+		DMUI_ClientHandle,
+		const DMUI_PageActivityObserverDescriptor* a_descriptor,
+		DMUI_PageActivityObserverHandle* a_observer) noexcept
+	{
+		if (!a_descriptor || !a_descriptor->callback || !a_observer)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		*a_observer =
+			static_cast<DMUI_PageActivityObserverHandle>(
+				++s_fixtureHost.pageActivityObservers);
+		return DMUI_RESULT_OK;
+	}
+
 	[[nodiscard]] const DMUI_HostAPI& FixtureAPI() noexcept
 	{
 		static const auto api = [] {
@@ -227,6 +245,8 @@ namespace
 			result.registerCategory = &RegisterCategory;
 			result.drawSectionHeader = &DrawSectionHeader;
 			result.drawBulletText = &DrawBulletText;
+			result.registerPageActivityObserver =
+				&RegisterPageActivityObserver;
 			result.queryUIAPI = [](
 				uint32_t a_abi,
 				uint32_t a_revision,
@@ -317,6 +337,55 @@ namespace vmm_tests
 			require(
 				DmuiTestFixtures::kExercisePages.size() == 6,
 				"general test exercise coverage changed");
+		});
+
+		runner.test("presentation scenarios reuse shared exercise pages", [] {
+			std::set<std::string> names;
+			std::set<std::string> sharedPageIds;
+			for (const auto& page : DmuiTestFixtures::kExercisePages)
+				sharedPageIds.emplace(page.id);
+			sharedPageIds.emplace("managed-overlay");
+
+			for (const auto& scenario : DmuiTests::kPresentationScenarios)
+			{
+				require(
+					names.emplace(scenario.name).second,
+					"presentation scenario names must be unique");
+				require(
+					DmuiTests::ParsePresentationScenario(scenario.name) ==
+						scenario.scenario,
+					"presentation scenario parser changed");
+				require(
+					DmuiTests::PresentationUsesMenu(scenario.scenario) ==
+						scenario.usesMenu,
+					"presentation menu behavior changed");
+				require(
+					sharedPageIds.contains(std::string{ scenario.pageId }),
+					"presentation scenario registered a second showcase page");
+			}
+			require(
+				!DmuiTests::ParsePresentationScenario("unknown"),
+				"unknown presentation scenario was accepted");
+			require(
+				DmuiTests::kPresentationScenarios[1].pageId ==
+					DmuiTests::kPresentationScenarios[4].pageId,
+				"notification and dialog stopped sharing their exercise page");
+			require(
+				!DmuiTests::kPresentationScenarios[0].usesMenu &&
+					!DmuiTests::kPresentationScenarios[1].usesMenu,
+				"overlay or notification capture unexpectedly opens the menu");
+
+			DmuiTests::PresentationScenarioState state;
+			require(!state.Active(),
+				"default preview behavior unexpectedly activates a scenario");
+			require(
+				state.Activate(DmuiTests::PresentationScenario::kImage) &&
+					state.Active() == DmuiTests::PresentationScenario::kImage,
+				"presentation scenario state did not retain activation");
+			require(
+				!state.Activate(DmuiTests::PresentationScenario::kPlot) &&
+					state.Active() == DmuiTests::PresentationScenario::kImage,
+				"presentation scenario state allowed a second activation");
 		});
 
 		runner.test("general test outcomes never infer pass", [] {
@@ -583,6 +652,106 @@ namespace vmm_tests
 			page.actions.apply();
 			require(state.committed == state.defaults,
 				"synthetic Apply did not commit in-memory values");
+		});
+
+		runner.test("navigation comparison fixtures retain attribution and pages", [] {
+			s_fixtureHost.Reset();
+			std::vector<std::unique_ptr<dmui::Client>> clients;
+			std::string error;
+			require(
+				DmuiTestFixtures::RegisterNavigationComparisonFixtures(
+					clients,
+					error),
+				"navigation fixture registration failed: " + error);
+			require(
+				clients.size() ==
+					DmuiTestFixtures::kNavigationFixtureClients.size(),
+				"navigation fixture owners were not retained");
+			require(
+				s_fixtureHost.clients.size() == clients.size(),
+				"navigation fixture clients did not reach the host");
+			require(
+				s_fixtureHost.pages.size() ==
+					DmuiTestFixtures::kNavigationFixtureClients.size() *
+					DmuiTestFixtures::kNavigationFixturePages.size(),
+				"navigation fixture page coverage changed");
+			for (size_t index = 0;
+				 index < DmuiTestFixtures::kNavigationFixtureClients.size();
+				 ++index)
+			{
+				const auto& expected =
+					DmuiTestFixtures::kNavigationFixtureClients[index];
+				const auto& actual = s_fixtureHost.clients[index];
+				require(
+					actual.id == expected.id &&
+						actual.displayName == expected.displayName,
+					"navigation fixture identity changed");
+				require(
+					actual.origin == DMUI_CLIENT_ORIGIN_BRIDGED &&
+						actual.bridgeSourceLabel == expected.source,
+					"navigation fixture source attribution changed");
+			}
+			const auto& callback = s_fixtureHost.pages.front();
+			callback.draw(callback.userData);
+			require(
+				s_fixtureHost.sectionHeaderDraws == 1 &&
+					s_fixtureHost.bulletTextDraws == 2,
+				"navigation fixture callback did not use shared public drawing");
+			s_fixtureHost.Reset();
+		});
+
+		runner.test("synthetic MCM fixture owns reusable bindings and listings", [] {
+			DmuiTestFixtures::BuiltinMcmFileListingAdapter listing;
+			const auto files = listing.List("ignored", "*.xml");
+			require(files.has_value(), "builtin MCM listing failed");
+			require(
+				*files == std::vector<std::string>{
+					"HUD Classic.xml",
+					"None",
+					"Wide Screen.xml"
+				},
+				"builtin MCM listing changed");
+
+			s_fixtureHost.Reset();
+			DmuiTestFixtures::McmFixture fixture;
+			std::string error;
+			require(
+				fixture.Register({}, error),
+				"synthetic MCM registration failed: " + error);
+			require(fixture.PageCount() > 0,
+				"synthetic MCM did not register a mapped page");
+			require(
+				s_fixtureHost.clients.size() == 1 &&
+					s_fixtureHost.clients.front().id ==
+						"dearmodding.tests.synthetic.mcm" &&
+					s_fixtureHost.clients.front().origin ==
+						DMUI_CLIENT_ORIGIN_BRIDGED &&
+					s_fixtureHost.clients.front().bridgeSourceLabel == "MCM",
+				"synthetic MCM identity or attribution changed");
+			require(
+				s_fixtureHost.pages.size() == fixture.PageCount(),
+				"synthetic MCM page ownership is incomplete");
+			require(
+				s_fixtureHost.pageActivityObservers == 1,
+				"synthetic MCM file refresh observer was not registered");
+			require(
+				s_fixtureHost.diagnostics.size() == 18,
+				"synthetic MCM diagnostic fixture changed");
+			s_fixtureHost.Reset();
+		});
+
+		runner.test("external MCM fixtures require injected file listing", [] {
+			DmuiTestFixtures::McmFixture fixture;
+			DmuiTestFixtures::McmFixtureOptions options;
+			options.configPath = "external-config.json";
+			std::string error;
+			require(
+				!fixture.Register(options, error),
+				"external MCM fixture accepted an implicit platform adapter");
+			require(
+				error.find("injected file listing adapter") !=
+					std::string::npos,
+				"external MCM fixture did not explain its adapter requirement");
 		});
 	}
 }

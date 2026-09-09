@@ -1,4 +1,5 @@
 #include <Support/SubsystemHealth.h>
+#include <host-health-fixtures.h>
 
 #include "Harness.h"
 
@@ -36,6 +37,23 @@ namespace vmm_tests
 	{
 		using namespace std::chrono_literals;
 		constexpr auto start = HealthClock::time_point{ 10s };
+
+		runner.test("synthetic health fixtures use the caller's registry and lifetime", [] {
+			CapturingHealthReporter reporter;
+			SubsystemHealthRegistry registry;
+			auto fixtures = DmuiTestFixtures::CreateSyntheticHealth(registry, reporter);
+			const auto snapshots = registry.Snapshots();
+			require(fixtures.size() == 3 && snapshots.size() == 3 &&
+					reporter.records.size() == 3,
+				"synthetic health fixtures were not registered");
+			for (const auto& snapshot : snapshots)
+				require(snapshot.identity.starts_with("preview.synthetic.") &&
+						snapshot.reason.starts_with("Synthetic fixture:"),
+					"synthetic health was not clearly labeled");
+			fixtures.clear();
+			require(registry.Snapshots().empty(),
+				"synthetic health outlived its owning application");
+		});
 
 		runner.test("health transition logs once and identical observations stay silent", [] {
 			CapturingHealthReporter reporter;

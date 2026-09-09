@@ -5,6 +5,11 @@
 `DearModdingUI-MCM` compatibility plugin; the host links no MCM or JSON code. The library remains
 independent of rendering, game, and F4SE headers.
 
+The `runtime` subdirectory contains the separate bridge plugin's entry point and
+game-facing adapters. Only that target depends on F4SE; the parser and binding
+library stay in `src` and `include`. Synthetic MCM scenarios live in
+`../tests/fixtures`, not in production bridge code.
+
 `ParseConfig` and `LoadConfig` are `noexcept` and total. Input is third-party JSON, so every failure
 is diagnosed and skipped rather than thrown or aborted on, and condition nesting is capped at
 `kMaxConditionDepth`. Invalid string escapes pass through as literal backslashes. Comments and

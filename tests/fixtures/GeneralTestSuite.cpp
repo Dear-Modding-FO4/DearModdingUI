@@ -270,7 +270,7 @@ namespace DmuiTests
 					initializationStatus_ = InitializationStatus::kUnavailable;
 					initializationStage_ = "host preflight";
 					LogUnavailableOnce();
-					return true;
+					return false;
 				}
 
 				if (const auto services = client_.QueryServices())
@@ -437,19 +437,176 @@ namespace DmuiTests
 
 			void StopWorker() noexcept
 			{
-				workerPostingAllowed_.store(false, std::memory_order_release);
-				std::jthread worker;
-				{
-					std::scoped_lock lock{ workerMutex_ };
-					if (notificationWorker_.joinable())
+				std::call_once(workerStopOnce_, [this] {
+					workerPostingAllowed_.store(
+						false,
+						std::memory_order_release);
+					std::jthread worker;
 					{
-						notificationWorker_.request_stop();
-						worker = std::move(notificationWorker_);
+						std::scoped_lock lock{ workerMutex_ };
+						if (notificationWorker_.joinable())
+						{
+							notificationWorker_.request_stop();
+							worker = std::move(notificationWorker_);
+						}
 					}
+					if (worker.joinable())
+						worker.join();
+					workerBusy_.store(false, std::memory_order_release);
+				});
+			}
+
+			[[nodiscard]] bool ActivatePresentationScenario(
+				PresentationScenario a_scenario,
+				std::string& a_error) noexcept
+			{
+				a_error.clear();
+				if (initializationStatus_ != InitializationStatus::kComplete)
+				{
+					a_error =
+						"The shared test suite is not completely registered.";
+					return false;
 				}
-				if (worker.joinable())
-					worker.join();
-				workerBusy_.store(false, std::memory_order_release);
+				if (presentationScenarioState_.Active())
+				{
+					a_error = "A presentation scenario is already active.";
+					return false;
+				}
+				if (PresentationPage(a_scenario) == DMUI_INVALID_PAGE_HANDLE)
+				{
+					a_error =
+						"The presentation scenario does not have a registered page.";
+					return false;
+				}
+
+				bool activated{ true };
+				switch (a_scenario)
+				{
+				case PresentationScenario::kOverlay:
+					SeedPresentationPlot();
+					overlayOptions_.anchor = DMUI_OVERLAY_ANCHOR_TOP_RIGHT;
+					overlayOptions_.offset = { 24.0f, 24.0f };
+					overlayOptions_.minimumSize = { 640.0f, 420.0f };
+					overlayOptions_.maximumSize = { 640.0f, 420.0f };
+					overlayOptions_.opacity = 0.82f;
+					overlayOptions_.contentScale = 1.0f;
+					overlayOptions_.backgroundVisible = 1;
+					overlayOptions_.borderVisible = 1;
+					overlayOptions_.allowArrangement = 0;
+					activated =
+						ApplyOverlayConfiguration() &&
+						SetOverlayEnabled(true);
+					break;
+				case PresentationScenario::kNotification:
+					activated = PostPageNotification(
+						DMUI_STATUS_SEVERITY_WARNING,
+						"Shader cache rebuilt; one preset needs review.",
+						30000);
+					break;
+				case PresentationScenario::kImage:
+					presentationImageUpdatePending_ = true;
+					break;
+				case PresentationScenario::kPlot:
+					SeedPresentationPlot();
+					break;
+				case PresentationScenario::kDialog:
+					presentationDialogPending_ = true;
+					break;
+				}
+				if (!activated)
+				{
+					a_error = "Could not activate presentation scenario (result ";
+					a_error += DMUI_ResultToString(client_.LastResult());
+					a_error += ").";
+					return false;
+				}
+				if (!presentationScenarioState_.Activate(a_scenario))
+				{
+					a_error = "A presentation scenario is already active.";
+					return false;
+				}
+				return true;
+			}
+
+			[[nodiscard]] DMUI_PageHandle PresentationPage(
+				PresentationScenario a_scenario) const noexcept
+			{
+				if (a_scenario == PresentationScenario::kOverlay)
+					return overlayPage_;
+
+				DmuiTestFixtures::ExerciseKind exercise{};
+				switch (a_scenario)
+				{
+				case PresentationScenario::kNotification:
+				case PresentationScenario::kDialog:
+					exercise =
+						DmuiTestFixtures::ExerciseKind::kNotificationsAndDialogs;
+					break;
+				case PresentationScenario::kImage:
+					exercise = DmuiTestFixtures::ExerciseKind::kImages;
+					break;
+				case PresentationScenario::kPlot:
+					exercise = DmuiTestFixtures::ExerciseKind::kPlot;
+					break;
+				default:
+					return DMUI_INVALID_PAGE_HANDLE;
+				}
+				const auto found = std::ranges::find(
+					DmuiTestFixtures::kExercisePages,
+					exercise,
+					&DmuiTestFixtures::ExercisePage::kind);
+				if (found == DmuiTestFixtures::kExercisePages.end())
+					return DMUI_INVALID_PAGE_HANDLE;
+				return exercisePages_[static_cast<size_t>(
+					std::distance(
+						DmuiTestFixtures::kExercisePages.begin(),
+						found))];
+			}
+
+			[[nodiscard]] bool ValidatePresentationCapture(std::string& a_error) const
+			{
+				const auto active = presentationScenarioState_.Active();
+				if (!active)
+					return true;
+				bool complete{};
+				std::string_view expected;
+				switch (*active)
+				{
+				case PresentationScenario::kOverlay:
+					expected = "a drawn managed overlay and annotated plot";
+					complete = overlayDraws_ > 0 && plotDraws_ > 0 &&
+						overlayResult_ == DMUI_RESULT_OK &&
+						plotResult_ == DMUI_RESULT_OK;
+					break;
+				case PresentationScenario::kNotification:
+					expected = "a successfully posted notification";
+					complete = pageNotifications_ > 0 &&
+						notificationResult_.load() == DMUI_RESULT_OK;
+					break;
+				case PresentationScenario::kImage:
+					expected = "drawn CPU-created/updated and imported images";
+					complete = imageFailureCount_ == 0 &&
+						imageImportCount_ > 0 && imageDrawCount_ > 0 &&
+						cpuImageCreateCount_ > 0 && cpuImageUpdateCount_ > 0 &&
+						cpuImageDrawCount_ > 0 &&
+						imageResult_ == DMUI_RESULT_OK &&
+						cpuImageResult_ == DMUI_RESULT_OK;
+					break;
+				case PresentationScenario::kPlot:
+					expected = "a drawn annotated plot";
+					complete = plotDraws_ > 0 && plotResult_ == DMUI_RESULT_OK;
+					break;
+				case PresentationScenario::kDialog:
+					expected = "a successfully requested text-entry dialog";
+					complete = dialogRequests_ > 0 &&
+						dialog_ != DMUI_INVALID_DIALOG_HANDLE &&
+						dialogResult_ == DMUI_RESULT_OK;
+					break;
+				}
+				if (!complete)
+					a_error = "Presentation capture requires " + std::string{ expected } +
+						"; inspect the fixture results or allow more frames.";
+				return complete;
 			}
 
 		private:
@@ -677,11 +834,15 @@ namespace DmuiTests
 				const auto frameSeconds =
 					std::chrono::duration<float>(now - previousFrame_).count();
 				previousFrame_ = now;
-				elapsedSeconds_ =
-					std::chrono::duration<double>(now - startTime_).count();
-				samples_[sampleOffset_] =
-					(std::min)(frameSeconds * 1000.0f, 50.0f);
-				sampleOffset_ = (sampleOffset_ + 1) % samples_.size();
+				if (!presentationPlotSeeded_)
+					elapsedSeconds_ =
+						std::chrono::duration<double>(now - startTime_).count();
+				if (!presentationPlotSeeded_)
+				{
+					samples_[sampleOffset_] =
+						(std::min)(frameSeconds * 1000.0f, 50.0f);
+					sampleOffset_ = (sampleOffset_ + 1) % samples_.size();
+				}
 
 				if (const auto state = client_.QueryState())
 				{
@@ -708,6 +869,11 @@ namespace DmuiTests
 
 				RefreshImage();
 				RefreshCpuImage();
+				if (presentationImageUpdatePending_ && cpuImage_)
+				{
+					UpdateCpuImage();
+					presentationImageUpdatePending_ = false;
+				}
 				PollDialog();
 				QueryOverlay();
 				QueryHotkeys();
@@ -1113,11 +1279,11 @@ namespace DmuiTests
 				return configured;
 			}
 
-			void SetOverlayEnabled(bool a_enabled) noexcept
+			[[nodiscard]] bool SetOverlayEnabled(bool a_enabled) noexcept
 			{
 				if (a_enabled == overlayEnabled_ ||
 					overlayPage_ == DMUI_INVALID_PAGE_HANDLE)
-					return;
+					return a_enabled == overlayEnabled_;
 				const auto succeeded = a_enabled ?
 					client_.RequestFrame(overlayPage_) :
 					client_.ReleaseFrame(overlayPage_);
@@ -1138,6 +1304,7 @@ namespace DmuiTests
 					DMUI_ResultToString(overlayResult_),
 					frameRequests_,
 					frameReleases_);
+				return succeeded;
 			}
 
 			void QueryOverlay() noexcept
@@ -1187,6 +1354,19 @@ namespace DmuiTests
 				if (client_.DrawAnnotatedPlot("overlay-frame-times", plot))
 					++plotDraws_;
 				plotResult_ = client_.LastResult();
+			}
+
+			void SeedPresentationPlot() noexcept
+			{
+				static constexpr std::array pattern{
+					8.4f, 8.1f, 8.7f, 9.2f, 8.8f, 16.3f, 9.0f, 8.5f,
+					8.2f, 8.0f, 8.6f, 9.1f, 8.7f, 8.4f, 8.3f, 8.1f
+				};
+				for (size_t index = 0; index < samples_.size(); ++index)
+					samples_[index] = pattern[index % pattern.size()];
+				sampleOffset_ = 0;
+				elapsedSeconds_ = 12.5;
+				presentationPlotSeeded_ = true;
 			}
 
 			void RecordEdit(
@@ -1549,7 +1729,7 @@ namespace DmuiTests
 						[this] {
 							auto enabled = overlayEnabled_;
 							if (dmui::ui::Checkbox("##Value", &enabled))
-								SetOverlayEnabled(enabled);
+								(void)SetOverlayEnabled(enabled);
 						}))
 				{
 					(void)client_.EndSettingsTable();
@@ -1743,25 +1923,17 @@ namespace DmuiTests
 
 			void DrawNotificationAndDialogs() noexcept
 			{
+				if (presentationDialogPending_)
+				{
+					presentationDialogPending_ = false;
+					(void)RequestTextDialog("Ultra Commonwealth");
+				}
 				(void)client_.DrawSectionHeader("Notifications and dialogs");
 				if (dmui::ui::Button("Post page notification"))
-				{
-					const auto posted = client_.PostNotification(
+					(void)PostPageNotification(
 						DMUI_STATUS_SEVERITY_SUCCESS,
 						"DMUI Tests: page notification posted successfully.",
 						3500);
-					if (posted)
-						++pageNotifications_;
-					notificationResult_.store(
-						client_.LastResult(),
-						std::memory_order_release);
-					LogInfo(
-						"dmui-test-client: notification page-post={} "
-						"result={} count={}"sv,
-						posted,
-						DMUI_ResultToString(notificationResult_.load()),
-						pageNotifications_);
-				}
 				dmui::ui::SameLine();
 				if (dmui::ui::Button("Schedule delayed any-thread notification"))
 					ScheduleDelayedNotification();
@@ -1770,7 +1942,7 @@ namespace DmuiTests
 					RequestConfirmDialog();
 				dmui::ui::SameLine();
 				if (dmui::ui::Button("Request validated text entry"))
-					RequestTextDialog();
+					(void)RequestTextDialog();
 				dmui::ui::SameLine();
 				auto rejectWithoutMessage = rejectWithoutMessage_;
 				if (dmui::ui::Checkbox(
@@ -1799,6 +1971,29 @@ namespace DmuiTests
 				dmui::ui::TextDisabled(
 					"Text rejects empty, \"reject\", or an in-memory duplicate "
 					"(initial duplicate: alpha). Rejection preserves text.");
+			}
+
+			[[nodiscard]] bool PostPageNotification(
+				DMUI_StatusSeverity a_severity,
+				const char* a_message,
+				uint32_t a_durationMilliseconds) noexcept
+			{
+				const auto posted = client_.PostNotification(
+					a_severity,
+					a_message,
+					a_durationMilliseconds);
+				if (posted)
+					++pageNotifications_;
+				notificationResult_.store(
+					client_.LastResult(),
+					std::memory_order_release);
+				LogInfo(
+					"dmui-test-client: notification page-post={} "
+					"result={} count={}"sv,
+					posted,
+					DMUI_ResultToString(notificationResult_.load()),
+					pageNotifications_);
+				return posted;
 			}
 
 			void RequestConfirmDialog() noexcept
@@ -1852,7 +2047,8 @@ namespace DmuiTests
 				}
 			}
 
-			void RequestTextDialog() noexcept
+			[[nodiscard]] bool RequestTextDialog(
+				const char* a_initialValue = "") noexcept
 			{
 				++dialogRequestAttempts_;
 				if (dialog_ != DMUI_INVALID_DIALOG_HANDLE)
@@ -1860,7 +2056,7 @@ namespace DmuiTests
 					LogInfo(
 						"dmui-test-client: dialog text request ignored; "
 						"another dialog is pending"sv);
-					return;
+					return false;
 				}
 				const DMUI_DialogDescriptor descriptor{
 					sizeof(DMUI_DialogDescriptor),
@@ -1870,7 +2066,7 @@ namespace DmuiTests
 					"Validate",
 					"Cancel",
 					"Try alpha, reject, or an empty value.",
-					"",
+					a_initialValue,
 					96
 				};
 				bool requested{};
@@ -1900,6 +2096,7 @@ namespace DmuiTests
 						"request-failed result={}"sv,
 						DMUI_ResultToString(dialogResult_));
 				}
+				return requested;
 			}
 
 			void PollDialog() noexcept
@@ -2144,7 +2341,7 @@ namespace DmuiTests
 				if (!a_pressed)
 					return;
 				if (a_index == 0)
-					SetOverlayEnabled(!overlayEnabled_);
+					(void)SetOverlayEnabled(!overlayEnabled_);
 				else if (a_index == 1)
 					ScheduleDelayedNotification();
 			}
@@ -2289,6 +2486,7 @@ namespace DmuiTests
 			size_t sampleOffset_{};
 			uint64_t plotDraws_{};
 			DMUI_Result plotResult_{ DMUI_RESULT_OK };
+			bool presentationPlotSeeded_{};
 
 			ComPtr<ID3D11Device> imageDevice_;
 			ComPtr<ID3D11Texture2D> imageTexture_;
@@ -2317,6 +2515,8 @@ namespace DmuiTests
 			uint64_t cpuImageDrawCount_{};
 			uint64_t cpuImageReleaseCount_{};
 			DMUI_Result cpuImageResult_{ DMUI_RESULT_OK };
+			bool presentationImageUpdatePending_{};
+			bool presentationDialogPending_{};
 
 			std::array<char, 96> shortText_{
 				's', 'm', 'o', 'k', 'e', '\0'
@@ -2335,6 +2535,7 @@ namespace DmuiTests
 			DMUI_Result hotkeyResult_{ DMUI_RESULT_OK };
 
 			std::mutex workerMutex_;
+			std::once_flag workerStopOnce_;
 			std::jthread notificationWorker_;
 			std::atomic_bool workerBusy_{};
 			std::atomic_bool workerPostingAllowed_{};
@@ -2367,6 +2568,7 @@ namespace DmuiTests
 			uint64_t dialogCancellations_{};
 			DMUI_Result dialogResult_{ DMUI_RESULT_OK };
 			DMUI_Result overlayResult_{ DMUI_RESULT_OK };
+			PresentationScenarioState presentationScenarioState_;
 			DmuiTestFixtures::SyntheticSettingsState syntheticSettings_;
 			std::vector<std::unique_ptr<dmui::Client>> syntheticClients_;
 		};
@@ -2394,6 +2596,26 @@ namespace DmuiTests
 	bool GeneralTestSuite::Initialize() noexcept
 	{
 		return m_impl->state.Initialize();
+	}
+
+	bool GeneralTestSuite::ActivatePresentationScenario(
+		PresentationScenario a_scenario,
+		std::string& a_error) noexcept
+	{
+		return m_impl->state.ActivatePresentationScenario(
+			a_scenario,
+			a_error);
+	}
+
+	uint64_t GeneralTestSuite::PresentationPage(
+		PresentationScenario a_scenario) const noexcept
+	{
+		return m_impl->state.PresentationPage(a_scenario);
+	}
+
+	bool GeneralTestSuite::ValidatePresentationCapture(std::string& a_error) const
+	{
+		return m_impl->state.ValidatePresentationCapture(a_error);
 	}
 
 	void GeneralTestSuite::Stop() noexcept

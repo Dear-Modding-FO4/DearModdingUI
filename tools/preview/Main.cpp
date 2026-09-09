@@ -1,5 +1,5 @@
-#include "FakeData.h"
-#include "PresentationDemo.h"
+#include "fixture-runner.h"
+#include <host-health-fixtures.h>
 
 #include <DearModdingUI/BackgroundBlur.h>
 #include <DearModdingUI/CursorLoader.h>
@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <limits>
@@ -75,7 +76,7 @@ namespace DearModdingUIPreview
 			std::optional<SidebarLayoutKind> sidebarOverride;
 			std::optional<NavigationPresentationKind> navigationOverride;
 			std::optional<DMUI_ClientOrigin> navigationOrigin;
-			std::optional<PresentationDemoKind> presentationDemo;
+			std::optional<DmuiTests::PresentationScenario> presentationScenario;
 			bool syntheticHealth{};
 			bool help{};
 		};
@@ -95,33 +96,6 @@ namespace DearModdingUIPreview
 		};
 
 		PreviewHealthReporter g_previewHealthReporter;
-
-		void ConfigureSyntheticHealth(
-			std::vector<std::unique_ptr<SubsystemHealth>>& a_health)
-		{
-			const auto add = [&](std::string_view a_identity,
-								 HealthState a_state,
-								 std::string_view a_reason) {
-				auto health = std::make_unique<SubsystemHealth>(
-					a_identity,
-					g_previewHealthReporter,
-					HostSubsystemHealthRegistry());
-				health->Observe(a_state, a_reason);
-				a_health.push_back(std::move(health));
-			};
-			add(
-				"preview.synthetic.configuration",
-				HealthState::kReady,
-				"Synthetic fixture: using defaults; configuration file is absent.");
-			add(
-				"preview.synthetic.typography",
-				HealthState::kDegraded,
-				"Synthetic fixture: requested family is unavailable; using Jost with text-only labels.");
-			add(
-				"preview.synthetic.input",
-				HealthState::kFailed,
-				"Synthetic fixture: PlayerCamera receiver patch failed; check for an incompatible input hook.");
-		}
 
 		void SetHRESULTError(
 			std::wstring& a_error,
@@ -201,7 +175,7 @@ namespace DearModdingUIPreview
 				<< L"  --navigation <grouped|destinations>  Enable a preview-only navigation comparison\n"
 				<< L"  --origin <native|bridged>  Select the destinations comparison tab\n"
 				<< L"  --presentation <overlay|notification|image|plot|dialog>\n"
-				<< L"                            Capture a synthetic service state\n"
+				<< L"                            Activate a shared exercise capture state\n"
 				<< L"  --health-scenario <synthetic>  Add labeled synthetic Health states\n"
 				<< L"  --expand <client-id>      Expand a tree mod or enter a drill-down mod\n"
 				<< L"  --collapse-all            Collapse the tree or show the drill-down root\n"
@@ -358,14 +332,16 @@ namespace DearModdingUIPreview
 				else if (argument == L"--presentation")
 				{
 					const auto name = WideToUtf8(value);
-					PresentationDemoKind kind{};
-					if (!name || !ParsePresentationDemo(*name, kind))
+					const auto scenario = name ?
+						DmuiTests::ParsePresentationScenario(*name) :
+						std::nullopt;
+					if (!scenario)
 					{
 						a_error =
 							L"Presentation must be overlay, notification, image, plot, or dialog.";
 						return false;
 					}
-					a_options.presentationDemo = kind;
+					a_options.presentationScenario = *scenario;
 				}
 				else if (argument == L"--health-scenario")
 				{
@@ -957,8 +933,8 @@ namespace DearModdingUIPreview
 
 			~Application()
 			{
-				if (m_fakeData)
-					m_fakeData->Stop();
+				if (m_fixtures)
+					m_fixtures->Stop();
 				PresentationServices::InvalidateDevice();
 				g_imguiBackendReady = false;
 				g_renderer = nullptr;
@@ -970,7 +946,7 @@ namespace DearModdingUIPreview
 				{
 					CursorLoader::Shutdown();
 					BackgroundBlur::ResetDeviceResources();
-					m_fakeData.reset();
+					m_fixtures.reset();
 					ImGui::DestroyContext(m_context);
 				}
 			}
@@ -1023,36 +999,46 @@ namespace DearModdingUIPreview
 
 				HostSettings::Initialize();
 				DearModdingUI::Initialize();
-				m_fakeData = std::make_unique<FakeData>();
+				m_fixtures = std::make_unique<FixtureRunner>();
 				std::string registrationError;
-				if (!m_fakeData->Register(
+				const auto* configOverride =
+					std::getenv("DMUI_PREVIEW_MCM_CONFIG");
+				const auto environmentFlag = [](const char* a_name, bool a_default) {
+					const auto* value = std::getenv(a_name);
+					return value ? std::string_view{ value } != "0" : a_default;
+				};
+				const FixtureOptions fixtureOptions{
+					.mcmConfigPath = configOverride ?
+						std::optional{
+							std::filesystem::path{ configOverride }
+						} :
+						std::nullopt,
+					.userKeybindsPath =
+						std::filesystem::current_path() /
+						"Data" / "MCM" / "Settings" / "Keybinds.json",
+					.mcmInstalled = environmentFlag(
+						"DMUI_PREVIEW_MCM_INSTALLED",
+						true),
+					.gameLoaded = environmentFlag(
+						"DMUI_PREVIEW_GAME_LOADED",
+						true),
+					.includeNavigationComparisonFixtures =
+						m_options.navigationOverride.has_value()
+				};
+				if (!m_fixtures->Register(
 						m_renderer.Device(),
 						registrationError,
-						m_options.navigationOverride.has_value()))
+						fixtureOptions))
 				{
 					a_error.assign(
 						registrationError.begin(),
 						registrationError.end());
 					return false;
 				}
-				if (m_options.presentationDemo)
-				{
-					m_presentationDemo =
-						std::make_unique<PresentationDemo>(
-							*m_options.presentationDemo);
-					std::string presentationError;
-					if (!m_presentationDemo->Register(presentationError))
-					{
-						a_error.assign(
-							presentationError.begin(),
-							presentationError.end());
-						return false;
-					}
-				}
-
 				Theme::Initialize(m_window.Handle());
 				if (m_options.syntheticHealth)
-					ConfigureSyntheticHealth(m_syntheticHealth);
+					m_syntheticHealth = DmuiTestFixtures::CreateSyntheticHealth(
+						HostSubsystemHealthRegistry(), g_previewHealthReporter);
 				CursorLoader::Initialize(m_window.Handle());
 				if (!ImGui_ImplWin32_Init(m_window.Handle()))
 				{
@@ -1087,11 +1073,11 @@ namespace DearModdingUIPreview
 						return false;
 					}
 					CompleteBackendInitialization(m_context);
-					if (m_presentationDemo)
+					if (m_options.presentationScenario)
 					{
 						std::string presentationError;
-						if (!m_presentationDemo->Activate(
-								m_renderer.Device(),
+						if (!m_fixtures->ActivatePresentationScenario(
+								*m_options.presentationScenario,
 								presentationError))
 						{
 							a_error.assign(
@@ -1156,23 +1142,26 @@ namespace DearModdingUIPreview
 
 			[[nodiscard]] bool SelectInitialPage(std::wstring& a_error)
 			{
-				if (m_presentationDemo)
+				if (m_options.presentationScenario)
 				{
-					if (!m_presentationDemo->UsesMenu())
+					const auto scenario = *m_options.presentationScenario;
+					if (!DmuiTests::PresentationUsesMenu(scenario))
 					{
 						(void)SetMenuVisible(false);
 						return true;
 					}
+					const auto scenarioPage =
+						m_fixtures->PresentationPage(scenario);
 					const auto& pages = OrderedPages();
 					const auto page = std::ranges::find(
 						pages,
-						m_presentationDemo->Page(),
+						scenarioPage,
 						&RegisteredPage::handle);
 					if (SetMenuVisible(true) != DMUI_RESULT_OK ||
 						page == pages.end() ||
 						HostAPI().selectPage(
 							page->client,
-							m_presentationDemo->Page()) != DMUI_RESULT_OK)
+							scenarioPage) != DMUI_RESULT_OK)
 					{
 						a_error =
 							L"Could not open the presentation service page.";
@@ -1342,6 +1331,12 @@ namespace DearModdingUIPreview
 					if (!RenderFrame(a_error))
 						break;
 				}
+				if (a_error.empty() && m_options.presentationScenario)
+				{
+					std::string fixtureError;
+					if (!m_fixtures->ValidatePresentationCapture(fixtureError))
+						a_error.assign(fixtureError.begin(), fixtureError.end());
+				}
 				if (a_error.empty())
 					(void)m_renderer.Capture(*m_options.screenshot, a_error);
 				if (!a_error.empty())
@@ -1383,9 +1378,8 @@ namespace DearModdingUIPreview
 			PreviewWindow m_window;
 			Renderer m_renderer;
 			ImGuiContext* m_context{};
-			std::unique_ptr<FakeData> m_fakeData;
+			std::unique_ptr<FixtureRunner> m_fixtures;
 			std::vector<std::unique_ptr<SubsystemHealth>> m_syntheticHealth;
-			std::unique_ptr<PresentationDemo> m_presentationDemo;
 			std::string m_iniPath;
 			bool m_win32Initialized{};
 			bool m_dx11Initialized{};

@@ -173,9 +173,11 @@ target("dmui-tests", function()
 
     add_deps("imgui", "dmui-mcm")
     add_files(
-        "Tests/**.cpp",
-        "plugin/src/Win32FileListingAdapter.cpp",
-        "Fixtures/GeneralTestFixtures.cpp",
+        "tests/*.cpp",
+        "mcm/runtime/src/Win32FileListingAdapter.cpp",
+        "tests/fixtures/GeneralTestFixtures.cpp",
+        "tests/fixtures/mcm-fixtures.cpp",
+        "tests/fixtures/navigation-fixtures.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileHostAPILayout.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileIconGlyphs.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileUI.cpp",
@@ -201,10 +203,10 @@ target("dmui-tests", function()
         "src/DearModdingUI/UIAdapter.cpp"
     )
     add_includedirs(
-        "Preview/include",
-        "plugin/include",
-        "Tests",
-        "Fixtures",
+        "tools/preview/include",
+        "mcm/runtime/include",
+        "tests",
+        "tests/fixtures",
         "src",
         "include",
         "Depends",
@@ -245,13 +247,14 @@ target("dmui-preview", function()
 
     add_deps("imgui", "dmui-mcm")
     add_files(
-        "Preview/Main.cpp",
-        "Preview/FakeData.cpp",
-        "plugin/src/Win32FileListingAdapter.cpp",
-        "Preview/PresentationDemo.cpp",
-        "Preview/PlatformImguiStub.cpp",
-        "Fixtures/GeneralTestFixtures.cpp",
-        "Fixtures/GeneralTestSuite.cpp",
+        "tools/preview/Main.cpp",
+        "tools/preview/fixture-runner.cpp",
+        "mcm/runtime/src/Win32FileListingAdapter.cpp",
+        "tools/preview/PlatformImguiStub.cpp",
+        "tests/fixtures/GeneralTestFixtures.cpp",
+        "tests/fixtures/GeneralTestSuite.cpp",
+        "tests/fixtures/mcm-fixtures.cpp",
+        "tests/fixtures/navigation-fixtures.cpp",
         "src/DearModdingUI/BackgroundBlur.cpp",
         "src/DearModdingUI/CursorLoader.cpp",
         "src/DearModdingUI/Diagnostics.cpp",
@@ -279,10 +282,10 @@ target("dmui-preview", function()
         "src/Support/Runtime.cpp"
     )
     add_includedirs(
-        "Preview/include",
-        "Preview",
-        "plugin/include",
-        "Fixtures",
+        "tools/preview/include",
+        "tools/preview",
+        "mcm/runtime/include",
+        "tests/fixtures",
         "src",
         "include",
         "Depends",
@@ -392,13 +395,13 @@ target("DearModdingUI-MCM", function()
     end)
 
     add_deps("dmui-mcm")
-    add_files("plugin/src/**.cpp")
+    add_files("mcm/runtime/src/**.cpp")
     if not has_config("test-release") then
-        remove_files("plugin/src/ScaleformSpike.cpp")
+        remove_files("mcm/runtime/src/ScaleformSpike.cpp")
     end
-    add_headerfiles("plugin/include/**.h")
+    add_headerfiles("mcm/runtime/include/**.h")
     add_extrafiles("mcm/README.md")
-    add_includedirs("plugin/include")
+    add_includedirs("mcm/runtime/include")
     if has_config("test-release") then
         add_defines("DMUI_MCM_SCALEFORM_SPIKE")
     end
@@ -448,17 +451,17 @@ target("dmui-test-client", function()
     end)
 
     add_files(
-        "Tools/dmui-test-client/Main.cpp",
-        "Fixtures/GeneralTestFixtures.cpp",
-        "Fixtures/GeneralTestSuite.cpp"
+        "tools/test-client/Main.cpp",
+        "tests/fixtures/GeneralTestFixtures.cpp",
+        "tests/fixtures/GeneralTestSuite.cpp"
     )
     add_extrafiles(
-        "Tools/dmui-test-client/README.md",
-        "Fixtures/GeneralTestFixtures.h",
-        "Fixtures/GeneralTestSuite.h",
-        "Fixtures/TestHotkeyDescriptors.h"
+        "tools/test-client/README.md",
+        "tests/fixtures/GeneralTestFixtures.h",
+        "tests/fixtures/GeneralTestSuite.h",
+        "tests/fixtures/TestHotkeyDescriptors.h"
     )
-    add_includedirs("Fixtures")
+    add_includedirs("tests/fixtures")
     add_defines(
         "NDEBUG",
         "NOMINMAX",

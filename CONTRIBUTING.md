@@ -85,6 +85,14 @@ Useful arguments:
 - `--sidebar <tree|twopane|drilldown|iconrail>`: Selects a sidebar presentation layout.
 - `--presentation <overlay|notification|image|plot|dialog>`: Tests specific presentation services.
 
+The presentation presets activate the same shared test-suite pages and actions as
+the in-game test client; there is no separate presentation demo client. MCM and
+navigation comparison scenarios live in `tests/fixtures`, while the preview only
+supplies platform adapters and capture options. Preview binaries and fixtures are
+not included in production packages. Captures fail rather than writing a misleading
+image if a requested scenario has not produced its required resources or output;
+increase `--frames` if the capture ran before initialization finished.
+
 ## Stable UI contract
 
 DearModdingUI exposes a stable C UI table generated from `schema/ui-contract.json`. The baseline manifest `schema/ui-contract.manifest.json` guarantees backward compatibility by verifying existing slots, IDs, and enums remain intact.

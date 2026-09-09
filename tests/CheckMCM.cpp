@@ -1910,13 +1910,13 @@ namespace vmm_tests
 
 		runner.test("MCM registration publishes only actionable summaries", [] {
 			auto root = std::filesystem::current_path();
-			auto sourcePath = root / "plugin" / "src" / "Main.cpp";
+			auto sourcePath = root / "mcm" / "runtime" / "src" / "Main.cpp";
 			while (!std::filesystem::exists(sourcePath) &&
 				root.has_parent_path() &&
 				root.parent_path() != root)
 			{
 				root = root.parent_path();
-				sourcePath = root / "plugin" / "src" / "Main.cpp";
+				sourcePath = root / "mcm" / "runtime" / "src" / "Main.cpp";
 			}
 			std::ifstream stream{ sourcePath, std::ios::binary };
 			const std::string source{
