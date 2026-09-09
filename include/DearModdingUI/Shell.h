@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/SettingsActions.h>
 #include <DearModdingUI/ExternalOpen.h>
+#include <DearModdingUI/IconGlyphs.h>
 
 #include <imgui/imgui.h>
 
@@ -49,7 +50,13 @@ namespace DearModdingUI
 		const char* a_id,
 		const char* a_hint,
 		std::string& a_search) noexcept;
-	void DrawSectionHeader(const char* a_text, char32_t a_glyph = 0) noexcept;
+	void DrawSectionHeader(const char* a_text, char32_t a_glyph) noexcept;
+	inline void DrawSectionHeader(const char* a_text) noexcept
+	{
+		DrawSectionHeader(
+			a_text,
+			ResolveIconGlyph(IconKind::kCategory, {}, a_text ? a_text : ""));
+	}
 	void DrawBulletText(const char* a_text) noexcept;
 	[[nodiscard]] DMUI_Result DrawLinkRow(
 		const char* a_id,

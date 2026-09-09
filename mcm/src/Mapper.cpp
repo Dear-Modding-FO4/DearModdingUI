@@ -13,6 +13,7 @@
 #include <cmath>
 #include <iterator>
 #include <limits>
+#include <stdexcept>
 #include <type_traits>
 #include <unordered_set>
 
@@ -51,6 +52,132 @@ namespace DearModdingUI::MCM::detail
 
 	namespace
 	{
+		class DisplayTextResolver
+		{
+		public:
+			DisplayTextResolver(
+				const TextResolver& a_resolver,
+				detail::Diagnostics& a_diagnostics) :
+				resolver_(a_resolver),
+				diagnostics_(a_diagnostics)
+			{}
+
+			[[nodiscard]] std::string Resolve(
+				std::string_view a_text,
+				std::string_view a_location,
+				bool a_html = false)
+			{
+				if (!resolver_ || failed_)
+					return std::string{ a_text };
+				if (a_html)
+					return ResolveHtml(a_text, a_location);
+				if (a_text.size() < 2 || a_text.front() != '$')
+					return std::string{ a_text };
+				try
+				{
+					if (auto value = resolver_(a_text))
+						return std::move(*value);
+				}
+				catch (const std::exception& a_error)
+				{
+					DiagnoseFailure(a_location, a_error.what());
+					return std::string{ a_text };
+				}
+				catch (...)
+				{
+					DiagnoseFailure(a_location, {});
+					return std::string{ a_text };
+				}
+
+				if (missingKeys_.insert(std::string{ a_text }).second)
+				{
+					if (missingKeys_.size() <= kMaxMissingDiagnostics)
+						diagnostics_.Add(
+							DiagnosticSeverity::kWarning,
+							std::string{ a_location },
+							"localization key not found: " + std::string{ a_text });
+					else if (missingKeys_.size() == kMaxMissingDiagnostics + 1)
+						diagnostics_.Add(
+							DiagnosticSeverity::kWarning,
+							std::string{ a_location },
+							"additional missing localization keys omitted");
+				}
+				return std::string{ a_text };
+			}
+
+		private:
+			static constexpr size_t kMaxMissingDiagnostics = 32;
+
+			[[nodiscard]] std::string ResolveHtml(
+				std::string_view a_text,
+				std::string_view a_location)
+			{
+				std::string result;
+				result.reserve(a_text.size());
+				auto offset = size_t{};
+				while (offset < a_text.size())
+				{
+					const auto tag = a_text.find('<', offset);
+					const auto textEnd =
+						tag == std::string_view::npos ? a_text.size() : tag;
+					AppendTextNode(
+						result,
+						a_text.substr(offset, textEnd - offset),
+						a_location);
+					if (tag == std::string_view::npos)
+						break;
+					const auto tagEnd = a_text.find('>', tag + 1);
+					if (tagEnd == std::string_view::npos)
+					{
+						result.append(a_text.substr(tag));
+						break;
+					}
+					result.append(a_text.substr(tag, tagEnd - tag + 1));
+					offset = tagEnd + 1;
+				}
+				return result;
+			}
+
+			void AppendTextNode(
+				std::string& a_result,
+				std::string_view a_text,
+				std::string_view a_location)
+			{
+				const auto begin = a_text.find_first_not_of(" \t\r\n");
+				if (begin == std::string_view::npos)
+				{
+					a_result.append(a_text);
+					return;
+				}
+				const auto end = a_text.find_last_not_of(" \t\r\n") + 1;
+				a_result.append(a_text.substr(0, begin));
+				a_result.append(Resolve(a_text.substr(begin, end - begin), a_location));
+				a_result.append(a_text.substr(end));
+			}
+
+			void DiagnoseFailure(
+				std::string_view a_location,
+				std::string_view a_detail)
+			{
+				if (failed_)
+					return;
+				failed_ = true;
+				auto message =
+					std::string{ "text resolver failed; localization keys were preserved" };
+				if (!a_detail.empty())
+					message += ": " + std::string{ a_detail };
+				diagnostics_.Add(
+					DiagnosticSeverity::kError,
+					std::string{ a_location },
+					std::move(message));
+			}
+
+			const TextResolver& resolver_;
+			detail::Diagnostics& diagnostics_;
+			std::unordered_set<std::string> missingKeys_;
+			bool failed_{};
+		};
+
 		[[nodiscard]] std::string ScalarText(const Scalar& a_value)
 		{
 			return std::visit(
@@ -355,7 +482,8 @@ namespace DearModdingUI::MCM::detail
 
 		void MapChoiceControl(
 			const Control& a_control,
-			dmui::SettingDescriptor& a_descriptor)
+			dmui::SettingDescriptor& a_descriptor,
+			DisplayTextResolver& a_textResolver)
 		{
 			dmui::ChoiceSettingControl mapped;
 			const auto stringChoices = UsesStringChoices(a_control);
@@ -365,10 +493,14 @@ namespace DearModdingUI::MCM::detail
 				mapped.options.reserve(options.options.size());
 				for (size_t index = 0; index < options.options.size(); ++index)
 				{
-					auto label = ScalarText(options.options[index]);
+					auto rawLabel = ScalarText(options.options[index]);
+					auto label = a_textResolver.Resolve(
+						rawLabel,
+						a_control.location + ".valueOptions.options[" +
+							std::to_string(index) + "]");
 					mapped.options.push_back({
 						stringChoices ?
-							label :
+							rawLabel :
 							std::to_string(index),
 						std::move(label)
 					});
@@ -451,16 +583,23 @@ namespace DearModdingUI::MCM::detail
 			const Control& a_control,
 			std::string a_id,
 			MappedRow& a_row,
-			detail::Diagnostics& a_diag)
+			detail::Diagnostics& a_diag,
+			DisplayTextResolver& a_textResolver)
 		{
 			dmui::SettingDescriptor descriptor;
 			descriptor.id = std::move(a_id);
-			descriptor.label = a_control.text.empty() ?
+			descriptor.label = a_control.text.empty() &&
+					a_control.type != ControlType::kText ?
 				(a_control.id.empty() ? a_control.rawType : a_control.id) :
-				a_control.text;
-			if (descriptor.label.empty())
+				a_textResolver.Resolve(
+					a_control.text,
+					a_control.location + ".text",
+					a_control.html.value_or(false));
+			if (descriptor.label.empty() && a_control.type != ControlType::kText)
 				descriptor.label = descriptor.id;
-			descriptor.description = a_control.help;
+			descriptor.description = a_textResolver.Resolve(
+				a_control.help,
+				a_control.location + ".help");
 
 			switch (a_control.type)
 			{
@@ -523,7 +662,7 @@ namespace DearModdingUI::MCM::detail
 				break;
 			case ControlType::kStepper:
 			case ControlType::kMenu:
-				MapChoiceControl(a_control, descriptor);
+				MapChoiceControl(a_control, descriptor, a_textResolver);
 				break;
 			case ControlType::kFileMenu:
 				MapFileChoiceControl(descriptor);
@@ -549,7 +688,7 @@ namespace DearModdingUI::MCM::detail
 					std::optional<std::string_view>{ *a_control.alignment } :
 					std::nullopt;
 				auto presentation = ResolveTextPresentation(
-					a_control.text,
+					descriptor.label,
 					a_control.html.value_or(false),
 					alignment);
 				descriptor.label.clear();
@@ -719,13 +858,44 @@ namespace DearModdingUI::MCM::detail
 			switch (a_control.type)
 			{
 			case ControlType::kColor:
-			case ControlType::kImage:
 				a_diag.Add(
 					DiagnosticSeverity::kWarning,
 					a_control.location,
 					"MCM control type '" + a_control.rawType +
 						"' is unsupported in this phase");
 				break;
+			case ControlType::kImage:
+			{
+				auto message = std::string{ "SWF component not rendered: " };
+				if (a_control.image &&
+					!a_control.image->library.empty() &&
+					!a_control.image->symbol.empty())
+				{
+					message += a_control.image->library + "::" +
+						a_control.image->symbol;
+				}
+				else
+				{
+					message += "missing ";
+					const auto missingLibrary =
+						!a_control.image ||
+						a_control.image->library.empty();
+					const auto missingSymbol =
+						!a_control.image ||
+						a_control.image->symbol.empty();
+					if (missingLibrary && missingSymbol)
+						message += "libName and className metadata";
+					else if (missingLibrary)
+						message += "libName metadata";
+					else
+						message += "className metadata";
+				}
+				a_diag.Add(
+					DiagnosticSeverity::kWarning,
+					a_control.location,
+					std::move(message));
+				break;
+			}
 			default:
 				break;
 			}
@@ -733,11 +903,15 @@ namespace DearModdingUI::MCM::detail
 
 		[[nodiscard]] MappedPage MapPage(
 			const Page& a_page,
-			detail::Diagnostics& a_diag)
+			std::string_view a_displayName,
+			detail::Diagnostics& a_diag,
+			DisplayTextResolver& a_textResolver)
 		{
 			MappedPage mapped;
 			mapped.id = a_page.id;
-			mapped.displayName = a_page.displayName;
+			mapped.displayName = a_page.root && !a_displayName.empty() ?
+				std::string{ a_displayName } :
+				a_textResolver.Resolve(a_page.displayName, a_page.location);
 
 			std::unordered_set<std::string> groupIds;
 			std::unordered_set<std::string> descriptorIds;
@@ -773,11 +947,17 @@ namespace DearModdingUI::MCM::detail
 							dmui::SettingGroup::DividerRow{});
 						continue;
 					}
-					auto label = control.text;
+					auto rawLabel = control.text;
 					auto id = control.id.empty() ?
-						MakeIdentifier(label, "section") + "-" +
+						MakeIdentifier(rawLabel, "section") + "-" +
 							std::to_string(control.sourceIndex + 1) :
 						control.id;
+					auto label = a_textResolver.Resolve(
+						rawLabel,
+						control.location + ".text",
+						control.html.value_or(false));
+					label = ResolveTextPresentation(
+						label, control.html.value_or(false)).text;
 					addGroup(
 						std::move(id),
 						std::move(label),
@@ -822,8 +1002,13 @@ namespace DearModdingUI::MCM::detail
 				{
 					auto label = control.text.empty() ?
 						(control.id.empty() ? "Action" : control.id) :
-						control.text;
-					auto description = control.help;
+						a_textResolver.Resolve(
+							control.text,
+							control.location + ".text",
+							control.html.value_or(false));
+					auto description = a_textResolver.Resolve(
+						control.help,
+						control.location + ".help");
 					if (!control.action)
 					{
 						if (!description.empty())
@@ -854,7 +1039,8 @@ namespace DearModdingUI::MCM::detail
 					control,
 					id,
 					row,
-					a_diag);
+					a_diag,
+					a_textResolver);
 				row.unsupported =
 					std::holds_alternative<dmui::UnsupportedSettingControl>(
 						descriptor.control) ||
@@ -934,7 +1120,7 @@ namespace DearModdingUI::MCM::detail
 					});
 				if (hasUnsupportedImages)
 					mapped.settings.notes.push_back({
-						"This page has no supported visible controls. Its SWF image content is not supported.",
+						"This page contains only unrendered SWF components.",
 						false
 					});
 				else
@@ -950,14 +1136,21 @@ namespace DearModdingUI::MCM::detail
 	void MapConfiguration(
 		const Configuration& a_configuration,
 		std::string_view a_source,
+		std::string& a_displayName,
 		std::vector<MappedPage>& a_pages,
-		std::vector<Diagnostic>& a_diagnostics)
+		std::vector<Diagnostic>& a_diagnostics,
+		const TextResolver& a_textResolver)
 	{
 		detail::Diagnostics diagnostics{ std::string{ a_source }, a_diagnostics };
+		DisplayTextResolver textResolver{ a_textResolver, diagnostics };
+		a_displayName = a_configuration.displayName.empty() ?
+			a_configuration.modName :
+			textResolver.Resolve(a_configuration.displayName, "$.displayName");
 		a_pages.reserve(a_pages.size() + a_configuration.pages.size());
 		for (const auto& page : a_configuration.pages)
 		{
-			a_pages.push_back(MapPage(page, diagnostics));
+			a_pages.push_back(MapPage(
+				page, a_displayName, diagnostics, textResolver));
 		}
 	}
 }

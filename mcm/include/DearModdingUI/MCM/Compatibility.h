@@ -22,6 +22,8 @@ namespace DearModdingUI::MCM
 {
 	using ValueWriteResult = std::expected<dmui::SettingValue, std::string>;
 	using ValueWriteCompletion = std::function<void(ValueWriteResult)>;
+	using TextResolver =
+		std::function<std::optional<std::string>(std::string_view)>;
 
 	enum class ControlType : uint8_t
 	{
@@ -522,14 +524,17 @@ namespace DearModdingUI::MCM
 		std::optional<Configuration> configuration;
 		std::vector<MappedPage> pages;
 		std::vector<Diagnostic> diagnostics;
+		std::string displayName;
 	};
 
 	[[nodiscard]] LoadResult ParseConfig(
 		std::string_view a_json,
-		std::string_view a_source = "<memory>") noexcept;
+		std::string_view a_source = "<memory>",
+		const TextResolver& a_textResolver = {}) noexcept;
 
 	[[nodiscard]] LoadResult LoadConfig(
-		const std::filesystem::path& a_path) noexcept;
+		const std::filesystem::path& a_path,
+		const TextResolver& a_textResolver = {}) noexcept;
 
 	[[nodiscard]] PageCompatibilitySummary SummarizeCompatibility(
 		const MappedPage& a_page) noexcept;

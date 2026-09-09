@@ -11,6 +11,8 @@ namespace DearModdingUI::MCM::detail
 	void MapConfiguration(
 		const Configuration& a_configuration,
 		std::string_view a_source,
+		std::string& a_displayName,
 		std::vector<MappedPage>& a_pages,
-		std::vector<Diagnostic>& a_diagnostics);
+		std::vector<Diagnostic>& a_diagnostics,
+		const TextResolver& a_textResolver);
 }

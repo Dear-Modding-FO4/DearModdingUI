@@ -21,6 +21,8 @@
 
 #include <F4SE/F4SE.h>
 #include <RE/B/BSScript_IStackCallbackFunctor.h>
+#include <RE/B/BSScaleformManager.h>
+#include <REX/CONVERT.h>
 #include <REX/REX.h>
 
 #include <Windows.h>
@@ -30,9 +32,11 @@
 #include <atomic>
 #include <filesystem>
 #include <format>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -68,6 +72,7 @@ namespace DearModdingUI::MCM
 
 		std::atomic_bool s_mcmInstalled{ false };
 		std::atomic_bool s_runtimeReady{ false };
+		std::atomic_bool s_configsRegistered{ false };
 		GlobalValueSource s_globalValues;
 		F4SETaskScheduler s_scheduler;
 		GamePapyrusDispatcher s_dispatcher;
@@ -86,6 +91,57 @@ namespace DearModdingUI::MCM
 				reinterpret_cast<const char*>(value.data()),
 				value.size()
 			};
+		}
+
+		struct TranslatorRelease
+		{
+			void operator()(RE::BSScaleformTranslator* a_translator) const noexcept
+			{
+				if (a_translator)
+					a_translator->Release();
+			}
+		};
+
+		using TranslatorHandle =
+			std::unique_ptr<RE::BSScaleformTranslator, TranslatorRelease>;
+
+		[[nodiscard]] TranslatorHandle AcquireTranslator() noexcept
+		{
+			auto* manager = RE::BSScaleformManager::GetSingleton();
+			auto* translator = manager && manager->loader ?
+				manager->GetTranslator() :
+				nullptr;
+			if (!translator)
+			{
+				REX::ERROR(
+					"DearModdingUI-MCM: game translator unavailable; localization keys preserved"sv);
+				return {};
+			}
+			return TranslatorHandle{ translator };
+		}
+
+		[[nodiscard]] std::optional<std::string> ResolveGameText(
+			const RE::BSScaleformTranslator& a_translator,
+			std::string_view a_key)
+		{
+			std::wstring wideKey;
+			if (a_key.size() > static_cast<size_t>((std::numeric_limits<int>::max)()) ||
+				a_key.find('\0') != std::string_view::npos ||
+				!REX::UTF8_TO_UTF16(a_key, wideKey))
+				throw std::runtime_error("localization key could not be converted to UTF-16");
+			const RE::BSFixedStringWCS key{ wideKey };
+			const auto& translations =
+				a_translator.translator.translationMap;
+			const auto found = translations.find(key);
+			if (found == translations.end())
+				return std::nullopt;
+			const std::wstring_view value{ found->second };
+			std::string text;
+			if (!value.empty() &&
+				(value.size() > static_cast<size_t>((std::numeric_limits<int>::max)()) ||
+					!REX::UTF16_TO_UTF8(value, text)))
+				throw std::runtime_error("localized text could not be converted to UTF-8");
+			return text;
 		}
 
 		[[nodiscard]] uint64_t HashText(std::string_view a_value) noexcept
@@ -262,11 +318,13 @@ namespace DearModdingUI::MCM
 			}
 		}
 
-		void RegisterConfig(const std::filesystem::path& a_config) noexcept
+		void RegisterConfig(
+			const std::filesystem::path& a_config,
+			const TextResolver& a_textResolver) noexcept
 		{
 			try
 			{
-				auto result = LoadConfig(a_config);
+				auto result = LoadConfig(a_config, a_textResolver);
 				LogErrors(result);
 				const auto folder = PathText(a_config.parent_path().filename());
 				if (!result.configuration)
@@ -279,9 +337,9 @@ namespace DearModdingUI::MCM
 				}
 
 				const auto& configuration = *result.configuration;
-				const auto displayName = configuration.displayName.empty() ?
+				const auto displayName = result.displayName.empty() ?
 					(configuration.modName.empty() ? folder : configuration.modName) :
-					configuration.displayName;
+					result.displayName;
 				const auto clientId =
 					ClientId(configuration.modName, folder);
 				auto mod = std::make_unique<RegisteredMod>();
@@ -554,21 +612,25 @@ namespace DearModdingUI::MCM
 			}
 		}
 
-		void DiscoverAndRegister() noexcept
+		void DetectMcmInstallation() noexcept
+		{
+			const auto installed =
+				::GetModuleHandleW(L"mcm.dll") != nullptr;
+			s_mcmInstalled.store(installed, std::memory_order_release);
+			REX::INFO(
+				"DearModdingUI-MCM: Mod Configuration Menu installation: {} "
+				"(mcm.dll is {})"sv,
+				installed ? "installed" : "not installed",
+				installed ? "loaded" : "not loaded");
+			REX::INFO(
+				"DearModdingUI-MCM: Papyrus runtime: not ready "
+				"(load a save to change mod settings and properties)"sv);
+		}
+
+		void DiscoverAndRegister(const TextResolver& a_textResolver) noexcept
 		{
 			try
 			{
-				const auto installed =
-					::GetModuleHandleW(L"mcm.dll") != nullptr;
-				s_mcmInstalled.store(installed, std::memory_order_release);
-				REX::INFO(
-					"DearModdingUI-MCM: Mod Configuration Menu installation: {} "
-					"(mcm.dll is {})"sv,
-					installed ? "installed" : "not installed",
-					installed ? "loaded" : "not loaded");
-				REX::INFO(
-					"DearModdingUI-MCM: Papyrus runtime: not ready "
-					"(load a save to change mod settings and properties)"sv);
 				const auto root =
 					std::filesystem::current_path() / "Data" / "MCM" / "Config";
 				std::error_code error;
@@ -588,7 +650,7 @@ namespace DearModdingUI::MCM
 					}
 					const auto config = entry.path() / "config.json";
 					if (std::filesystem::is_regular_file(config, error))
-						RegisterConfig(config);
+						RegisterConfig(config, a_textResolver);
 					error.clear();
 				}
 			}
@@ -602,6 +664,23 @@ namespace DearModdingUI::MCM
 			{
 				REX::ERROR("DearModdingUI-MCM: discovery failed"sv);
 			}
+		}
+
+		void RegisterConfigsAfterTranslations() noexcept
+		{
+			if (s_configsRegistered.exchange(true, std::memory_order_acq_rel))
+				return;
+			auto translator = AcquireTranslator();
+			if (!translator)
+			{
+				DiscoverAndRegister({});
+				return;
+			}
+			const TextResolver resolver =
+				[translator = translator.get()](std::string_view a_key) {
+					return ResolveGameText(*translator, a_key);
+				};
+			DiscoverAndRegister(resolver);
 		}
 
 		void RefreshValues() noexcept
@@ -625,7 +704,7 @@ namespace DearModdingUI::MCM
 #if defined(DMUI_MCM_SCALEFORM_SPIKE)
 				RegisterScaleformSpike();
 #endif
-				DiscoverAndRegister();
+				DetectMcmInstallation();
 			}
 			else if (a_message->type ==
 					F4SE::MessagingInterface::kPreLoadGame)
@@ -655,6 +734,8 @@ namespace DearModdingUI::MCM
 				if (!wasReady)
 					REX::INFO(
 						"DearModdingUI-MCM: Papyrus runtime: ready"sv);
+				if (a_message->type == F4SE::MessagingInterface::kGameLoaded)
+					RegisterConfigsAfterTranslations();
 				RefreshValues();
 			}
 		}

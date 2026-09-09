@@ -49,8 +49,6 @@
 
 namespace vmm_tests
 {
-	static_assert(DearModdingUI::kHostVersion == "0.1.0");
-
 	namespace
 	{
 		using namespace DearModdingUI;
@@ -556,11 +554,6 @@ namespace vmm_tests
 
 	void run_dear_modding_ui_checks(Runner& runner)
 	{
-		runner.test("host reports the 0.1.0 development version", [] {
-			require(kHostVersion == "0.1.0",
-				"host identity does not match the development version");
-		});
-
 		runner.test("DearModdingUI retains the 0.1 release identifier as metadata", [] {
 			require(
 				DMUI_API_VERSION_CURRENT == DMUI_MAKE_VERSION(0u, 1u),

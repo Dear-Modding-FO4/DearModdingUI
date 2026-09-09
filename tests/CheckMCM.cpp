@@ -11,6 +11,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <stdexcept>
 #include <string>
 #include <system_error>
 #include <tuple>
@@ -366,6 +367,265 @@ namespace vmm_tests
 				presentation.text == "Centered" &&
 					presentation.alignment == TextAlignment::kCenter,
 				"paragraph alignment did not override the control default");
+		});
+
+		runner.test("MCM display localization preserves identities and stored values", [] {
+			const TextResolver resolver = [](std::string_view a_key)
+				-> std::optional<std::string> {
+				if (a_key == "$CLIENT NAME")
+					return "Localized Client";
+				if (a_key == "$HEADING")
+					return "Localized Heading";
+				if (a_key == "$LABEL")
+					return "Localized Label";
+				if (a_key == "$HELP")
+					return "Localized Help";
+				if (a_key == "$BODY")
+					return "Localized Body";
+				if (a_key == "$BODY_TWO")
+					return "Localized Second";
+				if (a_key == "$BODY suffix")
+					return "Whole key with spaces";
+				if (a_key == "$CHOICE_LABEL")
+					return "Localized Choice";
+				if (a_key == "$OPTION_A")
+					return "Localized Option";
+				if (a_key == "$BUTTON")
+					return "Localized Button";
+				if (a_key == "$BUTTON_HELP")
+					return "Localized Button Help";
+				if (a_key == "$PAGE")
+					return "Localized Page";
+				return std::nullopt;
+			};
+			const auto result = ParseConfig(R"json({
+				"modName":"IdentityMod",
+				"displayName":"$CLIENT NAME",
+				"content":[
+					{"type":"section","text":"<b>$HEADING</b>","html":true},
+					{"id":"bEnabled:Main","type":"switcher",
+					 "text":"$LABEL","help":"$HELP",
+					 "valueOptions":{"sourceType":"ModSettingBool","default":true}},
+					{"id":"read","type":"text","html":true,
+					 "text":"<p>$BODY</p><br>$BODY_TWO"},
+					{"id":"sMode:Main","type":"dropdown","text":"$CHOICE_LABEL",
+					 "valueOptions":{"sourceType":"ModSettingString",
+					 "default":"$OPTION_A","options":["$OPTION_A","literal"]}},
+					{"id":"action","type":"button","text":"$BUTTON","help":"$BUTTON_HELP",
+					 "action":{"type":"SendEvent","event":"$EVENT","params":["$ARG"]}},
+					{"id":"literal","type":"text","text":"Prefix $BODY"},
+					{"id":"spacedKey","type":"text","text":"$BODY suffix"}
+				],
+				"pages":[{
+					"pageDisplayName":"$PAGE",
+					"content":[{"id":"input","type":"input","text":"",
+						"valueOptions":{"sourceType":"ModSettingString",
+						"default":"$PERSISTED"}}]
+				}]
+			})json", "localized.json", resolver);
+			require(result.configuration && result.pages.size() == 2 &&
+					result.diagnostics.empty(),
+				"localized fixture did not map cleanly");
+			require(result.configuration->modName == "IdentityMod" &&
+					result.configuration->displayName == "$CLIENT NAME" &&
+					result.displayName == "Localized Client" &&
+					result.configuration->pages[1].id == "page" &&
+					result.pages[0].id == "main" &&
+					result.pages[1].id == "page",
+				"localized presentation changed raw configuration identity");
+
+			const auto& root = result.pages[0];
+			require(root.displayName == "Localized Client" &&
+					root.settings.groups.front().id == "b-heading-b-1" &&
+					root.settings.groups.front().label == "Localized Heading",
+				"client or heading presentation was not localized");
+			const auto& enabled = SettingNamed(root, "bEnabled:Main");
+			require(enabled.label == "Localized Label" &&
+					enabled.description == "Localized Help",
+				"control label or help was not localized");
+			const auto& read = SettingNamed(root, "read");
+			require(std::get<std::string>(read.defaultValue) ==
+						"Localized Body\nLocalized Second" &&
+					RowNamed(root, "read").text &&
+					RowNamed(root, "read").text->presentation.text ==
+						"Localized Body\nLocalized Second",
+				"HTML read-only text was not localized before presentation mapping");
+			require(std::get<std::string>(
+						SettingNamed(root, "literal").defaultValue) ==
+						"Prefix $BODY" &&
+					std::get<std::string>(
+						SettingNamed(root, "spacedKey").defaultValue) ==
+						"Whole key with spaces",
+				"localization did not distinguish exact keys from embedded tokens");
+
+			const auto& choice = SettingNamed(root, "sMode:Main");
+			const auto* choiceControl =
+				std::get_if<dmui::ChoiceSettingControl>(&choice.control);
+			require(choiceControl && choiceControl->options.size() == 2 &&
+					choiceControl->options[0].value == "$OPTION_A" &&
+					choiceControl->options[0].label == "Localized Option" &&
+					choiceControl->options[1].value == "literal" &&
+					choiceControl->options[1].label == "literal" &&
+					std::get<std::string>(choice.defaultValue) == "$OPTION_A",
+				"choice localization changed its stored value or default");
+
+			const auto& action =
+				std::get<SendEventAction>(*RowNamed(root, "action").action);
+			require(root.settings.groups.front().actionRows.front().buttonLabel ==
+						"Localized Button" &&
+					root.settings.groups.front().actionRows.front().description ==
+						"Localized Button Help" &&
+					action.event == "$EVENT" &&
+					std::get<std::string>(action.arguments.front()) == "$ARG",
+				"button presentation or raw action arguments changed");
+			require(result.pages[1].displayName == "Localized Page" &&
+					std::get<std::string>(
+						SettingNamed(result.pages[1], "input").defaultValue) ==
+						"$PERSISTED",
+				"page localization changed its identity or persisted input");
+
+			const auto fallback = ParseConfig(R"json({
+				"modName":"Literal fallback",
+				"displayName":"",
+				"content":[{"id":"empty","type":"text","text":""}]
+			})json", "literal-fallback.json", resolver);
+			require(fallback.configuration &&
+					fallback.diagnostics.empty() &&
+					fallback.configuration->displayName.empty() &&
+					fallback.displayName == "Literal fallback" &&
+					fallback.pages.front().displayName == "Literal fallback" &&
+					std::get<std::string>(
+						SettingNamed(fallback.pages.front(), "empty").defaultValue)
+						.empty(),
+				"literal or empty display text changed during localization");
+
+			const auto pagesOnly = ParseConfig(R"json({
+				"modName":"IndependentName","displayName":"$CLIENT NAME",
+				"pages":[{"pageDisplayName":"$PAGE","content":[
+					{"type":"text","text":"Page content"}
+				]}]
+			})json", "pages-only.json", resolver);
+			require(pagesOnly.configuration && pagesOnly.pages.size() == 1 &&
+					pagesOnly.displayName == "Localized Client" &&
+					pagesOnly.pages.front().displayName == "Localized Page" &&
+					HasDiagnostic(pagesOnly, "missing required content array"),
+				"a missing root page replaced the client name with a page label");
+		});
+
+		runner.test("MCM HTML headings reuse the category icon classifier", [] {
+			const auto result = ParseConfig(R"json({
+				"modName":"Headings","content":[
+					{"type":"section","text":"<b>$HEADING_GENERAL</b>","html":true},
+					{"type":"text","text":"General content"},
+					{"type":"section","text":"<b>$HEADING_GAMEPLAY</b>","html":"true"},
+					{"type":"text","text":"Gameplay content"},
+					{"type":"section","text":"<b>$HEADING_MISC</b>","html":1},
+					{"type":"text","text":"Misc content"},
+					{"type":"section","text":"<b>Literal</b>","html":false},
+					{"type":"text","text":"Literal content"}
+				]
+			})json", "heading-icons.json",
+				[](std::string_view a_key) -> std::optional<std::string> {
+					return a_key.starts_with("$HEADING_") ?
+						std::optional<std::string>{ a_key.substr(9) } :
+						std::nullopt;
+				});
+			const auto& groups = result.pages.front().settings.groups;
+			const std::array names{ "GENERAL", "GAMEPLAY", "MISC" };
+			const std::array glyphs{
+				DearModdingUI::PhosphorGlyph::kGear,
+				DearModdingUI::PhosphorGlyph::kGameController,
+				DearModdingUI::PhosphorGlyph::kDotsThreeCircle
+			};
+			require(groups.size() == 4 && groups.back().label == "<b>Literal</b>",
+				"heading markup normalization ignored its opt-in flag");
+			for (size_t index = 0; index < names.size(); ++index)
+				require(groups[index].label == names[index] &&
+						groups[index].glyph == 0 &&
+						DearModdingUI::ResolveIconGlyph(
+							DearModdingUI::IconKind::kCategory,
+							groups[index].label) == glyphs[index],
+					"localized heading did not reach the existing icon classifier");
+		});
+
+		runner.test("MCM localization misses are deduplicated and bounded", [] {
+			const TextResolver missing =
+				[](std::string_view) -> std::optional<std::string> {
+					return std::nullopt;
+				};
+			const auto deduplicated = ParseConfig(R"json({
+				"modName":"Missing",
+				"displayName":"$MISSING",
+				"content":[
+					{"type":"section","text":"$MISSING"},
+					{"id":"setting","type":"switch","text":"$MISSING","help":"$MISSING",
+					 "valueOptions":{"sourceType":"ModSettingBool"}},
+					{"id":"choice","type":"menu",
+					 "valueOptions":{"sourceType":"ModSettingInt",
+					 "options":["$MISSING"]}}
+				]
+			})json", "missing-localization.json", missing);
+			require(DiagnosticCount(
+						deduplicated,
+						"localization key not found: $MISSING") == 1 &&
+					deduplicated.pages.front().displayName == "$MISSING" &&
+					SettingNamed(
+						deduplicated.pages.front(),
+						"setting").label == "$MISSING",
+				"a missing localization key was hidden, guessed, or repeated");
+
+			std::string json =
+				R"({"modName":"Bounded","displayName":"Bounded","content":[)";
+			for (size_t index = 0; index < 40; ++index)
+			{
+				if (index != 0)
+					json.push_back(',');
+				json += R"({"id":"text)" + std::to_string(index) +
+					R"(","type":"text","text":"$KEY_)" +
+					std::to_string(index) + R"("})";
+			}
+			json += "]}";
+			const auto bounded =
+				ParseConfig(json, "bounded-localization.json", missing);
+			require(DiagnosticCount(
+						bounded,
+						"localization key not found:") == 32 &&
+					DiagnosticCount(
+						bounded,
+						"additional missing localization keys omitted") == 1,
+				"missing localization diagnostics were not bounded per config");
+		});
+
+		runner.test("MCM absent and failed text resolvers preserve tokens", [] {
+			const auto absent = ParseConfig(R"json({
+				"modName":"Absent","displayName":"$TITLE",
+				"content":[{"id":"text","type":"text","text":"$BODY"}]
+			})json", "absent-resolver.json");
+			require(absent.diagnostics.empty() &&
+					absent.displayName == "$TITLE" &&
+					absent.pages.front().displayName == "$TITLE" &&
+					std::get<std::string>(
+						SettingNamed(absent.pages.front(), "text").defaultValue) ==
+						"$BODY",
+				"default callers did not retain the pre-localization behavior");
+
+			const TextResolver failed =
+				[](std::string_view) -> std::optional<std::string> {
+					throw std::runtime_error("resolver offline");
+				};
+			const auto failure = ParseConfig(R"json({
+				"modName":"Failure","displayName":"$TITLE",
+				"content":[{"id":"text","type":"text","text":"$BODY"}]
+			})json", "failed-resolver.json", failed);
+			require(ErrorCount(failure) == 1 &&
+					HasDiagnostic(
+						failure,
+						"text resolver failed; localization keys were preserved") &&
+					failure.pages.front().displayName == "$TITLE" &&
+					std::get<std::string>(
+						SettingNamed(failure.pages.front(), "text").defaultValue) ==
+						"$BODY",
+				"a failed resolver discarded tokens or masqueraded as missing keys");
 		});
 
 		runner.test("MCM synthetic config preserves page and group structure", [] {
@@ -851,6 +1111,17 @@ namespace vmm_tests
 					result.pages.size() == 3 &&
 					ErrorCount(result) == 0,
 				"temporary MCM configuration did not load");
+			const auto localized = LoadConfig(
+				path,
+				[](std::string_view a_key) -> std::optional<std::string> {
+					return a_key == "$EXAMPLE_MENU" ?
+						std::optional<std::string>{ "Localized file title" } :
+						std::optional<std::string>{ std::string{ a_key } };
+				});
+			require(localized.pages.front().displayName ==
+						"Localized file title" &&
+					localized.configuration->displayName == "$EXAMPLE_MENU",
+				"LoadConfig did not thread display localization");
 		});
 
 		runner.test("MCM malformed JSON returns a located diagnostic", [] {
@@ -910,7 +1181,7 @@ namespace vmm_tests
 				[](const Diagnostic& a_diagnostic) {
 					return a_diagnostic.location == "$.content[1]" &&
 						a_diagnostic.message ==
-							"MCM control type 'image' is unsupported in this phase";
+							"SWF component not rendered: Fixture::Header";
 				});
 			require(
 				unknown != result.diagnostics.end() &&
@@ -939,12 +1210,12 @@ namespace vmm_tests
 					DescriptorCount(result.pages.front()) == 0,
 				"image-only page was dropped or emitted fake controls");
 			require(result.diagnostics.size() == 2 &&
-					DiagnosticCount(result, "MCM control type 'image'") == 2 &&
+					DiagnosticCount(result, "SWF component not rendered:") == 2 &&
 					DiagnosticCount(result, "page produced no setting descriptors") == 0,
 				"image-only page duplicated or lost its capability warnings");
 			const auto& page = result.pages.front();
 			require(page.settings.notes.size() == 1 &&
-					page.settings.notes.front().text.find("SWF image content") !=
+					page.settings.notes.front().text.find("unrendered SWF components") !=
 						std::string::npos &&
 					SummarizeActionableCompatibility(page).empty(),
 				"image-only limitation was hidden or added another registration warning");
@@ -953,13 +1224,49 @@ namespace vmm_tests
 				"modName":"Mixed",
 				"displayName":"Mixed",
 				"content":[
-					{"type":"image","libName":"Fixture","className":"Header"},
+					{"id":"preview","type":"image","libName":"Fixture",
+					 "className":"Header","groupCondition":{"AND":[7]}},
 					{"type":"text","text":"Supported content"}
 				]
 			})json");
+			const auto mixedSummary =
+				SummarizeCompatibility(mixed.pages.front());
 			require(DescriptorCount(mixed.pages.front()) == 1 &&
-					mixed.pages.front().settings.notes.empty(),
+					mixed.pages.front().settings.notes.empty() &&
+					mixedSummary.images == 1 &&
+					mixedSummary.unsupported == 1 &&
+					RowNamed(mixed.pages.front(), "preview").groupCondition,
 				"a mixed page incorrectly claims it has no supported visible controls");
+		});
+
+		runner.test("MCM SWF diagnostics report incomplete metadata honestly", [] {
+			const auto result = ParseConfig(R"json({
+				"modName":"IncompleteImages",
+				"displayName":"Incomplete images",
+				"content":[
+					{"id":"library","type":"image","className":"Header"},
+					{"id":"class","type":"image","libName":"Fixture"},
+					{"id":"both","type":"image"}
+				]
+			})json", "incomplete-images.json");
+			require(result.diagnostics.size() == 3 &&
+					HasDiagnostic(result, "missing libName metadata", "$.content[0]") &&
+					HasDiagnostic(result, "missing className metadata", "$.content[1]") &&
+					HasDiagnostic(
+						result,
+						"missing libName and className metadata",
+						"$.content[2]") &&
+					SummarizeCompatibility(result.pages.front()).images == 3,
+				"incomplete SWF metadata was fabricated, hidden, or miscounted");
+			const auto& rows = result.pages.front().rows;
+			require(rows.size() == 3 &&
+					rows[0].image && rows[0].image->library.empty() &&
+					rows[0].image->symbol == "Header" &&
+					rows[1].image && rows[1].image->library == "Fixture" &&
+					rows[1].image->symbol.empty() &&
+					rows[2].image && rows[2].image->library.empty() &&
+					rows[2].image->symbol.empty(),
+				"incomplete SWF metadata did not survive the mapping seam");
 		});
 
 		runner.test("MCM empty and malformed pages retain diagnostics", [] {
@@ -1823,7 +2130,7 @@ namespace vmm_tests
 			require(DescriptorCount(result.pages.front()) == 0 &&
 					HasDiagnostic(
 						result,
-						"unsupported in this phase",
+						"SWF component not rendered: Fixture::Header",
 						"$.content[0]"),
 				"image descriptor was emitted or its warning was lost");
 			const auto* call = function == rows.end() || !function->action ?

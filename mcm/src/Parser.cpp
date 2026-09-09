@@ -759,13 +759,10 @@ namespace DearModdingUI::MCM
 						ReadString(a_value, "libName", a_location);
 					const auto symbol =
 						ReadString(a_value, "className", a_location);
-					if (library && symbol)
-					{
-						control.image = Image{
-							*library,
-							*symbol
-						};
-					}
+					control.image = Image{
+						library.value_or(""),
+						symbol.value_or("")
+					};
 				}
 
 				const auto valueOptions = a_value.find("valueOptions");
@@ -1037,7 +1034,8 @@ namespace DearModdingUI::MCM
 
 	LoadResult ParseConfig(
 		std::string_view a_json,
-		std::string_view a_source) noexcept
+		std::string_view a_source,
+		const TextResolver& a_textResolver) noexcept
 	{
 		LoadResult result;
 		auto source = std::string{ "<memory>" };
@@ -1063,8 +1061,10 @@ namespace DearModdingUI::MCM
 				detail::MapConfiguration(
 					*result.configuration,
 					source,
+					result.displayName,
 					result.pages,
-					result.diagnostics);
+					result.diagnostics,
+					a_textResolver);
 			}
 		}
 		catch (const Json::parse_error& a_error)
@@ -1092,7 +1092,9 @@ namespace DearModdingUI::MCM
 		return result;
 	}
 
-	LoadResult LoadConfig(const std::filesystem::path& a_path) noexcept
+	LoadResult LoadConfig(
+		const std::filesystem::path& a_path,
+		const TextResolver& a_textResolver) noexcept
 	{
 		LoadResult result;
 		auto source = std::string{ "<path>" };
@@ -1119,7 +1121,7 @@ namespace DearModdingUI::MCM
 					"could not read MCM configuration file");
 				return result;
 			}
-			return ParseConfig(buffer.str(), source);
+			return ParseConfig(buffer.str(), source, a_textResolver);
 		}
 		catch (const std::exception& a_error)
 		{

@@ -130,8 +130,9 @@ namespace DearModdingUI::SettingsTable
 					{ s_state.labelHeight },
 					RowContentMetric::kBox)
 			});
+			// Wrap positions are window-local, unlike the content rectangle.
 			ImGui::PushTextWrapPos(
-				a_contentRect.Min.x +
+				ImGui::GetCursorPosX() +
 					(std::max)(
 						a_contentRect.GetWidth(),
 						ImGui::GetFontSize()));

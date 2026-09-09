@@ -32,6 +32,13 @@ hexadecimal numeric entities. A control-level alignment is the default; the last
 alignment overrides it for the resolved read-only control.
 The mapper stores presentations on mapped rows. Each final binary calls `AttachTextRendering` from
 the consumer adapter outside this pure module.
+Section headings use the same opt-in markup normalization before category icon inference.
+
+`ParseConfig` and `LoadConfig` accept an optional display-only resolver for exact `$...` keys,
+including whole text nodes in HTML-enabled text. `LoadResult::displayName` carries the client label
+independently of page labels. Headings, labels, help, read-only text, and choice labels are localized;
+raw configuration, generated identities, bindings, stored values, and action arguments are not.
+Missing keys stay visible with bounded, deduplicated diagnostics. Without a resolver, behavior is unchanged.
 
 ## Value snapshots
 
@@ -165,9 +172,14 @@ deriving from it requires supplying one.
 ## Runtime plugin
 
 `DearModdingUI-MCM` resolves installation at F4SE `kPostPostLoad` by checking whether `mcm.dll` is
-loaded in the process, then discovers `Data\MCM\Config\*\config.json` and registers each valid
-configuration as an independent DearModdingUI client. The module signal proves MCM's native provider
-is loaded and avoids assumptions about mod-manager filesystem virtualization. Each client owns a composite with
+loaded in the process. At `kGameLoaded`, after the game and F4SE have populated the Scaleform
+translation table, it acquires the existing translator state and then discovers
+`Data\MCM\Config\*\config.json` and registers each valid configuration as an independent
+DearModdingUI client. The translator lookup uses exact keys and the active game language without
+loading translation files separately. If the translator infrastructure is unavailable, registration
+continues with raw keys and reports that infrastructure failure separately from missing entries.
+The module signal proves MCM's native provider is loaded and avoids assumptions about mod-manager
+filesystem virtualization. Each client owns a composite with
 global, mod-setting, and property backends. Global forms resolve through `TESDataHandler`;
 mod-setting getters and setters dispatch through the `MCM` Papyrus natives; property reads resolve
 through `GetPropertyValue` callbacks and probe attached scripts when `scriptName` is absent.
@@ -191,8 +203,10 @@ snapshots remain live page state rather than append-only startup diagnostics.
 
 Parser diagnostics continue to own unknown or unsupported controls, sources, and images, so their
 original warning severity, source location, and message reach Health without a duplicate page
-summary. Unsupported images retain their metadata, warning, and counts but emit no descriptor;
-an image-only page explains that limitation in a page note rather than adding an empty-descriptor
+summary. Unsupported images retain their metadata, conditions, warning, and counts but emit no
+descriptor. Each warning identifies the unrendered `library::class` SWF component, or names the
+missing metadata without inventing an identity.
+An image-only page explains that limitation in a page note rather than adding an empty-descriptor
 warning. Genuinely empty pages and malformed controls retain their diagnostics.
 Load-bearing unsupported controls remain visible and disabled. The preview accepts
 `DMUI_PREVIEW_MCM_INSTALLED=0` and `DMUI_PREVIEW_GAME_LOADED=0` to inspect the missing-MCM and

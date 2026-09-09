@@ -11,8 +11,22 @@
 #include <DearModdingUI/Presentation.h>
 #include <DearModdingUI/Client.h>
 
+#include <utility>
+
 namespace DearModdingUI
 {
+	namespace
+	{
+		std::string_view s_sectionHeaderText;
+		char32_t s_sectionHeaderGlyph{};
+	}
+
+	void DrawSectionHeader(const char* a_text, char32_t a_glyph) noexcept
+	{
+		s_sectionHeaderText = a_text;
+		s_sectionHeaderGlyph = a_glyph;
+	}
+
 	float SettingsActionButtonWidth(
 		SettingsAction,
 		const char*,
@@ -55,7 +69,7 @@ namespace vmm_tests
 		class ImGuiTestFrame
 		{
 		public:
-			ImGuiTestFrame()
+			explicit ImGuiTestFrame(ImVec2 a_position = { 60.0f, 60.0f })
 			{
 				m_context = ImGui::CreateContext();
 				auto& io = ImGui::GetIO();
@@ -71,6 +85,7 @@ namespace vmm_tests
 				};
 				m_context->ErrorCallbackUserData = &m_errors;
 				ImGui::NewFrame();
+				ImGui::SetNextWindowPos(a_position);
 				ImGui::SetNextWindowSize({ 640.0f, 480.0f });
 				(void)ImGui::Begin("##SettingsTableTest");
 				ImGui::ErrorRecoveryStoreState(&m_recovery);
@@ -148,6 +163,29 @@ namespace vmm_tests
 
 	void run_settings_table_checks(Runner& runner)
 	{
+		runner.test("native section headings inherit icons without overriding explicit glyphs", [] {
+			for (const auto& [label, icon] : {
+					 std::pair{ "Appearance", "palette" },
+					 std::pair{ "Readability", "text-aa" },
+					 std::pair{ "Input", "keyboard" },
+					 std::pair{ "Host facts (read-only)", "info" } })
+			{
+				DrawSectionHeader(label);
+				require(s_sectionHeaderText == label &&
+						s_sectionHeaderGlyph == FindPhosphorIconGlyphOrZero(icon),
+					"native section heading bypassed the shared icon classifier");
+			}
+			DrawSectionHeader("Appearance", PhosphorGlyph::kGear);
+			require(s_sectionHeaderGlyph == PhosphorGlyph::kGear,
+				"section classification replaced an explicit icon");
+			DrawSectionHeader("Appearance", 0);
+			require(s_sectionHeaderGlyph == 0,
+				"section classification replaced an explicit no-icon choice");
+			DrawSectionHeader("Unclassified Heading");
+			require(s_sectionHeaderGlyph == PhosphorGlyph::kQuestion,
+				"native section heading lost the classifier fallback");
+		});
+
 		runner.test("presentation tones resolve every theme role", [] {
 			const auto theme = TestTheme();
 			const dmui::TextTone tones[]{
@@ -332,7 +370,9 @@ namespace vmm_tests
 				}
 			};
 			ImGui::PushID("known");
-			ImGui::OpenPopup("##Choice");
+			ImGui::OpenPopupEx(
+				ImHashStr("##ComboPopup", 0, ImGui::GetID("##Choice")),
+				ImGuiPopupFlags_None);
 			ImGui::PopID();
 			ImGui::LogToBuffer();
 			const auto known = dmui::DrawChoice(
@@ -345,6 +385,12 @@ namespace vmm_tests
 				ImGui::GetCurrentContext()->LogBuffer.c_str()
 			};
 			ImGui::LogFinish();
+			const auto& popups = ImGui::GetCurrentContext()->OpenPopupStack;
+			require(popups.Size == 1 && popups[0].Window &&
+					popups[0].Window->Active &&
+					popups[0].Window->DC.CursorMaxPos.y >
+						popups[0].Window->DC.CursorStartPos.y,
+				"choice regression did not draw the actual combo popup");
 			require(
 				!known.changed && !known.completed && !known.selected,
 				"drawing a choice changed its current value");
@@ -529,6 +575,48 @@ namespace vmm_tests
 			}
 			require(frame.IsAtBaseline() && frame.Errors() == 0,
 				"unlabeled row changed the ImGui stack");
+		});
+
+		runner.test("settings descriptions wrap inside translated window columns", [] {
+			constexpr DMUI_ClientHandle owner{ 7 };
+			constexpr auto description =
+				"This description must remain entirely inside the label column, "
+				"wrapping onto additional lines rather than disappearing beneath "
+				"the value control. Moving the window must not change its wrapping.";
+			for (const auto position : { ImVec2{ 60.0f, 60.0f }, ImVec2{ 420.0f, 100.0f } })
+			{
+				ImGuiTestFrame frame{ position };
+				{
+					const SettingsTable::ClientCallbackGuard guard{ owner };
+					const auto table = SettingsTable::Begin(owner, "wrapped-settings");
+					require(table.result == DMUI_RESULT_OK && table.visible,
+						"wrapped settings table did not begin");
+					const auto tableId = ImGui::GetCurrentTable()->ID;
+					const auto row = SettingsTable::BeginRow(
+						owner, "wrapped", "Setting", description);
+					require(row.result == DMUI_RESULT_OK && row.visible,
+						"wrapped settings row did not begin");
+					const auto* outer = ImGui::GetCurrentContext()->Tables.GetByKey(tableId);
+					const auto& column = outer->Columns[0];
+					const auto expected = ImGui::CalcTextSize(
+						description, nullptr, false, column.WorkMaxX - column.WorkMinX);
+					const auto labelMaxX = column.WorkMaxX;
+					ImGui::Button("Value");
+					bool resetPressed{};
+					require(SettingsTable::EndRow(
+								owner, { false, false }, resetPressed) == DMUI_RESULT_OK,
+						"wrapped settings row did not end");
+					const auto drawn = ImGui::GetCurrentContext()->LastItemData.Rect;
+					require(drawn.Max.x <= labelMaxX + 0.5f &&
+							drawn.GetHeight() >= expected.y - 0.5f &&
+							expected.y > ImGui::GetFontSize(),
+						"description wrapping escaped its column or lost text lines");
+					require(SettingsTable::End(owner) == DMUI_RESULT_OK,
+						"wrapped settings table did not end");
+				}
+				require(frame.IsAtBaseline() && frame.Errors() == 0,
+					"description wrapping changed the ImGui stack");
+			}
 		});
 
 		runner.test("full-span settings row uses the complete table width", [] {
