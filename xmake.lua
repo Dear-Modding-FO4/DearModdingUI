@@ -538,7 +538,7 @@ end)
 task("package-release", function()
     set_menu {
         usage = "xmake package-release",
-        description = "Build and assemble the configured release or test package",
+        description = "Build separate host and MCM archives for the configured variant",
         options = {
             { "P", "project-root", "kv", nil, "Absolute project root" }
         }
@@ -550,46 +550,6 @@ task("package-release", function()
         config.load()
         import("utils.archive")
 
-        local function remove_owned_path(value, root)
-            if canonical_path(value) == canonical_path(root) or
-                not path_is_within(value, root) then
-                raise("refusing to remove path outside owned staging descendants: " .. value)
-            end
-            if os.exists(value) then
-                os.rm(value)
-                if os.exists(value) then
-                    raise("could not remove owned staging path: " .. value)
-                end
-            end
-        end
-
-        local function tracked_package_assets()
-            local output = os.iorunv(
-                "git",
-                { "-C", os.projectdir(), "-c", "core.quotePath=false",
-                  "ls-files", "--", "data/F4SE/Plugins" }
-            )
-            local prefix = "data/F4SE/Plugins/"
-            local assets = {}
-            for source_relative in output:gmatch("[^\r\n]+") do
-                if not source_relative:startswith(prefix) or
-                    #source_relative <= #prefix then
-                    raise("invalid tracked package asset path: " .. source_relative)
-                end
-                table.insert(assets, {
-                    source = project_dir(source_relative),
-                    relative = source_relative:sub(#prefix + 1)
-                })
-            end
-            table.sort(assets, function(left, right)
-                return left.relative < right.relative
-            end)
-            if #assets == 0 then
-                raise("tracked package asset manifest is empty")
-            end
-            return assets
-        end
-
         local requested = option.get("project")
         if not requested or canonical_path(requested) ~= canonical_path(os.projectdir()) or
             canonical_path(os.workingdir()) ~= canonical_path(os.projectdir()) then
@@ -600,96 +560,58 @@ task("package-release", function()
         if variant == "test" then
             table.insert(targets, "dmui-test-client")
         end
-        local package_owner_root = project_dir(".Build/packages")
-        local package_root = project_dir(path.join(
-            ".Build",
-            "packages",
-            variant,
-            "DearModdingUI"
-        ))
-        local archive_dir = project_dir(".Build/packages")
-        local archive_file = path.join(
-            archive_dir,
-            plugin_name .. "-" .. plugin_version .. "-" .. variant .. ".zip"
-        )
-        local archive_working = path.join(
-            archive_dir,
-            plugin_name .. "-" .. plugin_version .. "-" .. variant .. ".partial.zip"
-        )
-        remove_owned_path(package_root, package_owner_root)
-        remove_owned_path(archive_file, package_owner_root)
-        remove_owned_path(archive_working, package_owner_root)
-
         os.execv(
             os.programfile(),
             table.join({ "build", "-P", requested, "-y" }, targets)
         )
 
-        local plugin_root = path.join(package_root, "F4SE", "Plugins")
-        local output_root = project_dir(path.join(
-            ".Build",
-            variant,
-            "F4SE",
-            "Plugins"
-        ))
-        local binaries = {
-            "DearModdingUI.dll",
-            "DearModdingUI-MCM.dll"
-        }
-        if variant == "test" then
-            table.insert(binaries, "dmui-test-client.dll")
-        end
-        local assets = tracked_package_assets()
-        local documents = {
-            "LICENSE",
-            "README.md",
-            "THIRD_PARTY_NOTICES.md"
-        }
-        for _, binary in ipairs(binaries) do
-            local source = path.join(output_root, binary)
-            if not os.isfile(source) then
-                raise("missing package binary: " .. source)
+        local output_root = project_dir(path.join(".Build", variant, "F4SE", "Plugins"))
+        local package_owner = project_dir(".Build/packages")
+        local tracked = os.iorunv("git", {
+            "-C", os.projectdir(), "-c", "core.quotePath=false",
+            "ls-files", "--", "data/F4SE/Plugins"
+        })
+        for _, component in ipairs({ plugin_name, "DearModdingUI-MCM" }) do
+            local folder = path.join(package_owner, variant, component)
+            local zip = path.join(
+                package_owner, component .. "-" .. plugin_version .. "-" .. variant .. ".zip")
+            local partial = zip:gsub("%.zip$", ".partial.zip")
+            if not path_is_within(folder, package_owner) or
+                canonical_path(folder) == canonical_path(package_owner) then
+                raise("package staging must remain inside the owned output directory")
             end
-        end
-        for _, asset in ipairs(assets) do
-            if not os.isfile(asset.source) then
-                raise("missing tracked package asset: " .. asset.source)
+            if os.exists(folder) then
+                os.rm(folder)
             end
-        end
-        for _, document in ipairs(documents) do
-            local source = project_dir(document)
-            if not os.isfile(source) then
-                raise("missing package document: " .. source)
+            if os.exists(partial) then
+                os.rm(partial)
             end
+            local plugins = path.join(folder, "F4SE", "Plugins")
+            os.mkdir(plugins)
+            os.cp(path.join(output_root, component .. ".dll"), plugins)
+            if component == plugin_name then
+                if variant == "test" then
+                    os.cp(path.join(output_root, "dmui-test-client.dll"), plugins)
+                end
+                for source in tracked:gmatch("[^\r\n]+") do
+                    local extension = path.extension(source):lower()
+                    if extension == ".toml" or extension == ".ttf" or extension == ".hlsl" then
+                        local relative = source:sub(#"data/" + 1)
+                        local destination = path.join(folder, relative)
+                        os.mkdir(path.directory(destination))
+                        os.cp(project_dir(source), destination)
+                    end
+                end
+            end
+            local previous = os.cd(folder)
+            local files = os.files("**")
+            os.cd(previous)
+            archive.archive(partial, files, { curdir = folder })
+            if not os.isfile(partial) then
+                raise("package archive was not produced: " .. partial)
+            end
+            os.mv(partial, zip)
+            cprint("${color.success}%s", zip)
         end
-
-        os.mkdir(plugin_root)
-        for _, binary in ipairs(binaries) do
-            os.cp(
-                path.join(output_root, binary),
-                path.join(plugin_root, binary)
-            )
-        end
-        for _, asset in ipairs(assets) do
-            local destination = path.join(plugin_root, asset.relative)
-            os.mkdir(path.directory(destination))
-            os.cp(asset.source, destination)
-        end
-        for _, document in ipairs(documents) do
-            local source = project_dir(document)
-            os.cp(source, path.join(package_root, document))
-        end
-
-        local olddir = os.cd(package_root)
-        local files = os.files("**")
-        os.cd(olddir)
-        archive.archive(archive_working, files, { curdir = package_root })
-        if not os.isfile(archive_working) then
-            raise("package archive was not produced: " .. archive_working)
-        end
-        os.mv(archive_working, archive_file)
-        cprint("${color.success}Assembled %s package:", variant)
-        cprint("  folder: %s", package_root)
-        cprint("  archive: %s", archive_file)
     end)
 end)

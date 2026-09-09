@@ -21,6 +21,12 @@ The installable outputs are:
 
 - `.Build\packages\test\DearModdingUI\`
 - `.Build\packages\DearModdingUI-0.1.0-test.zip`
+- `.Build\packages\test\DearModdingUI-MCM\`
+- `.Build\packages\DearModdingUI-MCM-0.1.0-test.zip`
+
+The core archive contains the host and general test client. Install the separate
+MCM test archive as well when exercising the real bridge and its Scaleform probe.
+Neither archive includes documentation or debug symbols.
 
 The project removes CommonLib automatic install mappings. Build and package
 write only below this checkout. PDBs remain beside `.Build\test` binaries and
@@ -28,7 +34,7 @@ are not included in the installable package.
 
 ## Manual setup and checklist
 
-1. Install or enable the assembled test package in a disposable manual
+1. Install or enable the assembled core and MCM test packages in a disposable manual
    development profile. The test client performs its single host discovery/registration
    attempt at F4SE `kPostPostLoad`, after all plugins have loaded; it does not
    retry later or on Present.
@@ -99,5 +105,5 @@ overall pass.
 These checks validate the stable UI API harness. They do **not** validate a
 consumer's proxy-swapchain attachment or renderer-replacement integration.
 
-After the manual test, remove or disable the installed test package. No cleanup
+After the manual test, remove or disable the installed test packages. No cleanup
 or deployment action is performed by the build.

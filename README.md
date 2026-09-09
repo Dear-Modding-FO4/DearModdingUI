@@ -74,29 +74,56 @@ xmake build -P "$projectRoot" -y
 xmake package-release -P "$projectRoot"
 ```
 
-The release binaries are written to `.Build/release/F4SE/Plugins/`. The explicit
-package task creates `.Build/packages/release/DearModdingUI/` and
-`.Build/packages/DearModdingUI-0.1.0-release.zip` with only the two production
-plugins and the standard assets. CommonLib automatic install mappings are removed
-from all DMUI plugin targets, so configure and build never copy to a game or mod
-manager path. PDBs remain beside local build outputs and are not included in
-installable archives.
+The release binaries are written to `.Build/release/F4SE/Plugins/`.
+`package-release` creates two independently installable archives:
+
+| Archive | Contents |
+| --- | --- |
+| `DearModdingUI-0.1.0-release.zip` | Host DLL, configuration, fonts, and shaders |
+| `DearModdingUI-MCM-0.1.0-release.zip` | Optional MCM bridge DLL; requires the host |
+
+The corresponding staging folders are `.Build/packages/release/DearModdingUI/`
+and `.Build/packages/release/DearModdingUI-MCM/`. Archives start directly at
+`F4SE/Plugins/`, so they can be uploaded as mod-manager downloads without
+repacking. They contain only runtime files: DLLs and the host's configuration,
+fonts, and shaders. READMEs, licensing documents, provenance files, and PDBs are
+not included. Repository documentation is unchanged by package assembly.
+
+CommonLib automatic install mappings are removed from all DMUI plugin targets.
+Configure, build, and package never copy to a game or mod-manager path.
 
 For the diagnostic distribution, configure the same checkout with
-`--test-release=y`, build, and run `package-release`. Its separate
-`.Build/test/` output and `DearModdingUI-0.1.0-test.zip` contain the same host,
-the real MCM bridge with its manually invoked Scaleform probe, and one
-`dmui-test-client.dll`. The release distribution excludes both diagnostics.
+`--test-release=y`, build, and run `package-release`. Its separate `.Build/test/`
+output produces `DearModdingUI-0.1.0-test.zip` with the host and
+`dmui-test-client.dll`, and `DearModdingUI-MCM-0.1.0-test.zip` with the real MCM
+bridge and its manually invoked Scaleform probe. The standard archives exclude
+both diagnostics. Install both test archives for the complete diagnostic setup;
+the core test package can also be used without the MCM bridge.
 The standalone preview and test client use the same `DMUI Tests` page and state
 implementation, including editable synthetic configuration and image, overlay,
 dialog, notification, and input exercises. Game-only input-context observations
 remain explicitly unexercised in the preview.
 
-Enable the test package instead of the release package, not alongside it: both
-supply the same host and bridge DLL names. Disable the older standalone smoke-test mod when switching to this package. Preserve your existing
+For each component, enable its test package instead of its release package, not
+alongside it: the variants supply the same DLL name. Disable the older standalone
+smoke-test mod when switching to this setup. Preserve your existing
 `DearModdingUI.toml` and window layout rather than replacing them with packaged
 defaults. Switch back to the release package after testing; fixture source stays
 in the repository.
+
+## Stable releases
+
+Normal pushes and pull requests validate both variants and upload four separate
+Actions artifacts: host and MCM, each in release and test form. They do not
+publish GitHub releases.
+
+Use **Actions > Build and release > Run workflow** from `main` and enter
+`release_version` matching `plugin_version` in `xmake.lua`. Leave that input empty
+to build without publishing. After the build succeeds, the workflow uploads the
+two standard ZIPs and publishes a stable `v<version>` release at the exact run
+commit. It creates no prereleases and makes no automatic version changes.
+Existing releases are not overwritten. If an upload fails, inspect the retained
+draft before retrying.
 
 ## Standalone preview
 

@@ -1,222 +1,220 @@
-name: xmake
+name: Build and release
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main]
   pull_request:
-    branches: [ "main" ]
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: Optional stable version matching xmake.lua; leave blank to build only.
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 30
-
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
-    - uses: actions/checkout@v6
-      with:
-        submodules: true
-
-    - name: Initialize CommonLibF4 dependencies
-      run: git -C Depends/commonlibf4 submodule update --init --recursive
-
-    - name: Add MSVC to PATH
-      uses: ilammy/msvc-dev-cmd@v1
-
-    - name: Set up xmake
-      uses: xmake-io/github-action-setup-xmake@v1
-      with:
-        xmake-version: latest
-
-    - name: Check package verifier
-      run: python Tests/check_package_layout.py --self-test
-
-    - name: Configure release
-      shell: pwsh
-      run: |
-        $projectRoot = (Resolve-Path -LiteralPath '.').Path
-        $env:FO4_DEV_MODS = Join-Path $projectRoot '.Build\ci-no-deploy'
-        $env:XSE_FO4_MODS_PATH = $env:FO4_DEV_MODS
-        Remove-Item Env:XSE_FO4_GAME_PATH -ErrorAction SilentlyContinue
-        xmake f -P "$projectRoot" -m release --test-release=n -y
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        xmake verify-no-auto-install -P "$projectRoot"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-    - name: Build and package release
-      shell: pwsh
-      run: |
-        $projectRoot = (Resolve-Path -LiteralPath '.').Path
-        $env:FO4_DEV_MODS = Join-Path $projectRoot '.Build\ci-no-deploy'
-        $env:XSE_FO4_MODS_PATH = $env:FO4_DEV_MODS
-        Remove-Item Env:XSE_FO4_GAME_PATH -ErrorAction SilentlyContinue
-        xmake build -P "$projectRoot" -y
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        xmake package-release -P "$projectRoot"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        python Tests/check_package_layout.py `
-          --variant release `
-          --folder .Build/packages/release/DearModdingUI `
-          --archive .Build/packages/DearModdingUI-0.1.0-release.zip
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        if (Test-Path '.Build/ci-no-deploy') {
-          $written = Get-ChildItem '.Build/ci-no-deploy' -Recurse -File
-          if ($written) { throw "build wrote through an install path: $($written.FullName -join ', ')" }
-        }
-
-    - name: Check stable UI contract generation
-      shell: pwsh
-      run: |
-        $api = 'Depends/commonlibf4/lib/dearmoddingui-api'
-        $generated = Join-Path $env:RUNNER_TEMP 'dmui-ui-contract'
-        New-Item -ItemType Directory -Force $generated | Out-Null
-        python "$api/Tools/generate-ui-contract.py" `
-          --schema "$api/schema/ui-contract.json" `
-          --baseline-manifest "$api/schema/ui-contract.manifest.json" `
-          --c-header "$generated/CUIAPI.h" `
-          --checked-header "$generated/UIChecked.generated.h" `
-          --host-bindings "$generated/UIBindings.generated.h"
-        if ($LASTEXITCODE -ne 0) {
-          throw 'stable UI contract generation failed'
-        }
-        python "$api/Tests/test-ui-contract-generator.py"
-        if ($LASTEXITCODE -ne 0) {
-          throw 'stable UI compatibility baseline regression failed'
-        }
-
-        function Get-NormalizedBytes([string] $path) {
-          $inputBytes = [IO.File]::ReadAllBytes((Resolve-Path $path))
-          $outputBytes = [IO.MemoryStream]::new()
-          for ($index = 0; $index -lt $inputBytes.Length; $index++) {
-            if ($inputBytes[$index] -eq 13) {
-              $outputBytes.WriteByte(10)
-              if ($index + 1 -lt $inputBytes.Length -and $inputBytes[$index + 1] -eq 10) {
-                $index++
-              }
-            } else {
-              $outputBytes.WriteByte($inputBytes[$index])
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - name: Initialize CommonLibF4 dependencies
+        run: git -C Depends/commonlibf4 submodule update --init --recursive
+      - name: Read product version
+        id: version
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          $content = Get-Content xmake.lua -Raw
+          if ($content -notmatch '(?m)^local plugin_version = "((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))"\s*$') {
+            throw 'Cannot read the product version from xmake.lua.'
+          }
+          $version = $Matches[1]
+          if ($env:RELEASE_VERSION) {
+            if ($env:GITHUB_REF -ne 'refs/heads/main') {
+              throw 'Publish stable releases from main.'
+            }
+            if ($env:RELEASE_VERSION -ne $version) {
+              throw "Requested version does not match xmake.lua ($version)."
             }
           }
-          return $outputBytes.ToArray()
-        }
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Add MSVC to PATH
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Set up xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+      - name: Build and package both variants
+        shell: pwsh
+        env:
+          PRODUCT_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $projectRoot = (Resolve-Path '.').Path
+          $env:FO4_DEV_MODS = Join-Path $projectRoot '.Build\ci-no-deploy'
+          $env:XSE_FO4_MODS_PATH = $env:FO4_DEV_MODS
+          Remove-Item Env:XSE_FO4_GAME_PATH -ErrorAction SilentlyContinue
+          foreach ($variant in @('release','test')) {
+            $testRelease = if ($variant -eq 'test') { 'y' } else { 'n' }
+            xmake f -P "$projectRoot" -m release --test-release=$testRelease -y
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            xmake verify-no-auto-install -P "$projectRoot"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            xmake build -P "$projectRoot" -y
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            xmake package-release -P "$projectRoot"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            .\.Build\Tests\dmui-tests.exe
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-        $comparisons = @{
-          'CUIAPI.h' = "$api/include/DearModdingUI/CUIAPI.h"
-          'UIChecked.generated.h' = "$api/include/DearModdingUI/UIChecked.generated.h"
-          'UIBindings.generated.h' = 'include/DearModdingUI/UIBindings.generated.h'
-        }
-        foreach ($name in $comparisons.Keys) {
-          [byte[]] $generatedBytes = Get-NormalizedBytes (Join-Path $generated $name)
-          [byte[]] $committedBytes = Get-NormalizedBytes $comparisons[$name]
-          if (-not [Linq.Enumerable]::SequenceEqual[byte]($generatedBytes, $committedBytes)) {
-            throw "generated stable UI artifact is out of date: $($comparisons[$name])"
+            foreach ($component in @('DearModdingUI','DearModdingUI-MCM')) {
+              $zip = [IO.Compression.ZipFile]::OpenRead(
+                (Join-Path $projectRoot ".Build\packages\$component-$env:PRODUCT_VERSION-$variant.zip"))
+              try {
+                $names = @($zip.Entries | Where-Object { $_.Name } | ForEach-Object FullName)
+                $expected = @("F4SE/Plugins/$component.dll")
+                if ($component -eq 'DearModdingUI' -and $variant -eq 'test') {
+                  $expected += 'F4SE/Plugins/dmui-test-client.dll'
+                }
+                $dlls = @($names | Where-Object { $_ -like '*.dll' })
+                if (Compare-Object $expected $dlls) { throw "$component has the wrong DLLs." }
+                if ($names | Where-Object { $_ -notmatch '^F4SE/Plugins/.+\.(dll|toml|ttf|hlsl)$' }) {
+                  throw "$component contains non-runtime files."
+                }
+                if ($component -eq 'DearModdingUI-MCM' -and $names.Count -ne 1) {
+                  throw 'The MCM archive must contain only the bridge DLL.'
+                }
+              } finally {
+                $zip.Dispose()
+              }
+            }
           }
-        }
-        Write-Host 'stable UI contract artifacts match the checked-in schema'
-
-    - name: Check plugin exports
-      shell: pwsh
-      run: |
-        $dll = '.Build/release/F4SE/Plugins/DearModdingUI.dll'
-        if (-not (Test-Path $dll)) { throw "$dll was not produced" }
-
-        $exports = (dumpbin /exports $dll) -join "`n"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        $missing = @('DMUI_GetAPI','F4SEPlugin_Load','F4SEPlugin_Query','F4SEPlugin_Version') |
-          Where-Object { $exports -notmatch [regex]::Escape($_) }
-
-        if ($missing) { throw "missing DearModdingUI exports: $($missing -join ', ')" }
-        foreach ($symbol in @('DMUI_GetHostAPI','DMUI_GetImGuiVersionNum','DMUI_GetStyleMetrics')) {
-          if ($exports -match [regex]::Escape($symbol)) {
-            throw "obsolete DearModdingUI export is still present: $symbol"
+          if (Test-Path '.Build/ci-no-deploy') {
+            if (Get-ChildItem '.Build/ci-no-deploy' -Recurse -File) {
+              throw 'Build wrote through an installation path.'
+            }
           }
-        }
-        if ($exports -match '(?m)\big[A-Z][A-Za-z0-9_]*\b') {
-          throw 'raw cimgui exports are still present'
-        }
-        Write-Host "stable DearModdingUI exports present; obsolete raw exports absent"
-
-    - name: Run checks
-      run: .Build/Tests/dmui-tests.exe
-
-    - name: Configure test release
-      shell: pwsh
-      run: |
-        $projectRoot = (Resolve-Path -LiteralPath '.').Path
-        $env:FO4_DEV_MODS = Join-Path $projectRoot '.Build\ci-no-deploy'
-        $env:XSE_FO4_MODS_PATH = $env:FO4_DEV_MODS
-        Remove-Item Env:XSE_FO4_GAME_PATH -ErrorAction SilentlyContinue
-        xmake f -P "$projectRoot" -m release --test-release=y -y
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        xmake verify-no-auto-install -P "$projectRoot"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-    - name: Build and package test release
-      shell: pwsh
-      run: |
-        $projectRoot = (Resolve-Path -LiteralPath '.').Path
-        $env:FO4_DEV_MODS = Join-Path $projectRoot '.Build\ci-no-deploy'
-        $env:XSE_FO4_MODS_PATH = $env:FO4_DEV_MODS
-        Remove-Item Env:XSE_FO4_GAME_PATH -ErrorAction SilentlyContinue
-        xmake build -P "$projectRoot" -y
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        xmake package-release -P "$projectRoot"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        python Tests/check_package_layout.py `
-          --variant test `
-          --folder .Build/packages/test/DearModdingUI `
-          --archive .Build/packages/DearModdingUI-0.1.0-test.zip
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-        $hostDll = '.Build/test/F4SE/Plugins/DearModdingUI.dll'
-        $client = '.Build/test/F4SE/Plugins/dmui-test-client.dll'
-        $hostExports = (dumpbin /exports $hostDll) -join "`n"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        if ($hostExports -notmatch 'DMUI_GetAPI') {
-          throw 'test host is missing DMUI_GetAPI'
-        }
-        $clientImports = (dumpbin /imports $client) -join "`n"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        if ($clientImports -match '(?i)(DearModdingUI|cimgui|imgui)\.dll') {
-          throw 'test client linked against a UI binary instead of using host discovery'
-        }
-        $clientExports = (dumpbin /exports $client) -join "`n"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        foreach ($symbol in @('F4SEPlugin_Load','F4SEPlugin_Query','F4SEPlugin_Version')) {
-          if ($clientExports -notmatch [regex]::Escape($symbol)) {
-            throw "test client is missing $symbol"
+      - name: Check stable UI contract generation
+        shell: pwsh
+        run: |
+          $api = 'Depends/commonlibf4/lib/dearmoddingui-api'
+          $generated = Join-Path $env:RUNNER_TEMP 'dmui-ui-contract'
+          New-Item -ItemType Directory -Force $generated | Out-Null
+          python "$api/Tools/generate-ui-contract.py" `
+            --schema "$api/schema/ui-contract.json" `
+            --baseline-manifest "$api/schema/ui-contract.manifest.json" `
+            --c-header "$generated/CUIAPI.h" `
+            --checked-header "$generated/UIChecked.generated.h" `
+            --host-bindings "$generated/UIBindings.generated.h"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python "$api/Tests/test-ui-contract-generator.py"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $comparisons = @{
+            'CUIAPI.h' = "$api/include/DearModdingUI/CUIAPI.h"
+            'UIChecked.generated.h' = "$api/include/DearModdingUI/UIChecked.generated.h"
+            'UIBindings.generated.h' = 'include/DearModdingUI/UIBindings.generated.h'
           }
-        }
-        $releaseMcm = [Text.Encoding]::ASCII.GetString(
-          [IO.File]::ReadAllBytes('.Build/release/F4SE/Plugins/DearModdingUI-MCM.dll'))
-        $testMcm = [Text.Encoding]::ASCII.GetString(
-          [IO.File]::ReadAllBytes('.Build/test/F4SE/Plugins/DearModdingUI-MCM.dll'))
-        if ($releaseMcm.Contains('Scaleform Context Spike')) {
-          throw 'release MCM bridge contains the diagnostic probe marker'
-        }
-        if (-not $testMcm.Contains('Scaleform Context Spike')) {
-          throw 'test MCM bridge is missing the diagnostic probe marker'
-        }
-        if (Test-Path '.Build/ci-no-deploy') {
-          $written = Get-ChildItem '.Build/ci-no-deploy' -Recurse -File
-          if ($written) { throw "test build wrote through an install path: $($written.FullName -join ', ')" }
-        }
+          foreach ($name in $comparisons.Keys) {
+            $actual = [IO.File]::ReadAllText((Join-Path $generated $name)).Replace("`r`n", "`n")
+            $expected = [IO.File]::ReadAllText($comparisons[$name]).Replace("`r`n", "`n")
+            if ($actual -cne $expected) { throw "Generated contract differs: $name" }
+          }
+      - name: Check plugin exports and test separation
+        shell: pwsh
+        run: |
+          foreach ($variant in @('release','test')) {
+            $exports = (dumpbin /exports ".Build/$variant/F4SE/Plugins/DearModdingUI.dll") -join "`n"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            foreach ($symbol in @('DMUI_GetAPI','F4SEPlugin_Load','F4SEPlugin_Query','F4SEPlugin_Version')) {
+              if ($exports -notmatch [regex]::Escape($symbol)) { throw "Missing $symbol" }
+            }
+            if ($exports -match 'DMUI_GetHostAPI|DMUI_GetImGuiVersionNum|DMUI_GetStyleMetrics|\big[A-Z][A-Za-z0-9_]*\b') {
+              throw 'Obsolete UI exports are present.'
+            }
+            $mcm = [Text.Encoding]::ASCII.GetString(
+              [IO.File]::ReadAllBytes(".Build/$variant/F4SE/Plugins/DearModdingUI-MCM.dll"))
+            if ($mcm.Contains('Scaleform Context Spike') -ne ($variant -eq 'test')) {
+              throw "Incorrect MCM probe configuration in $variant."
+            }
+          }
+          $client = '.Build/test/F4SE/Plugins/dmui-test-client.dll'
+          $imports = (dumpbin /imports $client) -join "`n"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($imports -match '(?i)(DearModdingUI|cimgui|imgui)\.dll') {
+            throw 'Test client linked against a UI binary.'
+          }
+      - uses: actions/upload-artifact@v6
+        with:
+          name: dearmoddingui-${{ steps.version.outputs.version }}-release-${{ github.sha }}
+          path: .Build/packages/DearModdingUI-${{ steps.version.outputs.version }}-release.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v6
+        with:
+          name: dearmoddingui-mcm-${{ steps.version.outputs.version }}-release-${{ github.sha }}
+          path: .Build/packages/DearModdingUI-MCM-${{ steps.version.outputs.version }}-release.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v6
+        with:
+          name: dearmoddingui-${{ steps.version.outputs.version }}-test-${{ github.sha }}
+          path: .Build/packages/DearModdingUI-${{ steps.version.outputs.version }}-test.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v6
+        with:
+          name: dearmoddingui-mcm-${{ steps.version.outputs.version }}-test-${{ github.sha }}
+          path: .Build/packages/DearModdingUI-MCM-${{ steps.version.outputs.version }}-test.zip
+          if-no-files-found: error
 
-    - name: Run test-release checks
-      run: .Build/Tests/dmui-tests.exe
-
-    - name: Upload release
-      uses: actions/upload-artifact@v6
-      with:
-        name: dearmoddingui-0.1.0-release-${{ github.sha }}
-        if-no-files-found: error
-        path: |
-          .Build/packages/DearModdingUI-0.1.0-release.zip
-
-    - name: Upload test release
-      uses: actions/upload-artifact@v6
-      with:
-        name: dearmoddingui-0.1.0-test-${{ github.sha }}
-        if-no-files-found: error
-        path: |
-          .Build/packages/DearModdingUI-0.1.0-test.zip
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.release_version != ''
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: release-publication
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v6
+        with:
+          name: dearmoddingui-${{ needs.build.outputs.version }}-release-${{ github.sha }}
+          path: release-assets
+      - uses: actions/download-artifact@v6
+        with:
+          name: dearmoddingui-mcm-${{ needs.build.outputs.version }}-release-${{ github.sha }}
+          path: release-assets
+      - name: Publish stable release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRODUCT_VERSION: ${{ needs.build.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          $tag = "v$env:PRODUCT_VERSION"
+          $existing = git rev-parse --verify --quiet "$tag^{commit}"
+          if ($LASTEXITCODE -eq 0 -and $existing -ne $env:GITHUB_SHA) {
+            throw "$tag already points to another commit."
+          }
+          if ($LASTEXITCODE -notin @(0,1)) { throw 'Could not inspect the release tag.' }
+          $hostZip = "release-assets/DearModdingUI-$env:PRODUCT_VERSION-release.zip"
+          $mcmZip = "release-assets/DearModdingUI-MCM-$env:PRODUCT_VERSION-release.zip"
+          gh release create $tag $hostZip $mcmZip --repo "$env:REPOSITORY" `
+            --target "$env:GITHUB_SHA" --title "DearModdingUI $env:PRODUCT_VERSION" `
+            --generate-notes --draft
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          gh release edit $tag --repo "$env:REPOSITORY" --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
