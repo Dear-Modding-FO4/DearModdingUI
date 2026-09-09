@@ -128,8 +128,10 @@ namespace Addictol
 					return;
 				}
 
-				const auto hooksInstalled = PlatformImgui::InstallHooks();
 				const auto sinksRegistered = RegisterHostSinks();
+				if (!sinksRegistered)
+					return;
+				const auto hooksInstalled = PlatformImgui::InstallHooks();
 				if (!hooksInstalled)
 					REX::ERROR("DearModdingUI: renderer reconciliation could not be installed"sv);
 

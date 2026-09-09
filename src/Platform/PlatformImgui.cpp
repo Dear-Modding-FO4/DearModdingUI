@@ -12,6 +12,7 @@
 #include <Support/Detours.h>
 #include <Support/Runtime.h>
 #include <Support/SubsystemHealth.h>
+#include <Support/coalesced-task.h>
 #include <F4SE/API.h>
 #include <F4SE/Interfaces.h>
 #include <RE/B/BSGraphics.h>
@@ -31,6 +32,8 @@
 #include <chrono>
 #include <filesystem>
 #include <limits>
+#include <memory>
+#include <new>
 #include <string_view>
 #include <utility>
 
@@ -160,7 +163,9 @@ namespace Addictol
 		static std::atomic<bool> s_consumedEscape{ false };
 		static std::atomic<bool> s_missingPresentOriginalLogged{ false };
 		static std::atomic<bool> s_missingResizeOriginalLogged{ false };
-		static std::atomic<int64_t> s_nextReconciliationAt{ 0 };
+		static PTP_TIMER s_reconciliationTimer{ nullptr };
+		static std::atomic<bool> s_reconciliationTimerStarted{ false };
+		static Support::CoalescedTask s_reconciliationTask;
 		static std::string s_iniPath;
 
 		static RendererHealthReporter s_rendererHealthReporter;
@@ -249,13 +254,6 @@ namespace Addictol
 		using ReconciliationClock = DearModdingUI::HealthClock;
 		static constexpr auto kReconciliationInterval = std::chrono::milliseconds(250);
 		static constexpr auto kReconciliationDeadline = std::chrono::seconds(10);
-
-		[[nodiscard]] static int64_t ReconciliationTicks(
-			ReconciliationClock::time_point a_time = ReconciliationClock::now()) noexcept
-		{
-			return std::chrono::duration_cast<std::chrono::milliseconds>(
-				a_time.time_since_epoch()).count();
-		}
 
 		[[nodiscard]] static std::string_view DescribeRendererObservation(
 			RendererObservation a_observation) noexcept
@@ -376,7 +374,11 @@ namespace Addictol
 
 		static void RequestRendererReconciliation() noexcept
 		{
-			s_nextReconciliationAt.store(0, std::memory_order_release);
+			if (!s_reconciliationTimerStarted.load(std::memory_order_acquire))
+				return;
+			FILETIME due{};
+			SetThreadpoolTimer(s_reconciliationTimer, &due,
+				static_cast<DWORD>(kReconciliationInterval.count()), 0);
 		}
 
 		static void AdvanceAttachmentGenerationLocked() noexcept
@@ -1780,16 +1782,37 @@ namespace Addictol
 		{
 			if (!s_gameLoaded.load(std::memory_order_acquire))
 				return;
-			const auto now = ReconciliationTicks();
-			auto next = s_nextReconciliationAt.load(std::memory_order_acquire);
-			if (next > now ||
-				!s_nextReconciliationAt.compare_exchange_strong(
-					next,
-					now + kReconciliationInterval.count(),
-					std::memory_order_acq_rel))
-				return;
 			(void)ReconcileRenderer();
 			CheckReconciliationDeadline();
+		}
+
+		static void CALLBACK QueueRendererReconciliation(
+			PTP_CALLBACK_INSTANCE, void*, PTP_TIMER) noexcept
+		{
+			static std::atomic<bool> failureReported{ false };
+			try
+			{
+				const auto submitted = s_reconciliationTask.TrySubmit([](auto a_work) {
+					struct Task final : F4SE::ITaskDelegate
+					{
+						explicit Task(decltype(a_work) a_callback) noexcept :
+							callback(std::move(a_callback))
+						{}
+						void Run() override { callback(); }
+						decltype(a_work) callback;
+					};
+					auto task = std::make_unique<Task>(std::move(a_work));
+					F4SE::GetTaskInterface()->AddTask(task.get());
+					(void)task.release();
+				}, &PollRendererReconciliation);
+				if (submitted && failureReported.exchange(false))
+					REX::INFO("[dmui.render.reconciliation] Main-thread task submission recovered"sv);
+			}
+			catch (const std::bad_alloc&)
+			{
+				if (!failureReported.exchange(true))
+					REX::ERROR("[dmui.render.reconciliation] Could not allocate renderer task; will retry"sv);
+			}
 		}
 
 		static void CloseSinkRegistration() noexcept
@@ -1853,7 +1876,17 @@ namespace Addictol
 			return false;
 		}
 
-		tasks->AddTaskPermanent(&PollRendererReconciliation);
+		// Like the render hooks, the armed timer lives until process exit.
+		s_reconciliationTimer = CreateThreadpoolTimer(&QueueRendererReconciliation, nullptr, nullptr);
+		if (!s_reconciliationTimer)
+		{
+			REX::ERROR("[dmui.render.reconciliation] Could not create renderer timer (Windows error {})"sv,
+				GetLastError());
+			CloseSinkRegistration();
+			s_installState.store(InstallState::kRejected, std::memory_order_release);
+			DearModdingUI::FailBackendInitialization();
+			return false;
+		}
 		s_installState.store(InstallState::kInstalled, std::memory_order_release);
 		REX::INFO("[dmui.render.reconciliation] Platform Imgui: renderer reconciliation installed with {} draw, {} toggle, and {} setup sinks"sv,
 			s_drawSinks.Size(), s_toggleSinks.Size(), s_setupSinks.Size());
@@ -1863,22 +1896,28 @@ namespace Addictol
 	bool PlatformImgui::InitializeWindow() noexcept
 	{
 		using namespace platformImguiDetail;
+		if (!IsInstalled(s_installState.load(std::memory_order_acquire)) ||
+			!s_reconciliationTimer)
+		{
+			REX::ERROR("[dmui.render.reconciliation] Platform Imgui: renderer reconciliation was not installed"sv);
+			return false;
+		}
 		s_gameLoaded.store(true, std::memory_order_release);
 		{
 			const ContextLock lock;
 			s_rendererHealth.SetDeadline(
 				ReconciliationClock::now() + kReconciliationDeadline);
 		}
-		RequestRendererReconciliation();
-		if (s_drawSinks.Empty() && s_toggleSinks.Empty())
-			return true;
-		if (!IsInstalled(s_installState.load(std::memory_order_acquire)))
+		if (!s_drawSinks.Empty() || !s_toggleSinks.Empty())
+			PollRendererReconciliation();
+		if (!s_reconciliationTimerStarted.exchange(true, std::memory_order_acq_rel))
 		{
-			REX::ERROR("[dmui.render.reconciliation] Platform Imgui: sinks were registered but renderer reconciliation was not installed"sv);
-			return false;
+			const auto ticks = -kReconciliationInterval.count() * 10000;
+			FILETIME due{ static_cast<DWORD>(ticks),
+				static_cast<DWORD>(static_cast<uint64_t>(ticks) >> 32) };
+			SetThreadpoolTimer(s_reconciliationTimer, &due,
+				static_cast<DWORD>(kReconciliationInterval.count()), 0);
 		}
-
-		PollRendererReconciliation();
 		return true;
 	}
 

@@ -10,6 +10,7 @@ int main()
 	Runner runner;
 	run_subsystem_health_checks(runner);
 	run_imgui_platform_checks(runner);
+	run_coalesced_task_checks(runner);
 	run_dear_modding_ui_checks(runner);
 	run_settings_table_checks(runner);
 	run_hotkey_checks(runner);
