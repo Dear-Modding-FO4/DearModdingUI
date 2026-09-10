@@ -42,6 +42,7 @@ namespace vmm_tests
 			const auto robot = FindPhosphorIconGlyphOrZero("robot");
 			const auto brain = FindPhosphorIconGlyphOrZero("brain");
 			const auto layout = FindPhosphorIconGlyphOrZero("layout");
+			const auto faders = FindPhosphorIconGlyphOrZero("faders");
 			const auto archiveBox =
 				FindPhosphorIconGlyphOrZero("box-arrow-down");
 			require(
@@ -85,47 +86,40 @@ namespace vmm_tests
 					ResolveInferredIconGlyphOrZero("repairs") == wrench,
 				"domain phrase or generated tag coverage was lost");
 
-			const std::array ambiguousPrimary{
+			const std::array peerPrimary{
 				std::string_view{ "AI / UI" }
 			};
 			const std::array brainContext{ std::string_view{ "Brain" } };
-			const std::array mixedContext{
-				std::string_view{ "Cloud Sun" },
-				std::string_view{ "Brain" }
-			};
 			const std::array unrelatedContext{
 				std::string_view{ "General" }
 			};
-			const auto ambiguous = IconResolver::Resolve({
-				.primaryMetadata = ambiguousPrimary
+			const auto selected = IconResolver::Resolve({
+				.primaryMetadata = peerPrimary
 			});
-			const auto narrowed = IconResolver::Resolve({
-				.primaryMetadata = ambiguousPrimary,
+			const auto withMatchingSecondary = IconResolver::Resolve({
+				.primaryMetadata = peerPrimary,
 				.secondaryMetadata = brainContext
 			});
-			const auto unrelated = IconResolver::Resolve({
-				.primaryMetadata = ambiguousPrimary,
+			const auto withUnrelatedSecondary = IconResolver::Resolve({
+				.primaryMetadata = peerPrimary,
 				.secondaryMetadata = unrelatedContext
 			});
-			const auto narrowedWithUnrelated = IconResolver::Resolve({
-				.primaryMetadata = ambiguousPrimary,
-				.secondaryMetadata = mixedContext
-			});
 			require(
-				ambiguous.status == IconSelectionStatus::kAmbiguous &&
-					narrowed.HasSelection() && narrowed.glyph == brain &&
-					narrowedWithUnrelated.HasSelection() &&
-					narrowedWithUnrelated.glyph == brain &&
-					unrelated.status == IconSelectionStatus::kAmbiguous,
-				"ambiguity or secondary narrowing changed");
+				selected.HasSelection() && selected.glyph == layout &&
+					withMatchingSecondary.HasSelection() &&
+					withMatchingSecondary.glyph == layout &&
+					withUnrelatedSecondary.HasSelection() &&
+					withUnrelatedSecondary.glyph == layout,
+				"primary peer matches were not selected deterministically");
 			const std::array toolsPrimary{ std::string_view{ "Tools" } };
 			const auto toolsWithGeneral = IconResolver::Resolve({
 				.primaryMetadata = toolsPrimary,
 				.secondaryMetadata = unrelatedContext
 			});
 			require(
-				toolsWithGeneral.status == IconSelectionStatus::kAmbiguous,
-				"unrelated secondary context replaced ambiguous Tools");
+				toolsWithGeneral.HasSelection() &&
+					toolsWithGeneral.glyph == wrench,
+				"reviewed Tools preference did not outrank secondary context");
 			const std::array firstOrder{
 				std::string_view{ "AI" },
 				std::string_view{ "UI" }
@@ -137,11 +131,30 @@ namespace vmm_tests
 			require(
 				IconResolver::Resolve({
 					.secondaryMetadata = firstOrder
-				}).status == IconSelectionStatus::kAmbiguous &&
+				}).glyph == layout &&
 					IconResolver::Resolve({
 						.secondaryMetadata = reverseOrder
-					}).status == IconSelectionStatus::kAmbiguous,
-				"peer metadata order changed an ambiguous result");
+					}).glyph == layout &&
+					ResolveInferredIconGlyphOrZero("Settings") == faders,
+				"peer metadata order or equal-rank tag selection was unstable");
+			const std::array domainCases{
+				std::pair{ "Accessibility", "person-arms-spread" },
+				std::pair{ "Cache", "database" },
+				std::pair{ "Caching", "database" },
+				std::pair{ "Hotkeys", "keyboard" },
+				std::pair{ "Maintenance", "wrench" },
+				std::pair{ "Notifications", "notification" },
+				std::pair{ "Presets", "sliders-horizontal" },
+				std::pair{ "Profiles", "user-switch" },
+				std::pair{ "Tools", "wrench" },
+				std::pair{ "Troubleshooting", "lifebuoy" },
+				std::pair{ "Utilities", "toolbox" }
+			};
+			for (const auto& [label, icon] : domainCases)
+				require(
+					ResolveInferredIconGlyphOrZero(label) ==
+						FindPhosphorIconGlyphOrZero(icon),
+					"reviewed shared domain preference did not resolve");
 			require(
 				ResolveInferredIconGlyphOrZero("Detail") != brain &&
 					ResolveInferredIconGlyphOrZero("Fluid") != layout &&

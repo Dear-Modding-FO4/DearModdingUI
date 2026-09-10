@@ -66,8 +66,8 @@ namespace vmm_tests
 		runner.test("navigation caches shared icon selections at model ownership", [] {
 			Registry registry;
 			CallbackState state;
-			auto clientDescriptor = Client("wrench.mod", "Wrench Mod", state);
-			clientDescriptor.iconName = "hammer";
+			auto clientDescriptor = Client("icons.mod", "AI / UI", state);
+			clientDescriptor.iconName = "unknown";
 			DMUI_ClientHandle client{};
 			require(
 				registry.RegisterClient(&clientDescriptor, &client) ==
@@ -76,29 +76,29 @@ namespace vmm_tests
 			AddCategory(
 				registry,
 				client,
-				"wrench",
-				"Wrench");
+				"icons",
+				"AI / UI");
 			const auto page = AddPage(
 				registry,
 				client,
-				"repair",
-				"Repairs",
-				"wrench",
+				"settings",
+				"Settings",
+				"icons",
 				0,
 				DMUI_PAGE_KIND_SETTINGS,
 				state);
 			const auto action = AddAction(
 				registry,
 				client,
-				"repair-action",
-				"Repairs",
+				"settings-action",
+				"Settings",
 				"unknown",
 				0,
 				state);
 			require(registry.Freeze(), "icon test registry did not freeze");
 
-			const auto wrench = FindPhosphorIconGlyphOrZero("wrench");
-			const auto hammer = FindPhosphorIconGlyphOrZero("hammer");
+			const auto layout = FindPhosphorIconGlyphOrZero("layout");
+			const auto faders = FindPhosphorIconGlyphOrZero("faders");
 			const auto& navigation = registry.Navigation();
 			const auto* navigationClient = navigation.FindClient(client);
 			const auto* navigationPage = navigation.FindPage(page);
@@ -109,30 +109,39 @@ namespace vmm_tests
 							NavigationItemKind::kAction &&
 						a_record.entry.action == action;
 				});
+			const auto pageRecord = std::ranges::find_if(
+				navigation.SearchIndex(),
+				[&](const auto& a_record) {
+					return a_record.entry.kind ==
+							NavigationItemKind::kPage &&
+						a_record.entry.page == page;
+				});
 			require(
 				navigationClient &&
 					ResolveNavigationClientIconGlyph(*navigationClient) ==
-						hammer &&
+						layout &&
 					navigationClient->categories.size() == 1 &&
 					ResolveNavigationCategoryIconGlyph(
-						navigationClient->categories.front()) == wrench,
-				"client or category model selection lost its precedence");
+						navigationClient->categories.front()) == layout,
+				"sidebar models did not cache deterministic peer selections");
 			require(
 				navigationPage &&
 					navigationPage->iconSelection.HasSelection() &&
-					navigationPage->iconSelection.glyph ==
-						FindPhosphorIconGlyphOrZero("wrench"),
+					navigationPage->iconSelection.glyph == faders &&
+					pageRecord != navigation.SearchIndex().end() &&
+					ResolveNavigationSearchEntryGlyph(
+						pageRecord->entry) == faders,
 				"page model did not cache its semantic selection");
 			require(
 				actionRecord != navigation.SearchIndex().end() &&
 					registry.OrderedActions().size() == 1 &&
 					registry.OrderedActions().front().iconSelection.glyph ==
-						wrench &&
+						faders &&
 					actionRecord->entry.iconSelection.HasSelection() &&
-					actionRecord->entry.iconSelection.glyph == wrench &&
+					actionRecord->entry.iconSelection.glyph == faders &&
 					ResolveNavigationSearchEntryGlyph(
-						actionRecord->entry) == wrench,
-				"toolbar and palette did not share the registered action selection");
+						actionRecord->entry) == faders,
+				"toolbar and palette did not share the deterministic action selection");
 		});
 
 		runner.test("navigation sections preserve declared origin and exact source identity", [] {

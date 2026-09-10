@@ -121,9 +121,11 @@ Category icon inference uses the human-readable category display name. Stable
 category IDs are used for expansion identity, so equal labels with different
 IDs remain distinct. The resolver indexes the complete shipped Phosphor names,
 accepted upstream aliases, descriptive tags, and a small reviewed domain
-vocabulary. It uses whole normalized words, reports ambiguity instead of
-choosing alphabetically, and lets secondary metadata narrow only candidates
-already found in primary metadata.
+vocabulary. It uses whole normalized words and chooses the lowest pinned glyph
+codepoint when equally ranked terms match, making the result stable regardless
+of metadata order. Primary metadata wins whenever it has a match; secondary
+metadata is consulted only after a primary miss. Surface defaults such as
+Question are reserved for genuine misses.
 
 Icon inference is a header-only API helper rather than a new C ABI operation.
 Older client binaries therefore retain the helper behavior they compiled until
