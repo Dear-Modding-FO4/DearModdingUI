@@ -138,7 +138,6 @@ namespace DearModdingUI
 
 		void DrawCategoryHeader(
 			const char* a_key,
-			const NavigationClient& a_client,
 			const NavigationCategory& a_category,
 			bool& a_expanded,
 			size_t a_count) noexcept
@@ -147,7 +146,6 @@ namespace DearModdingUI
 				.key = a_key,
 				.text = a_category.displayName.c_str(),
 				.glyph = ResolveNavigationCategoryIconGlyph(
-					a_client,
 					a_category),
 				.count = a_count,
 				.expanded = &a_expanded,
@@ -527,7 +525,6 @@ namespace DearModdingUI
 					};
 					DrawCategoryHeader(
 						key.c_str(),
-						a_client,
 						category,
 						state->second,
 						category.pages.size());

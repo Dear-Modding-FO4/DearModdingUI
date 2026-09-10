@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/API.h>
+#include <DearModdingUI/IconGlyphs.h>
 
 #include <array>
 #include <cstddef>
@@ -29,6 +30,7 @@ namespace DearModdingUI
 		int32_t sortKey{ 0 };
 		std::string categoryId;
 		std::string iconName;
+		IconSelection iconSelection;
 	};
 
 	struct NavigationCategory
@@ -38,6 +40,7 @@ namespace DearModdingUI
 		std::string id;
 		int32_t sortKey{ 0 };
 		std::string iconName;
+		IconSelection iconSelection;
 
 		[[nodiscard]] bool HasHeading() const noexcept
 		{
@@ -55,12 +58,12 @@ namespace DearModdingUI
 		std::string iconName;
 		DMUI_ClientOrigin origin{ DMUI_CLIENT_ORIGIN_NATIVE };
 		std::string bridgeSourceLabel;
+		IconSelection iconSelection;
 	};
 
 	[[nodiscard]] char32_t ResolveNavigationClientIconGlyph(
 		const NavigationClient& a_client) noexcept;
 	[[nodiscard]] char32_t ResolveNavigationCategoryIconGlyph(
-		const NavigationClient& a_client,
 		const NavigationCategory& a_category) noexcept;
 
 	struct NavigationClientSection
@@ -102,6 +105,7 @@ namespace DearModdingUI
 		std::string category;
 		std::string summary;
 		int32_t sortKey{ 0 };
+		IconSelection iconSelection;
 	};
 
 	struct NavigationSearchRecord

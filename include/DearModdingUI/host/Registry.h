@@ -74,6 +74,7 @@ namespace DearModdingUI
 		DMUI_ActionCallback callback{ nullptr };
 		void* userData{ nullptr };
 		bool callbackFailed{ false };
+		IconSelection iconSelection;
 	};
 
 	struct RegisteredFrameObserver

@@ -37,119 +37,172 @@ namespace vmm_tests
 		});
 
 		runner.test("icon resolution follows semantic fallback chain", [] {
-			const auto cloudSun =
-				FindPhosphorIconGlyphOrZero("cloud-sun");
-			const auto sunHorizon =
-				FindPhosphorIconGlyphOrZero("sun-horizon");
-			const auto lightbulb =
-				FindPhosphorIconGlyphOrZero("lightbulb");
+			const auto wrench = FindPhosphorIconGlyphOrZero("wrench");
+			const auto hammer = FindPhosphorIconGlyphOrZero("hammer");
+			const auto robot = FindPhosphorIconGlyphOrZero("robot");
+			const auto brain = FindPhosphorIconGlyphOrZero("brain");
+			const auto layout = FindPhosphorIconGlyphOrZero("layout");
+			const auto archiveBox =
+				FindPhosphorIconGlyphOrZero("box-arrow-down");
 			require(
 				ResolveIconGlyph(IconKind::kClient, "acorn") ==
 						FindPhosphorIconGlyphOrZero("acorn") &&
 					ResolveIconGlyph(IconKind::kClient, "acorn") != char32_t{},
 				"full generated icon catalog was not consulted");
-			require(ResolveIconGlyph(IconKind::kCategory, "gear") ==
-					PhosphorGlyph::kGear,
-				"category did not prefer an explicit icon name");
-			require(ResolveClientIconGlyph(
-						"puzzle-piece",
-						"Performance",
-						"Weather Overhaul") ==
-					PhosphorGlyph::kPuzzlePiece,
-				"explicit client icon did not win");
-			const auto performance =
-				FindPhosphorIconGlyphOrZero("speedometer");
-			const auto weather = FindPhosphorIconGlyphOrZero("cloud-sun");
-			require(ResolveClientIconGlyph({}, "Performance", "Unknown") ==
-					performance,
-				"client category concept was not inferred");
-			require(ResolveClientIconGlyph({}, {}, "Weather Overhaul") == weather,
-				"whole-word display-name concept was not inferred");
-			require(ResolveClientIconGlyph({}, {}, "Weathering Steel") ==
-					PhosphorGlyph::kQuestion,
-				"display-name inference matched a concept substring");
-			require(ResolveClientIconGlyph(
-						{},
-						{},
-						"Audio Performance Toolkit") == performance,
-				"longest deterministic concept did not win");
-			require(ResolveClientIconGlyph(
-						{},
-						{},
-						"Lighting Graphics Toolkit") ==
-					FindPhosphorIconGlyphOrZero("image"),
-				"equal-length concepts did not use the stable lexical tie-break");
-			require(ResolveActionIconGlyph("clipboard-text") ==
-						PhosphorGlyph::kClipboardText &&
-					ResolveActionIconGlyph("trash") ==
-						PhosphorGlyph::kTrash &&
-					ResolveActionIconGlyph("arrow-counter-clockwise") ==
-						PhosphorGlyph::kArrowCounterClockwise,
-				"canonical action icon names did not resolve");
-			require(ResolveActionIconGlyph("unknown") == char32_t{} &&
-					ResolveActionIconGlyph("clear-cache") == char32_t{} &&
-					ResolveActionIconGlyph("restore-settings") == char32_t{} &&
-					ResolveClientIconGlyph({}, {}, "Unknown") ==
-						PhosphorGlyph::kQuestion,
-				"action and client misses lost distinct fallbacks");
+			const std::array normalizationCases{
+				std::pair{ "DearModdingUI", "dear-modding-ui" },
+				std::pair{ "UISettings", "ui-settings" },
+				std::pair{ "3D Camera", "3-d-camera" },
+				std::pair{ "arrow_counter.clockwise", "arrow-counter-clockwise" },
+				std::pair{ "  Power---Armor  ", "power-armor" },
+				std::pair{ "3d", "3d" }
+			};
+			for (const auto& [source, expected] : normalizationCases)
+				require(NormalizeIconName(source) == expected,
+					"runtime icon normalization drifted");
+			require(
+				ResolveNamedIconGlyphOrZero("archive-box") == archiveBox,
+				"accepted upstream alias did not resolve exactly");
+			require(
+				ResolveSemanticIconGlyph(
+					"hammer",
+					"Wrench Mod",
+					"General",
+					PhosphorGlyph::kQuestion) == hammer,
+				"explicit icon did not win over metadata");
+			require(
+				ResolveSemanticIconGlyph(
+					"unknown",
+					"Wrench Mod",
+					"General",
+					PhosphorGlyph::kQuestion) == wrench &&
+					ResolveClientIconGlyph({}, "General", "Wrench Mod") ==
+						wrench &&
+					ResolveInferredIconGlyphOrZero("Wrench Tools") == wrench,
+				"primary canonical phrase did not outrank secondary or tags");
+			require(
+				ResolveInferredIconGlyphOrZero("Power Armor") == robot &&
+					ResolveInferredIconGlyphOrZero("repairs") == wrench,
+				"domain phrase or generated tag coverage was lost");
+
+			const std::array ambiguousPrimary{
+				std::string_view{ "AI / UI" }
+			};
+			const std::array brainContext{ std::string_view{ "Brain" } };
+			const std::array mixedContext{
+				std::string_view{ "Cloud Sun" },
+				std::string_view{ "Brain" }
+			};
+			const std::array unrelatedContext{
+				std::string_view{ "General" }
+			};
+			const auto ambiguous = IconResolver::Resolve({
+				.primaryMetadata = ambiguousPrimary
+			});
+			const auto narrowed = IconResolver::Resolve({
+				.primaryMetadata = ambiguousPrimary,
+				.secondaryMetadata = brainContext
+			});
+			const auto unrelated = IconResolver::Resolve({
+				.primaryMetadata = ambiguousPrimary,
+				.secondaryMetadata = unrelatedContext
+			});
+			const auto narrowedWithUnrelated = IconResolver::Resolve({
+				.primaryMetadata = ambiguousPrimary,
+				.secondaryMetadata = mixedContext
+			});
+			require(
+				ambiguous.status == IconSelectionStatus::kAmbiguous &&
+					narrowed.HasSelection() && narrowed.glyph == brain &&
+					narrowedWithUnrelated.HasSelection() &&
+					narrowedWithUnrelated.glyph == brain &&
+					unrelated.status == IconSelectionStatus::kAmbiguous,
+				"ambiguity or secondary narrowing changed");
+			const std::array toolsPrimary{ std::string_view{ "Tools" } };
+			const auto toolsWithGeneral = IconResolver::Resolve({
+				.primaryMetadata = toolsPrimary,
+				.secondaryMetadata = unrelatedContext
+			});
+			require(
+				toolsWithGeneral.status == IconSelectionStatus::kAmbiguous,
+				"unrelated secondary context replaced ambiguous Tools");
+			const std::array firstOrder{
+				std::string_view{ "AI" },
+				std::string_view{ "UI" }
+			};
+			const std::array reverseOrder{
+				std::string_view{ "UI" },
+				std::string_view{ "AI" }
+			};
+			require(
+				IconResolver::Resolve({
+					.secondaryMetadata = firstOrder
+				}).status == IconSelectionStatus::kAmbiguous &&
+					IconResolver::Resolve({
+						.secondaryMetadata = reverseOrder
+					}).status == IconSelectionStatus::kAmbiguous,
+				"peer metadata order changed an ambiguous result");
+			require(
+				ResolveInferredIconGlyphOrZero("Detail") != brain &&
+					ResolveInferredIconGlyphOrZero("Fluid") != layout &&
+					ResolveInferredIconGlyphOrZero("X Frobnicator") ==
+						char32_t{} &&
+					ResolveInferredIconGlyphOrZero("X") ==
+						PhosphorGlyph::kX,
+				"short authoritative terms matched inside words");
+
 			require(
 				ResolveCategoryIconGlyph(
-					"Lighting",
-					"Community Shaders",
-					"dear-modding.community-shaders",
-					"cloud-sun",
-					"Sun Horizon") == sunHorizon &&
+					"Wrench",
+					"Wrench",
+					"wrench",
+					"hammer") == wrench &&
 					ResolveCategoryIconGlyph(
-						"Lighting",
-						"Community Shaders",
-						"dear-modding.community-shaders",
-						"cloud-sun",
-						"unknown") == lightbulb &&
-					ResolveClientIconGlyph(
-						"cloud-sun",
-						"Lighting",
-						"Community Shaders") == cloudSun,
-				"category override and client icon selection became coupled");
+						"Wrench",
+						"Wrench",
+						"wrench",
+						"hammer",
+						"robot") == robot,
+				"category inference inherited the matching client's icon");
+
+			const auto noMatch = ResolveIconSelection(
+				"unknown",
+				"Unmapped Frobnicator");
 			require(
-				ResolveIconGlyph(
-					IconKind::kCategory,
-					"unknown",
-					"Lighting") == lightbulb,
-				"category semantic fallback ignored its metadata");
+				noMatch.status == IconSelectionStatus::kNoMatch &&
+					noMatch.GlyphOr(PhosphorGlyph::kQuestion) ==
+						PhosphorGlyph::kQuestion &&
+					noMatch.GlyphOr(PhosphorGlyph::kFiles) ==
+						PhosphorGlyph::kFiles &&
+					noMatch.GlyphOr(PhosphorGlyph::kTerminalWindow) ==
+						PhosphorGlyph::kTerminalWindow &&
+					noMatch.GlyphOr({}) == char32_t{},
+				"surface-specific no-match defaults were not independent");
+
+			const auto invalidRaw = IconResolver::Resolve({
+				.explicitGlyph = char32_t{ 0x110000 }
+			});
 			NavigationClient navigationClient;
-			navigationClient.id = "dear-modding.community-shaders";
-			navigationClient.displayName = "Community Shaders";
-			navigationClient.iconName = "cloud-sun";
+			navigationClient.id = "wrench";
+			navigationClient.displayName = "Wrench";
+			navigationClient.iconName = "hammer";
+			navigationClient.iconSelection =
+				ResolveIconSelection("hammer", "Wrench");
 			NavigationCategory navigationCategory;
-			navigationCategory.id = "lighting";
-			navigationCategory.displayName = "Lighting";
-			navigationCategory.iconName = "sun-horizon";
+			navigationCategory.id = "wrench";
+			navigationCategory.displayName = "Wrench";
+			navigationCategory.iconSelection =
+				ResolveIconSelection({}, "Wrench");
 			navigationClient.categories.push_back(navigationCategory);
 			require(
-				ResolveNavigationClientIconGlyph(navigationClient) == cloudSun &&
+				ResolveNavigationClientIconGlyph(navigationClient) == hammer &&
 					ResolveNavigationCategoryIconGlyph(
-						navigationClient,
-						navigationClient.categories.front()) == sunHorizon,
-				"navigation client and category resolvers lost independent overrides");
+						navigationClient.categories.front()) == wrench,
+				"cached navigation selections were not independent");
+
 			NavigationSearchEntry page;
 			page.kind = NavigationItemKind::kPage;
-			page.displayName = "Unknown";
-			page.iconName = "sun-horizon";
-			page.category = "Lighting";
-			require(
-				ResolveNavigationSearchEntryGlyph(page) == sunHorizon,
-				"explicit page palette icon did not win");
-			page.iconName = "unknown";
-			page.displayName = "Lighting Feature";
-			require(
-				ResolveNavigationSearchEntryGlyph(page) == lightbulb,
-				"page-name palette inference did not follow explicit fallback");
-			page.displayName = "Unknown";
-			page.category = "Weather";
-			require(
-				ResolveNavigationSearchEntryGlyph(page) == weather,
-				"page category metadata was not inferred");
-			page.category = "Unknown";
+			page.iconSelection = noMatch;
 			require(
 				ResolveNavigationSearchEntryGlyph(page) ==
 					PhosphorGlyph::kFiles,
@@ -157,26 +210,32 @@ namespace vmm_tests
 
 			NavigationSearchEntry action;
 			action.kind = NavigationItemKind::kAction;
-			action.displayName = "Copy Records";
-			action.iconName = "trash";
-			require(
-				ResolveNavigationSearchEntryGlyph(action) ==
-					PhosphorGlyph::kTrash,
-				"explicit action palette icon did not win");
-			action.iconName = "unknown";
-			action.displayName = "Audio Feature";
+			action.iconSelection =
+				ResolveIconSelection("unknown", "Audio Feature");
 			require(
 				ResolveNavigationSearchEntryGlyph(action) ==
 					PhosphorGlyph::kSpeakerHigh,
-				"action-label palette inference did not run");
-			action.displayName = "Run";
+				"action palette did not use the shared cached match");
+			action.iconSelection = noMatch;
 			require(
 				ResolveNavigationSearchEntryGlyph(action) ==
-					PhosphorGlyph::kTerminalWindow,
-				"action palette miss lost the terminal fallback");
+						PhosphorGlyph::kTerminalWindow &&
+					ResolveActionIconGlyph(
+						"unknown",
+						"Unmapped Frobnicator") == char32_t{},
+				"action surfaces lost their distinct no-match defaults");
 			require(
-				ResolveActionIconGlyph("unknown") == char32_t{},
-				"toolbar actions stopped preserving their text-only contract");
+				ResolveAutomaticIconGlyph({}, "Wrench", PhosphorGlyph::kQuestion) ==
+						wrench &&
+					ResolveAutomaticIconGlyph(
+						PhosphorGlyph::kSun,
+						"Wrench",
+						PhosphorGlyph::kQuestion) == PhosphorGlyph::kSun &&
+					invalidRaw.status ==
+						IconSelectionStatus::kInvalidRawGlyph &&
+					invalidRaw.GlyphOr(PhosphorGlyph::kQuestion) ==
+						char32_t{ 0x110000 },
+				"automatic group or invalid raw-glyph semantics changed");
 			for (const auto settingsAction : kSettingsActionOrder)
 			{
 				const auto icon =

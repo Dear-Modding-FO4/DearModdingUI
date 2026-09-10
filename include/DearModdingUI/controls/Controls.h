@@ -178,7 +178,7 @@ namespace DearModdingUI
 		const char* a_hint,
 		std::string& a_search) noexcept;
 	void DrawSectionHeader(const char* a_text, char32_t a_glyph) noexcept;
-	void DrawSectionHeader(const char* a_text) noexcept;
+	void DrawSectionHeader(const char* a_text);
 	void DrawBulletText(const char* a_text) noexcept;
 	void DrawCollapsingSectionHeader(
 		const char* a_key,

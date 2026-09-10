@@ -873,7 +873,7 @@ namespace DearModdingUI
 		ImGui::TextWrapped("%s", a_text ? a_text : "");
 	}
 
-	void DrawSectionHeader(const char* a_text) noexcept
+	void DrawSectionHeader(const char* a_text)
 	{
 		DrawSectionHeader(
 			a_text,

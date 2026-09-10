@@ -220,7 +220,7 @@ namespace DearModdingUI
 			const RegisteredAction& a_action,
 			char32_t& a_glyph) noexcept
 		{
-			a_glyph = ResolveActionIconGlyph(a_action.iconName);
+			a_glyph = a_action.iconSelection.GlyphOr({});
 			return HasIconGlyph(a_glyph);
 		}
 

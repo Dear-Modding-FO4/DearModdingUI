@@ -68,16 +68,16 @@ The command palette searches mods, pages, and actions globally. A matching mod r
 and opens its lowest-`sortKey` landing page while expanding that mod in the sidebar.
 Navigation and normalized search metadata are built when registration closes;
 search results reference that immutable data rather than rebuilding it each frame.
-Named icon precedence is explicit valid name, semantic metadata inference,
-then the surface fallback. Clients infer from category metadata and
-whole-word display-name concepts before the question glyph. Category headings
-preserve the existing matching-client-category rule, then infer from the
-category display name before the question glyph. Palette pages infer from the
-page name and category before Files; palette actions infer from their label
-before Terminal Window. Page icons are palette-only: plain page sidebar and
-title rows retain their current text and selection markers. Header/toolbar
-actions intentionally keep their existing text-only presentation when an icon
-name is absent or unknown.
+Named icon precedence is explicit valid name, catalog-driven metadata
+inference, then the surface fallback. Clients infer from their display name
+first and category display names second before Question. Category headings use
+only their own explicit icon and display name before Question; they do not
+inherit a matching client's icon. Palette pages infer from the page name and
+category before Files. Actions infer once from their label and share that
+selection between the toolbar and palette; an unmatched toolbar remains
+text-only while an unmatched palette entry uses Terminal Window. Page icons
+are palette-only: plain page sidebar and title rows retain their current text
+and selection markers.
 Raw-glyph links and section headers keep their separate contract: zero means
 no icon, and an unavailable or unrepresentable glyph uses text fallback.
 `SettingGroup::glyph` uses a chosen nonzero glyph or label inference;
@@ -117,15 +117,19 @@ Body-font families are enumerated from subfolders of
 Atkinson Hyperlegible and Jost ship with the host, and users can add another family without changing
 code. A missing or failed family falls back to Jost, while a missing icon font falls back to text-only
 labels without disabling the menu or the C ABI host.
-Category icon inference uses the human-readable category display name. Stable category IDs are used
-for expansion identity, so equal labels with different IDs remain distinct.
-The semantic concepts are `ai`, `armor`, `audio`, `building`, `camera`, `combat`,
-`compatibility`, `controls`, `crafting`, `debug`, `dev-tools`, `diagnostics`, `dialogue`, `difficulty`,
-`economy`, `gameplay`, `general`, `graphics`, `hud`, `input`, `interface`, `inventory`, `leveling`,
-`lighting`, `logging`, `map`, `memory`, `misc`, `network`, `npc`, `other`, `overlay`, `performance`,
-`perks`, `physics`, `post-process`, `power-armor`, `quest`, `radio`, `save`,
-`settlement`, `skills`, `stability`, `stealth`, `survival`, `ui`, `unloaded`, `vats`, `video`,
-`visuals`, `weapons`, and `weather`.
+Category icon inference uses the human-readable category display name. Stable
+category IDs are used for expansion identity, so equal labels with different
+IDs remain distinct. The resolver indexes the complete shipped Phosphor names,
+accepted upstream aliases, descriptive tags, and a small reviewed domain
+vocabulary. It uses whole normalized words, reports ambiguity instead of
+choosing alphabetically, and lets secondary metadata narrow only candidates
+already found in primary metadata.
+
+Icon inference is a header-only API helper rather than a new C ABI operation.
+Older client binaries therefore retain the helper behavior they compiled until
+they are rebuilt against the updated API. Raw-glyph section and link calls
+still treat zero as no icon. An unset declarative `SettingGroup::glyph`
+continues to request automatic label inference, and dividers remain iconless.
 
 ## Shared theme and widgets
 

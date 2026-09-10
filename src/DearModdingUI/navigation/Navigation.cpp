@@ -23,18 +23,19 @@ namespace DearModdingUI
 			return result;
 		}
 
-		[[nodiscard]] IconConceptMatch BestClientCategoryConcept(
+		[[nodiscard]] std::string ClientCategoryText(
 			const NavigationClient& a_client)
 		{
-			IconConceptMatch best;
+			std::string result;
 			for (const auto& category : a_client.categories)
 			{
-				const auto candidate =
-					FindIconConceptMatch(category.displayName, false);
-				if (PreferIconConceptMatch(candidate, best))
-					best = candidate;
+				if (category.displayName.empty())
+					continue;
+				if (!result.empty())
+					result.push_back(' ');
+				result.append(category.displayName);
 			}
-			return best;
+			return result;
 		}
 
 		[[nodiscard]] std::optional<NavigationMatchQuality> MatchQuality(
@@ -94,33 +95,13 @@ namespace DearModdingUI
 	[[nodiscard]] char32_t ResolveNavigationClientIconGlyph(
 		const NavigationClient& a_client) noexcept
 	{
-		try
-		{
-			if (const auto glyph =
-					ResolveNamedIconGlyphOrZero(a_client.iconName))
-				return glyph;
-			const auto category = BestClientCategoryConcept(a_client);
-			return ResolveClientIconGlyph(
-				{},
-				category.slug,
-				a_client.displayName);
-		}
-		catch (...)
-		{
-			return PhosphorGlyph::kQuestion;
-		}
+		return a_client.iconSelection.GlyphOr(PhosphorGlyph::kQuestion);
 	}
 
 	char32_t ResolveNavigationCategoryIconGlyph(
-		const NavigationClient& a_client,
 		const NavigationCategory& a_category) noexcept
 	{
-		return ResolveCategoryIconGlyph(
-			a_category.displayName,
-			a_client.displayName,
-			a_client.id,
-			a_client.iconName,
-			a_category.iconName);
+		return a_category.iconSelection.GlyphOr(PhosphorGlyph::kQuestion);
 	}
 
 	const NavigationClient* NavigationModel::FindClient(
@@ -217,7 +198,8 @@ namespace DearModdingUI
 				{},
 				client->iconName,
 				client->origin,
-				client->bridgeSourceLabel
+				client->bridgeSourceLabel,
+				{}
 			};
 
 			std::vector<const RegisteredPage*> orderedPages;
@@ -252,7 +234,10 @@ namespace DearModdingUI
 					page->summary,
 					page->sortKey,
 					{},
-					page->iconName
+					page->iconName,
+					ResolveIconSelection(
+						page->iconName,
+						page->displayName)
 				});
 			}
 			if (!uncategorized.pages.empty())
@@ -283,7 +268,10 @@ namespace DearModdingUI
 					{},
 					category->id,
 					category->sortKey,
-					category->iconName
+					category->iconName,
+					ResolveIconSelection(
+						category->iconName,
+						category->displayName)
 				};
 				for (const auto* page : orderedPages)
 				{
@@ -298,13 +286,31 @@ namespace DearModdingUI
 						page->summary,
 						page->sortKey,
 						category->id,
-						page->iconName
+						page->iconName,
+						ResolveIconSelection(
+							page->iconName,
+							page->displayName,
+							category->displayName)
 					});
 				}
 				if (!navigationCategory.pages.empty())
 					navigationClient.categories.push_back(
 						std::move(navigationCategory));
 			}
+			std::vector<std::string_view> categoryLabels;
+			categoryLabels.reserve(navigationClient.categories.size());
+			for (const auto& category : navigationClient.categories)
+			{
+				if (!category.displayName.empty())
+					categoryLabels.push_back(category.displayName);
+			}
+			const std::array primary{ std::string_view{
+				navigationClient.displayName } };
+			navigationClient.iconSelection = IconResolver::Resolve({
+				.explicitName = navigationClient.iconName,
+				.primaryMetadata = primary,
+				.secondaryMetadata = categoryLabels
+			});
 			model.clients.push_back(std::move(navigationClient));
 		}
 		for (size_t clientIndex = 0; clientIndex < model.clients.size();
@@ -378,7 +384,7 @@ namespace DearModdingUI
 		m_searchIndex.reserve(entryCount);
 		for (const auto& client : clients)
 		{
-			const auto category = BestClientCategoryConcept(client);
+			const auto category = ClientCategoryText(client);
 			m_searchIndex.push_back(MakeSearchRecord({
 				NavigationItemKind::kClient,
 				client.handle,
@@ -389,9 +395,10 @@ namespace DearModdingUI
 				client.id,
 				client.displayName,
 				client.iconName,
-				std::string{ category.slug },
+				category,
 				{},
-				0
+				0,
+				client.iconSelection
 			}));
 			for (const auto& category : client.categories)
 			{
@@ -409,7 +416,8 @@ namespace DearModdingUI
 						page.iconName,
 						page.categoryDisplayName,
 						page.summary,
-						page.sortKey
+						page.sortKey,
+						page.iconSelection
 					}));
 				}
 			}
@@ -429,7 +437,8 @@ namespace DearModdingUI
 				action.iconName,
 				{},
 				action.tooltip,
-				action.sortKey
+				action.sortKey,
+				action.iconSelection
 			}));
 		}
 	}
@@ -440,22 +449,13 @@ namespace DearModdingUI
 		switch (a_entry.kind)
 		{
 		case NavigationItemKind::kClient:
-			return ResolveClientIconGlyph(
-				a_entry.iconName,
-				a_entry.category,
-				a_entry.clientDisplayName);
+			return a_entry.iconSelection.GlyphOr(
+				PhosphorGlyph::kQuestion);
 		case NavigationItemKind::kAction:
-			return ResolveSemanticIconGlyph(
-				a_entry.iconName,
-				a_entry.displayName,
-				{},
+			return a_entry.iconSelection.GlyphOr(
 				PhosphorGlyph::kTerminalWindow);
 		default:
-			return ResolveSemanticIconGlyph(
-				a_entry.iconName,
-				a_entry.displayName,
-				a_entry.category,
-				PhosphorGlyph::kFiles);
+			return a_entry.iconSelection.GlyphOr(PhosphorGlyph::kFiles);
 		}
 	}
 
