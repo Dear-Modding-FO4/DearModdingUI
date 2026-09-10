@@ -12,29 +12,6 @@
 #include <DearModdingUI/Presentation.h>
 #include <DearModdingUI/Client.h>
 
-namespace DearModdingUI
-{
-	float SettingsActionButtonWidth(
-		SettingsAction,
-		const char*,
-		float a_buttonExtent) noexcept
-	{
-		return a_buttonExtent;
-	}
-
-	bool DrawSettingsActionButton(
-		const char*,
-		const ImVec2&,
-		const ImVec2&,
-		SettingsAction,
-		const char*,
-		const char*,
-		bool) noexcept
-	{
-		return false;
-	}
-}
-
 namespace vmm_tests
 {
 	namespace

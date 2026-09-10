@@ -105,6 +105,7 @@ local source_sets = {
         "src/DearModdingUI/host/RenderExecution.cpp",
         "src/DearModdingUI/host/Status.cpp",
         "src/DearModdingUI/host/UIAdapter*.cpp",
+        "src/DearModdingUI/controls/Controls.cpp",
         "src/DearModdingUI/controls/SettingsTable.cpp",
         "src/DearModdingUI/navigation/Navigation*.cpp",
         "src/DearModdingUI/pages/Health.cpp",
@@ -120,7 +121,6 @@ local source_sets = {
     ui = {
         "src/DearModdingUI/host/Host*.cpp",
         "src/DearModdingUI/host/Shell.cpp",
-        "src/DearModdingUI/controls/Controls.cpp",
         "src/DearModdingUI/controls/Faq.cpp",
         "src/DearModdingUI/controls/LinkRow.cpp",
         "src/DearModdingUI/navigation/CommandPalette.cpp",

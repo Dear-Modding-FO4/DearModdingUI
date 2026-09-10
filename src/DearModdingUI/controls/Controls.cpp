@@ -416,14 +416,14 @@ namespace DearModdingUI
 			(std::max)(ImGui::GetContentRegionAvail().x, 0.0f),
 			height
 		};
-		if (splitArrow)
-			ImGui::SetNextItemAllowOverlap();
 		auto pressed =
 			a_options.highlightStyle == RowHighlightStyle::kSelectable ?
 			ImGui::Selectable(
 				"##Row",
 				a_options.selected,
-				ImGuiSelectableFlags_None,
+				splitArrow ?
+					ImGuiSelectableFlags_NoAutoClosePopups :
+					ImGuiSelectableFlags_None,
 				size) :
 			ImGui::InvisibleButton("##Row", size);
 		const auto hovered = ImGui::IsItemHovered();
@@ -433,17 +433,55 @@ namespace DearModdingUI
 		auto arrowPressed = false;
 		if (splitArrow)
 		{
-			const auto restore = ImGui::GetCursorScreenPos();
+			const auto rowID = ImGui::GetItemID();
+			const auto pressOriginID = window->GetID("##RowPressOrigin");
+			constexpr auto kPressOriginNone = 0;
+			constexpr auto kPressOriginArrow = 1;
+			constexpr auto kPressOriginLabel = 2;
 			const auto slotWidth =
 				ImGui::GetFontSize() +
 				ImGui::GetStyle().FramePadding.x * 2.0f;
-			ImGui::SetCursorScreenPos(rect.Min);
-			arrowPressed = ImGui::InvisibleButton(
-				"##LeadingAffordance",
-				{ slotWidth, rect.GetHeight() });
-			window->DC.CursorPos = restore;
-			if (arrowPressed)
-				pressed = false;
+			auto* storage = ImGui::GetStateStorage();
+			if (ImGui::IsItemActivated())
+			{
+				const auto& context = *ImGui::GetCurrentContext();
+				const auto pressOrigin =
+					context.ActiveId == rowID &&
+						context.ActiveIdSource == ImGuiInputSource_Mouse &&
+						context.ActiveIdClickOffset.x < slotWidth ?
+					kPressOriginArrow :
+					context.ActiveIdSource == ImGuiInputSource_Mouse ?
+						kPressOriginLabel :
+						kPressOriginNone;
+				storage->SetInt(pressOriginID, pressOrigin);
+			}
+			if (pressed)
+			{
+				const auto releaseOverArrow =
+					ImGui::GetIO().MousePos.x < rect.Min.x + slotWidth;
+				switch (storage->GetInt(pressOriginID))
+				{
+				case kPressOriginArrow:
+					arrowPressed = releaseOverArrow;
+					pressed = false;
+					break;
+				case kPressOriginLabel:
+					pressed = !releaseOverArrow;
+					break;
+				default:
+					break;
+				}
+			}
+			if (ImGui::IsItemDeactivated())
+				storage->SetInt(pressOriginID, kPressOriginNone);
+			if (pressed &&
+				a_options.highlightStyle ==
+					RowHighlightStyle::kSelectable &&
+				(window->Flags & ImGuiWindowFlags_Popup) &&
+				(ImGui::GetItemFlags() & ImGuiItemFlags_AutoClosePopups))
+			{
+				ImGui::CloseCurrentPopup();
+			}
 		}
 		auto* drawList = ImGui::GetWindowDrawList();
 		if (a_options.highlightStyle == RowHighlightStyle::kRoundedFill &&
