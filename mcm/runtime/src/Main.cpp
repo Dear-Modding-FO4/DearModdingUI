@@ -1,4 +1,5 @@
 #include <DearModdingUI/MCM/Availability.h>
+#include <DearModdingUI/MCM/DiagnosticLogging.h>
 #include <DearModdingUI/MCM/ExternalEventDispatcher.h>
 #include <DearModdingUI/MCM/F4SETaskScheduler.h>
 #include <DearModdingUI/MCM/FileChoices.h>
@@ -10,11 +11,10 @@
 #include <DearModdingUI/MCM/PapyrusActionExecutor.h>
 #include <DearModdingUI/MCM/PropertyValueSource.h>
 #include <DearModdingUI/MCM/RexDiagnosticReporter.h>
-#include <DearModdingUI/MCM/ScaleformSpike.h>
 #include <DearModdingUI/MCM/SettingsIni.h>
 
-#include <DearModdingUI/MCM/Compatibility.h>
 #include <DearModdingUI/MCM/TextRendering.h>
+#include <DearModdingUI/MCM/Compatibility.h>
 #include <DearModdingUI/MCM/Win32FileListingAdapter.h>
 
 #include <DearModdingUI/Client.h>
@@ -217,55 +217,6 @@ namespace DearModdingUI::MCM
 				a_record.images);
 		}
 
-		struct InertRowsLogRecord
-		{
-			std::string_view mod;
-			std::string_view clientId;
-			std::string_view page;
-			size_t conditionFalse{};
-			size_t conditionPending{};
-			size_t unsupported{};
-			size_t undeclared{};
-			size_t keybindUnbound{};
-			size_t keybindUndeclared{};
-			size_t keybindDefinitionsMissing{};
-			size_t keybindDefinitionsInvalid{};
-			size_t userKeybindsInvalid{};
-			size_t mcmMissing{};
-			size_t loadSaveRequired{};
-			size_t valuePending{};
-			size_t valueUnavailable{};
-			size_t valueFailed{};
-		};
-
-		void LogInertRows(const InertRowsLogRecord& a_record)
-		{
-			REX::INFO(
-				"[dmui.mcm.inert-rows] mod=\"{}\" client_id=\"{}\" page=\"{}\" condition_false={} "
-				"condition_pending={} unsupported={} undeclared={} "
-				"keybind_unbound={} keybind_undeclared={} "
-				"keybind_definitions_missing={} keybind_definitions_invalid={} "
-				"user_keybinds_invalid={} mcm_missing={} load_save_required={} "
-				"value_pending={} value_unavailable={} value_failed={}"sv,
-				a_record.mod,
-				a_record.clientId,
-				a_record.page,
-				a_record.conditionFalse,
-				a_record.conditionPending,
-				a_record.unsupported,
-				a_record.undeclared,
-				a_record.keybindUnbound,
-				a_record.keybindUndeclared,
-				a_record.keybindDefinitionsMissing,
-				a_record.keybindDefinitionsInvalid,
-				a_record.userKeybindsInvalid,
-				a_record.mcmMissing,
-				a_record.loadSaveRequired,
-				a_record.valuePending,
-				a_record.valueUnavailable,
-				a_record.valueFailed);
-		}
-
 		[[nodiscard]] size_t DescriptorCount(const MappedPage& a_page) noexcept
 		{
 			size_t count{};
@@ -285,43 +236,13 @@ namespace DearModdingUI::MCM
 		void LogErrors(const LoadResult& a_result)
 		{
 			for (const auto& diagnostic : a_result.diagnostics)
-			{
-				const auto warning =
-					diagnostic.severity == DiagnosticSeverity::kWarning;
-				if (diagnostic.location.empty())
-				{
-					if (warning)
-						REX::WARN(
-							"DearModdingUI-MCM: {}: {}"sv,
-							diagnostic.source,
-							diagnostic.message);
-					else
-						REX::ERROR(
-							"DearModdingUI-MCM: {}: {}"sv,
-							diagnostic.source,
-							diagnostic.message);
-				}
-				else
-				{
-					if (warning)
-						REX::WARN(
-							"DearModdingUI-MCM: {}: {}: {}"sv,
-							diagnostic.source,
-							diagnostic.location,
-							diagnostic.message);
-					else
-						REX::ERROR(
-							"DearModdingUI-MCM: {}: {}: {}"sv,
-							diagnostic.source,
-							diagnostic.location,
-							diagnostic.message);
-				}
-			}
+				LogDiagnostic(diagnostic);
 		}
 
 		void RegisterConfig(
 			const std::filesystem::path& a_config,
-			const TextResolver& a_textResolver) noexcept
+			const TextResolver& a_textResolver,
+			const UserKeybinds& a_keybinds) noexcept
 		{
 			try
 			{
@@ -409,9 +330,6 @@ namespace DearModdingUI::MCM
 					LoadSettingsIni(a_config.parent_path() / "settings.ini");
 				const auto definitions =
 					LoadKeybindDefinitions(a_config.parent_path() / "keybinds.json");
-				const auto keybinds = LoadUserKeybinds(
-					std::filesystem::current_path() /
-					"Data" / "MCM" / "Settings" / "Keybinds.json");
 				for (size_t index = 0; index < result.pages.size(); ++index)
 				{
 					auto page =
@@ -420,7 +338,7 @@ namespace DearModdingUI::MCM
 					ApplyKeybinds(
 						*page,
 						definitions,
-						keybinds,
+						a_keybinds,
 						*mod->diagnostics);
 					ResolveActionAvailability(*page, *mod->actions);
 					auto fileChoices = AttachFileChoices(
@@ -429,8 +347,7 @@ namespace DearModdingUI::MCM
 						*mod->diagnostics,
 						PathText(a_config));
 					BindPage(*page, *mod->values, CurrentMcmState);
-					const auto summary =
-						SummarizeCompatibility(*page, *mod->values);
+					const auto summary = SummarizeCompatibility(*page);
 					const auto compatibility =
 						SummarizeActionableCompatibility(*page);
 					if (!compatibility.empty())
@@ -457,41 +374,6 @@ namespace DearModdingUI::MCM
 						summary.actions,
 						summary.images
 					});
-					const auto inert = SummarizeInertReasons(*page);
-					const InertRowsLogRecord inertRecord{
-						displayName,
-						clientId,
-						page->displayName,
-						inert[static_cast<size_t>(
-							InertReason::kConditionFalse)],
-						inert[static_cast<size_t>(
-							InertReason::kConditionPending)],
-						inert[static_cast<size_t>(
-							InertReason::kUnsupported)],
-						inert[static_cast<size_t>(
-							InertReason::kUndeclaredModSetting)],
-						inert[static_cast<size_t>(
-							InertReason::kKeybindUnbound)],
-						inert[static_cast<size_t>(
-							InertReason::kKeybindDefinitionMissing)],
-						inert[static_cast<size_t>(
-							InertReason::kKeybindDefinitionsMissing)],
-						inert[static_cast<size_t>(
-							InertReason::kKeybindDefinitionsInvalid)],
-						inert[static_cast<size_t>(
-							InertReason::kKeybindBindingsInvalid)],
-						inert[static_cast<size_t>(
-							InertReason::kMcmNotInstalled)],
-						inert[static_cast<size_t>(
-							InertReason::kRuntimeNotReady)],
-						inert[static_cast<size_t>(
-							InertReason::kValuePending)],
-						inert[static_cast<size_t>(
-							InertReason::kValueMissing)],
-						inert[static_cast<size_t>(
-							InertReason::kValueFailed)]
-					};
-					LogInertRows(inertRecord);
 					descriptors += DescriptorCount(*page);
 					BindActions(
 						*page,
@@ -645,6 +527,9 @@ namespace DearModdingUI::MCM
 						"DearModdingUI-MCM: no MCM configuration directory was found"sv);
 					return;
 				}
+				const auto keybinds = LoadUserKeybinds(
+					std::filesystem::current_path() /
+					"Data" / "MCM" / "Settings" / "Keybinds.json");
 				for (const auto& entry : entries)
 				{
 					if (!entry.is_directory(error))
@@ -654,7 +539,7 @@ namespace DearModdingUI::MCM
 					}
 					const auto config = entry.path() / "config.json";
 					if (std::filesystem::is_regular_file(config, error))
-						RegisterConfig(config, a_textResolver);
+						RegisterConfig(config, a_textResolver, keybinds);
 					error.clear();
 				}
 			}
@@ -705,17 +590,11 @@ namespace DearModdingUI::MCM
 				return;
 			if (a_message->type == F4SE::MessagingInterface::kPostPostLoad)
 			{
-#if defined(DMUI_MCM_SCALEFORM_SPIKE)
-				RegisterScaleformSpike();
-#endif
 				DetectMcmInstallation();
 			}
 			else if (a_message->type ==
 					F4SE::MessagingInterface::kPreLoadGame)
 			{
-#if defined(DMUI_MCM_SCALEFORM_SPIKE)
-				StopScaleformSpikeForGameTransition();
-#endif
 				s_runtimeReady.store(false, std::memory_order_release);
 			}
 			else if (a_message->type ==
@@ -729,10 +608,6 @@ namespace DearModdingUI::MCM
 					a_message->type == F4SE::MessagingInterface::kNewGame ||
 					a_message->type == F4SE::MessagingInterface::kGameLoaded)
 			{
-#if defined(DMUI_MCM_SCALEFORM_SPIKE)
-				if (a_message->type == F4SE::MessagingInterface::kNewGame)
-					StopScaleformSpikeForGameTransition();
-#endif
 				const auto wasReady =
 					s_runtimeReady.exchange(true, std::memory_order_acq_rel);
 				if (!wasReady)

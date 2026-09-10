@@ -142,11 +142,6 @@ jobs:
             if ($exports -match 'DMUI_GetHostAPI|DMUI_GetImGuiVersionNum|DMUI_GetStyleMetrics|\big[A-Z][A-Za-z0-9_]*\b') {
               throw 'Obsolete UI exports are present.'
             }
-            $mcm = [Text.Encoding]::ASCII.GetString(
-              [IO.File]::ReadAllBytes(".Build/$variant/F4SE/Plugins/DearModdingUI-MCM.dll"))
-            if ($mcm.Contains('Scaleform Context Spike') -ne ($variant -eq 'test')) {
-              throw "Incorrect MCM probe configuration in $variant."
-            }
           }
           $client = '.Build/test/F4SE/Plugins/dmui-test-client.dll'
           $imports = (dumpbin /imports $client) -join "`n"

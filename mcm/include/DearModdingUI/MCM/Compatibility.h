@@ -500,9 +500,6 @@ namespace DearModdingUI::MCM
 		size_t resolvedKeybinds{};
 		size_t actions{};
 		size_t images{};
-		size_t pendingConditions{};
-		size_t unevaluableConditions{};
-		size_t visibleRows{};
 	};
 
 	enum class DiagnosticSeverity : uint8_t

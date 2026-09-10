@@ -22,6 +22,11 @@ compatibility gates. Discovery may succeed before the host plugin initializes; `
 registration then return `DMUI_RESULT_HOST_NOT_INITIALIZED`. Export presence does not mean the
 renderer is ready: register at `kPostPostLoad` and wait for exactly one lifecycle callback.
 
+Host updates preserve unchanged operations at their existing table offsets and
+append new operations. Clients negotiate optional capabilities independently, so
+a missing new entry does not disable older operations they already use. Internal
+implementation and file-layout changes do not change either ABI.
+
 Client, category, page, action, hotkey-action, frame-observer, and page-activity-observer registration closes when the first valid
 active-swapchain `Present` begins host initialization. Register them immediately after the client. All descriptor strings are copied;
 callback and userdata pointers must remain valid for the process lifetime. IDs use ASCII letters,
@@ -61,6 +66,8 @@ appear there. `selectPage` accepts settings pages, switches both the active mod 
 window, and falls back deterministically if the previous selection is not available.
 The command palette searches mods, pages, and actions globally. A matching mod ranks above its pages
 and opens its lowest-`sortKey` landing page while expanding that mod in the sidebar.
+Navigation and normalized search metadata are built when registration closes;
+search results reference that immutable data rather than rebuilding it each frame.
 Named icon precedence is explicit valid name, semantic metadata inference,
 then the surface fallback. Clients infer from category metadata and
 whole-word display-name concepts before the question glyph. Category headings
@@ -100,6 +107,10 @@ a local draft; Apply persists all editable values once to
 `Data\F4SE\Plugins\DearModdingUI.toml`, while Revert or leaving the view discards the draft. UI scale
 and body-font changes rebuild the atlas only after Apply. Editable values use the `[Additional]` TOML
 table.
+
+The runtime retains normalized, typed settings rather than reparsing their TOML
+representation during drawing. Save operations serialize those values, and a
+failed save leaves both the active settings and unapplied draft unchanged.
 
 Body-font families are enumerated from subfolders of
 `Data\F4SE\Plugins\DearModdingUI\Fonts`; the selected regular face is rebuilt only between frames.

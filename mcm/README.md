@@ -6,9 +6,12 @@
 independent of rendering, game, and F4SE headers.
 
 The `runtime` subdirectory contains the separate bridge plugin's entry point and
-game-facing adapters. Only that target depends on F4SE; the parser and binding
-library stay in `src` and `include`. Synthetic MCM scenarios live in
-`../tests/fixtures`, not in production bridge code.
+game-facing adapters. Only that target depends on F4SE. Pure parsing, control
+decoding and mapping, value caches and conditions, value-source routing, and
+page binding stay under `src\configuration`, `src\mapping`, and `src\bindings`,
+with shared private helpers in `src\support`. Public pure interfaces stay under
+`include`. Synthetic MCM scenarios live in `..\tools\preview\fixtures`, not in
+production bridge code.
 
 `ParseConfig` and `LoadConfig` are `noexcept` and total. Input is third-party JSON, so every failure
 is diagnosed and skipped rather than thrown or aborted on, and condition nesting is capped at
@@ -31,7 +34,10 @@ paragraph boundaries, strips tags, and decodes the five common named entities pl
 hexadecimal numeric entities. A control-level alignment is the default; the last valid paragraph
 alignment overrides it for the resolved read-only control.
 The mapper stores presentations on mapped rows. Each final binary calls `AttachTextRendering` from
-the consumer adapter outside this pure module.
+the game-independent consumer adapter at `adapters\include\DearModdingUI\MCM\TextRendering.h`.
+Consumers add `mcm\adapters\include` and include `<DearModdingUI/MCM/TextRendering.h>`.
+There is no rendering adapter in the pure library's include root. Rendering goes
+through stable `dmui::ui` calls rather than a raw ImGui dependency.
 Section headings use the same opt-in markup normalization before category icon inference.
 
 `ParseConfig` and `LoadConfig` accept an optional display-only resolver for exact `$...` keys,
@@ -56,6 +62,8 @@ attemptable; only settings proven absent are disabled.
 `ParseKeybindDefinitions` and `LoadKeybindDefinitions` read each mod's
 `Data\MCM\Config\<folder>\keybinds.json`; `ParseUserKeybinds` and `LoadUserKeybinds` read the global
 `Data\MCM\Settings\Keybinds.json`. A hotkey matches by definition `modName` and control `id`.
+The runtime reads the global user file once per configuration discovery pass
+and applies that immutable snapshot to every discovered mod.
 Declared keys without a user entry render unbound, while controls absent from the definitions file
 render as unable to be bound. The keyboard, mouse, and gamepad names use F4SE's unified DirectInput
 macro codes. Hotkeys are deliberately read-only: MCM dispatches from its in-memory map, so external
@@ -194,13 +202,16 @@ does not produce false whole-menu close/open pairs. Accepted declared mod-settin
 separate from value storage.
 
 Settings declarations and action availability are resolved before registration diagnostics are
-classified. Detailed compatibility and inert-reason counts remain INFO-level debug logs. Durable
-Health warnings are limited to actionable faults discovered after parsing: unsupported runtime
-actions and undeclared persisted mod settings. Locally owned disclosure toggles are not persisted
-settings and therefore do not produce that warning. Supported action counts, false or pending
-conditions, optional unbound keys, pre-save runtime availability, and pending or unavailable value
-snapshots remain live page state rather than append-only startup diagnostics.
+classified. Static compatibility counts remain INFO-level debug logs. Durable Health warnings are
+limited to actionable faults discovered after parsing: unsupported runtime actions and undeclared
+persisted mod settings. Locally owned disclosure toggles are not persisted settings and therefore
+do not produce that warning. Supported action counts, false or pending conditions, optional unbound
+keys, pre-save runtime availability, and pending or unavailable value snapshots remain live page
+state rather than append-only startup diagnostics.
 
+Parser diagnostics are logged before a client is created, including terminal
+failures that produce no configuration. A connected client then receives each
+durable diagnostic once; transient runtime failures remain log-only.
 Parser diagnostics continue to own unknown or unsupported controls, sources, and images, so their
 original warning severity, source location, and message reach Health without a duplicate page
 summary. Unsupported images retain their metadata, conditions, warning, and counts but emit no
@@ -211,48 +222,3 @@ warning. Genuinely empty pages and malformed controls retain their diagnostics.
 Load-bearing unsupported controls remain visible and disabled. The preview accepts
 `DMUI_PREVIEW_MCM_INSTALLED=0` and `DMUI_PREVIEW_GAME_LOADED=0` to inspect the missing-MCM and
 main-menu states without adding command-line surface.
-
-## Test-release Scaleform context gate
-
-The test release registers a private diagnostic client at F4SE `kPostPostLoad`.
-The release package excludes the probe implementation. The page never starts a
-probe automatically.
-
-```powershell
-$projectRoot = (Resolve-Path -LiteralPath '.').Path
-xmake f -P "$projectRoot" -m release --test-release=y
-xmake build -P "$projectRoot" -y DearModdingUI-MCM
-```
-
-To return to the standard build:
-
-```powershell
-xmake f -P "$projectRoot" -m release --test-release=n
-xmake build -P "$projectRoot" -y DearModdingUI-MCM
-```
-
-After launching the game with the opt-in build:
-
-1. Open the DearModdingUI menu and select **Scaleform Context Spike**.
-2. Open the real PauseMenu/MCM, leave it open, and open DearModdingUI over it. Choose
-   **Inspect real PauseMenu** to capture a read-only reference.
-3. Close DearModdingUI and the real PauseMenu, then reopen the spike page. Choose
-   **Start isolated context**, and watch the bounded five-second
-   run. The private `MainMenu` movie is loaded through the engine `LoadMovie` path but is never
-   registered in `UI::menuMap`, inserted into the menu stack, rendered by this probe, or given input.
-4. Choose **Stop** at any time. Teardown requests nonblocking rendering shutdown and retains the
-   movie until the UI task thread confirms that shutdown completed.
-
-   A context verdict is recorded before rendering shutdown and survives a later Stop or game-load
-   request. Cleanup status remains separate, so a retained movie cannot appear successfully released.
-
-   `PauseMode` is diagnostic metadata, not a pass/fail requirement: even the working real menu did not
-   return a Boolean through the original probe. The page and log now retain its raw type/value from
-   both path and member lookups, distinguishing lookup failure from a non-Boolean value. Reference
-   inspection is a single snapshot; it does not measure advancement or advance the real movie.
-
-   A pass requires the private movie to advance and expose the genuine MainMenu, F4SE, MCM document,
-PauseMenu code-object, and read-only `GetMCMVersionCode` callback path. A blocked result is a valid
-spike outcome and reports the missing context instead of fabricating it. Even a pass proves only
-context/bootstrap and lifetime behavior. It does not prove pixel rendering, input delivery, real
-settings writes, or embedded MCM compatibility, and it does not generate screenshots.

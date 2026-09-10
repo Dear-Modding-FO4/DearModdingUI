@@ -1,7 +1,7 @@
 #include "Harness.h"
 
 #include <GeneralTestFixtures.h>
-#include <DearModdingUI/UIAdapter.h>
+#include <DearModdingUI/host/UIAdapter.h>
 
 #include <memory>
 #include <string>

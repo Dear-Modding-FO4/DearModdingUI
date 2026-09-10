@@ -104,10 +104,6 @@ namespace DearModdingUI::MCM
 		const GroupCondition& a_condition,
 		const ConditionValueResolver& a_resolve);
 
-	[[nodiscard]] PageCompatibilitySummary SummarizeCompatibility(
-		const MappedPage& a_page,
-		const ValueSource& a_source);
-
 	class McmEventDispatcher
 	{
 	public:
@@ -196,9 +192,6 @@ namespace DearModdingUI::MCM
 
 		std::vector<std::reference_wrapper<ValueSource>> sources_;
 	};
-
-	[[nodiscard]] std::vector<size_t> SummarizeInertReasons(
-		const MappedPage& a_page);
 
 	// The source must outlive the page, whose descriptors capture it by reference.
 	void BindPage(MappedPage& a_page, ValueSource& a_source);

@@ -27,15 +27,6 @@ struct VS_OUTPUT
 	float2 TexCoord: TEXCOORD0;
 };
 
-VS_OUTPUT VS_Main(uint vertexID : SV_VertexID)
-{
-	VS_OUTPUT output;
-	output.TexCoord = float2((vertexID << 1) & 2, vertexID & 2);
-	output.Position = float4(output.TexCoord * 2.0f - 1.0f, 0.0f, 1.0f);
-	output.Position.y = -output.Position.y;
-	return output;
-}
-
 float2 Hash22(float2 p)
 {
 	float3 p3 = frac(float3(p.xyx) * float3(0.1031f, 0.1030f, 0.0973f));

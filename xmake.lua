@@ -90,6 +90,71 @@ end)
 
 configured_release_variant = has_config("test-release") and "test" or "release"
 
+local function configure_dmui_target()
+    set_optimize("fastest")
+    add_defines("NDEBUG", "NOMINMAX", "WIN32_LEAN_AND_MEAN")
+    add_cxxflags("/permissive-", "/Zc:preprocessor", { public = true })
+end
+
+local source_sets = {
+    core = {
+        "src/DearModdingUI/host/Diagnostics.cpp",
+        "src/DearModdingUI/host/Hotkeys.cpp",
+        "src/DearModdingUI/host/MenuDismissal.cpp",
+        "src/DearModdingUI/host/Registry*.cpp",
+        "src/DearModdingUI/host/RenderExecution.cpp",
+        "src/DearModdingUI/host/Status.cpp",
+        "src/DearModdingUI/host/UIAdapter*.cpp",
+        "src/DearModdingUI/controls/SettingsTable.cpp",
+        "src/DearModdingUI/navigation/Navigation*.cpp",
+        "src/DearModdingUI/pages/Health.cpp",
+        "src/DearModdingUI/pages/Home.cpp",
+        "src/DearModdingUI/settings/HostSettingsHealthState.cpp",
+        "src/DearModdingUI/settings/HostSettingsPersistence.cpp",
+        "src/DearModdingUI/presentation/BlurPipelineState.cpp",
+        "src/DearModdingUI/presentation/FontCatalog.cpp",
+        "src/DearModdingUI/presentation/Presentation*.cpp",
+        "src/DearModdingUI/presentation/ThemeColors.cpp",
+        "src/Platform/files/ExternalOpen.cpp"
+    },
+    ui = {
+        "src/DearModdingUI/host/Host*.cpp",
+        "src/DearModdingUI/host/Shell.cpp",
+        "src/DearModdingUI/controls/Controls.cpp",
+        "src/DearModdingUI/controls/Faq.cpp",
+        "src/DearModdingUI/controls/LinkRow.cpp",
+        "src/DearModdingUI/navigation/CommandPalette.cpp",
+        "src/DearModdingUI/navigation/SidebarView.cpp",
+        "src/DearModdingUI/pages/HostPageViews.cpp",
+        "src/DearModdingUI/settings/HostSettings.cpp",
+        "src/DearModdingUI/settings/HostSettingsView.cpp",
+        "src/DearModdingUI/presentation/BackgroundBlur.cpp",
+        "src/DearModdingUI/presentation/Theme.cpp",
+        "src/Platform/input/CursorLoader.cpp",
+        "src/Support/Runtime.cpp"
+    },
+    runtime = {
+        "src/Main.cpp",
+        "src/Platform/input/CarrierMenu.cpp",
+        "src/Platform/input/GameInput.cpp",
+        "src/Platform/rendering/**.cpp",
+        "src/Support/Detours.cpp"
+    },
+    navigation_preview = {
+        "tools/preview/navigation/NavigationPreview.cpp"
+    },
+    diagnostic_client = {
+        "tests/fixtures/GeneralTestFixtures.cpp",
+        "tools/shared/GeneralTestSuite*.cpp"
+    }
+}
+
+local function add_source_sets(...)
+    for _, name in ipairs({...}) do
+        add_files(table.unpack(source_sets[name]))
+    end
+end
+
 target("imgui", function()
     set_kind("static")
     set_arch("x64")
@@ -131,10 +196,7 @@ end)
 
 target("dmui-mcm", function()
     set_kind("static")
-    set_arch("x64")
-    set_languages("c++23")
-    set_optimize("fastest")
-    set_runtimes("MT")
+    configure_dmui_target()
     set_exceptions("cxx")
     set_targetdir(project_dir(".Lib/xmake"))
     set_objectdir(".LinkConf/xmake/dmui-mcm")
@@ -148,60 +210,32 @@ target("dmui-mcm", function()
         { public = true }
     )
     add_includedirs("Depends/nlohmann-json/single_include")
-    add_defines(
-        "NDEBUG",
-        "NOMINMAX",
-        "WIN32_LEAN_AND_MEAN"
-    )
-    add_cxxflags(
-        "/permissive-",
-        "/Zc:preprocessor",
-        { public = true }
-    )
 end)
 
 target("dmui-tests", function()
     set_kind("binary")
-    set_arch("x64")
-    set_languages("c++23")
-    set_optimize("fastest")
-    set_runtimes("MT")
+    configure_dmui_target()
     set_targetdir(project_dir(".Build/Tests"))
     add_defines('DMUI_VERSION="' .. plugin_version .. '"')
     set_objectdir(".LinkConf/xmake/dmui-tests")
     set_dependir(".LinkConf/xmake/dmui-tests/deps")
 
     add_deps("imgui", "dmui-mcm")
+    add_source_sets("core", "navigation_preview")
     add_files(
-        "tests/*.cpp",
+        "tests/**.cpp",
         "mcm/runtime/src/Win32FileListingAdapter.cpp",
-        "tests/fixtures/GeneralTestFixtures.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileHostAPILayout.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileIconGlyphs.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileUI.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileNoWindowsMacros.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileSettingsActions.cpp",
-        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileVisualDecisions.cpp",
-        "src/DearModdingUI/Diagnostics.cpp",
-        "src/DearModdingUI/ExternalOpen.cpp",
-        "src/DearModdingUI/FontCatalog.cpp",
-        "src/DearModdingUI/Health.cpp",
-        "src/DearModdingUI/Home.cpp",
-        "src/DearModdingUI/HostSettingsHealth.cpp",
-        "src/DearModdingUI/Hotkeys.cpp",
-        "src/DearModdingUI/MenuDismissal.cpp",
-        "src/DearModdingUI/Navigation.cpp",
-        "src/DearModdingUI/NavigationController.cpp",
-        "src/DearModdingUI/NavigationPresentation.cpp",
-        "src/DearModdingUI/PresentationServices.cpp",
-        "src/DearModdingUI/RenderExecution.cpp",
-        "src/DearModdingUI/Registry.cpp",
-        "src/DearModdingUI/SettingsTable.cpp",
-        "src/DearModdingUI/Status.cpp",
-        "src/DearModdingUI/UIAdapter.cpp"
+        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileVisualDecisions.cpp"
     )
     add_includedirs(
         "tools/preview/include",
+        "tools/shared",
+        "tools/shared/include",
         "mcm/runtime/include",
         "tests",
         "tests/fixtures",
@@ -212,18 +246,8 @@ target("dmui-tests", function()
         "Depends/commonlibf4/include",
         "Depends/commonlibf4/lib/dearmoddingui-api/include"
     )
-    add_defines(
-        "NDEBUG",
-        "NOMINMAX",
-        "DMUI_UI_TESTING",
-        "WIN32_LEAN_AND_MEAN"
-    )
-    add_cxxflags(
-        "/permissive-",
-        "/Zc:preprocessor",
-        { public = true }
-    )
-    add_syslinks("bcrypt", "d3d11", "dxgi", "shell32")
+    add_defines("DMUI_UI_TESTING", "DMUI_PREVIEW")
+    add_syslinks("bcrypt", "d3d11", "dxgi", "d3dcompiler", "shell32")
     add_ldflags(
         "/EXPORT:DMUI_GetAPI",
         { force = true }
@@ -232,56 +256,29 @@ end)
 
 target("dmui-preview", function()
     set_kind("binary")
-    set_arch("x64")
-    set_languages("c++23")
-    set_optimize("fastest")
+    configure_dmui_target()
     set_symbols("debug")
     set_exceptions("cxx")
-    set_runtimes("MT")
     set_targetdir(project_dir(".Build/Preview"))
     add_defines('DMUI_VERSION="' .. plugin_version .. '"')
     set_objectdir(".LinkConf/xmake/dmui-preview")
     set_dependir(".LinkConf/xmake/dmui-preview/deps")
 
     add_deps("imgui", "dmui-mcm")
+    add_source_sets("core", "ui", "navigation_preview", "diagnostic_client")
     add_files(
-        "tools/preview/Main.cpp",
-        "tools/preview/fixture-runner.cpp",
-        "mcm/runtime/src/Win32FileListingAdapter.cpp",
-        "tools/preview/PlatformImguiStub.cpp",
-        "tests/fixtures/GeneralTestFixtures.cpp",
-        "tests/fixtures/GeneralTestSuite.cpp",
-        "tests/fixtures/mcm-fixtures.cpp",
-        "tests/fixtures/navigation-fixtures.cpp",
-        "src/DearModdingUI/BackgroundBlur.cpp",
-        "src/DearModdingUI/CursorLoader.cpp",
-        "src/DearModdingUI/Diagnostics.cpp",
-        "src/DearModdingUI/ExternalOpen.cpp",
-        "src/DearModdingUI/FontCatalog.cpp",
-        "src/DearModdingUI/Health.cpp",
-        "src/DearModdingUI/Home.cpp",
-        "src/DearModdingUI/Host.cpp",
-        "src/DearModdingUI/HostSettings.cpp",
-        "src/DearModdingUI/HostSettingsHealth.cpp",
-        "src/DearModdingUI/HostSettingsView.cpp",
-        "src/DearModdingUI/Hotkeys.cpp",
-        "src/DearModdingUI/MenuDismissal.cpp",
-        "src/DearModdingUI/Navigation.cpp",
-        "src/DearModdingUI/NavigationController.cpp",
-        "src/DearModdingUI/NavigationPresentation.cpp",
-        "src/DearModdingUI/PresentationServices.cpp",
-        "src/DearModdingUI/RenderExecution.cpp",
-        "src/DearModdingUI/Registry.cpp",
-        "src/DearModdingUI/SettingsTable.cpp",
-        "src/DearModdingUI/Shell.cpp",
-        "src/DearModdingUI/Status.cpp",
-        "src/DearModdingUI/Theme.cpp",
-        "src/DearModdingUI/UIAdapter.cpp",
-        "src/Support/Runtime.cpp"
+        "tools/preview/*.cpp",
+        "tools/preview/fixtures/**.cpp",
+        "tools/preview/navigation/SidebarPreview.cpp",
+        "mcm/runtime/src/Win32FileListingAdapter.cpp"
     )
     add_includedirs(
         "tools/preview/include",
         "tools/preview",
+        "tools/preview/navigation",
+        "tools/shared",
+        "tools/shared/include",
+        "mcm/adapters/include",
         "mcm/runtime/include",
         "tests/fixtures",
         "src",
@@ -290,17 +287,7 @@ target("dmui-preview", function()
         "Depends/toml11/single_include",
         "Depends/commonlibf4/lib/dearmoddingui-api/include"
     )
-    add_defines(
-        "NDEBUG",
-        "NOMINMAX",
-        "WIN32_LEAN_AND_MEAN",
-        "_CRT_SECURE_NO_WARNINGS"
-    )
-    add_cxxflags(
-        "/permissive-",
-        "/Zc:preprocessor",
-        { public = true }
-    )
+    add_defines("_CRT_SECURE_NO_WARNINGS", "DMUI_PREVIEW")
     add_syslinks(
         "d3d11",
         "dxgi",
@@ -327,7 +314,7 @@ end)
 target(plugin_name, function()
     add_options("test-release")
     set_kind("shared")
-    set_optimize("fastest")
+    configure_dmui_target()
     set_symbols("debug")
     set_exceptions("cxx")
     set_targetdir(plugin_output_dir())
@@ -347,27 +334,15 @@ target(plugin_name, function()
     end)
 
     add_deps("imgui")
-    add_files(
-        "src/**.cpp"
-    )
-    add_headerfiles("include/**.h")
+    add_source_sets("core", "ui", "runtime")
+    add_headerfiles("include/**.h", "src/**.h")
     add_extrafiles("data/**", "README.md", "THIRD_PARTY_NOTICES.md")
     add_includedirs(
         "include",
         "Depends",
         "Depends/toml11/single_include"
     )
-    add_defines(
-        "NDEBUG",
-        "NOMINMAX",
-        "WIN32_LEAN_AND_MEAN",
-        "_CRT_SECURE_NO_WARNINGS"
-    )
-    add_cxxflags(
-        "/permissive-",
-        "/Zc:preprocessor",
-        { public = true }
-    )
+    add_defines("_CRT_SECURE_NO_WARNINGS")
     add_syslinks("d3d11", "dxgi", "d3dcompiler", "shell32")
     set_pcxxheader("Depends/commonlibf4/include/F4SE/Impl/PCH.h")
 
@@ -375,7 +350,7 @@ end)
 
 target("DearModdingUI-MCM", function()
     add_options("test-release")
-    set_optimize("fastest")
+    configure_dmui_target()
     set_symbols("debug")
     set_exceptions("cxx")
     set_targetdir(plugin_output_dir())
@@ -394,25 +369,9 @@ target("DearModdingUI-MCM", function()
 
     add_deps("dmui-mcm")
     add_files("mcm/runtime/src/**.cpp")
-    if not has_config("test-release") then
-        remove_files("mcm/runtime/src/ScaleformSpike.cpp")
-    end
-    add_headerfiles("mcm/runtime/include/**.h")
+    add_headerfiles("mcm/runtime/include/**.h", "mcm/adapters/include/**.h")
     add_extrafiles("mcm/README.md")
-    add_includedirs("mcm/runtime/include")
-    if has_config("test-release") then
-        add_defines("DMUI_MCM_SCALEFORM_SPIKE")
-    end
-    add_defines(
-        "NDEBUG",
-        "NOMINMAX",
-        "WIN32_LEAN_AND_MEAN"
-    )
-    add_cxxflags(
-        "/permissive-",
-        "/Zc:preprocessor",
-        { public = true }
-    )
+    add_includedirs("mcm/runtime/include", "mcm/adapters/include")
     set_pcxxheader("Depends/commonlibf4/include/F4SE/Impl/PCH.h")
 end)
 
@@ -421,7 +380,7 @@ target("dmui-test-client", function()
     add_options("test-release")
     set_kind("shared")
     set_version("0.1.0")
-    set_optimize("fastest")
+    configure_dmui_target()
     set_symbols("debug")
     set_exceptions("cxx")
     set_targetdir(plugin_output_dir())
@@ -448,28 +407,15 @@ target("dmui-test-client", function()
         target:set("configvar", "COMMONLIB_PROJECT_VERSION_PATCH", 0)
     end)
 
-    add_files(
-        "tools/test-client/Main.cpp",
-        "tests/fixtures/GeneralTestFixtures.cpp",
-        "tests/fixtures/GeneralTestSuite.cpp"
-    )
+    add_source_sets("diagnostic_client")
+    add_files("tools/test-client/Main.cpp")
     add_extrafiles(
         "tools/test-client/README.md",
         "tests/fixtures/GeneralTestFixtures.h",
-        "tests/fixtures/GeneralTestSuite.h",
-        "tests/fixtures/TestHotkeyDescriptors.h"
+        "tools/shared/GeneralTestSuite.h",
+        "tools/shared/TestHotkeyDescriptors.h"
     )
-    add_includedirs("tests/fixtures")
-    add_defines(
-        "NDEBUG",
-        "NOMINMAX",
-        "WIN32_LEAN_AND_MEAN"
-    )
-    add_cxxflags(
-        "/permissive-",
-        "/Zc:preprocessor",
-        { public = true }
-    )
+    add_includedirs("tests/fixtures", "tools/shared")
     add_syslinks("d3d11", "dxgi")
     set_pcxxheader("Depends/commonlibf4/include/F4SE/Impl/PCH.h")
 
@@ -568,10 +514,9 @@ task("package-release", function()
 
         local output_root = project_dir(path.join(".Build", variant, "F4SE", "Plugins"))
         local package_owner = project_dir(".Build/packages")
-        local tracked = os.iorunv("git", {
-            "-C", os.projectdir(), "-c", "core.quotePath=false",
-            "ls-files", "--", "data/F4SE/Plugins"
-        })
+        local data_root = project_dir("data")
+        local runtime_assets = os.files(project_dir("data/F4SE/Plugins/**"))
+        table.sort(runtime_assets)
         for _, component in ipairs({ plugin_name, "DearModdingUI-MCM" }) do
             local folder = path.join(package_owner, variant, component)
             local zip = path.join(
@@ -594,13 +539,13 @@ task("package-release", function()
                 if variant == "test" then
                     os.cp(path.join(output_root, "dmui-test-client.dll"), plugins)
                 end
-                for source in tracked:gmatch("[^\r\n]+") do
+                for _, source in ipairs(runtime_assets) do
                     local extension = path.extension(source):lower()
                     if extension == ".toml" or extension == ".ttf" or extension == ".hlsl" then
-                        local relative = source:sub(#"data/" + 1)
+                        local relative = path.relative(source, data_root)
                         local destination = path.join(folder, relative)
                         os.mkdir(path.directory(destination))
-                        os.cp(project_dir(source), destination)
+                        os.cp(source, destination)
                     end
                 end
             end

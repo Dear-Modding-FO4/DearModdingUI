@@ -45,18 +45,30 @@ The build produces two installable packages in `.Build/packages/`:
 | `DearModdingUI-MCM-<version>-release.zip` | Optional bridge DLL for legacy MCM menus. Requires the host. |
 
 For diagnostic builds with the in-game test client, configure with `--test-release=y`.
+Packaging reads the working tree's runtime assets under `data\F4SE\Plugins`, so
+new or renamed shaders do not require staging before a local package can be built.
 
 ## Repository layout
 
 | Path | Purpose |
 |---|---|
-| `src/`, `include/` | Host plugin implementation and internal headers. |
-| `mcm/src/`, `mcm/include/` | Game-independent MCM JSON parser, mapping logic, and bindings. |
-| `mcm/runtime/` | MCM bridge plugin entry point and game adapters. |
-| `tests/` | Automated test suite and regression checks. |
-| `tests/fixtures/` | Reusable mock clients and synthetic UI scenarios. |
-| `tools/preview/` | Standalone desktop preview application (`dmui-preview`). |
-| `tools/test-client/` | Thin F4SE runner for diagnostic client verification. |
+| `src\DearModdingUI\`, `include\DearModdingUI\` | Matching `host`, `controls`, `navigation`, `pages`, `settings`, and `presentation` components. |
+| `src\Platform\`, `include\Platform\` | Native input, renderer attachment, and external-file adapters. |
+| `src\Support\`, `include\Support\` | Shared runtime, bounded-string, task, and health primitives. |
+| `mcm\src\`, `mcm\include\` | Game-independent configuration decoding, mapping, and bindings. |
+| `mcm\adapters\` | Stable-UI rendering adapters shared by MCM consumers. |
+| `mcm\runtime\` | MCM bridge plugin entry point and game adapters. |
+| `tests\` | Subsystem suites under `host`, `presentation`, `platform`, and `mcm`; typed helpers under `support`. |
+| `tests\fixtures\` | Reusable synthetic client descriptors and registration fixtures. |
+| `tools\preview\` | Desktop preview, capture support, synthetic scenarios, and preview-only navigation implementations. |
+| `tools\shared\` | One interactive diagnostic suite shared by preview and the in-game runner. |
+| `tools\test-client\` | Thin F4SE runner for the shared diagnostic suite. |
+
+`xmake.lua` declares shared source sets once and compiles them with each target's
+own defines and adapters. Only desktop preview and automated tests use
+`tools\shared\include` compatibility stubs; game plugins use the real dependencies.
+The native renderer receives one required setup/draw/toggle callback bundle from
+the host. Mod callbacks remain independently registered through the public API.
 
 ## Running tests
 
@@ -73,6 +85,11 @@ versions, visual defaults, fixture data, or source text. Preserve ABI contracts,
 ownership, state transitions, failure paths, and real I/O boundaries. Consolidate
 overlapping setup without dropping distinct failure cases, and name tests for the
 path they actually exercise rather than implying host integration through a fake.
+
+The optional `python tests\RunMutations.py` command proves the named regression
+controls in `tests\Mutations.json`. It temporarily edits exact source locations,
+rebuilds, and restores their original contents. Run it only without concurrent
+editing or builds.
 
 ## Standalone preview
 
@@ -93,15 +110,24 @@ Useful arguments:
 
 The presentation presets activate the same shared test-suite pages and actions as
 the in-game test client; there is no separate presentation demo client. MCM and
-navigation comparison scenarios live in `tests/fixtures`, while the preview only
-supplies platform adapters and capture options. Preview binaries and fixtures are
+navigation comparison scenarios live in `tools\preview\fixtures`, while
+`tools\shared` owns the reusable interactive exercises. Preview binaries and fixtures are
 not included in production packages. Captures fail rather than writing a misleading
 image if a requested scenario has not produced its required resources or output;
 increase `--frames` if the capture ran before initialization finished.
 
 ## Stable UI contract
 
-DearModdingUI exposes a stable C UI table generated from `schema/ui-contract.json`. The baseline manifest `schema/ui-contract.manifest.json` guarantees backward compatibility by verifying existing slots, IDs, and enums remain intact.
+The API dependency owns `schema\ui-contract.json` and its baseline manifest,
+`schema\ui-contract.manifest.json`. They generate the stable C UI table and check
+that existing slots, IDs, and enums remain intact.
+
+An API update must not disconnect a mod that only uses unchanged operations.
+Preserve existing function signatures and table offsets, append new operations,
+and negotiate optional entries by table size and availability. Release-version
+metadata is not a compatibility gate. Internal refactors do not require an ABI
+version bump; incompatible operation revisions need distinct entries rather
+than repurposing an existing slot.
 
 To regenerate contract bindings after updating the schema:
 
@@ -118,6 +144,11 @@ python "$api/Tools/generate-ui-contract.py" `
 ## Guidelines
 
 - Use American English in code, comments, and documentation.
+- Use PascalCase for first-party source, header, script, and authored asset filenames, preserving established acronyms such as `MCM` and `ImGui`. Conventional tool/metadata names, generated filenames, upstream resources, and externally defined runtime paths are exceptions. Use lowercase directory names within components.
+- Group implementations and internal headers by responsibility. Keep implementation-private headers with their component; use a consistent include path for headers shared across components.
+- Remove dead code and forwarding layers that add no behavior. Put reused logic in its owning component rather than copying it or adding a miscellaneous utility collection.
+- Treat a handwritten file exceeding 1,000 lines as an ownership warning, not a reason to split it arbitrarily. Extract cohesive responsibilities and keep their state with them.
+- Keep game-independent MCM logic separate from game adapters, and diagnostic-only implementations out of production source sets.
 - Commits use `type(scope): summary` convention.
 - Avoid em-dashes in documentation and strings; use clean punctuation or parentheses instead.
 - Fail closed: Invalid or malformed client data must be skipped safely with diagnostic logging, never causing a crash.

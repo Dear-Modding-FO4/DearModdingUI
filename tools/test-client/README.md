@@ -28,7 +28,7 @@ The installable outputs are:
 [xmake.lua](../../xmake.lua); these filenames do not require a separate version update.
 
 The core archive contains the host and general test client. Install the separate
-MCM test archive as well when exercising the real bridge and its Scaleform probe.
+MCM test archive as well when exercising the real bridge.
 Neither archive includes documentation or debug symbols.
 
 The project removes CommonLib automatic install mappings. Build and package
@@ -95,8 +95,9 @@ It never logs entered text and does not log ordinary per-frame queries or
 draws.
 The standalone preview sends the same fixture diagnostics to standard error.
 
-The preview and F4SE fixture use the same public `dmui::ui` callbacks and
-negotiate the same host UI table. Only the thin environment adapters differ.
+The preview and F4SE fixture compose one shared suite from `tools/shared`.
+They use the same public `dmui::ui` callbacks and negotiate the same host UI
+table. Only the thin environment adapters differ.
 
 Use **Log current results** on the results page for an on-demand compact
 snapshot. Another compact snapshot is written whenever any exercise page is

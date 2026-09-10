@@ -1,0 +1,58 @@
+[
+  {
+    "name": "DearModdingUI freeze closes registration",
+    "target": "src/DearModdingUI/host/RegistryRegistration.cpp",
+    "find": "if (!m_open)\n\t\t\t\treturn DMUI_RESULT_REGISTRATION_CLOSED;\n\t\t\tif (std::ranges::any_of(m_clients",
+    "replace": "if (false)\n\t\t\t\treturn DMUI_RESULT_REGISTRATION_CLOSED;\n\t\t\tif (std::ranges::any_of(m_clients",
+    "check": "registry freeze rejects late clients and pages"
+  },
+  {
+    "name": "DearModdingUI carrier opens only for modal frames",
+    "target": "include/Platform/input/CarrierMenu.h",
+    "find": "const auto nextOpen = a_event == Event::kOpen;",
+    "replace": "const auto nextOpen = false;",
+    "check": "carrier menu open and close messages remain balanced"
+  },
+  {
+    "name": "host icon setting preserves monochrome value",
+    "target": "include/DearModdingUI/settings/HostSettings.h",
+    "find": "a_settings.iconColorMode == Theme::IconColorMode::kMonochrome,",
+    "replace": "a_settings.iconColorMode != Theme::IconColorMode::kMonochrome,",
+    "check": "host settings persistence round trips every stored value"
+  },
+  {
+    "name": "action duplicate ids stay client scoped",
+    "target": "src/DearModdingUI/host/RegistryRegistration.cpp",
+    "find": "return DMUI_RESULT_DUPLICATE_ACTION_ID;",
+    "replace": "return DMUI_RESULT_OK;",
+    "check": "action registration validates descriptors clients duplicates and freeze"
+  },
+  {
+    "name": "persistent status severities do not expire",
+    "target": "include/DearModdingUI/host/Status.h",
+    "find": "return a_severity == DMUI_STATUS_SEVERITY_WARNING ||",
+    "replace": "return a_severity == DMUI_STATUS_SEVERITY_WARNING &&",
+    "check": "status severity controls expiry and persistence"
+  },
+  {
+    "name": "status validation retains client rejection",
+    "target": "include/DearModdingUI/host/Status.h",
+    "find": "if (a_clientValidation != DMUI_RESULT_OK)",
+    "replace": "if (false)",
+    "check": "status validation rejects invalid clients and messages"
+  },
+  {
+    "name": "client diagnostics increment matching records",
+    "target": "src/DearModdingUI/host/Diagnostics.cpp",
+    "find": "++record->occurrenceCount;",
+    "replace": "record->occurrenceCount += 0;",
+    "check": "client diagnostics aggregate by severity scope and summary"
+  },
+  {
+    "name": "client diagnostics count dropped reports",
+    "target": "src/DearModdingUI/host/Diagnostics.cpp",
+    "find": "++client->droppedReportCount;",
+    "replace": "client->droppedReportCount += 0;",
+    "check": "client diagnostic retention stays bounded"
+  }
+]

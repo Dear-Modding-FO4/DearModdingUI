@@ -1,0 +1,853 @@
+#include <DearModdingUI/MCM/Compatibility.h>
+#include <DearModdingUI/MCM/JsonNormalization.h>
+
+#include "../support/Diagnostics.h"
+#include "../mapping/Mapper.h"
+#include "ActionDecoding.h"
+#include "ControlDecoding.h"
+#include "JsonReading.h"
+#include "../support/TextFile.h"
+
+#include <nlohmann/json.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <unordered_set>
+
+namespace DearModdingUI::MCM
+{
+	namespace
+	{
+		using Json = nlohmann::json;
+
+		constexpr size_t kMaxConditionDepth = 64;
+
+		void AddTerminalDiagnostic(
+			LoadResult& a_result,
+			std::string_view a_source,
+			std::string a_message) noexcept
+		{
+			detail::Diagnostics{ std::string{ a_source }, a_result.diagnostics }
+				.AddTerminal(std::move(a_message));
+		}
+
+		class ConfigReader
+		{
+		public:
+			ConfigReader(
+				std::string a_source,
+				LoadResult& a_result) :
+				m_source(std::move(a_source)),
+				m_result(a_result),
+				m_diagnostics(m_source, a_result.diagnostics)
+			{}
+
+			void Read(const Json& a_document)
+			{
+				if (!a_document.is_object())
+				return Diagnose(
+					DiagnosticSeverity::kError,
+					"$",
+					"MCM configuration root must be an object");
+
+				m_result.configuration.emplace();
+				auto& configuration = *m_result.configuration;
+
+				// Configs write this as a marketing version as often as a version code.
+				if (const auto value = ReadNumber(
+						a_document, "minMcmVersion", "$"))
+					configuration.minimumMcmVersion = static_cast<int64_t>(*value);
+				if (const auto value = ReadString(
+						a_document, "modName", "$", true))
+					configuration.modName = *value;
+				if (const auto value = ReadString(
+						a_document, "displayName", "$", true))
+					configuration.displayName = *value;
+
+				ReadRequirements(a_document, configuration);
+				ReadRootPage(a_document, configuration);
+				ReadPages(a_document, configuration);
+
+				if (configuration.pages.empty())
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						"$",
+						"configuration produced no pages");
+				}
+			}
+
+		private:
+			void Diagnose(
+				DiagnosticSeverity a_severity,
+				std::string a_location,
+				std::string a_message)
+			{
+				m_diagnostics.Add(
+					a_severity,
+					std::move(a_location),
+					std::move(a_message));
+			}
+
+			[[nodiscard]] std::optional<std::string> ReadString(
+				const Json& a_object,
+				std::string_view a_name,
+				std::string_view a_location,
+				bool a_required = false)
+			{
+				return detail::ReadJsonString(
+					a_object,
+					a_name,
+					a_location,
+					a_required,
+					m_diagnostics);
+			}
+
+			[[nodiscard]] std::optional<int64_t> ReadInteger(
+				const Json& a_object,
+				std::string_view a_name,
+				std::string_view a_location)
+			{
+				const auto member = a_object.find(a_name);
+				if (member == a_object.end())
+					return std::nullopt;
+				if (member->is_number_unsigned())
+				{
+					const auto value = member->get<uint64_t>();
+					if (value <= static_cast<uint64_t>(
+							(std::numeric_limits<int64_t>::max)()))
+						return static_cast<int64_t>(value);
+				}
+				else if (member->is_number_integer())
+				{
+					return member->get<int64_t>();
+				}
+				Diagnose(
+					DiagnosticSeverity::kError,
+					std::string{ a_location } + "." + std::string{ a_name },
+					"expected a signed 64-bit integer");
+				return std::nullopt;
+			}
+
+			[[nodiscard]] std::optional<double> ReadNumber(
+				const Json& a_object,
+				std::string_view a_name,
+				std::string_view a_location)
+			{
+				const auto member = a_object.find(a_name);
+				if (member == a_object.end())
+					return std::nullopt;
+				if (!member->is_number())
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						std::string{ a_location } + "." + std::string{ a_name },
+						"expected a number");
+					return std::nullopt;
+				}
+				return member->get<double>();
+			}
+
+			[[nodiscard]] std::optional<bool> ReadTruthiness(
+				const Json& a_object,
+				std::string_view a_name)
+			{
+				const auto member = a_object.find(a_name);
+				if (member == a_object.end())
+					return std::nullopt;
+				if (member->is_boolean())
+					return member->get<bool>();
+				if (member->is_null())
+					return false;
+				if (member->is_number())
+					return member->get<double>() != 0.0;
+				if (member->is_string())
+					return !member->get_ref<const std::string&>().empty();
+				return true;
+			}
+
+			[[nodiscard]] std::optional<Scalar> ReadScalar(
+				const Json& a_value,
+				std::string a_location)
+			{
+				return detail::ReadJsonScalar(
+					a_value,
+					std::move(a_location),
+					m_diagnostics);
+			}
+
+			[[nodiscard]] std::optional<GroupCondition> ReadCondition(
+				const Json& a_value,
+				const std::string& a_location,
+				size_t a_depth = 0)
+			{
+				if (a_value.is_number_unsigned())
+				{
+					const auto value = a_value.get<uint64_t>();
+					if (value <= static_cast<uint64_t>(
+							(std::numeric_limits<int64_t>::max)()))
+					{
+						return GroupCondition{
+							ConditionType::kControl,
+							static_cast<int64_t>(value)
+						};
+					}
+				}
+				else if (a_value.is_number_integer())
+				{
+					return GroupCondition{
+						ConditionType::kControl,
+						a_value.get<int64_t>()
+					};
+				}
+				if (!a_value.is_object() || a_value.empty())
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						a_location,
+						"expected a control number or condition object");
+					return std::nullopt;
+				}
+
+				if (a_value.size() != 1)
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						a_location,
+						"condition object must have one operator");
+				}
+				const auto operation = a_value.begin();
+				GroupCondition result;
+				result.rawOperator = operation.key();
+				const auto normalized = detail::ToLowerAscii(result.rawOperator);
+				if (normalized == "and")
+					result.type = ConditionType::kAll;
+				else if (normalized == "or")
+					result.type = ConditionType::kAny;
+				else
+				{
+					Diagnose(
+						DiagnosticSeverity::kWarning,
+						a_location,
+						"unknown condition operator '" +
+							result.rawOperator + "'");
+				}
+
+				if (!operation->is_array())
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						a_location + "." + result.rawOperator,
+						"condition operands must be an array");
+					return result;
+				}
+				if (a_depth >= kMaxConditionDepth)
+				{
+					Diagnose(
+						DiagnosticSeverity::kWarning,
+						a_location + "." + result.rawOperator,
+						"condition nesting exceeds " +
+							std::to_string(kMaxConditionDepth) +
+							" levels and was truncated");
+					return result;
+				}
+				for (size_t index = 0; index < operation->size(); ++index)
+				{
+					if (auto operand = ReadCondition(
+							(*operation)[index],
+							a_location + "." + result.rawOperator +
+								"[" + std::to_string(index) + "]",
+							a_depth + 1))
+						result.operands.push_back(std::move(*operand));
+				}
+				return result;
+			}
+
+			void ReadRequirements(
+				const Json& a_document,
+				Configuration& a_configuration)
+			{
+				const auto requirements = a_document.find("pluginRequirements");
+				if (requirements == a_document.end())
+				return;
+				if (!requirements->is_array())
+				{
+					return Diagnose(
+						DiagnosticSeverity::kError,
+						"$.pluginRequirements",
+						"expected an array");
+				}
+				for (size_t index = 0; index < requirements->size(); ++index)
+				{
+					const auto& requirement = (*requirements)[index];
+					if (!requirement.is_string())
+					{
+						Diagnose(
+							DiagnosticSeverity::kError,
+							"$.pluginRequirements[" + std::to_string(index) + "]",
+							"expected a plugin name string");
+						continue;
+					}
+					a_configuration.pluginRequirements.push_back(
+						requirement.get<std::string>());
+				}
+			}
+
+			void ReadRootPage(
+				const Json& a_document,
+				Configuration& a_configuration)
+			{
+				const auto content = a_document.find("content");
+				if (content == a_document.end())
+				{
+					return Diagnose(
+						DiagnosticSeverity::kError,
+						"$.content",
+						"missing required content array");
+				}
+
+				Page page;
+				page.id = UniquePageId("main", "$.content");
+				page.displayName = a_configuration.displayName.empty() ?
+					a_configuration.modName :
+					a_configuration.displayName;
+				if (page.displayName.empty())
+					page.displayName = "MCM";
+				page.location = "$.content";
+				page.root = true;
+				ReadContent(*content, "$.content", page);
+				a_configuration.pages.push_back(std::move(page));
+			}
+
+			void ReadPages(
+				const Json& a_document,
+				Configuration& a_configuration)
+			{
+				const auto pages = a_document.find("pages");
+				if (pages == a_document.end())
+					return;
+				if (!pages->is_array())
+				{
+					return Diagnose(
+						DiagnosticSeverity::kError,
+						"$.pages",
+						"expected an array");
+				}
+
+				for (size_t index = 0; index < pages->size(); ++index)
+				{
+					const auto location = "$.pages[" + std::to_string(index) + "]";
+					const auto& value = (*pages)[index];
+					if (!value.is_object())
+					{
+						Diagnose(
+							DiagnosticSeverity::kError,
+							location,
+							"expected a page object");
+						continue;
+					}
+
+					Page page;
+					page.location = location;
+					if (const auto displayName = ReadString(
+							value, "pageDisplayName", location))
+						page.displayName = *displayName;
+					else if (const auto displayName = ReadString(
+								 value, "displayName", location))
+						page.displayName = *displayName;
+					else
+					{
+						page.displayName =
+							"Page " + std::to_string(index + 1);
+						Diagnose(
+							DiagnosticSeverity::kWarning,
+							location,
+							"page has no display name");
+					}
+
+					auto candidate = ReadString(value, "id", location)
+						.value_or(detail::MakeIdentifier(
+							page.displayName,
+							"page-" + std::to_string(index + 1)));
+					page.id = UniquePageId(std::move(candidate), location);
+
+					const auto content = value.find("content");
+					if (content == value.end())
+					{
+						Diagnose(
+							DiagnosticSeverity::kError,
+							location + ".content",
+							"missing required content array");
+					}
+					else
+					{
+						ReadContent(*content, location + ".content", page);
+					}
+					a_configuration.pages.push_back(std::move(page));
+				}
+			}
+
+			void ReadContent(
+				const Json& a_content,
+				const std::string& a_location,
+				Page& a_page)
+			{
+				if (!a_content.is_array())
+				{
+					return Diagnose(
+						DiagnosticSeverity::kError,
+						a_location,
+						"expected an array of controls");
+				}
+				if (a_content.empty())
+				{
+					Diagnose(
+						DiagnosticSeverity::kWarning,
+						a_location,
+						"page content is empty");
+				}
+				for (size_t index = 0; index < a_content.size(); ++index)
+				{
+					const auto location =
+						a_location + "[" + std::to_string(index) + "]";
+					const auto& value = a_content[index];
+					if (!value.is_object())
+					{
+						Diagnose(
+							DiagnosticSeverity::kError,
+							location,
+							"expected a control object");
+						continue;
+					}
+					a_page.controls.push_back(
+						ReadControl(value, location, index));
+				}
+			}
+
+			[[nodiscard]] Control ReadControl(
+				const Json& a_value,
+				const std::string& a_location,
+				size_t a_index)
+			{
+				Control control;
+				control.location = a_location;
+				control.sourceIndex = a_index;
+				if (const auto id = ReadString(a_value, "id", a_location))
+					control.id = *id;
+				if (const auto text = ReadString(a_value, "text", a_location))
+					control.text = *text;
+				if (const auto help = ReadString(a_value, "help", a_location))
+					control.help = *help;
+				if (const auto type = ReadString(
+						a_value, "type", a_location, true))
+				{
+					control.rawType = *type;
+					control.type = detail::DecodeControlType(*type);
+				}
+				if (const auto condition = a_value.find("groupCondition");
+					condition != a_value.end())
+				{
+					control.groupCondition = ReadCondition(
+						*condition,
+						a_location + ".groupCondition");
+				}
+				control.groupControl =
+					ReadInteger(a_value, "groupControl", a_location);
+				control.html = ReadTruthiness(a_value, "html");
+				control.alignment = ReadString(a_value, "align", a_location);
+				if (const auto action = a_value.find("action");
+					action != a_value.end())
+					control.action = detail::DecodeAction(
+						*action,
+						a_location + ".action",
+						m_diagnostics);
+				if (control.type == ControlType::kImage)
+				{
+					const auto library =
+						ReadString(a_value, "libName", a_location);
+					const auto symbol =
+						ReadString(a_value, "className", a_location);
+					control.image = Image{
+						library.value_or(""),
+						symbol.value_or("")
+					};
+				}
+
+				const auto valueOptions = a_value.find("valueOptions");
+				if (valueOptions == a_value.end())
+				{
+					if (detail::NeedsValueOptions(control.type))
+					{
+						Diagnose(
+							control.groupControl ?
+								DiagnosticSeverity::kWarning :
+								DiagnosticSeverity::kError,
+							a_location + ".valueOptions",
+							control.groupControl ?
+								"group control has no persistent value source" :
+								"setting control is missing valueOptions");
+					}
+				}
+				else if (!valueOptions->is_object())
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						a_location + ".valueOptions",
+						"expected an object");
+				}
+				else
+				{
+					control.valueOptions =
+						ReadValueOptions(*valueOptions, control);
+				}
+
+				if (control.type == ControlType::kSlider)
+				CheckSlider(control);
+				if (control.type == ControlType::kStepper ||
+					control.type == ControlType::kMenu)
+					CheckChoice(control);
+				if (control.type == ControlType::kFileMenu)
+					CheckFileChoice(control);
+
+				return control;
+			}
+
+			[[nodiscard]] ValueOptions ReadValueOptions(
+				const Json& a_value,
+				const Control& a_control)
+			{
+				const auto location = a_control.location + ".valueOptions";
+				ValueOptions result;
+				if (const auto sourceType =
+						ReadString(a_value, "sourceType", location))
+					result.sourceType = detail::DecodeSourceType(*sourceType);
+				result.sourceForm =
+					ReadString(a_value, "sourceForm", location);
+				result.scriptName =
+					ReadString(a_value, "scriptName", location);
+				result.propertyName =
+					ReadString(a_value, "propertyName", location);
+				if (a_control.type == ControlType::kSlider)
+				{
+					ReadSliderParameters(a_value, location, result);
+				}
+				else
+				{
+					result.minimum = ReadNumber(a_value, "min", location);
+					result.maximum = ReadNumber(a_value, "max", location);
+					result.step = ReadNumber(a_value, "step", location);
+				}
+				result.format = ReadString(a_value, "format", location);
+				if (!result.format)
+				{
+					result.format =
+						ReadString(a_value, "formatString", location);
+				}
+
+				if (const auto member = a_value.find("default");
+					member != a_value.end())
+				{
+					result.defaultValue =
+						ReadScalar(*member, location + ".default");
+				}
+
+				if (const auto options = a_value.find("options");
+					options != a_value.end())
+				{
+					if (!options->is_array())
+					{
+						Diagnose(
+							DiagnosticSeverity::kError,
+							location + ".options",
+							"expected an array");
+					}
+					else
+					{
+						for (size_t index = 0; index < options->size(); ++index)
+						{
+							if (auto option = ReadScalar(
+									(*options)[index],
+									location + ".options[" +
+										std::to_string(index) + "]"))
+								result.options.push_back(std::move(*option));
+						}
+					}
+				}
+				if (a_control.type == ControlType::kFileMenu)
+				{
+					result.filePath = ReadString(a_value, "path", location);
+					result.fileMask = ReadString(a_value, "mask", location);
+				}
+
+				if (result.minimum &&
+					result.maximum &&
+					*result.maximum < *result.minimum)
+				{
+					if (a_control.type == ControlType::kSlider)
+						result.sliderParametersValid = false;
+					Diagnose(
+						DiagnosticSeverity::kWarning,
+						location,
+						"maximum is less than minimum");
+				}
+				if (result.step && *result.step <= 0.0)
+				{
+					Diagnose(
+						DiagnosticSeverity::kWarning,
+						location + ".step",
+						"step must be greater than zero");
+				}
+
+				if (result.sourceType &&
+					result.sourceType->family == SourceFamily::kModSetting)
+				{
+					if (!a_control.id.empty())
+						result.modSettingId = a_control.id;
+				}
+
+				if (detail::NeedsValueOptions(a_control.type) &&
+					!result.sourceType)
+				{
+					Diagnose(
+						DiagnosticSeverity::kWarning,
+						location + ".sourceType",
+						"setting value source is not declared");
+				}
+				return result;
+			}
+
+			void ReadSliderParameters(
+				const Json& a_value,
+				const std::string& a_location,
+				ValueOptions& a_result)
+			{
+				const auto maximum = a_value.find("max");
+				const auto usesWidgetDefaults =
+					maximum == a_value.end() || maximum->is_null();
+				if (usesWidgetDefaults)
+				{
+					const auto minimum = a_value.find("min");
+					if (minimum != a_value.end() && !minimum->is_null())
+						(void)ReadNumber(a_value, "min", a_location);
+					const auto step = a_value.find("step");
+					if (step != a_value.end() && !step->is_null())
+						(void)ReadNumber(a_value, "step", a_location);
+					a_result.minimum = 0.0;
+					a_result.maximum = 1.0;
+					a_result.step = 0.05;
+					a_result.sliderDefaultsApplied = true;
+					return;
+				}
+
+				a_result.maximum = ReadNumber(a_value, "max", a_location);
+				const auto minimum = a_value.find("min");
+				if (minimum != a_value.end() && minimum->is_null())
+					a_result.minimum = 0.0;
+				else
+					a_result.minimum = ReadNumber(a_value, "min", a_location);
+				const auto step = a_value.find("step");
+				if (step != a_value.end() && step->is_null())
+					a_result.step = 0.0;
+				else
+					a_result.step = ReadNumber(a_value, "step", a_location);
+
+				a_result.sliderParametersValid =
+					a_result.minimum.has_value() &&
+					a_result.maximum.has_value() &&
+					a_result.step.has_value() &&
+					std::isfinite(*a_result.minimum) &&
+					std::isfinite(*a_result.maximum) &&
+					std::isfinite(*a_result.step) &&
+					*a_result.step > 0.0;
+				if (a_result.sliderParametersValid)
+				{
+					for (const auto bound : { *a_result.minimum, *a_result.maximum })
+					{
+						if (!std::isfinite(
+								std::floor(bound / *a_result.step + 0.5) *
+								*a_result.step))
+							a_result.sliderParametersValid = false;
+					}
+				}
+			}
+
+			void CheckSlider(const Control& a_control)
+			{
+				if (!a_control.valueOptions)
+				{
+					return;
+				}
+				if (!a_control.valueOptions->sliderParametersValid)
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						a_control.location + ".valueOptions",
+						"slider with max requires finite numeric min, max, and positive step");
+				}
+			}
+
+			void CheckChoice(const Control& a_control)
+			{
+				if (!a_control.valueOptions ||
+					a_control.valueOptions->options.empty())
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						a_control.location + ".valueOptions.options",
+						"choice control has no options");
+				}
+			}
+
+			void CheckFileChoice(const Control& a_control)
+			{
+				if (!a_control.valueOptions)
+					return;
+				const auto& options = *a_control.valueOptions;
+				if (!options.filePath || options.filePath->empty())
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						a_control.location + ".valueOptions.path",
+						"file dropdown requires a non-empty path");
+				}
+				if (options.sourceType &&
+					options.sourceType->value != SourceValueKind::kString)
+				{
+					Diagnose(
+						DiagnosticSeverity::kError,
+						a_control.location + ".valueOptions.sourceType",
+						"file dropdown requires a string value source");
+				}
+			}
+
+			[[nodiscard]] std::string UniquePageId(
+				std::string a_candidate,
+				std::string_view a_location)
+			{
+				if (a_candidate.empty())
+					a_candidate = "page";
+				return m_diagnostics.UniqueId(
+					std::move(a_candidate),
+					m_pageIds,
+					"page",
+					a_location);
+			}
+
+			std::string m_source;
+			LoadResult& m_result;
+			detail::Diagnostics m_diagnostics;
+			std::unordered_set<std::string> m_pageIds;
+		};
+	}
+
+	LoadResult ParseConfig(
+		std::string_view a_json,
+		std::string_view a_source,
+		const TextResolver& a_textResolver) noexcept
+	{
+		LoadResult result;
+		auto source = std::string{ "<memory>" };
+		try
+		{
+			if (!a_source.empty())
+				source.assign(a_source);
+			const auto normalized = NormalizeJson(
+				a_json,
+				JsonNormalizationOptions{
+					.invalidEscapePassThrough = true
+				});
+			const auto document = Json::parse(
+				normalized.begin(),
+				normalized.end(),
+				nullptr,
+				true,
+				false);
+			ConfigReader reader{ source, result };
+			reader.Read(document);
+			if (result.configuration)
+			{
+				detail::MapConfiguration(
+					*result.configuration,
+					source,
+					result.displayName,
+					result.pages,
+					result.diagnostics,
+					a_textResolver);
+			}
+		}
+		catch (const Json::parse_error& a_error)
+		{
+			AddTerminalDiagnostic(
+				result,
+				source,
+				"invalid JSON: " + std::string{ a_error.what() });
+		}
+		catch (const std::exception& a_error)
+		{
+			AddTerminalDiagnostic(
+				result,
+				source,
+				"failed to process MCM configuration: " +
+					std::string{ a_error.what() });
+		}
+		catch (...)
+		{
+			AddTerminalDiagnostic(
+				result,
+				source,
+				"failed to process MCM configuration");
+		}
+		return result;
+	}
+
+	LoadResult LoadConfig(
+		const std::filesystem::path& a_path,
+		const TextResolver& a_textResolver) noexcept
+	{
+		LoadResult result;
+		auto source = std::string{ "<path>" };
+		try
+		{
+			source = a_path.string();
+			auto file = detail::ReadTextFile(a_path);
+			if (file.status == detail::TextFileStatus::kMissing)
+			{
+				AddTerminalDiagnostic(
+					result,
+					source,
+					"could not open MCM configuration file");
+				return result;
+			}
+			if (file.status == detail::TextFileStatus::kFailed)
+			{
+				auto message =
+					std::string{ "could not read MCM configuration file" };
+				if (!file.error.empty())
+					message += ": " + file.error;
+				AddTerminalDiagnostic(
+					result,
+					source,
+					std::move(message));
+				return result;
+			}
+			return ParseConfig(file.text, source, a_textResolver);
+		}
+		catch (const std::exception& a_error)
+		{
+			AddTerminalDiagnostic(
+				result,
+				source,
+				"could not read MCM configuration file: " +
+					std::string{ a_error.what() });
+		}
+		catch (...)
+		{
+			AddTerminalDiagnostic(
+				result,
+				source,
+				"could not read MCM configuration file");
+		}
+		return result;
+	}
+}

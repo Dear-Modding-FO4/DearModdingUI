@@ -1,6 +1,7 @@
 #include <DearModdingUI/MCM/RexDiagnosticReporter.h>
 
 #include <DearModdingUI/Client.h>
+#include <DearModdingUI/MCM/DiagnosticLogging.h>
 
 #include <REX/REX.h>
 
@@ -12,10 +13,6 @@ namespace DearModdingUI::MCM
 
 	namespace
 	{
-		inline constexpr auto kDiagnosticLogTag{
-			"[dmui.mcm.diagnostic]"sv
-		};
-
 		[[nodiscard]] DMUI_StatusSeverity ToStatusSeverity(
 			DiagnosticSeverity a_severity) noexcept
 		{
@@ -46,59 +43,13 @@ namespace DearModdingUI::MCM
 
 	void RexDiagnosticReporter::Report(Diagnostic a_diagnostic) noexcept
 	{
-		if (a_diagnostic.location.empty())
-		{
-			if (a_diagnostic.severity == DiagnosticSeverity::kWarning)
-				REX::WARN("{} mod=\"{}\" client_id=\"{}\" {}: {}"sv,
-					kDiagnosticLogTag, mod_, clientId_,
-					a_diagnostic.source, a_diagnostic.message);
-			else
-				REX::ERROR("{} mod=\"{}\" client_id=\"{}\" {}: {}"sv,
-					kDiagnosticLogTag, mod_, clientId_,
-					a_diagnostic.source, a_diagnostic.message);
-		}
-		else
-		{
-			if (a_diagnostic.severity == DiagnosticSeverity::kWarning)
-				REX::WARN("{} mod=\"{}\" client_id=\"{}\" {}: {}: {}"sv,
-					kDiagnosticLogTag, mod_, clientId_,
-					a_diagnostic.source, a_diagnostic.location,
-					a_diagnostic.message);
-			else
-				REX::ERROR("{} mod=\"{}\" client_id=\"{}\" {}: {}: {}"sv,
-					kDiagnosticLogTag, mod_, clientId_,
-					a_diagnostic.source, a_diagnostic.location,
-					a_diagnostic.message);
-		}
+		LogDiagnostic(a_diagnostic, { mod_, clientId_ });
 		Submit(a_diagnostic);
 	}
 
 	void RexDiagnosticReporter::ReportTransient(Diagnostic a_diagnostic) noexcept
 	{
-		if (a_diagnostic.location.empty())
-		{
-			if (a_diagnostic.severity == DiagnosticSeverity::kWarning)
-				REX::WARN("{} mod=\"{}\" client_id=\"{}\" {}: {}"sv,
-					kDiagnosticLogTag, mod_, clientId_,
-					a_diagnostic.source, a_diagnostic.message);
-			else
-				REX::ERROR("{} mod=\"{}\" client_id=\"{}\" {}: {}"sv,
-					kDiagnosticLogTag, mod_, clientId_,
-					a_diagnostic.source, a_diagnostic.message);
-		}
-		else
-		{
-			if (a_diagnostic.severity == DiagnosticSeverity::kWarning)
-				REX::WARN("{} mod=\"{}\" client_id=\"{}\" {}: {}: {}"sv,
-					kDiagnosticLogTag, mod_, clientId_,
-					a_diagnostic.source, a_diagnostic.location,
-					a_diagnostic.message);
-			else
-				REX::ERROR("{} mod=\"{}\" client_id=\"{}\" {}: {}: {}"sv,
-					kDiagnosticLogTag, mod_, clientId_,
-					a_diagnostic.source, a_diagnostic.location,
-					a_diagnostic.message);
-		}
+		LogDiagnostic(a_diagnostic, { mod_, clientId_ });
 	}
 
 	void RexDiagnosticReporter::AttachClient(dmui::Client& a_client) noexcept

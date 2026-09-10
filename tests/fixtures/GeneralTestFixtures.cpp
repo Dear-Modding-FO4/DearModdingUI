@@ -7,6 +7,25 @@
 
 namespace DmuiTestFixtures
 {
+	void DrawExerciseIntro(
+		dmui::Client& a_client,
+		ExerciseKind a_kind,
+		Outcome a_outcome,
+		std::string_view a_observed) noexcept
+	{
+		const auto& page = Page(a_kind);
+		(void)a_client.DrawSectionHeader(page.displayName);
+		dmui::ui::TextWrapped("How to: %s", page.howTo);
+		dmui::ui::TextWrapped("Expected: %s", page.expected);
+		dmui::ui::Text(
+			"Observed: %s%s%.*s",
+			OutcomeName(a_outcome),
+			a_observed.empty() ? "" : " - ",
+			static_cast<int>(a_observed.size()),
+			a_observed.data());
+		dmui::ui::Separator();
+	}
+
 	namespace
 	{
 		template <dmui::SettingValueAlternative T>

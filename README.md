@@ -1,6 +1,6 @@
 ﻿<div align="center">
 
-<img src="assets/cover.jpg" alt="DearModdingUI" width="640">
+<img src="assets/Cover.jpg" alt="DearModdingUI" width="640">
 
 # DearModdingUI
 
