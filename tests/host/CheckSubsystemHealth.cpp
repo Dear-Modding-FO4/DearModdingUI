@@ -36,7 +36,7 @@ namespace vmm_tests
 		using namespace std::chrono_literals;
 		constexpr auto start = HealthClock::time_point{ 10s };
 
-		runner.test("health deadlines deduplicate escalation and distinguish recovery", [] {
+		runner.test("health deadlines deduplicate escalation and distinguish recovery", [start] {
 			CapturingHealthReporter reporter;
 			SubsystemHealth health{ "fixture", reporter, start };
 			health.Observe(HealthState::kWaiting, "dependency is unavailable", start);
@@ -72,7 +72,7 @@ namespace vmm_tests
 				"deadline progress was reported as full recovery");
 		});
 
-		runner.test("unhealthy subsystems recover only when ready", [] {
+		runner.test("unhealthy subsystems recover only when ready", [start] {
 			CapturingHealthReporter reporter;
 			SubsystemHealth health{ "fixture", reporter, start };
 			health.Observe(HealthState::kDegraded, "using fallback", start);
@@ -91,7 +91,7 @@ namespace vmm_tests
 				"a failed subsystem did not report full recovery");
 		});
 
-		runner.test("health registry owns snapshots and removes destroyed subsystems", [] {
+		runner.test("health registry owns snapshots and removes destroyed subsystems", [start] {
 			CapturingHealthReporter reporter;
 			SubsystemHealthRegistry registry;
 			HealthSnapshot snapshot;
