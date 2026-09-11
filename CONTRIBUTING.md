@@ -1,7 +1,5 @@
 # Contributing to DearModdingUI
 
-DearModdingUI is a standalone F4SE plugin hosting a shared Dear ImGui overlay for Fallout 4 mods. Mod plugins integrate through a versioned C ABI without linking against the host binary or compiling Dear ImGui code.
-
 ## Prerequisites
 
 - Windows 10 or 11 (x64)
@@ -44,9 +42,9 @@ The build produces two installable packages in `.Build/packages/`:
 | `DearModdingUI-<version>-release.zip` | Core host DLL, configuration, shaders, and fonts. |
 | `DearModdingUI-MCM-<version>-release.zip` | Optional bridge DLL for legacy MCM menus. Requires the host. |
 
+Package versions come from `plugin_version` in `xmake.lua`.
 For diagnostic builds with the in-game test client, configure with `--test-release=y`.
-Packaging reads the working tree's runtime assets under `data\F4SE\Plugins`, so
-new or renamed shaders do not require staging before a local package can be built.
+Packaging reads runtime assets from the working tree under `data\F4SE\Plugins`.
 
 ## Repository layout
 
@@ -67,8 +65,6 @@ new or renamed shaders do not require staging before a local package can be buil
 `xmake.lua` declares shared source sets once and compiles them with each target's
 own defines and adapters. Only desktop preview and automated tests use
 `tools\shared\include` compatibility stubs; game plugins use the real dependencies.
-The native renderer receives one required setup/draw/toggle callback bundle from
-the host. Mod callbacks remain independently registered through the public API.
 
 ## Running tests
 
@@ -108,13 +104,9 @@ Useful arguments:
 - `--sidebar <tree|twopane|drilldown|iconrail>`: Selects a sidebar presentation layout.
 - `--presentation <overlay|notification|image|plot|dialog>`: Tests specific presentation services.
 
-The presentation presets activate the same shared test-suite pages and actions as
-the in-game test client; there is no separate presentation demo client. MCM and
-navigation comparison scenarios live in `tools\preview\fixtures`, while
-`tools\shared` owns the reusable interactive exercises. Preview binaries and fixtures are
-not included in production packages. Captures fail rather than writing a misleading
-image if a requested scenario has not produced its required resources or output;
-increase `--frames` if the capture ran before initialization finished.
+Presentation presets use the shared exercises in `tools\shared`; MCM and navigation
+scenarios live in `tools\preview\fixtures`. Preview binaries and fixtures are not packaged.
+Increase `--frames` if capture fails because a scenario has not finished initializing.
 
 ## Stable UI contract
 

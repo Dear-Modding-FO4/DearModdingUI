@@ -39,5 +39,6 @@ namespace DearModdingUI::CarrierMenu
 	}
 
 	[[nodiscard]] bool Register() noexcept;
+	[[nodiscard]] bool IsOpen() noexcept;
 	void Handle(Event a_event) noexcept;
 }

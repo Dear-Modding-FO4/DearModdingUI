@@ -84,8 +84,7 @@ shows a loading note. A permanently inoperable mod-setting toggle owns page-loca
 its `groupControl` is referenced by a condition. An idless `ModSettingBool` switch uses the same
 route when referenced. The bridge initializes it false, matching MCM, and handles its disclosure
 state without persistent reads, writes, refreshes, resets, or setting-change events.
-This restores transient disclosure controls without
-inventing setting identifiers. Named declared or unknown settings remain source-backed. Other
+Named declared or unknown settings remain source-backed. Other
 inoperable controllers and missing or failed dependencies fail open, keep dependent content visible,
 and add a page compatibility diagnostic. No unresolved source state is replaced with the configured
 default.
@@ -109,6 +108,9 @@ main menu.
 | `kGlobal` | assign `TESGlobal::value` | no, the mod reads the global |
 | `kProperty` | write the Papyrus property slot | no, the mod reads the property |
 | `kModSetting` | `MCM.SetModSetting*` through the Papyrus VM | yes |
+
+MCM natives work without opening its menu and persist values to `MCM\Settings\<modName>.ini`.
+Writes to keys absent from MCM's store are ignored; declarations are read from `settings.ini`.
 
 Global-backed choices use numeric option indexes encoded as descriptor strings. Reads format the
 global as an integer index, and writes accept only numeric strings rather than option labels.
@@ -162,21 +164,6 @@ integer targets accept Papyrus integers; floating targets accept integers or flo
 accept strings or integer choice indexes. Hidden controls retain their declared source value type, so
 integer property conditions no longer depend on boolean fallback conversion.
 
-Measured in game:
-
-- MCM registers eleven natives on the Papyrus script `MCM`, including `GetVersionCode` and
-  `RefreshMenu`. Dispatching them works from gameplay, independent of MCM's
-  menu, and MCM writes changes through to `MCM\Settings\<modName>.ini` itself.
-- `root.mcm` is unreachable. It lives on `PauseMenu`, which is not instantiated until the player
-  opens it.
-- Writes reach only keys already in MCM's store. A `ModSetting*` key absent from the mod's
-  `Config\<Folder>\settings.ini` silently discards writes, and the getter returns a default, so an
-  absent key is indistinguishable from a `false` one. Read the declared key set from `settings.ini`
-  or such a control renders as a toggle that will not move.
-
-CommonLibF4 declares `BSScript::IStackCallbackFunctor::~IStackCallbackFunctor` without defining it;
-deriving from it requires supplying one.
-
 ## Runtime plugin
 
 `DearModdingUI-MCM` resolves installation at F4SE `kPostPostLoad` by checking whether `mcm.dll` is
@@ -221,4 +208,4 @@ An image-only page explains that limitation in a page note rather than adding an
 warning. Genuinely empty pages and malformed controls retain their diagnostics.
 Load-bearing unsupported controls remain visible and disabled. The preview accepts
 `DMUI_PREVIEW_MCM_INSTALLED=0` and `DMUI_PREVIEW_GAME_LOADED=0` to inspect the missing-MCM and
-main-menu states without adding command-line surface.
+main-menu states.

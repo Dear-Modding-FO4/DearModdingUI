@@ -2,6 +2,7 @@
 
 #include <Platform/input/CarrierMenu.h>
 #include <Platform/rendering/PlatformImGui.h>
+#include <Platform/rendering/FrameSubmission.h>
 
 #include <Windows.h>
 #include <d3d11.h>
@@ -11,6 +12,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 
 #undef ERROR
 
@@ -64,6 +66,7 @@ namespace Addictol::platformImguiDetail
 		std::atomic<bool> windowReady{ false };
 		std::atomic<bool> gameLoaded{ false };
 		std::atomic<Backend> backend{ Backend::kUninitialized };
+		ImguiPlatform::FrameSubmission frameSubmission;
 	};
 
 	[[nodiscard]] PlatformContext& Context() noexcept;
@@ -93,6 +96,10 @@ namespace Addictol::platformImguiDetail
 	void SetRendererReadyLocked() noexcept;
 
 	void DrawFrameLocked(IDXGISwapChain* a_swapChain) noexcept;
+	[[nodiscard]] bool InstallGameCursorHook() noexcept;
+	void DrawBeforeGameCursorLocked(ImguiPlatform::MousePosition a_position) noexcept;
+	void NoteGameCursorUnavailableLocked(std::string_view a_reason) noexcept;
+	void ResetGameCursorWaitLocked() noexcept;
 	void ReleaseBackBufferLocked() noexcept;
 	void ResetBackBufferFailureLocked() noexcept;
 	void ShutdownBackendLocked() noexcept;

@@ -483,6 +483,8 @@ namespace Addictol::platformImguiDetail
 		const auto suppress = ShouldSuppressGameInput(active);
 		GameInput::SetBlocked(suppress);
 		SetGameInputSuppressed(suppress);
+		if (previous != active)
+			ResetGameCursorWaitLocked();
 		if (previous == active || !ImGui::GetCurrentContext())
 			return;
 

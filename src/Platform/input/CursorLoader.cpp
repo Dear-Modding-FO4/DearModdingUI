@@ -4,6 +4,7 @@
 #include <Windows.h>
 
 #include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
 
 #include <REX/REX.h>
 
@@ -16,6 +17,7 @@ namespace DearModdingUI::CursorLoader
 		HWND g_window{ nullptr };
 		bool g_owned{ false };
 		bool g_previousNoMouseCursorChange{ false };
+		Source g_source{ Source::kSoftware };
 
 		void RequestCursorUpdate() noexcept
 		{
@@ -43,7 +45,7 @@ namespace DearModdingUI::CursorLoader
 		}
 	}
 
-	void Initialize(void* a_window) noexcept
+	void Initialize(void* a_window, Source a_source) noexcept
 	{
 		Shutdown();
 		if (!a_window || !ImGui::GetCurrentContext())
@@ -52,6 +54,7 @@ namespace DearModdingUI::CursorLoader
 			return;
 		}
 		g_window = static_cast<HWND>(a_window);
+		g_source = a_source;
 		auto& io = ImGui::GetIO();
 		g_previousNoMouseCursorChange =
 			(io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) != 0;
@@ -70,7 +73,8 @@ namespace DearModdingUI::CursorLoader
 	{
 		const auto cursor = DecideCursorPresentation(
 			g_window && a_modalVisible && HasFocus());
-		ImGui::GetIO().MouseDrawCursor = cursor.drawSoftwareCursor;
+		ImGui::GetIO().MouseDrawCursor =
+			g_source == Source::kSoftware && cursor.drawSoftwareCursor;
 
 		switch (DecideCursorTransition(g_owned, cursor.hideOperatingSystemCursor))
 		{
@@ -85,6 +89,18 @@ namespace DearModdingUI::CursorLoader
 		default:
 			break;
 		}
+	}
+
+	void ApplyNativePosition(float a_x, float a_y) noexcept
+	{
+		auto& context = *ImGui::GetCurrentContext();
+		for (auto index = context.InputEventsQueue.Size; index > 0; --index)
+		{
+			if (context.InputEventsQueue[index - 1].Type == ImGuiInputEventType_MousePos)
+				context.InputEventsQueue.erase(context.InputEventsQueue.Data + index - 1);
+		}
+		// Native position is a frame snapshot; queued OS positions must not win or delay clicks.
+		context.IO.MousePos = { a_x, a_y };
 	}
 
 	bool HandleWindowMessage(
@@ -118,5 +134,6 @@ namespace DearModdingUI::CursorLoader
 		}
 		g_window = nullptr;
 		g_previousNoMouseCursorChange = false;
+		g_source = Source::kSoftware;
 	}
 }

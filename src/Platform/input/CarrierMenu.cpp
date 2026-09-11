@@ -20,6 +20,7 @@ namespace DearModdingUI::CarrierMenu
 
 		inline constexpr auto kMenuName = "Addictol_DearModdingUI_CursorCarrier";
 		inline constexpr auto kMoviePath = "Interface/CursorMenu.swf"sv;
+		std::atomic<bool> s_onStack{ false };
 
 		class CursorCarrierMenu final :
 			public RE::IMenu
@@ -32,8 +33,12 @@ namespace DearModdingUI::CarrierMenu
 					return;
 
 				uiMovie->SetVisible(false);
+				// Explicitly return the shared game cursor from custom menu rendering to screen space.
+				customRendererName = "FlatScreenModel";
+				depthPriority = RE::UI_DEPTH_PRIORITY::kConsole;
 				menuFlags.set(
 					RE::UI_MENU_FLAGS::kUsesCursor,
+					RE::UI_MENU_FLAGS::kAssignCursorToRenderer,
 					RE::UI_MENU_FLAGS::kModal,
 					RE::UI_MENU_FLAGS::kAdvancesUnderPauseMenu,
 					RE::UI_MENU_FLAGS::kRendersUnderPauseMenu);
@@ -59,6 +64,18 @@ namespace DearModdingUI::CarrierMenu
 					uiMovie->SetVisible(false);
 			}
 
+			void OnAddedToMenuStack() override
+			{
+				RE::IMenu::OnAddedToMenuStack();
+				s_onStack.store(true, std::memory_order_release);
+			}
+
+			void OnRemovedFromMenuStack() override
+			{
+				s_onStack.store(false, std::memory_order_release);
+				RE::IMenu::OnRemovedFromMenuStack();
+			}
+
 			[[nodiscard]] bool Valid() const noexcept
 			{
 				return uiMovie != nullptr;
@@ -70,6 +87,7 @@ namespace DearModdingUI::CarrierMenu
 				auto* menu = new CursorCarrierMenu();
 				if (!menu->Valid())
 				{
+					REX::ERROR("DearModdingUI: carrier could not load Interface/CursorMenu.swf"sv);
 					delete menu;
 					return nullptr;
 				}
@@ -173,5 +191,10 @@ namespace DearModdingUI::CarrierMenu
 		const auto action = Transition(s_state, a_event);
 		if (!Dispatch(action))
 			s_state = previous;
+	}
+
+	bool IsOpen() noexcept
+	{
+		return s_onStack.load(std::memory_order_acquire);
 	}
 }

@@ -6,9 +6,7 @@
 
 **Shared Dear ImGui settings host and overlay system for Fallout 4 mods.**
 
-DearModdingUI provides one shared in-game settings menu for Fallout 4 mods.
-Mod plugins register their own pages and controls into a unified interface,
-eliminating the need for separate menus and disjointed hotkeys.
+Mods register their settings pages and controls into one shared in-game menu.
 
 <br>
 
@@ -71,10 +69,6 @@ Data\
 
 Download the latest packages from the [Releases](https://github.com/Dear-Modding-FO4/DearModdingUI/releases/latest) page.
 
-The build and package version comes from `plugin_version` in [xmake.lua](xmake.lua).
-The release badge above tracks the latest published release, which may lag the
-version in the source checkout.
-
 ---
 
 ## Configuration
@@ -96,7 +90,6 @@ sMenuSidebarLayout = "tree"
 
 - **Toggle Menu**: Press **End** (or your configured key) to open and close the interface.
 - **Dismiss Popups / Close**: Press **Escape** to cancel active edits, dismiss open dialogs, or close the menu.
-- **Switching Apps**: The menu stays open when Fallout 4 loses focus, but releases its input and cursor ownership until the game regains focus.
 - **Built-in Host Pages**:
   - **Home**: Overview of active mod registrations and system health.
   - **Health**: Diagnostic breakdown of host subsystems and per-client status.
