@@ -21,7 +21,6 @@ namespace DearModdingUI
 	namespace
 	{
 		inline constexpr float kSidebarModFontScale{ 0.8f };
-		inline constexpr size_t kMinimumVisiblePageRows{ 3 };
 
 		[[nodiscard]] float ClientStatusTrailingWidth(
 			const ClientStatus* a_status) noexcept
@@ -228,36 +227,25 @@ namespace DearModdingUI
 		{
 			const auto& style = ImGui::GetStyle();
 			const auto compactSpacing = style.ItemSpacing.y * 0.5f;
-			float rowStride{};
+			if (ImGui::BeginTable(
+					"##DearModdingTwoPane",
+					2,
+					ImGuiTableFlags_Resizable |
+						ImGuiTableFlags_SizingStretchSame |
+						ImGuiTableFlags_BordersInnerV))
 			{
-				const Theme::FontGuard font{
-					Theme::FontRole::kTitle,
-					kSidebarModFontScale
-				};
-				rowStride = ImGui::GetFrameHeight() + compactSpacing;
-			}
-			const auto availableHeight = (std::max)(
-				ImGui::GetContentRegionAvail().y -
-					style.ItemSpacing.y -
-					style.WindowBorderSize,
-				0.0f);
-			const auto minimumPagesHeight =
-				ImGui::GetTextLineHeightWithSpacing() +
-				ImGui::GetFrameHeightWithSpacing() *
-					static_cast<float>(kMinimumVisiblePageRows);
-			const auto panes = ResolveSidebarPaneHeights(
-				availableHeight,
-				rowStride,
-				a_context.presentation.ClientCount(a_context.model),
-				ImGui::GetTextLineHeightWithSpacing() + compactSpacing,
-				a_context.presentation.HeadingCount(),
-				0.0f,
-				minimumPagesHeight);
-			if (panes.mods > 0.0f)
-			{
+				ImGui::TableSetupColumn(
+					"Mods",
+					ImGuiTableColumnFlags_WidthStretch,
+					1.0f);
+				ImGui::TableSetupColumn(
+					"Pages",
+					ImGuiTableColumnFlags_WidthStretch,
+					1.0f);
+				ImGui::TableNextColumn();
 				if (ImGui::BeginChild(
 						"##DearModdingModsPane",
-						{ 0.0f, panes.mods }))
+						{ 0.0f, -FLT_MIN }))
 				{
 					ImGui::PushStyleVar(
 						ImGuiStyleVar_ItemSpacing,
@@ -268,22 +256,25 @@ namespace DearModdingUI
 					ImGui::PopStyleVar();
 				}
 				ImGui::EndChild();
+
+				ImGui::TableNextColumn();
+				if (ImGui::BeginChild(
+						"##DearModdingPagesPane",
+						{ 0.0f, -FLT_MIN }))
+				{
+					DrawSectionHeader("Pages", PhosphorGlyph::kFiles);
+					ImGui::Spacing();
+					if (const auto* client =
+							a_context.model.FindClient(
+								a_context.selection.activeClient))
+						DrawSidebarPageList(a_context, *client);
+					else
+						ImGui::TextDisabled(
+							"Select a mod to browse its pages.");
+				}
+				ImGui::EndChild();
+				ImGui::EndTable();
 			}
-			ImGui::Separator();
-			if (ImGui::BeginChild(
-					"##DearModdingPagesPane",
-					{ 0.0f, -FLT_MIN }))
-			{
-				DrawSectionHeader("Pages", PhosphorGlyph::kFiles);
-				ImGui::Spacing();
-				if (const auto* client =
-						a_context.model.FindClient(
-							a_context.selection.activeClient))
-					DrawSidebarPageList(a_context, *client);
-				else
-					ImGui::TextDisabled("Select a mod to browse its pages.");
-			}
-			ImGui::EndChild();
 		}
 
 		void DrawDrillDownNavigation(
