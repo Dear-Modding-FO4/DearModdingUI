@@ -17,8 +17,11 @@ namespace
 
 namespace vmm_tests
 {
+	void run_cursor_ownership_checks(Runner& runner);
+
 	void run_imgui_platform_checks(Runner& runner)
 	{
+		run_cursor_ownership_checks(runner);
 		runner.test("renderer attachment lifecycle and result mapping stay coherent", [] {
 			constexpr AttachmentIdentity empty{};
 			constexpr AttachmentIdentity game{ 1, 2, 3, 4 };

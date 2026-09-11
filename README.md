@@ -96,6 +96,7 @@ sMenuSidebarLayout = "tree"
 
 - **Toggle Menu**: Press **End** (or your configured key) to open and close the interface.
 - **Dismiss Popups / Close**: Press **Escape** to cancel active edits, dismiss open dialogs, or close the menu.
+- **Switching Apps**: The menu stays open when Fallout 4 loses focus, but releases its input and cursor ownership until the game regains focus.
 - **Built-in Host Pages**:
   - **Home**: Overview of active mod registrations and system health.
   - **Health**: Diagnostic breakdown of host subsystems and per-client status.

@@ -180,6 +180,7 @@ namespace Addictol::platformImguiDetail
 				return false;
 			}
 
+			DearModdingUI::CursorLoader::Initialize(attachment.window);
 			DearModdingUI::PresentationServices::SetDevice(
 				attachment.device.Get());
 			REX::INFO(
@@ -411,10 +412,10 @@ namespace Addictol::platformImguiDetail
 		DearModdingUI::PresentationServices::InvalidateDevice();
 		CloseModalStateLocked(
 			DearModdingUI::CarrierMenu::Event::kShutdown);
+		DearModdingUI::CursorLoader::Shutdown();
 		if (context.backend.load(std::memory_order_acquire) ==
 			Backend::kReady)
 		{
-			DearModdingUI::CursorLoader::Shutdown();
 			DearModdingUI::BackgroundBlur::ResetDeviceResources();
 			ImGui_ImplDX11_Shutdown();
 			ImGui_ImplWin32_Shutdown();
@@ -444,12 +445,7 @@ namespace Addictol::platformImguiDetail
 		const auto modalVisible = DearModdingUI::IsMenuVisible();
 		const auto overlayDemanded =
 			DearModdingUI::NeedsFrame() && !modalVisible;
-		SetModalInputStateLocked(modalVisible);
-		DearModdingUI::CarrierMenu::Handle(
-			modalVisible ?
-				DearModdingUI::CarrierMenu::Event::kOpen :
-				DearModdingUI::CarrierMenu::Event::kOverlayOnly);
-		DearModdingUI::CursorLoader::PrepareFrame(modalVisible);
+		ApplyDrawingRequestLocked(modalVisible);
 		if (!ShouldRenderHostFrame(modalVisible, overlayDemanded) ||
 			!EnsureBackBufferLocked(a_swapChain))
 			return;

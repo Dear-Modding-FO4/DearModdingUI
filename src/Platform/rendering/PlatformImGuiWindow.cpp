@@ -196,8 +196,24 @@ namespace Addictol::platformImguiDetail
 			};
 
 			const auto keyIndex = static_cast<size_t>(a_wparam);
-			if (a_message == WM_KILLFOCUS)
-				DearModdingUI::Hotkeys::ReleaseActiveKeys();
+			const auto focusLost = a_message == WM_KILLFOCUS ||
+				(a_message == WM_ACTIVATEAPP && !a_wparam);
+			const auto focusGained = a_message == WM_SETFOCUS ||
+				(a_message == WM_ACTIVATEAPP && a_wparam);
+			bool inputFocused{ false };
+			{
+				const ContextLock lock;
+				if (focusLost || focusGained)
+				{
+					if (focusLost)
+						DearModdingUI::Hotkeys::ReleaseActiveKeys();
+					ApplyDrawingRequestLocked(
+						!focusLost && DearModdingUI::IsMenuVisible());
+					if (ImGui::GetCurrentContext())
+						ImGui::GetIO().AddFocusEvent(!focusLost);
+				}
+				inputFocused = !focusLost && DearModdingUI::CursorLoader::HasFocus();
+			}
 			const auto keyPressed =
 				a_message == WM_KEYDOWN || a_message == WM_SYSKEYDOWN;
 			const auto keyReleased =
@@ -206,7 +222,7 @@ namespace Addictol::platformImguiDetail
 				a_message,
 				static_cast<uint32_t>(a_wparam),
 				static_cast<uint64_t>(a_lparam),
-				DearModdingUI::IsMenuVisible(),
+				inputFocused && DearModdingUI::IsMenuVisible(),
 				s_consumedEscape.load(std::memory_order_acquire));
 			if (escapeDecision == EscapeMessageDecision::kCapture)
 			{
@@ -232,7 +248,8 @@ namespace Addictol::platformImguiDetail
 				escapeDecision !=
 					EscapeMessageDecision::kReleaseAndForward;
 
-			if (!escapeConsumed && (keyPressed || keyReleased))
+			if (!escapeConsumed &&
+				((inputFocused && keyPressed) || keyReleased))
 			{
 				const auto* ui = RE::UI::GetSingleton();
 				DearModdingUI::Hotkeys::SetContext({
@@ -313,6 +330,7 @@ namespace Addictol::platformImguiDetail
 				}
 				if (toggleDecision ==
 						ToggleMessageDecision::kDispatch &&
+					inputFocused &&
 					Context().callbacks.toggle(
 						static_cast<uint32_t>(a_wparam)))
 				{
@@ -326,10 +344,14 @@ namespace Addictol::platformImguiDetail
 				}
 			}
 
-			if (DearModdingUI::CursorLoader::HandleWindowMessage(
-					a_message,
-					static_cast<uint64_t>(a_lparam)))
-				return 1;
+			{
+				const ContextLock lock;
+				if (DearModdingUI::CursorLoader::HandleWindowMessage(
+						a_window,
+						a_message,
+						static_cast<uint64_t>(a_lparam)))
+					return 1;
+			}
 
 			auto& context = Context();
 			if (!context.drawingEnabled.load(
@@ -454,13 +476,14 @@ namespace Addictol::platformImguiDetail
 	void SetModalInputStateLocked(bool a_visible) noexcept
 	{
 		auto& context = Context();
+		const auto active = a_visible && DearModdingUI::CursorLoader::HasFocus();
 		const auto previous = context.drawingEnabled.exchange(
-			a_visible,
+			active,
 			std::memory_order_acq_rel);
-		const auto suppress = ShouldSuppressGameInput(a_visible);
+		const auto suppress = ShouldSuppressGameInput(active);
 		GameInput::SetBlocked(suppress);
 		SetGameInputSuppressed(suppress);
-		if (previous == a_visible || !ImGui::GetCurrentContext())
+		if (previous == active || !ImGui::GetCurrentContext())
 			return;
 
 		auto& io = ImGui::GetIO();
@@ -471,12 +494,13 @@ namespace Addictol::platformImguiDetail
 	void ApplyDrawingRequestLocked(bool a_enabled) noexcept
 	{
 		SetModalInputStateLocked(a_enabled);
+		const auto active = Context().drawingEnabled.load(std::memory_order_acquire);
 		DearModdingUI::CarrierMenu::Handle(
-			a_enabled ?
+			active ?
 				DearModdingUI::CarrierMenu::Event::kOpen :
 				DearModdingUI::CarrierMenu::Event::kClose);
 		if (ImGui::GetCurrentContext())
-			DearModdingUI::CursorLoader::PrepareFrame(a_enabled);
+			DearModdingUI::CursorLoader::PrepareFrame(active);
 	}
 
 	void CloseModalStateLocked(
