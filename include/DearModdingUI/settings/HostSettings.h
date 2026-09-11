@@ -30,13 +30,13 @@ namespace DearModdingUI
 	inline constexpr HostPaletteColor kDefaultPaletteBackgroundColor{
 		0x05, 0x05, 0x05
 	};
-	inline constexpr float kDefaultWindowBackgroundOpacity{ 0.55f };
+	inline constexpr float kDefaultWindowBackgroundOpacity{ 0.75f };
 	inline constexpr float kMinWindowBackgroundOpacity{ 0.20f };
 	inline constexpr float kMaxWindowBackgroundOpacity{ 1.0f };
 	inline constexpr float kDefaultPaletteBackgroundOpacity{ 0.85f };
 	inline constexpr float kMinPaletteBackgroundOpacity{ 0.20f };
 	inline constexpr float kMaxPaletteBackgroundOpacity{ 1.0f };
-	inline constexpr float kDefaultBackgroundBlurStrength{ 0.30f };
+	inline constexpr float kDefaultBackgroundBlurStrength{ 0.50f };
 	inline constexpr float kMinBackgroundBlurStrength{ 0.10f };
 	inline constexpr float kMaxBackgroundBlurStrength{ 1.0f };
 	inline constexpr std::string_view kDefaultBodyFontFamily{ "Jost" };

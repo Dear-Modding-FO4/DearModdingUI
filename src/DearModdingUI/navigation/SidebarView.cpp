@@ -88,7 +88,8 @@ namespace DearModdingUI
 						ClientStatusTrailingWidth(a_status),
 				.flushHorizontalHighlight =
 					a_kind == SidebarClientRowKind::kRail,
-				.centerGlyph = a_kind == SidebarClientRowKind::kRail
+				.centerGlyph = a_kind == SidebarClientRowKind::kRail,
+				.disclosureStyle = RowDisclosureStyle::kSubtle
 			});
 			DrawClientStatusDot(
 				row.rect,
@@ -221,8 +222,6 @@ namespace DearModdingUI
 		void DrawTwoPaneNavigation(
 			const SidebarViewContext& a_context) noexcept
 		{
-			const auto& style = ImGui::GetStyle();
-			const auto compactSpacing = style.ItemSpacing.y * 0.5f;
 			if (ImGui::BeginTable(
 					"##DearModdingTwoPane",
 					2,
@@ -243,13 +242,9 @@ namespace DearModdingUI
 						"##DearModdingModsPane",
 						{ 0.0f, -FLT_MIN }))
 				{
-					ImGui::PushStyleVar(
-						ImGuiStyleVar_ItemSpacing,
-						{ style.ItemSpacing.x, compactSpacing });
 					DrawPresentedSidebarClients(
 						a_context,
 						SidebarClientRowKind::kList);
-					ImGui::PopStyleVar();
 				}
 				ImGui::EndChild();
 
@@ -608,10 +603,14 @@ namespace DearModdingUI
 				bool* expanded{};
 				if (a_kind == SidebarClientRowKind::kTree)
 				{
-					expanded =
-						&a_context.browsing.modExpansion
-							.try_emplace(client.id, false)
-							.first->second;
+					size_t pageCount{};
+					for (const auto& category : client.categories)
+						pageCount += category.pages.size();
+					if (pageCount > 1)
+						expanded =
+							&a_context.browsing.modExpansion
+								.try_emplace(client.id, false)
+								.first->second;
 				}
 				const auto row = DrawClientRow(
 					client,

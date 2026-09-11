@@ -405,6 +405,7 @@ namespace DearModdingUI
 			a_options.height > 0.0f ? a_options.height : ImGui::GetFrameHeight();
 		const auto splitArrow =
 			a_options.leadingAffordance == RowLeadingAffordance::kArrow &&
+			a_options.expanded &&
 			a_options.clickBehavior == RowClickBehavior::kSelect;
 		ImGui::PushID(a_options.id);
 		if (a_options.flushHorizontalHighlight)
@@ -503,18 +504,31 @@ namespace DearModdingUI
 		if (a_options.leadingAffordance == RowLeadingAffordance::kArrow ||
 			a_options.leadingAffordance == RowLeadingAffordance::kBack)
 		{
-			ImGui::RenderArrow(
-				drawList,
-				{
-					cursorX,
-					rect.Min.y + ContentOffsetY(rect.GetHeight(), fontSize)
-				},
-				textColor,
-				a_options.leadingAffordance == RowLeadingAffordance::kBack ?
-					ImGuiDir_Left :
-					(a_options.expanded && *a_options.expanded ?
-						ImGuiDir_Down :
-						ImGuiDir_Right));
+			const auto back =
+				a_options.leadingAffordance == RowLeadingAffordance::kBack;
+			const auto subtle = !back &&
+				a_options.disclosureStyle == RowDisclosureStyle::kSubtle;
+			const auto interactive =
+				hovered || ImGui::IsItemFocused() || ImGui::IsItemActive();
+			const auto expanded = a_options.expanded && *a_options.expanded;
+			if ((back || a_options.expanded) &&
+				(!subtle || interactive || expanded))
+			{
+				const auto scale = subtle ? 0.6f : 1.0f;
+				const auto arrowSize = fontSize * scale;
+				ImGui::RenderArrow(
+					drawList,
+					{
+						cursorX + (fontSize - arrowSize) * 0.5f,
+						rect.Min.y + ContentOffsetY(rect.GetHeight(), arrowSize)
+					},
+					subtle ?
+						ImGui::GetColorU32(ImGuiCol_TextDisabled) :
+						textColor,
+					back ? ImGuiDir_Left :
+						(expanded ? ImGuiDir_Down : ImGuiDir_Right),
+					scale);
+			}
 			cursorX += fontSize + ImGui::GetStyle().ItemInnerSpacing.x;
 		}
 		if (HasIconGlyph(a_options.glyph))

@@ -37,6 +37,12 @@ namespace DearModdingUI
 		kToggle
 	};
 
+	enum class RowDisclosureStyle : uint32_t
+	{
+		kDefault,
+		kSubtle
+	};
+
 	struct RowOptions
 	{
 		const char* id{ nullptr };
@@ -58,6 +64,7 @@ namespace DearModdingUI
 		};
 		RowClickBehavior clickBehavior{ RowClickBehavior::kSelect };
 		bool centerGlyph{ false };
+		RowDisclosureStyle disclosureStyle{ RowDisclosureStyle::kDefault };
 	};
 
 	struct RowResult

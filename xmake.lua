@@ -1,7 +1,7 @@
 includes("Depends/commonlibf4")
 
 local plugin_name = "DearModdingUI"
-local plugin_version = "0.1.1"
+local plugin_version = "0.1.2"
 
 local function project_dir(relative)
     return path.join(os.projectdir(), relative)
