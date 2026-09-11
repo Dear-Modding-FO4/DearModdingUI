@@ -57,9 +57,6 @@ namespace DearModdingUI
 		const SidebarViewContext& a_context,
 		const NavigationClient& a_client,
 		bool a_indented = true) noexcept;
-	void DrawSidebarClientContext(
-		const NavigationClient& a_client) noexcept;
-
 	[[nodiscard]] SidebarDrawResult DrawSidebar(
 		const NavigationModel& a_model,
 		std::span<const ClientStatus> a_statuses,

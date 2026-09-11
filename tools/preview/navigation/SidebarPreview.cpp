@@ -55,8 +55,6 @@ namespace DearModdingUI
 					a_context.model.FindClient(
 						a_context.selection.activeClient))
 			{
-				DrawSidebarClientContext(*client);
-				ImGui::Spacing();
 				DrawSectionHeader(
 					client->displayName.c_str(),
 					ResolveNavigationClientIconGlyph(*client));

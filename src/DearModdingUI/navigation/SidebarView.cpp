@@ -333,8 +333,6 @@ namespace DearModdingUI
 				}
 			}
 			ImGui::Spacing();
-			DrawSidebarClientContext(*selectedClient);
-			ImGui::Spacing();
 			DrawSectionHeader(
 				selectedClient->displayName.c_str(),
 				ResolveNavigationClientIconGlyph(*selectedClient));
@@ -483,19 +481,6 @@ namespace DearModdingUI
 			ImGui::Spacing();
 			return changed;
 		}
-	}
-
-	void DrawSidebarClientContext(
-		const NavigationClient& a_client) noexcept
-	{
-		const auto label = NavigationClientSectionLabel(
-			a_client.origin,
-			a_client.bridgeSourceLabel);
-		ImGui::TextWrapped(
-			a_client.origin == DMUI_CLIENT_ORIGIN_NATIVE ?
-				"Origin: %s" :
-				"Source: %s",
-			label.c_str());
 	}
 
 	void DrawSidebarPageList(
