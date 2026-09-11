@@ -61,12 +61,17 @@ namespace Addictol::platformImguiDetail
 				return accepted;
 			}
 			const auto* ui = RE::UI::GetSingleton();
+			if (!ui || !ui->GetRuntimeData().menuSystemVisible)
+			{
+				NoteGameCursorUnavailableLocked("the game's menu system is unavailable or hidden");
+				return accepted;
+			}
 			if (!accepted || !a_menu->OnStack() ||
 				!a_menu->IsMenuDisplayEnabled() ||
 				!a_menu->hasDoneFirstAdvanceMovie ||
 				a_menu->menuFlags.any(RE::UI_MENU_FLAGS::kCustomRendering) ||
 				!a_menu->uiMovie || !a_menu->uiMovie->GetVisible() ||
-				!a_menu->cursor || !ui || !ui->menuSystemVisible)
+				!a_menu->cursor)
 			{
 				NoteGameCursorUnavailableLocked("the game's cursor is not drawable in screen space");
 				return accepted;
