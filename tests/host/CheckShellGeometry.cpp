@@ -128,6 +128,8 @@ namespace vmm_tests
 			{
 				require(
 					ParseSidebarLayout(layout.id) == layout.kind &&
+						ParseUserSidebarLayout(layout.id) == layout.kind &&
+						FindUserSidebarLayout(layout.kind) == &layout &&
 						SidebarLayoutKindName(layout.kind) == layout.id &&
 						layout.preview,
 					"sidebar layout name did not round trip");
@@ -140,7 +142,7 @@ namespace vmm_tests
 				"unknown or default sidebar layout handling changed");
 
 			PersistedHostInterfaceSettings persisted;
-			for (const auto value : { ""sv, "columns"sv, "iconrail"sv })
+			for (const auto value : { ""sv, "columns"sv })
 			{
 				persisted.sidebarLayout = value;
 				require(
@@ -148,9 +150,6 @@ namespace vmm_tests
 						SidebarLayoutKind::Tree,
 					"unavailable sidebar config did not fall back to tree");
 			}
-			require(
-				!ParseUserSidebarLayout("iconrail"),
-				"icon rail was accepted as a user setting");
 		});
 
 	}

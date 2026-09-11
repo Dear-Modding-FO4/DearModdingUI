@@ -4,10 +4,6 @@
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/presentation/Theme.h>
-#if defined(DMUI_PREVIEW)
-#include <SidebarPreview.h>
-#endif
-
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 
@@ -275,6 +271,61 @@ namespace DearModdingUI
 				ImGui::EndChild();
 				ImGui::EndTable();
 			}
+		}
+
+		void DrawIconRailNavigation(
+			const SidebarViewContext& a_context) noexcept
+		{
+			const auto& style = ImGui::GetStyle();
+			float iconFontSize{};
+			{
+				const Theme::FontGuard font{
+					Theme::FontRole::kTitle,
+					kSidebarModFontScale
+				};
+				iconFontSize = ImGui::GetFontSize();
+			}
+			const auto geometry = ResolveIconRailGeometry(
+				ImGui::GetContentRegionAvail().x - style.ScrollbarSize,
+				iconFontSize,
+				style.FramePadding.x,
+				style.ItemSpacing.x);
+			if (geometry.railWidth > 0.0f)
+			{
+				if (ImGui::BeginChild(
+						"##DearModdingIconRail",
+						{ geometry.railWidth + style.ScrollbarSize, -FLT_MIN },
+						ImGuiChildFlags_None,
+						ImGuiWindowFlags_AlwaysVerticalScrollbar))
+				{
+					DrawPresentedSidebarClients(
+						a_context,
+						SidebarClientRowKind::kRail);
+				}
+				ImGui::EndChild();
+			}
+			if (geometry.panelWidth <= 0.0f)
+				return;
+
+			ImGui::SameLine(0.0f, geometry.gap);
+			if (ImGui::BeginChild(
+					"##DearModdingIconRailPages",
+					{ geometry.panelWidth, -FLT_MIN }))
+			{
+				if (const auto* client =
+						a_context.model.FindClient(
+							a_context.selection.activeClient))
+				{
+					DrawSectionHeader(
+						client->displayName.c_str(),
+						ResolveNavigationClientIconGlyph(*client));
+					ImGui::Spacing();
+					DrawSidebarPageList(a_context, *client);
+				}
+				else
+					ImGui::TextDisabled("Select a mod to browse its pages.");
+			}
+			ImGui::EndChild();
 		}
 
 		void DrawDrillDownNavigation(
@@ -640,11 +691,9 @@ namespace DearModdingUI
 			case SidebarLayoutKind::DrillDown:
 				DrawDrillDownNavigation(context);
 				break;
-#if defined(DMUI_PREVIEW)
 			case SidebarLayoutKind::IconRail:
 				DrawIconRailNavigation(context);
 				break;
-#endif
 			default:
 				DrawTreeNavigation(context);
 				break;

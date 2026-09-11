@@ -40,7 +40,7 @@ Mods register their settings pages and controls into one shared in-game menu.
 |---|---|
 | **Unified menu** | A single in-game interface where participating mods present settings and status. |
 | **Modern UI and theming** | Hardware-accelerated Dear ImGui rendering with custom styling, typography, and background blur. |
-| **Flexible navigation** | Tree, two-pane, and drill-down sidebar browsing layouts with mod category grouping and live search. |
+| **Flexible navigation** | Tree, two-pane, drill-down, and icon-rail sidebar browsing layouts with mod category grouping and live search. |
 | **Live health monitoring** | Real-time observation of renderer status, configuration persistence, input interception, and typography. |
 | **Zero runtime link dependency** | Mod plugins interact via a versioned C ABI. Clients do not link against the host DLL or bundle Dear ImGui. |
 | **Legacy MCM support** | An optional bridge converts existing MCM configurations into DearModdingUI pages automatically. |
@@ -80,7 +80,7 @@ Host settings are stored in `Data/F4SE/Plugins/DearModdingUI.toml`. Window state
 # Hotkey to toggle the menu (End, Home, Insert, Delete, F1-F12)
 sMenuToggleKey = "End"
 
-# Sidebar presentation style (tree, twopane, drilldown)
+# Sidebar presentation style (tree, twopane, drilldown, iconrail)
 sMenuSidebarLayout = "tree"
 ```
 

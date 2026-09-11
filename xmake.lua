@@ -270,7 +270,6 @@ target("dmui-preview", function()
     add_files(
         "tools/preview/*.cpp",
         "tools/preview/fixtures/**.cpp",
-        "tools/preview/navigation/SidebarPreview.cpp",
         "mcm/runtime/src/Win32FileListingAdapter.cpp"
     )
     add_includedirs(

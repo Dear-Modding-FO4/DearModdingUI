@@ -18,11 +18,8 @@ namespace DearModdingUI
 	{
 		Tree,
 		TwoPane,
-		DrillDown
-#if defined(DMUI_PREVIEW)
-		,
+		DrillDown,
 		IconRail
-#endif
 	};
 
 	struct SidebarLayoutDescriptor
@@ -59,18 +56,15 @@ namespace DearModdingUI
 			"Show one level at a time; well suited to many mods.",
 			true,
 			true
-		}
-#if defined(DMUI_PREVIEW)
-		,
+		},
 		SidebarLayoutDescriptor{
 			SidebarLayoutKind::IconRail,
 			"iconrail",
 			"Icon rail",
 			"Browse mods from a compact icon rail.",
-			false,
+			true,
 			true
 		}
-#endif
 	};
 	inline constexpr auto DEFAULT_SIDEBAR_LAYOUT = SidebarLayoutKind::Tree;
 
@@ -352,7 +346,6 @@ namespace DearModdingUI
 
 	};
 
-#if defined(DMUI_PREVIEW)
 	struct IconRailSidebarLayout
 	{
 		inline static constexpr auto kind = SidebarLayoutKind::IconRail;
@@ -366,7 +359,6 @@ namespace DearModdingUI
 		}
 
 	};
-#endif
 
 	template<class F>
 	decltype(auto) VisitSidebarLayout(
@@ -381,11 +373,9 @@ namespace DearModdingUI
 		case SidebarLayoutKind::DrillDown:
 			return std::forward<F>(a_fn)
 				.template operator()<DrillDownSidebarLayout>();
-#if defined(DMUI_PREVIEW)
 		case SidebarLayoutKind::IconRail:
 			return std::forward<F>(a_fn)
 				.template operator()<IconRailSidebarLayout>();
-#endif
 		default:
 			return std::forward<F>(a_fn)
 				.template operator()<TreeSidebarLayout>();
@@ -398,10 +388,8 @@ namespace DearModdingUI
 		const ClientSelectionState& a_selection,
 		SidebarBrowsingState& a_state)
 	{
-#if defined(DMUI_PREVIEW)
 		if (a_kind != SidebarLayoutKind::IconRail)
-#endif
-		RevealSidebarOrigin(a_model, a_selection, a_state);
+			RevealSidebarOrigin(a_model, a_selection, a_state);
 		VisitSidebarLayout(
 			a_kind,
 			[&]<class Layout>() {
@@ -422,7 +410,6 @@ namespace DearModdingUI
 			});
 	}
 
-#if defined(DMUI_PREVIEW)
 	struct IconRailGeometry
 	{
 		float railWidth{ 0.0f };
@@ -449,5 +436,4 @@ namespace DearModdingUI
 			remaining);
 		return { rail, remaining - gap, gap };
 	}
-#endif
 }
