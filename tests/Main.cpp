@@ -13,6 +13,7 @@ int main()
 	run_coalesced_task_checks(runner);
 	run_papyrus_callable_checks(runner);
 	run_dear_modding_ui_checks(runner);
+	run_icon_resolution_checks(runner);
 	run_settings_table_checks(runner);
 	run_hotkey_checks(runner);
 	run_presentation_service_checks(runner);

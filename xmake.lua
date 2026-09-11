@@ -100,6 +100,7 @@ local source_sets = {
     core = {
         "src/DearModdingUI/host/Diagnostics.cpp",
         "src/DearModdingUI/host/Hotkeys.cpp",
+        "src/DearModdingUI/host/IconResolution.cpp",
         "src/DearModdingUI/host/MenuDismissal.cpp",
         "src/DearModdingUI/host/Registry*.cpp",
         "src/DearModdingUI/host/RenderExecution.cpp",

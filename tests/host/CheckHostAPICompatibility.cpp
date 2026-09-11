@@ -67,8 +67,12 @@ namespace vmm_tests
 						DMUI_HOST_API_OPEN_EXTERNAL_SIZE &&
 					DMUI_HOST_API_OPEN_EXTERNAL_SIZE <
 						DMUI_HOST_API_QUERY_UI_API_SIZE &&
+					offsetof(DMUI_HostAPI, queryUIAPI) == 432 &&
+					DMUI_HOST_API_QUERY_UI_API_SIZE == 440 &&
+					offsetof(DMUI_HostAPI, resolveIconGlyph) == 440 &&
+					DMUI_HOST_API_RESOLVE_ICON_GLYPH_SIZE == 448 &&
 					sizeof(DMUI_HostAPI) ==
-						DMUI_HOST_API_QUERY_UI_API_SIZE,
+						DMUI_HOST_API_RESOLVE_ICON_GLYPH_SIZE,
 				"the versioned host API prefix moved");
 		});
 

@@ -216,7 +216,8 @@ namespace DearModdingUI
 			&ApiUpdateImage,
 			&ApiRegisterCategory,
 			&ApiOpenExternal,
-			&ApiQueryUIAPI
+			&ApiQueryUIAPI,
+			&ApiResolveIconGlyph
 		};
 		return api;
 	}

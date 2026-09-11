@@ -80,7 +80,7 @@ are palette-only: plain page sidebar and title rows retain their current text
 and selection markers.
 Raw-glyph links and section headers keep their separate contract: zero means
 no icon, and an unavailable or unrepresentable glyph uses text fallback.
-`SettingGroup::glyph` uses a chosen nonzero glyph or label inference;
+`SettingGroup::glyph` uses a chosen nonzero glyph or host-owned label inference;
 `HeadingMode::kDivider` remains explicitly iconless. No icon editor, mod-name
 exception table, category renaming, API version bump, or product version bump
 is introduced.
@@ -124,14 +124,44 @@ accepted upstream aliases, descriptive tags, and a small reviewed domain
 vocabulary. It uses whole normalized words and chooses the lowest pinned glyph
 codepoint when equally ranked terms match, making the result stable regardless
 of metadata order. Primary metadata wins whenever it has a match; secondary
-metadata is consulted only after a primary miss. Surface defaults such as
-Question are reserved for genuine misses.
+metadata is consulted only after a primary miss. When every original term in a
+metadata group misses, inference retries once with vocabulary-backed regular
+English singular forms for whole words ending in `-s`, `-es`, or `-ies`.
+Direct vocabulary matches are never replaced, and primary word forms are tried
+before secondary metadata. Surface defaults such as Question are reserved for
+genuine misses.
 
-Icon inference is a header-only API helper rather than a new C ABI operation.
-Older client binaries therefore retain the helper behavior they compiled until
-they are rebuilt against the updated API. Raw-glyph section and link calls
-still treat zero as no icon. An unset declarative `SettingGroup::glyph`
-continues to request automatic label inference, and dividers remain iconless.
+Automatic client drawing uses the appended host-owned `resolveIconGlyph`
+operation. A mod must rebuild once against the API that calls this entry; after
+that, host vocabulary updates change its inferred setting-group icons without
+another mod rebuild. The C query is stateless and thread-safe, needs no ready
+renderer or active page callback, and performs no drawing. The wrapper requires
+a connected client and serialized access to that instance's mutable state.
+Gate raw C calls with
+`DMUI_HOST_API_RESOLVE_ICON_GLYPH_SIZE` and a non-null function pointer.
+`DMUI_IconResolutionRequest` accepts an exact or extended
+`DMUI_ICON_RESOLUTION_REQUEST_0_1_SIZE` prefix, optional null/empty strings,
+an explicit-name maximum of 128 bytes, and primary/secondary metadata maxima
+of 256 bytes. Disallowed control characters reject the request; tab remains
+valid. A successful zero is a genuine no-match, while `std::nullopt` from
+`Client::ResolveIconGlyph` is an error and `LastResult()` preserves the host
+result.
+
+Declarative `SettingGroup` drawing calls the host on every draw when `glyph`
+is zero, using the current label or the group key when the label is empty.
+A successful no-match uses the existing Question surface fallback. A nonzero
+glyph, including an explicit Question or raw invalid scalar, bypasses automatic
+resolution and is forwarded unchanged; dividers bypass it as well. Resolver
+failure, a short old host table, or a null entry fails the page callback instead
+of using stale local inference. The existing callback isolation then
+permanently disables that page after the failed draw.
+
+`IconGlyphs.h` still exposes `IconResolver`, `ResolveIconSelection`, and
+`ResolveAutomaticIconGlyph` as offline or compile-time snapshot utilities.
+Do not use `ResolveAutomaticIconGlyph` for host-authoritative client drawing:
+its vocabulary is compiled into the mod and cannot receive later host updates.
+Raw `Client::DrawSectionHeader`, collapsing-section, and link operations remain
+unchanged; zero still means no icon and they do not infer automatically.
 
 ## Shared theme and widgets
 

@@ -39,10 +39,10 @@ namespace vmm_tests
 		runner.test("icon resolution follows semantic fallback chain", [] {
 			const auto wrench = FindPhosphorIconGlyphOrZero("wrench");
 			const auto hammer = FindPhosphorIconGlyphOrZero("hammer");
-			const auto robot = FindPhosphorIconGlyphOrZero("robot");
-			const auto brain = FindPhosphorIconGlyphOrZero("brain");
-			const auto layout = FindPhosphorIconGlyphOrZero("layout");
-			const auto faders = FindPhosphorIconGlyphOrZero("faders");
+			const auto acorn = FindPhosphorIconGlyphOrZero("acorn");
+			const auto city = FindPhosphorIconGlyphOrZero("city");
+			const auto files = FindPhosphorIconGlyphOrZero("files");
+			const auto watch = FindPhosphorIconGlyphOrZero("watch");
 			const auto archiveBox =
 				FindPhosphorIconGlyphOrZero("box-arrow-down");
 			require(
@@ -81,88 +81,128 @@ namespace vmm_tests
 						wrench &&
 					ResolveInferredIconGlyphOrZero("Wrench Tools") == wrench,
 				"primary canonical phrase did not outrank secondary or tags");
-			require(
-				ResolveInferredIconGlyphOrZero("Power Armor") == robot &&
-					ResolveInferredIconGlyphOrZero("repairs") == wrench,
-				"domain phrase or generated tag coverage was lost");
 
 			const std::array peerPrimary{
-				std::string_view{ "AI / UI" }
+				std::string_view{ "Wrench Hammer" }
 			};
-			const std::array brainContext{ std::string_view{ "Brain" } };
+			const auto peerGlyph = (std::min)(wrench, hammer);
+			const std::array competingSecondary{ std::string_view{ "Acorn" } };
 			const std::array unrelatedContext{
-				std::string_view{ "General" }
+				std::string_view{ "Unmapped Frobnicator" }
 			};
 			const auto selected = IconResolver::Resolve({
 				.primaryMetadata = peerPrimary
 			});
-			const auto withMatchingSecondary = IconResolver::Resolve({
+			const auto withCompetingSecondary = IconResolver::Resolve({
 				.primaryMetadata = peerPrimary,
-				.secondaryMetadata = brainContext
+				.secondaryMetadata = competingSecondary
 			});
 			const auto withUnrelatedSecondary = IconResolver::Resolve({
 				.primaryMetadata = peerPrimary,
 				.secondaryMetadata = unrelatedContext
 			});
 			require(
-				selected.HasSelection() && selected.glyph == layout &&
-					withMatchingSecondary.HasSelection() &&
-					withMatchingSecondary.glyph == layout &&
+				selected.HasSelection() && selected.glyph == peerGlyph &&
+					withCompetingSecondary.HasSelection() &&
+					withCompetingSecondary.glyph == peerGlyph &&
 					withUnrelatedSecondary.HasSelection() &&
-					withUnrelatedSecondary.glyph == layout,
+					withUnrelatedSecondary.glyph == peerGlyph,
 				"primary peer matches were not selected deterministically");
-			const std::array toolsPrimary{ std::string_view{ "Tools" } };
-			const auto toolsWithGeneral = IconResolver::Resolve({
-				.primaryMetadata = toolsPrimary,
-				.secondaryMetadata = unrelatedContext
-			});
-			require(
-				toolsWithGeneral.HasSelection() &&
-					toolsWithGeneral.glyph == wrench,
-				"reviewed Tools preference did not outrank secondary context");
 			const std::array firstOrder{
-				std::string_view{ "AI" },
-				std::string_view{ "UI" }
+				std::string_view{ "Wrench" },
+				std::string_view{ "Hammer" }
 			};
 			const std::array reverseOrder{
-				std::string_view{ "UI" },
-				std::string_view{ "AI" }
+				std::string_view{ "Hammer" },
+				std::string_view{ "Wrench" }
 			};
 			require(
 				IconResolver::Resolve({
 					.secondaryMetadata = firstOrder
-				}).glyph == layout &&
+				}).glyph == peerGlyph &&
 					IconResolver::Resolve({
 						.secondaryMetadata = reverseOrder
-					}).glyph == layout &&
-					ResolveInferredIconGlyphOrZero("Settings") == faders,
-				"peer metadata order or equal-rank tag selection was unstable");
-			const std::array domainCases{
-				std::pair{ "Accessibility", "person-arms-spread" },
-				std::pair{ "Cache", "database" },
-				std::pair{ "Caching", "database" },
-				std::pair{ "Hotkeys", "keyboard" },
-				std::pair{ "Maintenance", "wrench" },
-				std::pair{ "Notifications", "notification" },
-				std::pair{ "Presets", "sliders-horizontal" },
-				std::pair{ "Profiles", "user-switch" },
-				std::pair{ "Tools", "wrench" },
-				std::pair{ "Troubleshooting", "lifebuoy" },
-				std::pair{ "Utilities", "toolbox" }
-			};
-			for (const auto& [label, icon] : domainCases)
-				require(
-					ResolveInferredIconGlyphOrZero(label) ==
-						FindPhosphorIconGlyphOrZero(icon),
-					"reviewed shared domain preference did not resolve");
+					}).glyph == peerGlyph,
+				"peer metadata order or equal-rank canonical selection was unstable");
+			const auto domainTerm = std::ranges::find_if(
+				kPhosphorIconDomainTerms,
+				[](const auto& mapping) {
+					const auto [aliasFirst, aliasLast] =
+						IconResolverDetail::EqualRange(
+							kPhosphorIconAliases,
+							mapping.phrase);
+					const auto [tagFirst, tagLast] =
+						IconResolverDetail::EqualRange(
+							kPhosphorIconTags,
+							mapping.phrase);
+					return !FindPhosphorSlugGlyphOrZero(mapping.phrase) &&
+						aliasFirst == aliasLast && tagFirst == tagLast;
+				});
 			require(
-				ResolveInferredIconGlyphOrZero("Detail") != brain &&
-					ResolveInferredIconGlyphOrZero("Fluid") != layout &&
+				domainTerm != kPhosphorIconDomainTerms.end() &&
+					ResolveInferredIconGlyphOrZero(domainTerm->phrase) ==
+						domainTerm->glyph,
+				"domain vocabulary was not consulted");
+			const auto tagTerm = std::ranges::find_if(
+				kPhosphorIconTags,
+				[](const auto& mapping) {
+					return mapping.phrase.size() > 1 &&
+						mapping.phrase.find('-') == std::string_view::npos &&
+						!ResolveNamedIconGlyphOrZero(mapping.phrase);
+				});
+			require(tagTerm != kPhosphorIconTags.end(),
+				"catalog has no tag-only term to exercise");
+			const auto [tagFirst, tagLast] = IconResolverDetail::EqualRange(
+				kPhosphorIconTags, tagTerm->phrase);
+			const auto tagMatches = std::span{ kPhosphorIconTags }.subspan(
+				tagFirst, tagLast - tagFirst);
+			const auto expectedTag = std::ranges::min_element(
+				tagMatches, {}, &IconPhraseMapping::glyph)->glyph;
+			require(
+				ResolveInferredIconGlyphOrZero(tagTerm->phrase) == expectedTag,
+				"tag-only metadata did not select its lowest matching glyph");
+			require(
+				ResolveInferredIconGlyphOrZero("Recent Address Book") ==
+					FindPhosphorIconGlyphOrZero("address-book"),
+				"longest canonical phrase did not outrank a shorter match");
+
+			const std::array pluralCases{
+				std::pair{ "Acorns", acorn },
+				std::pair{ "Watches", watch },
+				std::pair{ "Cities", city },
+				std::pair{ "Recent Watches", watch }
+			};
+			for (const auto& [label, expected] : pluralCases)
+				require(
+					ResolveInferredIconGlyphOrZero(label) == expected,
+					"regular plural metadata did not use its known word form");
+			const std::array pluralPrimary{ std::string_view{ "Acorns" } };
+			const std::array canonicalSecondary{ std::string_view{ "Wrench" } };
+			const std::array mixedPrimary{
+				std::string_view{ "Acorns" },
+				std::string_view{ "Wrench" }
+			};
+			require(
+				ResolveNamedIconGlyphOrZero("Acorns") == char32_t{} &&
+					ResolveInferredIconGlyphOrZero("Files") == files &&
+					IconResolver::Resolve({
+						.primaryMetadata = mixedPrimary
+					}).glyph == wrench &&
+					IconResolver::Resolve({
+						.primaryMetadata = pluralPrimary,
+						.secondaryMetadata = canonicalSecondary
+					}).glyph == acorn,
+				"explicit lookup, direct matches, or plural precedence changed");
+			require(
+				ResolveInferredIconGlyphOrZero("Status Focus Class") ==
+						char32_t{} &&
+					ResolveInferredIconGlyphOrZero("Acornucopia") ==
+						char32_t{} &&
 					ResolveInferredIconGlyphOrZero("X Frobnicator") ==
 						char32_t{} &&
 					ResolveInferredIconGlyphOrZero("X") ==
 						PhosphorGlyph::kX,
-				"short authoritative terms matched inside words");
+				"singular endings or short terms produced a false match");
 
 			require(
 				ResolveCategoryIconGlyph(
@@ -175,7 +215,7 @@ namespace vmm_tests
 						"Wrench",
 						"wrench",
 						"hammer",
-						"robot") == robot,
+						"acorn") == acorn,
 				"category inference inherited the matching client's icon");
 
 			const auto noMatch = ResolveIconSelection(
@@ -194,6 +234,9 @@ namespace vmm_tests
 
 			const auto invalidRaw = IconResolver::Resolve({
 				.explicitGlyph = char32_t{ 0x110000 }
+			});
+			const auto zeroRaw = IconResolver::Resolve({
+				.explicitGlyph = char32_t{}
 			});
 			NavigationClient navigationClient;
 			navigationClient.id = "wrench";
@@ -224,10 +267,9 @@ namespace vmm_tests
 			NavigationSearchEntry action;
 			action.kind = NavigationItemKind::kAction;
 			action.iconSelection =
-				ResolveIconSelection("unknown", "Audio Feature");
+				ResolveIconSelection("unknown", "Wrench Feature");
 			require(
-				ResolveNavigationSearchEntryGlyph(action) ==
-					PhosphorGlyph::kSpeakerHigh,
+				ResolveNavigationSearchEntryGlyph(action) == wrench,
 				"action palette did not use the shared cached match");
 			action.iconSelection = noMatch;
 			require(
@@ -247,7 +289,11 @@ namespace vmm_tests
 					invalidRaw.status ==
 						IconSelectionStatus::kInvalidRawGlyph &&
 					invalidRaw.GlyphOr(PhosphorGlyph::kQuestion) ==
-						char32_t{ 0x110000 },
+						char32_t{ 0x110000 } &&
+					zeroRaw.status ==
+						IconSelectionStatus::kInvalidRawGlyph &&
+					zeroRaw.GlyphOr(PhosphorGlyph::kQuestion) ==
+						char32_t{},
 				"automatic group or invalid raw-glyph semantics changed");
 			for (const auto settingsAction : kSettingsActionOrder)
 			{

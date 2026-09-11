@@ -36,4 +36,22 @@ namespace DearModdingUI::Internal
 			a_output.assign(*value);
 		return true;
 	}
+
+	[[nodiscard]] inline bool ValidText(
+		std::string_view a_text,
+		bool a_optional) noexcept
+	{
+		if (!a_optional && a_text.empty())
+			return false;
+		bool hasVisibleCharacter = false;
+		for (const auto character : a_text)
+		{
+			if (static_cast<unsigned char>(character) < 0x20u &&
+				character != '\t')
+				return false;
+			if (character != ' ' && character != '\t')
+				hasVisibleCharacter = true;
+		}
+		return a_optional || hasVisibleCharacter;
+	}
 }

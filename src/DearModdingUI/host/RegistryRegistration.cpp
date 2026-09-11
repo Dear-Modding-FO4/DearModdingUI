@@ -31,21 +31,6 @@ namespace DearModdingUI
 			}
 			return true;
 		}
-
-		[[nodiscard]] bool ValidText(std::string_view a_text, bool a_optional) noexcept
-		{
-			if (!a_optional && a_text.empty())
-				return false;
-			bool hasVisibleCharacter = false;
-			for (const auto character : a_text)
-			{
-				if (static_cast<unsigned char>(character) < 0x20u && character != '\t')
-					return false;
-				if (character != ' ' && character != '\t')
-					hasVisibleCharacter = true;
-			}
-			return a_optional || hasVisibleCharacter;
-		}
 	}
 
 	DMUI_Result Registry::RegisterClient(
@@ -102,9 +87,9 @@ namespace DearModdingUI
 					true,
 					client.bridgeSourceLabel) ||
 				!ValidId(client.id) ||
-				!ValidText(client.displayName, false) ||
-				!ValidText(client.iconName, true) ||
-				!ValidText(client.bridgeSourceLabel, true) ||
+				!Internal::ValidText(client.displayName, false) ||
+				!Internal::ValidText(client.iconName, true) ||
+				!Internal::ValidText(client.bridgeSourceLabel, true) ||
 				(client.origin == DMUI_CLIENT_ORIGIN_NATIVE &&
 					!client.bridgeSourceLabel.empty()))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
@@ -178,10 +163,10 @@ namespace DearModdingUI
 				!Internal::CopyBoundedString(
 					iconName, kIconNameCapacity, true, page.iconName) ||
 				!ValidId(page.id) ||
-				!ValidText(page.displayName, false) ||
+				!Internal::ValidText(page.displayName, false) ||
 				(!page.categoryId.empty() && !ValidId(page.categoryId)) ||
-				!ValidText(page.summary, true) ||
-				!ValidText(page.iconName, true))
+				!Internal::ValidText(page.summary, true) ||
+				!Internal::ValidText(page.iconName, true))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 
 			const std::scoped_lock lock{ m_mutex };
@@ -250,8 +235,8 @@ namespace DearModdingUI
 					true,
 					category.iconName) ||
 				!ValidId(category.id) ||
-				!ValidText(category.displayName, false) ||
-				!ValidText(category.iconName, true))
+				!Internal::ValidText(category.displayName, false) ||
+				!Internal::ValidText(category.iconName, true))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 
 			const std::scoped_lock lock{ m_mutex };
@@ -311,9 +296,9 @@ namespace DearModdingUI
 					true,
 					action.tooltip) ||
 				!ValidId(action.id) ||
-				!ValidText(action.displayLabel, false) ||
-				!ValidText(action.iconName, true) ||
-				!ValidText(action.tooltip, true))
+				!Internal::ValidText(action.displayLabel, false) ||
+				!Internal::ValidText(action.iconName, true) ||
+				!Internal::ValidText(action.tooltip, true))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 
 			const std::scoped_lock lock{ m_mutex };

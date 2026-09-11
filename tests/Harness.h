@@ -69,6 +69,7 @@ namespace vmm_tests
 	void run_papyrus_callable_checks(Runner& runner);
 	void run_subsystem_health_checks(Runner& runner);
 	void run_dear_modding_ui_checks(Runner& runner);
+	void run_icon_resolution_checks(Runner& runner);
 	void run_settings_table_checks(Runner& runner);
 	void run_hotkey_checks(Runner& runner);
 	void run_presentation_service_checks(Runner& runner);
