@@ -114,21 +114,26 @@ namespace DearModdingUI
 		}
 
 		void DrawNavigationSectionHeading(
-			const NavigationClientSection& a_section) noexcept
+			const NavigationClientSection& a_section,
+			bool& a_expanded) noexcept
 		{
 			const auto label = NavigationClientSectionLabel(
 				a_section.origin,
 				a_section.bridgeSourceLabel);
+			const auto key = SidebarOriginKey(a_section);
 			ImGui::PushID(static_cast<int>(a_section.origin));
-			ImGui::PushID(a_section.bridgeSourceLabel.c_str());
+			ImGui::PushID(key.second.c_str());
 			{
 				const Theme::FontGuard font{ Theme::FontRole::kHeading };
 				DrawRuledHeading({
+					.key = "##DearModdingOriginSection",
 					.text = label.c_str(),
 					.glyph =
 						a_section.origin == DMUI_CLIENT_ORIGIN_NATIVE ?
 							PhosphorGlyph::kPuzzlePiece :
 							FindPhosphorIconGlyphOrZero("share-network"),
+					.expanded = &a_expanded,
+					.layout = RuledHeadingLayout::kLeadingRow,
 					.ruleStyle = RuledHeadingRuleStyle::kSubordinate
 				});
 			}
@@ -551,14 +556,24 @@ namespace DearModdingUI
 			assert(presented.sectionIndex < a_context.model.sections.size());
 			const auto& section =
 				a_context.model.sections[presented.sectionIndex];
+			auto sectionExpanded = true;
 			if (a_kind == SidebarClientRowKind::kRail)
 			{
 				if (!firstSection)
 					ImGui::Separator();
 			}
 			else if (presented.showHeading)
-				DrawNavigationSectionHeading(section);
+			{
+				auto state =
+					a_context.browsing.originExpansion
+						.try_emplace(SidebarOriginKey(section), true)
+						.first;
+				DrawNavigationSectionHeading(section, state->second);
+				sectionExpanded = state->second;
+			}
 			firstSection = false;
+			if (!sectionExpanded)
+				continue;
 			for (const auto clientIndex : section.clientIndices)
 			{
 				assert(clientIndex < a_context.model.clients.size());

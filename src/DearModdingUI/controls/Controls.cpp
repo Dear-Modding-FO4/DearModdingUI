@@ -231,12 +231,13 @@ namespace DearModdingUI
 			if (const auto* glyph = baked->FindGlyphNoFallback(
 					static_cast<ImWchar>(a_glyph)))
 			{
+				// Icons align within their fixed advance cell, not their padded glyph box.
 				const auto origin = ResolveCenteredGlyphOrigin(
 					center.x,
 					center.y,
-					glyph->X0,
+					0.0f,
 					glyph->Y0,
-					glyph->X1,
+					glyph->AdvanceX,
 					glyph->Y1,
 					a_size / baked->Size);
 				position = { origin.x, origin.y };

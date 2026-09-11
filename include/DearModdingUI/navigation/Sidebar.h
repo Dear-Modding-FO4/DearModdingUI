@@ -250,15 +250,40 @@ namespace DearModdingUI
 	struct SidebarBrowsingState
 	{
 		DrillDownState drillDown;
+		std::map<std::pair<DMUI_ClientOrigin, std::string>, bool>
+			originExpansion;
 		std::map<std::string, bool> categoryExpansion;
 		std::map<std::string, bool> modExpansion;
 	};
+
+	[[nodiscard]] inline std::pair<DMUI_ClientOrigin, std::string>
+		SidebarOriginKey(const NavigationClientSection& a_section)
+	{
+		return {
+			a_section.origin,
+			a_section.origin == DMUI_CLIENT_ORIGIN_NATIVE ?
+				std::string{} :
+				a_section.bridgeSourceLabel
+		};
+	}
 
 	[[nodiscard]] inline std::string SidebarCategoryKey(
 		const NavigationClient& a_client,
 		std::string_view a_categoryId)
 	{
 		return a_client.id + "/" + std::string{ a_categoryId };
+	}
+
+	inline void RevealSidebarOrigin(
+		const NavigationModel& a_model,
+		const ClientSelectionState& a_selection,
+		SidebarBrowsingState& a_state)
+	{
+		if (a_selection.activeHostPage)
+			return;
+		if (const auto* section =
+				a_model.FindSectionForClient(a_selection.activeClient))
+			a_state.originExpansion[SidebarOriginKey(*section)] = true;
 	}
 
 	inline void RevealSidebarCategory(
@@ -373,6 +398,10 @@ namespace DearModdingUI
 		const ClientSelectionState& a_selection,
 		SidebarBrowsingState& a_state)
 	{
+#if defined(DMUI_PREVIEW)
+		if (a_kind != SidebarLayoutKind::IconRail)
+#endif
+		RevealSidebarOrigin(a_model, a_selection, a_state);
 		VisitSidebarLayout(
 			a_kind,
 			[&]<class Layout>() {
@@ -386,7 +415,11 @@ namespace DearModdingUI
 		const ClientSelectionState& a_selection,
 		SidebarBrowsingState& a_state)
 	{
-		RevealSidebarSelection(a_kind, a_model, a_selection, a_state);
+		VisitSidebarLayout(
+			a_kind,
+			[&]<class Layout>() {
+				Layout::RevealSelection(a_model, a_selection, a_state);
+			});
 	}
 
 #if defined(DMUI_PREVIEW)
