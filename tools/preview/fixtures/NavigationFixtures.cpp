@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <exception>
+#include <format>
 #include <span>
 #include <string_view>
 
@@ -26,7 +27,8 @@ namespace DmuiTestFixtures
 					continue;
 				if (!a_client.AddCategory({
 						.id = page.categoryId,
-						.displayName = page.categoryDisplayName
+						.displayName = page.categoryDisplayName,
+						.sortKey = static_cast<int32_t>(categories.size())
 					}))
 				{
 					a_error = "Could not register navigation category " +
@@ -99,6 +101,58 @@ namespace DmuiTestFixtures
 				auto* registered = client.get();
 				a_clients.push_back(std::move(client));
 				if (!AddPages(*registered, kNavigationFixturePages, a_error))
+					return false;
+			}
+			constexpr size_t exampleModCount = 48;
+			constexpr size_t examplePageCount = 40;
+			constexpr std::array categoryIds{
+				"general", "gameplay", "controls", "visuals", "advanced"
+			};
+			constexpr std::array categoryNames{
+				"General", "Gameplay", "Controls", "Visuals", "Advanced"
+			};
+			constexpr std::array icons{
+				"gear", "wrench", "puzzle-piece", "sliders",
+				"heart", "map-trifold", "shield", "crosshair",
+				"speaker-high", "leaf", "flask", "sparkle"
+			};
+			std::vector<std::string> pageIds;
+			std::vector<std::string> pageNames;
+			std::vector<NavigationFixturePage> pages;
+			pageIds.reserve(examplePageCount);
+			pageNames.reserve(examplePageCount);
+			pages.reserve(examplePageCount);
+			for (size_t index = 0; index < examplePageCount; ++index)
+			{
+				const auto category = index / 8;
+				pageIds.push_back(std::format("page-{:02}", index + 1));
+				pageNames.push_back(std::format(
+					"{} options {:02}", categoryNames[category], index + 1));
+				pages.push_back({
+					pageIds.back().c_str(),
+					pageNames.back().c_str(),
+					categoryIds[category],
+					categoryNames[category],
+					"Preview-only example: 48 mods with 40 pages each."
+				});
+			}
+			a_clients.reserve(a_clients.size() + exampleModCount);
+			for (size_t index = 0; index < exampleModCount; ++index)
+			{
+				auto client = std::make_unique<dmui::Client>(
+					std::format("dearmodding.preview.mod-{:02}", index + 1),
+					std::format("Example Mod {:02}", index + 1),
+					dmui::Version{ 0, 1 },
+					icons[index % icons.size()]);
+				if (!client->Connect())
+				{
+					a_error = "Could not connect the icon-rail example mod (result " +
+						std::string{ DMUI_ResultToString(client->LastResult()) } + ").";
+					return false;
+				}
+				auto* registered = client.get();
+				a_clients.push_back(std::move(client));
+				if (!AddPages(*registered, pages, a_error))
 					return false;
 			}
 			return true;

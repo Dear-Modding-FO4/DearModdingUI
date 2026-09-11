@@ -25,7 +25,7 @@ namespace DearModdingUI
 			iconFontSize = ImGui::GetFontSize();
 		}
 		const auto geometry = ResolveIconRailGeometry(
-			ImGui::GetContentRegionAvail().x,
+			ImGui::GetContentRegionAvail().x - style.ScrollbarSize,
 			iconFontSize,
 			style.FramePadding.x,
 			style.ItemSpacing.x);
@@ -33,7 +33,9 @@ namespace DearModdingUI
 		{
 			if (ImGui::BeginChild(
 					"##DearModdingIconRail",
-					{ geometry.railWidth, -FLT_MIN }))
+					{ geometry.railWidth + style.ScrollbarSize, -FLT_MIN },
+					ImGuiChildFlags_None,
+					ImGuiWindowFlags_AlwaysVerticalScrollbar))
 			{
 				DrawPresentedSidebarClients(
 					a_context,
