@@ -73,7 +73,7 @@ namespace Addictol
 		}
 
 		context.callbacks = a_callbacks;
-		if (!InstallRendererReconciliation())
+		if (!InstallGameCursorHook() || !InstallRendererReconciliation())
 		{
 			context.installState.store(
 				ImguiPlatform::InstallState::kRejected,

@@ -5,6 +5,7 @@
 #include <DearModdingUI/host/MenuDismissal.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/Host.h>
+#include <Platform/input/CursorLoader.h>
 #include <Platform/rendering/ImGuiPlatformTargets.h>
 
 #include <imgui/backends/imgui_impl_win32.h>
@@ -159,6 +160,9 @@ namespace DearModdingUIPreview
 		WPARAM a_wparam,
 		LPARAM a_lparam)
 	{
+		if (CursorLoader::HandleWindowMessage(
+				a_window, a_message, static_cast<uint64_t>(a_lparam)))
+			return 1;
 		const auto escapeDecision =
 			Addictol::ImguiPlatform::DecideEscapeMessage(
 				a_message,

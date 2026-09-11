@@ -631,6 +631,11 @@ namespace Addictol::platformImguiDetail
 				a_swapChain,
 				a_syncInterval,
 				a_flags);
+			if (presented.Valid())
+			{
+				const ContextLock lock;
+				context.frameSubmission.FinishPresent(presented, a_flags);
+			}
 			if (presented.Valid() &&
 				ObservesDisplayedFrame(
 					a_flags,
@@ -703,6 +708,7 @@ namespace Addictol::platformImguiDetail
 					context.attachment.swapChain.Get())
 				{
 					ReleaseBackBufferLocked();
+					context.frameSubmission.Reset();
 					ResetBackBufferFailureLocked();
 				}
 			}

@@ -24,8 +24,7 @@ The installable outputs are:
 - `.Build\packages\test\DearModdingUI-MCM\`
 - `.Build\packages\DearModdingUI-MCM-<version>-test.zip`
 
-`<version>` is read by the build and packaging tasks from `plugin_version` in
-[xmake.lua](../../xmake.lua); these filenames do not require a separate version update.
+`<version>` comes from `plugin_version` in [xmake.lua](../../xmake.lua).
 
 The core archive contains the host and general test client. Install the separate
 MCM test archive as well when exercising the real bridge.
@@ -85,19 +84,9 @@ are not included in the installable package.
 
 ## Diagnostic logging
 
-The test client writes bounded, event-driven diagnostics to
-`Documents\My Games\Fallout4\F4SE\dmui-test-client.log`. It records the
-one-time initialization and service preflight, each hotkey's registration and
-initial effective binding, hotkey edges, overlay frame-demand changes, image
-lifecycle transitions and CPU create/update outcomes, notification
-scheduling/posting, completed edits and resets, and dialog state transitions.
-It never logs entered text and does not log ordinary per-frame queries or
-draws.
-The standalone preview sends the same fixture diagnostics to standard error.
-
-The preview and F4SE fixture compose one shared suite from `tools/shared`.
-They use the same public `dmui::ui` callbacks and negotiate the same host UI
-table. Only the thin environment adapters differ.
+The test client logs registration, input edges, resource lifecycles, and operation outcomes to
+`Documents\My Games\Fallout4\F4SE\dmui-test-client.log`. It does not log entered text or
+ordinary per-frame queries. The standalone preview sends the same diagnostics to standard error.
 
 Use **Log current results** on the results page for an on-demand compact
 snapshot. Another compact snapshot is written whenever any exercise page is

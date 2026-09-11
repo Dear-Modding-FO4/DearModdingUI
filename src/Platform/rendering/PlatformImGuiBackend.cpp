@@ -16,8 +16,10 @@
 #include <imgui/backends/imgui_impl_dx11.h>
 #include <imgui/backends/imgui_impl_win32.h>
 
+#include <chrono>
 #include <filesystem>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -50,6 +52,8 @@ namespace Addictol::platformImguiDetail
 			bool backBufferFailureLogged{ false };
 			bool coordinateSpaceLogged{ false };
 			std::string iniPath;
+			std::optional<std::chrono::steady_clock::time_point> nativeCursorWait;
+			std::string_view nativeCursorIssue{ "the native cursor screen-space pass was not observed" };
 		};
 
 		Support::ProcessLifetime<BackendState> s_backendStorage;
@@ -180,6 +184,8 @@ namespace Addictol::platformImguiDetail
 				return false;
 			}
 
+			DearModdingUI::CursorLoader::Initialize(
+				attachment.window, DearModdingUI::CursorLoader::Source::kGame);
 			DearModdingUI::PresentationServices::SetDevice(
 				attachment.device.Get());
 			REX::INFO(
@@ -285,23 +291,36 @@ namespace Addictol::platformImguiDetail
 			return true;
 		}
 
-		void ApplyBackBufferCoordinateSpaceLocked() noexcept
+		void ApplyBackBufferCoordinateSpaceLocked(
+			std::optional<MousePosition> a_nativePosition) noexcept
 		{
 			auto& io = ImGui::GetIO();
 			const auto client = ReadClientSize(Context().attachment.window);
-			const auto mouse = MapClientToBackBuffer(
-				ReadClientMousePosition(Context().attachment.window),
-				client.width,
-				client.height,
-				s_backendState.backBufferIdentity.width,
-				s_backendState.backBufferIdentity.height);
 			io.DisplaySize = {
 				static_cast<float>(
 					s_backendState.backBufferIdentity.width),
 				static_cast<float>(
 					s_backendState.backBufferIdentity.height)
 			};
-			io.AddMousePosEvent(mouse.x, mouse.y);
+			if (a_nativePosition)
+			{
+				DearModdingUI::CursorLoader::ApplyNativePosition(
+					a_nativePosition->x, a_nativePosition->y);
+			}
+			else if (!DearModdingUI::CursorLoader::HasFocus())
+			{
+				constexpr auto unavailable = -(std::numeric_limits<float>::max)();
+				DearModdingUI::CursorLoader::ApplyNativePosition(unavailable, unavailable);
+			}
+			else
+			{
+				const auto mouse = MapClientToBackBuffer(
+					ReadClientMousePosition(Context().attachment.window),
+					client.width, client.height,
+					s_backendState.backBufferIdentity.width,
+					s_backendState.backBufferIdentity.height);
+				io.AddMousePosEvent(mouse.x, mouse.y);
+			}
 			if ((client.width !=
 						s_backendState.backBufferIdentity.width ||
 					client.height !=
@@ -390,6 +409,81 @@ namespace Addictol::platformImguiDetail
 			DearModdingUI::Rendering::ShaderState<ID3D11DomainShader> domain;
 			DearModdingUI::Rendering::ShaderState<ID3D11ComputeShader> compute;
 		};
+
+		[[nodiscard]] PresentAttachmentToken ActiveFrameAttachment() noexcept
+		{
+			const auto& context = Context();
+			return {
+				reinterpret_cast<uintptr_t>(context.attachment.swapChain.Get()),
+				context.attachmentGeneration
+			};
+		}
+
+		void SubmitFrameLocked(
+			ID3D11RenderTargetView* a_target,
+			std::optional<MousePosition> a_nativePosition = std::nullopt) noexcept
+		{
+			auto& context = Context();
+			const auto attachment = ActiveFrameAttachment();
+			if (!context.frameSubmission.Claim(attachment))
+				return;
+			if (!DearModdingUI::Theme::PrepareFrame(
+					s_backendState.backBufferIdentity.height))
+			{
+				NoteGameCursorUnavailableLocked("host typography could not prepare the frame");
+				return;
+			}
+			const auto modalVisible = DearModdingUI::IsMenuVisible();
+			DearModdingUI::BackgroundBlur::BeginFrame();
+			DearModdingUI::PresentationServices::BeginFrame();
+
+			ImGui_ImplDX11_NewFrame();
+			ImGui_ImplWin32_NewFrame();
+			ApplyBackBufferCoordinateSpaceLocked(a_nativePosition);
+			ImGui::NewFrame();
+			context.callbacks.draw();
+			ImGui::Render();
+
+			const PipelineState previousState{ context.attachment.context.Get() };
+			if (modalVisible)
+			{
+				DearModdingUI::BackgroundBlur::Render(
+					context.attachment.device.Get(),
+					context.attachment.context.Get(),
+					s_backendState.backBuffer.Get(),
+					a_target);
+			}
+			context.attachment.context->OMSetRenderTargets(1, &a_target, nullptr);
+			ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+			DearModdingUI::PresentationServices::CompleteRenderSubmission();
+			context.frameSubmission.Complete(attachment);
+		}
+
+		void WaitForNativeCursorLocked() noexcept
+		{
+			if (Context().frameSubmission.Submitted(ActiveFrameAttachment()))
+			{
+				if (s_backendState.nativeCursorWait)
+					REX::INFO("DearModdingUI: native cursor rendering is ready"sv);
+				s_backendState.nativeCursorWait.reset();
+				return;
+			}
+			const auto now = std::chrono::steady_clock::now();
+			if (!s_backendState.nativeCursorWait)
+			{
+				s_backendState.nativeCursorWait = now;
+				REX::INFO("DearModdingUI: waiting for the game's cursor before drawing the menu"sv);
+			}
+			// Allow asynchronous UI show/advance, but never leave an invisible modal owning input.
+			if (now - *s_backendState.nativeCursorWait >= std::chrono::seconds(2))
+			{
+				REX::ERROR("DearModdingUI: closing the menu because {}"sv,
+					s_backendState.nativeCursorIssue);
+				CloseModalStateLocked(DearModdingUI::CarrierMenu::Event::kBackendFailure);
+				s_backendState.nativeCursorWait.reset();
+			}
+			s_backendState.nativeCursorIssue = "the native cursor screen-space pass was not observed";
+		}
 	}
 
 	void ReleaseBackBufferLocked() noexcept
@@ -411,10 +505,12 @@ namespace Addictol::platformImguiDetail
 		DearModdingUI::PresentationServices::InvalidateDevice();
 		CloseModalStateLocked(
 			DearModdingUI::CarrierMenu::Event::kShutdown);
+		DearModdingUI::CursorLoader::Shutdown();
+		context.frameSubmission.Reset();
+		s_backendState.nativeCursorWait.reset();
 		if (context.backend.load(std::memory_order_acquire) ==
 			Backend::kReady)
 		{
-			DearModdingUI::CursorLoader::Shutdown();
 			DearModdingUI::BackgroundBlur::ResetDeviceResources();
 			ImGui_ImplDX11_Shutdown();
 			ImGui_ImplWin32_Shutdown();
@@ -444,46 +540,61 @@ namespace Addictol::platformImguiDetail
 		const auto modalVisible = DearModdingUI::IsMenuVisible();
 		const auto overlayDemanded =
 			DearModdingUI::NeedsFrame() && !modalVisible;
-		SetModalInputStateLocked(modalVisible);
-		DearModdingUI::CarrierMenu::Handle(
-			modalVisible ?
-				DearModdingUI::CarrierMenu::Event::kOpen :
-				DearModdingUI::CarrierMenu::Event::kOverlayOnly);
-		DearModdingUI::CursorLoader::PrepareFrame(modalVisible);
+		ApplyDrawingRequestLocked(modalVisible);
+		if (modalVisible && DearModdingUI::CursorLoader::HasFocus())
+		{
+			WaitForNativeCursorLocked();
+			return;
+		}
+		s_backendState.nativeCursorWait.reset();
 		if (!ShouldRenderHostFrame(modalVisible, overlayDemanded) ||
 			!EnsureBackBufferLocked(a_swapChain))
 			return;
-		if (!DearModdingUI::Theme::PrepareFrame(
-				s_backendState.backBufferIdentity.height))
-			return;
-		DearModdingUI::BackgroundBlur::BeginFrame();
-		DearModdingUI::PresentationServices::BeginFrame();
+		SubmitFrameLocked(s_backendState.backBufferView.Get());
+	}
 
-		ImGui_ImplDX11_NewFrame();
-		ImGui_ImplWin32_NewFrame();
-		ApplyBackBufferCoordinateSpaceLocked();
-		ImGui::NewFrame();
-		context.callbacks.draw();
-		ImGui::Render();
+	void NoteGameCursorUnavailableLocked(std::string_view a_reason) noexcept
+	{
+		s_backendState.nativeCursorIssue = a_reason;
+	}
 
-		const PipelineState previousState{
-			context.attachment.context.Get()
-		};
-		if (modalVisible)
+	void ResetGameCursorWaitLocked() noexcept
+	{
+		s_backendState.nativeCursorWait.reset();
+		s_backendState.nativeCursorIssue = "the native cursor screen-space pass was not observed";
+	}
+
+	void DrawBeforeGameCursorLocked(MousePosition a_position) noexcept
+	{
+		auto& context = Context();
+		if (!EnsureBackBufferLocked(context.attachment.swapChain.Get()))
 		{
-			DearModdingUI::BackgroundBlur::Render(
-				context.attachment.device.Get(),
-				context.attachment.context.Get(),
-				s_backendState.backBuffer.Get(),
-				s_backendState.backBufferView.Get());
+			NoteGameCursorUnavailableLocked("the active backbuffer is unavailable");
+			return;
 		}
-		auto* renderTarget = s_backendState.backBufferView.Get();
-		context.attachment.context->OMSetRenderTargets(
-			1,
-			std::addressof(renderTarget),
-			nullptr);
-		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-		DearModdingUI::PresentationServices::CompleteRenderSubmission();
+		Microsoft::WRL::ComPtr<ID3D11RenderTargetView> nativeTarget;
+		Microsoft::WRL::ComPtr<ID3D11Resource> nativeResource;
+		context.attachment.context->OMGetRenderTargets(1, &nativeTarget, nullptr);
+		if (nativeTarget)
+			nativeTarget->GetResource(&nativeResource);
+		if (nativeResource.Get() != s_backendState.backBuffer.Get() ||
+			context.attachment.context->GetType() != D3D11_DEVICE_CONTEXT_IMMEDIATE)
+		{
+			NoteGameCursorUnavailableLocked("the native UI is not rendering to the active backbuffer");
+			return;
+		}
+		const auto client = ReadClientSize(context.attachment.window);
+		if (!client.width || !client.height)
+		{
+			NoteGameCursorUnavailableLocked("the game window has no drawable client area");
+			return;
+		}
+		const auto position = MapNativeCursorToBackBuffer(
+			a_position,
+			client.width, client.height,
+			s_backendState.backBufferIdentity.width,
+			s_backendState.backBufferIdentity.height);
+		SubmitFrameLocked(nativeTarget.Get(), position);
 	}
 
 	BackendMessageResult HandleBackendWindowMessageLocked(
@@ -517,8 +628,8 @@ namespace Addictol::platformImguiDetail
 			backendLparam,
 			io);
 		result.swallow = a_escapeConsumed ||
-			SwallowsMessage(
-				ClassifyMessage(a_message),
+			SwallowsGameWindowMessage(
+				a_message,
 				io.WantCaptureMouse,
 				io.WantCaptureKeyboard);
 		result.handled = true;

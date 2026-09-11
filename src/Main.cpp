@@ -1,5 +1,4 @@
 #include <Platform/input/CarrierMenu.h>
-#include <Platform/input/CursorLoader.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/host/MenuToggleKey.h>
@@ -26,7 +25,6 @@ namespace Addictol
 		void SetupHost(void* a_window) noexcept
 		{
 			DearModdingUI::Theme::Initialize(a_window);
-			DearModdingUI::CursorLoader::Initialize(a_window);
 			REX::INFO("DearModdingUI: visuals configured"sv);
 		}
 

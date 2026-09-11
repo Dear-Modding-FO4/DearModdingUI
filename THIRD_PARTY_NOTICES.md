@@ -10,7 +10,9 @@ cimgui is copyright 2015-2026 Stefano D'Ambro and is distributed under the MIT L
 
 ## CommonLibF4 and toml11
 
-The Dear Modding FO4 CommonLibF4 fork and toml11 are distributed under their respective MIT licenses. Their complete license texts are retained in their submodules.
+The Dear Modding FO4 CommonLibF4 fork is distributed under GPL-3.0-or-later with the Modding Exception and GPL-3.0 Linking Exception (with Corresponding Source). See `Depends/commonlibf4/LICENSE` and `Depends/commonlibf4/EXCEPTIONS`.
+
+toml11 is distributed under the MIT License, retained at `Depends/toml11/LICENSE`.
 
 ## JSON for Modern C++
 

@@ -117,7 +117,8 @@ local source_sets = {
         "src/DearModdingUI/presentation/FontCatalog.cpp",
         "src/DearModdingUI/presentation/Presentation*.cpp",
         "src/DearModdingUI/presentation/ThemeColors.cpp",
-        "src/Platform/files/ExternalOpen.cpp"
+        "src/Platform/files/ExternalOpen.cpp",
+        "src/Platform/input/CursorLoader.cpp"
     },
     ui = {
         "src/DearModdingUI/host/Host*.cpp",
@@ -131,7 +132,6 @@ local source_sets = {
         "src/DearModdingUI/settings/HostSettingsView.cpp",
         "src/DearModdingUI/presentation/BackgroundBlur.cpp",
         "src/DearModdingUI/presentation/Theme.cpp",
-        "src/Platform/input/CursorLoader.cpp",
         "src/Support/Runtime.cpp"
     },
     runtime = {
@@ -174,7 +174,7 @@ target("imgui", function()
         "Depends/imgui/imgui_draw.cpp",
         "Depends/imgui/imgui_tables.cpp",
         "Depends/imgui/imgui_widgets.cpp",
-        "Depends/imgui/backends/imgui_impl_win32.cpp",
+        "src/Platform/imgui/ImGuiWin32Integration.cpp",
         "Depends/imgui/backends/imgui_impl_dx11.cpp"
     )
 

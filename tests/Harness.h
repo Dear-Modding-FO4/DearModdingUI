@@ -65,6 +65,7 @@ namespace vmm_tests
 	};
 
 	void run_imgui_platform_checks(Runner& runner);
+	void run_imgui_win32_integration_checks(Runner& runner);
 	void run_coalesced_task_checks(Runner& runner);
 	void run_papyrus_callable_checks(Runner& runner);
 	void run_subsystem_health_checks(Runner& runner);

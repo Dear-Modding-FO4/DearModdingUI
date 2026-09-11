@@ -1,4 +1,5 @@
 #include <Platform/rendering/ImGuiPlatformTargets.h>
+#include <Platform/rendering/FrameSubmission.h>
 #include <Platform/input/GameInput.h>
 #include <DearModdingUI/host/SwapChainAttachment.h>
 #include "../Harness.h"
@@ -17,8 +18,56 @@ namespace
 
 namespace vmm_tests
 {
+	void run_cursor_ownership_checks(Runner& runner);
+
 	void run_imgui_platform_checks(Runner& runner)
 	{
+		run_cursor_ownership_checks(runner);
+		runner.test("native cursor and Present share one submission per active frame", [] {
+			FrameSubmission frame;
+			constexpr PresentAttachmentToken first{ 11, 7 };
+			constexpr PresentAttachmentToken rebound{ 11, 8 };
+			require(!frame.Claim({}) && frame.Claim(first),
+				"invalid attachment claimed a frame or valid attachment was rejected");
+			require(!frame.Claim(first) && !frame.Submitted(first),
+				"reentrant or repeated cursor predicate entered a second frame");
+			frame.Complete(first);
+			require(frame.Submitted(first) && !frame.Claim(first),
+				"Present could draw again after the native draw closed the modal");
+			frame.FinishPresent(first, kPresentTestFlag);
+			frame.FinishPresent({ 12, 7 }, 0);
+			require(!frame.Claim(first),
+				"test or unrelated Present released the active frame");
+			require(frame.Claim(rebound), "new attachment generation inherited an old submission");
+			frame.Complete(first);
+			frame.FinishPresent(first, 0);
+			require(!frame.Submitted(rebound) && !frame.Claim(rebound),
+				"stale draw or Present changed the new attachment's frame");
+			frame.Complete(rebound);
+			frame.FinishPresent(rebound, 0);
+			require(frame.Claim(rebound), "real Present did not release the next frame");
+			frame.Reset();
+			require(frame.Claim(rebound), "renderer retirement did not discard its submission");
+		});
+
+		runner.test("native cursor movement is forwarded unscaled while modal actions stay captured", [] {
+			require(!SwallowsGameWindowMessage(0x0200, true, true),
+				"WM_MOUSEMOVE cannot reach the game's native cursor");
+			for (const auto message : { 0x0201u, 0x0202u, 0x020Au, 0x0100u, 0x0102u })
+				require(SwallowsGameWindowMessage(message, true, true),
+					"modal mouse button, wheel, or keyboard input leaked through");
+			require(!SwallowsGameWindowMessage(0x0008, true, true) &&
+					!SwallowsGameWindowMessage(0x0201, false, false),
+				"focus or uncaptured input stopped reaching the predecessor");
+
+			const auto center = MapNativeCursorToBackBuffer({ 480, 270 }, 960, 540, 2560, 1440);
+			const auto edge = MapNativeCursorToBackBuffer({ 960, 540 }, 960, 540, 2560, 1440);
+			const auto constrained = MapNativeCursorToBackBuffer({ 240, 135 }, 960, 540, 2560, 1440);
+			require(center.x == 1280 && center.y == 720 &&
+					edge.x == 2560 && edge.y == 1440 &&
+					constrained.x == 640 && constrained.y == 360,
+				"native cursor position was mis-scaled at the edge or recentered within constraints");
+		});
 		runner.test("renderer attachment lifecycle and result mapping stay coherent", [] {
 			constexpr AttachmentIdentity empty{};
 			constexpr AttachmentIdentity game{ 1, 2, 3, 4 };

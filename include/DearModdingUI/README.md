@@ -53,7 +53,7 @@ game-input suppression; overlay demand never suppresses input.
 
 ## Shared menu
 
-The Evil Modding window owns all navigation chrome. Its header shows the host and selected client as a
+The host window owns all navigation chrome. Its header shows the host and selected client as a
 breadcrumb with the undocked close control. Home, Health, and Settings are host-owned sidebar pages
 and name themselves in that breadcrumb. Home shows host identity, registration counts, and one overall
 health summary derived from live subsystem and client status. Health owns the detailed host subsystem
@@ -66,8 +66,6 @@ appear there. `selectPage` accepts settings pages, switches both the active mod 
 window, and falls back deterministically if the previous selection is not available.
 The command palette searches mods, pages, and actions globally. A matching mod ranks above its pages
 and opens its lowest-`sortKey` landing page while expanding that mod in the sidebar.
-Navigation and normalized search metadata are built when registration closes;
-search results reference that immutable data rather than rebuilding it each frame.
 Named icon precedence is explicit valid name, catalog-driven metadata
 inference, then the surface fallback. Clients infer from their display name
 first and category display names second before Question. Category headings use
@@ -81,44 +79,26 @@ and selection markers.
 Raw-glyph links and section headers keep their separate contract: zero means
 no icon, and an unavailable or unrepresentable glyph uses text fallback.
 `SettingGroup::glyph` uses a chosen nonzero glyph or host-owned label inference;
-`HeadingMode::kDivider` remains explicitly iconless. No icon editor, mod-name
-exception table, category renaming, API version bump, or product version bump
-is introduced.
+`HeadingMode::kDivider` remains explicitly iconless.
 
 Clients receive a clean scrolling content region below the host-owned page title, category, and
 summary. Draw regular `dmui::ui` controls there. Do not begin independent top-level windows, draw over
 the sidebar/header, change the host style or fonts directly, or retain pointers into host navigation
 data. Client pages inherit the active theme and may use their own balanced child regions and popups.
 
-The host ports Community Shaders' current default palette, style dimensions, Jost Body, Title,
-Heading, Subheading, and Subtext roles, resolution scaling, search and navigation treatments,
-rounded title-bar highlights, footer, docking, and background blur around the neutral registry.
-Layout is saved to `Data\F4SE\Plugins\DearModdingUI\imgui.ini`. Fonts, icons, and blur shaders load
-only from that neutral root. Explicit names select from the complete Phosphor Fill catalog before
-semantic concepts are considered. Icons use the accent tint by default. The footer gear
-navigates to the same host-owned Settings page exposed beside Home and Health in the sidebar; there is no
-second dismissible settings panel. Navigating away or closing the menu discards unapplied previews,
-matching the former panel dismissal behavior. The page exposes an accent picker with
-color-vision-friendly presets, colored or monochrome icon tint, host-window opacity,
-command-palette color and opacity, background
-blur and safe per-frame strength, accessibility UI scale, and body-font family. It also reports
-resolved typography size and effective UI scale as read-only facts. Appearance options preview from
-a local draft; Apply persists all editable values once to
-`Data\F4SE\Plugins\DearModdingUI.toml`, while Revert or leaving the view discards the draft. UI scale
-and body-font changes rebuild the atlas only after Apply. Editable values use the `[Additional]` TOML
-table.
-
-The runtime retains normalized, typed settings rather than reparsing their TOML
-representation during drawing. Save operations serialize those values, and a
-failed save leaves both the active settings and unapplied draft unchanged.
+The host owns the palette, font roles, icons, and background blur. Layout is saved to
+`Data\F4SE\Plugins\DearModdingUI\imgui.ini`; fonts, icons, and shaders load from that directory.
+The Settings page previews appearance changes. Apply saves them to the `[Additional]` table in
+`Data\F4SE\Plugins\DearModdingUI.toml`; Revert or leaving the page discards the draft.
+UI scale and font changes take effect after Apply. A failed save leaves the active settings
+and draft unchanged.
 
 Body-font families are enumerated from subfolders of
 `Data\F4SE\Plugins\DearModdingUI\Fonts`; the selected regular face is rebuilt only between frames.
 Atkinson Hyperlegible and Jost ship with the host, and users can add another family without changing
 code. A missing or failed family falls back to Jost, while a missing icon font falls back to text-only
 labels without disabling the menu or the C ABI host.
-Category icon inference uses the human-readable category display name. Stable
-category IDs are used for expansion identity, so equal labels with different
+Stable category IDs are used for expansion identity, so equal labels with different
 IDs remain distinct. The resolver indexes the complete shipped Phosphor names,
 accepted upstream aliases, descriptive tags, and a small reviewed domain
 vocabulary. It uses whole normalized words and chooses the lowest pinned glyph
@@ -179,9 +159,8 @@ provides `dmui::FontGuard`, `dmui::DrawStyledText`, `dmui::DrawLabeledValue`, an
 other status tones remain distinct from general warning/error colors, and muted text does not enter
 ImGui's disabled-widget state. Drawing is length-delimited and unformatted, so long strings, `%`, and
 `##` remain literal. `DrawLabeledValue` resolves theme and live spacing before drawing, acquires its
-optional value font once, and preserves the caller's current font for the label. The existing
-`DMUI_StyleMetrics` snapshot includes `fontSizeBase` after `scrollbarSize`, so clients use
-one metrics path without a separate font-size export.
+optional value font once, and preserves the caller's current font for the label.
+`DMUI_StyleMetrics::fontSizeBase` reports the base font size.
 
 The public `SettingsTableScope` and `SettingsRowScope` own only successful visible begin calls and
 preserve clipping as a successful invisible result. Their explicit ends are idempotent; row end
@@ -291,12 +270,8 @@ OS-default or explicit-application behavior. Ordinary file/directory targets,
 application paths, working directories, and copy links are not implicitly
 resolved by the host.
 
-Resolution opens existing files read-only, maps without reading their contents,
-and obtains the backing section name. Ordinary handle-name queries are not used:
-current USVFS deliberately rewrites them to the virtual name. Local volume mount
-paths and supported UNC names are translated for external use without scanning
-mod directories or consulting manager-specific configuration. Readable,
-nonempty loose files are supported; empty files, directories, archive interiors,
+Resolution supports readable, nonempty loose files through mod-manager filesystem
+virtualization, including local volume and supported UNC paths. Empty files, directories, archive interiors,
 and unsupported backing namespaces fail explicitly. Missing files have no
 resolvable backing location. The host neither creates files nor guesses a
 future Overwrite destination.
@@ -352,9 +327,8 @@ overrides by stable action ID in the `[Hotkeys]` TOML table. Overrides for unins
 visible as not-registered rows in the host hotkey manager until the user removes them.
 
 The appended `unregisterHotkeyAction` entry is render-execution-only and returns `WRONG_THREAD`
-otherwise. Authorization belongs to the serialized active-`Present` callback scope, not to the first
-OS thread that initialized the backend; a later `Present` may run on another thread. Client guards and
-direct service calls do not grant authorization to arbitrary workers.
+otherwise. Authorization belongs to the serialized host render-execution scope, not to a particular
+OS thread. Client guards and direct service calls do not grant authorization to arbitrary workers.
 Successful removal tombstones the action; queued events resolve dead and are discarded during dispatch.
 No later callback for the action runs after unregister returns.
 It retains the saved override as a not-registered row, reapplies it on re-registration, and immediately
@@ -435,11 +409,10 @@ if (api->structSize >= DMUI_HOST_API_SET_STATUS_SIZE && api->setStatus)
 }
 ```
 
-The modal host opens a registered, hidden Fallout 4 carrier menu so absolute client coordinates remain
-valid, then maps them into the attached backbuffer. The carrier movie and operating-system cursor stay
-hidden while ImGui draws the only visible pointer. Closing the modal host releases Win32 cursor
-ownership and removes the carrier from the menu stack. Overlay-only frames do not draw a cursor,
-capture input, or open the carrier.
+Focused modal drawing runs before Fallout 4's native cursor on the attached backbuffer.
+The host owns cursor/input handling; clients must not manage it themselves. Focus loss keeps the
+menu open but suspends input capture. Overlay-only drawing remains at `Present` without cursor or
+input capture. Initialization and frame observers retain their existing `Present` timing.
 
 The standalone host initializes on the first valid active-swapchain `Present` whenever any client was
 accepted. Clients can open the common menu by selecting one of their registered settings pages through
@@ -484,23 +457,21 @@ Clients set `requiredServices`, `minimumUIRevision`, and
 `minimumUIAPISize` in `ClientOptions`; the wrapper validates both services and
 all required UI operations before `registerClient`.
 
-The appended API provides official frame-demand and swapchain wrappers,
+The API provides frame-demand and swapchain wrappers,
 contextual hotkey enablement, owner/generation-scoped D3D11 image resources,
 host-owned generic CPU-pixel images, opt-in managed overlay windows, copied
 latest-message notifications, annotated plots, and single-active
 submission-aware dialogs. CPU producers require
 `DMUI_HOST_SERVICE_PIXEL_IMAGES`; imported SRVs retain the distinct
 `DMUI_HOST_SERVICE_IMAGE_RESOURCES` promise. Existing host-table prefixes and
-offsets remain unchanged; `queryUIAPI` is appended at the 440-byte generation-1
-table size. See the nested public API README for the stable UI schema, exact
-image formats, row
-extent, transactional update, logical overlay coordinate, notification
+offsets remain unchanged. See the [public API reference](https://github.com/Dear-Modding-FO4/DearModdingUI-API)
+for the stable UI schema, image formats, row extent, transactional updates, overlay coordinates, notification
 duration, dialog state, and per-call thread contracts.
 
 Stable `InputTextMultiline` and `IsItemDeactivatedAfterEdit` operations are
 declared by the checked-in UI schema. Declarative setting writes remain live through
 `binding.set`; `SettingDescriptor::onEdit` independently reports changed and
-completed state immediately after the widget. New image and plot draw calls
+completed state immediately after the widget. Image and plot draw calls
 are accepted only on the render thread during the owning page callback.
 Image import and CPU create/update require a ready backend and bound render
 thread, including frame observers, but no active draw callback. CPU calls

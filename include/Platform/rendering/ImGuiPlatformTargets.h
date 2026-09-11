@@ -258,6 +258,21 @@ namespace Addictol::ImguiPlatform
 		float y{ 0.0f };
 	};
 
+	[[nodiscard]] constexpr MousePosition MapNativeCursorToBackBuffer(
+		MousePosition a_position,
+		uint32_t a_clientWidth,
+		uint32_t a_clientHeight,
+		uint32_t a_backBufferWidth,
+		uint32_t a_backBufferHeight) noexcept
+	{
+		return {
+			a_position.x * static_cast<float>(a_backBufferWidth) /
+				static_cast<float>(a_clientWidth),
+			a_position.y * static_cast<float>(a_backBufferHeight) /
+				static_cast<float>(a_clientHeight)
+		};
+	}
+
 	[[nodiscard]] constexpr MousePosition MapClientToBackBuffer(
 		MousePosition a_position,
 		uint32_t a_clientWidth,
@@ -277,12 +292,8 @@ namespace Addictol::ImguiPlatform
 				a_position.y < static_cast<float>(a_clientHeight)))
 			return a_position;
 
-		return {
-			a_position.x * static_cast<float>(a_backBufferWidth) /
-				static_cast<float>(a_clientWidth),
-			a_position.y * static_cast<float>(a_backBufferHeight) /
-				static_cast<float>(a_clientHeight)
-		};
+		return MapNativeCursorToBackBuffer(
+			a_position, a_clientWidth, a_clientHeight, a_backBufferWidth, a_backBufferHeight);
 	}
 
 	enum class BackBufferDecision : uint32_t
@@ -368,6 +379,16 @@ namespace Addictol::ImguiPlatform
 		default:
 			return false;
 		}
+	}
+
+	[[nodiscard]] constexpr bool SwallowsGameWindowMessage(
+		uint32_t a_message,
+		bool a_wantCaptureMouse,
+		bool a_wantCaptureKeyboard) noexcept
+	{
+		// The native cursor consumes the original WM_MOUSEMOVE client coordinates.
+		return a_message != kMouseMessageFirst &&
+			SwallowsMessage(ClassifyMessage(a_message), a_wantCaptureMouse, a_wantCaptureKeyboard);
 	}
 
 	[[nodiscard]] constexpr bool IsKeyRepeat(uint64_t a_lparam) noexcept
