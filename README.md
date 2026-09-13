@@ -92,9 +92,16 @@ sMenuSidebarLayout = "tree"
 fMenuWindowOpacity = 0.75
 bMenuBackgroundBlur = true
 fMenuBackgroundBlurStrength = 0.50
+
+# Field feedback appearance
+sFieldFeedbackLayout = "strip" # strip (default), label, or control
+sFieldFeedbackInfoColor = "#56B4E9"
+sFieldFeedbackWarningColor = "#E69F00"
+sFieldFeedbackErrorColor = "#CC79A7"
 ```
 
 Window background opacity defaults to **75%** and blur strength to **50%**.
+Feedback colors are configurable; severity names remain visible independently of color.
 Existing saved values are not replaced by new defaults; use the setting's Reset
 control to restore its default. Appearance changes require Apply; sidebar layout
 changes are saved immediately.

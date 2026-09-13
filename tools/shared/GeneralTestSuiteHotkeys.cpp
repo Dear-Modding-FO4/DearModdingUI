@@ -154,7 +154,7 @@ namespace DmuiTests::Detail
 			return;
 		for (auto& probe : m_probes)
 		{
-			const auto visible = client.BeginSettingsRow(
+			const auto visible = client.BeginField(
 				probe.id,
 				probe.name,
 				"Enablement uses the official host manager.");
@@ -189,7 +189,7 @@ namespace DmuiTests::Detail
 				BindingStateName(probe.binding.state),
 				probe.presses.load(),
 				probe.releases.load());
-			if (!client.EndSettingsRow(false, false))
+			if (!client.EndField(false, false))
 			{
 				(void)client.EndSettingsTable();
 				return;

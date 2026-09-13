@@ -22,10 +22,10 @@ compatibility gates. Discovery may succeed before the host plugin initializes; `
 registration then return `DMUI_RESULT_HOST_NOT_INITIALIZED`. Export presence does not mean the
 renderer is ready: register at `kPostPostLoad` and wait for exactly one lifecycle callback.
 
-Host updates preserve unchanged operations at their existing table offsets and
-append new operations. Clients negotiate optional capabilities independently, so
-a missing new entry does not disable older operations they already use. Internal
-implementation and file-layout changes do not change either ABI.
+Within one host ABI generation, updates preserve unchanged table offsets and append
+new operations. Clients negotiate optional entries independently. Host ABI 2 replaces
+prerelease row scopes with fields; ABI 1 clients must migrate and rebuild.
+Internal implementation and file-layout changes do not change either ABI.
 
 Client, category, page, action, hotkey-action, frame-observer, and page-activity-observer registration closes when the first valid
 active-swapchain `Present` begins host initialization. Register them immediately after the client. All descriptor strings are copied;
@@ -162,9 +162,10 @@ ImGui's disabled-widget state. Drawing is length-delimited and unformatted, so l
 optional value font once, and preserves the caller's current font for the label.
 `DMUI_StyleMetrics::fontSizeBase` reports the base font size.
 
-The public `SettingsTableScope` and `SettingsRowScope` own only successful visible begin calls and
-preserve clipping as a successful invisible result. Their explicit ends are idempotent; row end
-returns the optional Reset result. `DisabledScope` balances both enabled and disabled calls, while
+The public `SettingsTableScope` and `FieldScope` own only successful visible begin calls and
+preserve clipping as a successful invisible result. Their explicit ends are idempotent; field end
+returns the optional Reset result. A field opened inside a settings table is its next row; the same
+scope opened outside a table owns equivalent standalone geometry. `DisabledScope` balances both enabled and disabled calls, while
 `TooltipScope` owns rich tooltip content only after the requested hover test and a successful
 `BeginTooltip`. The generic `DrawChoice` helper separates stable values and keys from visible labels,
 supports disabled options, leaves unknown current values unchanged, and reports a completed change
@@ -172,6 +173,11 @@ only after selection of a different enabled option. Its optional final display-l
 drawn unformatted beside the combo and remains independent of the stable widget ID; omit it when a
 settings row already owns the label geometry. See the API repository README for complete C++ signatures
 and examples.
+
+`FieldScope::SetFeedback` supplies frame-local Info, Warning, or Error text.
+The client owns validation and value behavior; the host user chooses placement
+and colors. See the [controls guide](https://github.com/Dear-Modding-FO4/DearModdingUI-API/blob/main/docs/controls-guide.md#settings-tables-and-rows)
+for usage and ABI 2 migration.
 
 Declarative `ChoiceSettingControl::unmatchedLabel` customizes the unknown-value preview and defaults
 to `"Unavailable"`. It never replaces the bound value: consumers can display `"None"` for a missing
@@ -189,19 +195,13 @@ capacity. A successful call always leaves the buffer NUL-terminated, truncates e
 wrapper marshals this contract to `std::string&` and returns sizing results through
 `std::optional<float>`.
 
-`beginSettingsTable`, `beginSettingsRow`, `beginSettingsRowEx`, `endSettingsRow`, and `endSettingsTable` form the
-host-owned label/value geometry bracket for settings pages. Both begin calls report clipping through
-their `visible` output: call the matching end only when `visible` is nonzero. Each row has a stable
-caller-supplied ID, a label, and an optional description; the host copies the text, draws the label
-column, opens the value cell, reserves the reset column from live font/style metrics, and draws Reset
-through the shared settings-action treatment. `DMUI_SettingsRowOptions` controls reset visibility and
-enabled state and must provide at least `DMUI_SETTINGS_ROW_OPTIONS_0_1_SIZE`.
+`beginSettingsTable` and `endSettingsTable` optionally group fields into settings rows.
+`beginField` and `endField` manage either a row or standalone field using a stable
+caller-supplied ID, label, and optional description. `DMUI_FieldBeginOptions` selects
+label/value or full-span geometry; `DMUI_FieldEndOptions` controls Reset visibility
+and enabled state. Only successful visible begins require an end.
 Declarative descriptors may provide `resolveDescription` when the explanation depends on live state.
-The appended `beginSettingsRowEx` accepts a caller-sized `DMUI_SettingsRowBeginOptions`. Its
-`DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN` layout gives the row content both table columns at begin time;
-`DMUI_SETTINGS_ROW_LAYOUT_LABEL_VALUE` preserves the original geometry. The C++ `RowPresentation`
-keeps label visibility and row layout independent. It prefers the extended entry when available and
-falls back to `beginSettingsRow`, so a full-span request remains usable in the older value column.
+The C++ `RowPresentation` keeps label visibility and field layout independent.
 Clients migrating from the former `SettingDescriptor::labelMode` field should assign
 `SettingDescriptor::presentation.labelMode` instead.
 
@@ -219,15 +219,12 @@ represent arbitrary labels.
 effective stored value. `dragSpeed` remains an interaction-speed setting and does not encode storage
 quantization.
 
-The bracket is valid only on the render thread during that client's page callback. Settings brackets
-cannot nest or reenter, and a row cannot begin without an open settings table. Calls outside the active
-settings-page callback return `DMUI_RESULT_WRONG_THREAD`. Balanced ordinary ImGui tables may surround
-the bracket or appear inside a value cell. A mismatched call returns
-`DMUI_RESULT_UNBALANCED_BRACKET` without guessing which client stack entry to close. At the callback
-boundary, the existing ImGui recovery restores any abandoned table, row, or ID state before the host
-clears its bracket state, so an early return cannot leak into shared chrome. The C++ wrapper exposes
-the two begin calls as `std::optional<bool>`, constructs the versioned row options, and applies every
-appended-table availability check.
+Fields require that client's active settings-page or overlay-page drawing callback;
+settings tables require a settings-page callback. Field brackets cannot nest or reenter.
+Balanced ordinary ImGui tables may surround them or appear inside a value cell.
+Mismatched calls return `DMUI_RESULT_UNBALANCED_BRACKET`; callback recovery unwinds
+abandoned field, table, and ID state. The C++ wrapper handles versioned options and
+entry availability checks.
 
 The C++ wrapper accepts category metadata through `dmui::CategoryDescriptor` and
 `Client::AddCategory`. Page metadata uses `dmui::PageDescriptor`, where `categoryId` and summary are

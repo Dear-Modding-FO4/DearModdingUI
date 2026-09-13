@@ -60,6 +60,10 @@ namespace DearModdingUI
 			return state;
 		}
 
+#if defined(DMUI_PREVIEW)
+		std::optional<float> s_previewContentScrollY;
+#endif
+
 		[[nodiscard]] NavigationPresentationKind ActivePresentationKind(
 			const ShellState& a_state) noexcept
 		{
@@ -286,6 +290,10 @@ namespace DearModdingUI
 				ImGui::EndChild();
 				return;
 			}
+#if defined(DMUI_PREVIEW)
+			if (s_previewContentScrollY)
+				ImGui::SetScrollY(*s_previewContentScrollY);
+#endif
 			if (a_state.activeHostPage)
 			{
 				DrawHostPage(*a_state.activeHostPage, a_state.hostPages);
@@ -530,6 +538,11 @@ namespace DearModdingUI
 	void ConfigurePreviewHostPage(HostPageKind a_page) noexcept
 	{
 		NavigateToHostPage(a_page, State());
+	}
+
+	void ConfigurePreviewContentScroll(float a_scrollY) noexcept
+	{
+		s_previewContentScrollY = (std::max)(a_scrollY, 0.0f);
 	}
 
 	void ConfigurePreviewSidebarComparison(

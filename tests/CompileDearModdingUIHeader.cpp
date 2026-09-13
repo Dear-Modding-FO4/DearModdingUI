@@ -30,8 +30,12 @@ static_assert(std::is_standard_layout_v<DMUI_Vec2>);
 static_assert(std::is_trivially_copyable_v<DMUI_Vec2>);
 static_assert(std::is_standard_layout_v<DMUI_Vec4>);
 static_assert(std::is_trivially_copyable_v<DMUI_Vec4>);
-static_assert(std::is_standard_layout_v<DMUI_SettingsRowOptions>);
-static_assert(std::is_trivially_copyable_v<DMUI_SettingsRowOptions>);
+static_assert(std::is_standard_layout_v<DMUI_FieldBeginOptions>);
+static_assert(std::is_trivially_copyable_v<DMUI_FieldBeginOptions>);
+static_assert(std::is_standard_layout_v<DMUI_FieldEndOptions>);
+static_assert(std::is_trivially_copyable_v<DMUI_FieldEndOptions>);
+static_assert(std::is_standard_layout_v<DMUI_FieldFeedback>);
+static_assert(std::is_trivially_copyable_v<DMUI_FieldFeedback>);
 static_assert(std::is_standard_layout_v<DMUI_ThemeColors>);
 static_assert(std::is_trivially_copyable_v<DMUI_ThemeColors>);
 static_assert(std::is_standard_layout_v<DMUI_HostAPI>);
@@ -40,7 +44,7 @@ static_assert(sizeof(DMUI_StatusSeverity) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_FontRole) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_SettingsAction) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_HotkeyBindingState) == sizeof(uint32_t));
-static_assert(DMUI_HOST_ABI_CURRENT == DMUI_HOST_ABI_1);
+static_assert(DMUI_HOST_ABI_CURRENT == DMUI_HOST_ABI_2);
 static_assert(DMUI_API_VERSION_CURRENT == DMUI_API_VERSION_0_1);
 static_assert(std::is_same_v<
 	decltype(&DMUI_GetAPI),
@@ -178,20 +182,21 @@ static_assert(std::is_nothrow_invocable_v<
 	const char*,
 	uint32_t*>);
 static_assert(std::is_nothrow_invocable_v<
-	DMUI_BeginSettingsRowFn,
-	DMUI_ClientHandle,
-	const char*,
-	const char*,
-	const char*,
-	uint32_t*>);
-static_assert(std::is_nothrow_invocable_v<
-	DMUI_EndSettingsRowFn,
-	DMUI_ClientHandle,
-	const DMUI_SettingsRowOptions*,
-	uint32_t*>);
-static_assert(std::is_nothrow_invocable_v<
 	DMUI_EndSettingsTableFn,
 	DMUI_ClientHandle>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_BeginFieldFn,
+	DMUI_ClientHandle,
+	const char*,
+	const char*,
+	const char*,
+	const DMUI_FieldBeginOptions*,
+	uint32_t*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_EndFieldFn,
+	DMUI_ClientHandle,
+	const DMUI_FieldEndOptions*,
+	uint32_t*>);
 static_assert(std::is_nothrow_invocable_v<
 	DMUI_OpenExternalFn,
 	DMUI_ClientHandle,
@@ -238,7 +243,9 @@ static_assert(sizeof(DMUI_HotkeyBindingInfo) == 40);
 static_assert(sizeof(DMUI_HostStateInfo) == 28);
 static_assert(sizeof(DMUI_Vec2) == 8);
 static_assert(sizeof(DMUI_Vec4) == 16);
-static_assert(sizeof(DMUI_SettingsRowOptions) == 12);
+static_assert(sizeof(DMUI_FieldBeginOptions) == 8);
+static_assert(sizeof(DMUI_FieldEndOptions) == 12);
+static_assert(sizeof(DMUI_FieldFeedback) == 16);
 static_assert(sizeof(DMUI_ThemeColors) == 228);
 static_assert(offsetof(DMUI_Vec2, x) == 0);
 static_assert(offsetof(DMUI_Vec2, y) == 4);
@@ -317,15 +324,20 @@ static_assert(offsetof(DMUI_ThemeColors, statusCurrentHotkey) == 180);
 static_assert(offsetof(DMUI_ThemeColors, statusSuccess) == 196);
 static_assert(offsetof(DMUI_ThemeColors, statusInfo) == 212);
 static_assert(DMUI_THEME_COLORS_0_1_SIZE == sizeof(DMUI_ThemeColors));
-static_assert(offsetof(DMUI_SettingsRowOptions, structSize) == 0);
-static_assert(offsetof(DMUI_SettingsRowOptions, resetVisible) == 4);
-static_assert(offsetof(DMUI_SettingsRowOptions, resetEnabled) == 8);
-static_assert(DMUI_SETTINGS_ROW_OPTIONS_0_1_SIZE ==
-	sizeof(DMUI_SettingsRowOptions));
-static_assert(offsetof(DMUI_SettingsRowBeginOptions, structSize) == 0);
-static_assert(offsetof(DMUI_SettingsRowBeginOptions, layout) == 4);
-static_assert(DMUI_SETTINGS_ROW_BEGIN_OPTIONS_0_1_SIZE ==
-	sizeof(DMUI_SettingsRowBeginOptions));
+static_assert(offsetof(DMUI_FieldBeginOptions, structSize) == 0);
+static_assert(offsetof(DMUI_FieldBeginOptions, layout) == 4);
+static_assert(DMUI_FIELD_BEGIN_OPTIONS_0_1_SIZE ==
+	sizeof(DMUI_FieldBeginOptions));
+static_assert(offsetof(DMUI_FieldEndOptions, structSize) == 0);
+static_assert(offsetof(DMUI_FieldEndOptions, resetVisible) == 4);
+static_assert(offsetof(DMUI_FieldEndOptions, resetEnabled) == 8);
+static_assert(DMUI_FIELD_END_OPTIONS_0_1_SIZE ==
+	sizeof(DMUI_FieldEndOptions));
+static_assert(offsetof(DMUI_FieldFeedback, structSize) == 0);
+static_assert(offsetof(DMUI_FieldFeedback, severity) == 4);
+static_assert(offsetof(DMUI_FieldFeedback, message) == 8);
+static_assert(DMUI_FIELD_FEEDBACK_0_1_SIZE ==
+	sizeof(DMUI_FieldFeedback));
 static_assert(offsetof(DMUI_PageActivityInfo, structSize) == 0);
 static_assert(offsetof(DMUI_PageActivityInfo, kind) == 4);
 static_assert(offsetof(DMUI_PageActivityInfo, previousPage) == 8);

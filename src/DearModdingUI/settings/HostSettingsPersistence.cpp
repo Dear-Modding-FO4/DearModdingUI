@@ -200,6 +200,13 @@ namespace DearModdingUI
 			section["fMenuUiScale"] = static_cast<double>(a_settings.uiScale);
 			section["sMenuBodyFontFamily"] = a_settings.bodyFontFamily;
 			section["sMenuToggleKey"] = a_settings.menuToggleKey;
+			section["sFieldFeedbackLayout"] = a_settings.feedbackPlacement;
+			section["sFieldFeedbackInfoColor"] =
+				a_settings.feedbackInfoColor;
+			section["sFieldFeedbackWarningColor"] =
+				a_settings.feedbackWarningColor;
+			section["sFieldFeedbackErrorColor"] =
+				a_settings.feedbackErrorColor;
 			root["Hotkeys"] = toml::table{};
 			for (const auto& [id, chord] : a_settings.hotkeys)
 				root["Hotkeys"][id] = chord;
@@ -404,6 +411,43 @@ namespace DearModdingUI
 						a_settings.menuToggleKey,
 						runtime.menuToggleKey));
 			}
+			if (!ParseFieldFeedbackLayout(a_settings.feedbackPlacement))
+			{
+				AppendCorrection(
+					a_corrections,
+					std::format(
+						"sFieldFeedbackLayout \"{}\" used \"{}\"",
+						a_settings.feedbackPlacement,
+						FieldFeedbackLayoutName(
+							runtime.feedbackPlacement)));
+			}
+			const auto checkFeedbackColor =
+				[&](std::string_view a_key,
+					const std::string& a_value,
+					HostPaletteColor a_runtime) {
+					if (!TryDecodeHostColor(a_value))
+					{
+						AppendCorrection(
+							a_corrections,
+							std::format(
+								"{} \"{}\" used {}",
+								a_key,
+								a_value,
+								EncodeHostAccentColor(a_runtime)));
+					}
+				};
+			checkFeedbackColor(
+				"sFieldFeedbackInfoColor",
+				a_settings.feedbackInfoColor,
+				runtime.feedbackInfoColor);
+			checkFeedbackColor(
+				"sFieldFeedbackWarningColor",
+				a_settings.feedbackWarningColor,
+				runtime.feedbackWarningColor);
+			checkFeedbackColor(
+				"sFieldFeedbackErrorColor",
+				a_settings.feedbackErrorColor,
+				runtime.feedbackErrorColor);
 			return runtime;
 		}
 
@@ -515,6 +559,26 @@ namespace DearModdingUI
 				section,
 				"sMenuToggleKey",
 				settings.menuToggleKey,
+				result.corrections);
+			settings.feedbackPlacement = ReadSetting<std::string>(
+				section,
+				"sFieldFeedbackLayout",
+				settings.feedbackPlacement,
+				result.corrections);
+			settings.feedbackInfoColor = ReadSetting<std::string>(
+				section,
+				"sFieldFeedbackInfoColor",
+				settings.feedbackInfoColor,
+				result.corrections);
+			settings.feedbackWarningColor = ReadSetting<std::string>(
+				section,
+				"sFieldFeedbackWarningColor",
+				settings.feedbackWarningColor,
+				result.corrections);
+			settings.feedbackErrorColor = ReadSetting<std::string>(
+				section,
+				"sFieldFeedbackErrorColor",
+				settings.feedbackErrorColor,
 				result.corrections);
 
 			if (root.contains("Hotkeys") && root.at("Hotkeys").is_table())

@@ -56,39 +56,64 @@ namespace vmm_tests
 				"forced reset retained bracket state");
 		});
 
-		runner.test("settings row options enforce their versioned prefix", [] {
-			require(SettingsTable::ValidateRowOptions(nullptr) ==
+		runner.test("field options enforce their versioned prefixes", [] {
+			require(SettingsTable::ValidateFieldEndOptions(nullptr) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
-				"null row options were accepted");
-			DMUI_SettingsRowOptions options{};
-			options.structSize = DMUI_SETTINGS_ROW_OPTIONS_0_1_SIZE - 1;
-			require(SettingsTable::ValidateRowOptions(&options) ==
+				"null field end options were accepted");
+			DMUI_FieldEndOptions endOptions{};
+			endOptions.structSize = DMUI_FIELD_END_OPTIONS_0_1_SIZE - 1;
+			require(SettingsTable::ValidateFieldEndOptions(&endOptions) ==
 					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"short row options were accepted");
-			options.structSize = DMUI_SETTINGS_ROW_OPTIONS_0_1_SIZE;
-			require(SettingsTable::ValidateRowOptions(&options) ==
+				"short field end options were accepted");
+			endOptions.structSize = DMUI_FIELD_END_OPTIONS_0_1_SIZE;
+			require(SettingsTable::ValidateFieldEndOptions(&endOptions) ==
 					DMUI_RESULT_OK,
-				"exact row options were rejected");
-			options.structSize += sizeof(uint32_t);
-			require(SettingsTable::ValidateRowOptions(&options) ==
+				"exact field end options were rejected");
+			endOptions.structSize += sizeof(uint32_t);
+			require(SettingsTable::ValidateFieldEndOptions(&endOptions) ==
 					DMUI_RESULT_OK,
-				"extended row options were rejected");
-			DMUI_SettingsRowBeginOptions beginOptions{};
-			beginOptions.structSize =
-				DMUI_SETTINGS_ROW_BEGIN_OPTIONS_0_1_SIZE - 1;
-			require(SettingsTable::ValidateRowBeginOptions(&beginOptions) ==
+				"extended field end options were rejected");
+
+			DMUI_FieldBeginOptions fieldOptions{};
+			fieldOptions.structSize = DMUI_FIELD_BEGIN_OPTIONS_0_1_SIZE - 1;
+			require(SettingsTable::ValidateFieldBeginOptions(&fieldOptions) ==
 					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"short row begin options were accepted");
-			beginOptions.structSize =
-				DMUI_SETTINGS_ROW_BEGIN_OPTIONS_0_1_SIZE;
-			beginOptions.layout = DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN;
-			require(SettingsTable::ValidateRowBeginOptions(&beginOptions) ==
+				"short field options were accepted");
+			fieldOptions.structSize = DMUI_FIELD_BEGIN_OPTIONS_0_1_SIZE;
+			fieldOptions.layout = DMUI_FIELD_LAYOUT_FULL_SPAN;
+			require(SettingsTable::ValidateFieldBeginOptions(&fieldOptions) ==
 					DMUI_RESULT_OK,
-				"full-span row begin options were rejected");
-			beginOptions.layout = 2;
-			require(SettingsTable::ValidateRowBeginOptions(&beginOptions) ==
+				"full-span field options were rejected");
+			fieldOptions.layout = 2;
+			require(SettingsTable::ValidateFieldBeginOptions(&fieldOptions) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
-				"unknown row layout was accepted");
+				"unknown field layout was accepted");
+
+			DMUI_FieldFeedback feedback{};
+			require(SettingsTable::ValidateFieldFeedback(nullptr) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"null field feedback was accepted");
+			feedback.structSize = DMUI_FIELD_FEEDBACK_0_1_SIZE - 1;
+			require(SettingsTable::ValidateFieldFeedback(&feedback) ==
+					DMUI_RESULT_STRUCT_TOO_SMALL,
+				"short field feedback was accepted");
+			feedback.structSize = DMUI_FIELD_FEEDBACK_0_1_SIZE;
+			feedback.severity = 3;
+			require(SettingsTable::ValidateFieldFeedback(&feedback) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"unknown field feedback severity was accepted");
+			feedback.severity = DMUI_FIELD_FEEDBACK_SEVERITY_INFO;
+			const std::string oversized(
+				FieldFeedback::kMaximumMessageBytes + 1,
+				'x');
+			feedback.message = oversized.c_str();
+			require(SettingsTable::ValidateFieldFeedback(&feedback) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"oversized field feedback was accepted");
+			feedback.message = nullptr;
+			require(SettingsTable::ValidateFieldFeedback(&feedback) ==
+					DMUI_RESULT_OK,
+				"explicit field feedback clear was rejected");
 		});
 
 		runner.test("declarative setting filters match metadata without reading values", [] {

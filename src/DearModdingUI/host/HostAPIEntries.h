@@ -40,14 +40,14 @@ namespace DearModdingUI::HostAPIInternal
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::settingsActionButtonWidth)> ApiSettingsActionButtonWidth;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::settingsActionButtonExtent)> ApiSettingsActionButtonExtent;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::beginSettingsTable)> ApiBeginSettingsTable;
-	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::beginSettingsRow)> ApiBeginSettingsRow;
-	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::beginSettingsRowEx)> ApiBeginSettingsRowEx;
-	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::endSettingsRow)> ApiEndSettingsRow;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::endSettingsTable)> ApiEndSettingsTable;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryVideoMemory)> ApiQueryVideoMemory;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryServices)> ApiQueryServices;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryUIAPI)> ApiQueryUIAPI;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::resolveIconGlyph)> ApiResolveIconGlyph;
+	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::beginField)> ApiBeginField;
+	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::setFieldFeedback)> ApiSetFieldFeedback;
+	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::endField)> ApiEndField;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::setHotkeyActionEnabled)> ApiSetHotkeyActionEnabled;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::importD3D11Image)> ApiImportD3D11Image;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::createImage)> ApiCreateImage;

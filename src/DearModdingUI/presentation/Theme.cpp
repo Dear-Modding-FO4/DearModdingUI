@@ -389,6 +389,12 @@ namespace DearModdingUI::Theme
 		style.FontScaleMain = std::exp2(kDefaultGlobalScale);
 
 		const auto settings = HostSettings::EffectivePreview();
+		FieldFeedback::SetAppearance({
+			settings.feedbackPlacement,
+			ToFieldFeedbackColor(settings.feedbackInfoColor),
+			ToFieldFeedbackColor(settings.feedbackWarningColor),
+			ToFieldFeedbackColor(settings.feedbackErrorColor)
+		});
 		auto paletteBackground =
 			HostAccentToImVec4(settings.paletteBackgroundColor);
 		paletteBackground.w = settings.paletteBackgroundOpacity;

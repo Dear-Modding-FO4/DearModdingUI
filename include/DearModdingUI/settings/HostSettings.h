@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/host/MenuToggleKey.h>
+#include <DearModdingUI/controls/FieldFeedback.h>
 #include <DearModdingUI/navigation/Sidebar.h>
 #include <DearModdingUI/ThemeDefaults.h>
 
@@ -26,7 +27,34 @@ namespace DearModdingUI
 
 	using HostPaletteColor = HostAccentColor;
 
+	[[nodiscard]] inline std::string EncodeHostAccentColor(HostAccentColor a_color);
+
+	[[nodiscard]] constexpr HostPaletteColor ToHostPaletteColor(
+		uint32_t a_color) noexcept
+	{
+		return {
+			static_cast<uint8_t>(a_color & 0xFFu),
+			static_cast<uint8_t>((a_color >> 8u) & 0xFFu),
+			static_cast<uint8_t>((a_color >> 16u) & 0xFFu)
+		};
+	}
+
+	[[nodiscard]] constexpr uint32_t ToFieldFeedbackColor(
+		HostPaletteColor a_color) noexcept
+	{
+		return FieldFeedback::PackColor(
+			a_color.red,
+			a_color.green,
+			a_color.blue);
+	}
+
 	inline constexpr HostAccentColor kDefaultHostAccentColor{};
+	inline constexpr HostPaletteColor kDefaultFeedbackInfoColor =
+		ToHostPaletteColor(FieldFeedback::kDefaultInfoColor);
+	inline constexpr HostPaletteColor kDefaultFeedbackWarningColor =
+		ToHostPaletteColor(FieldFeedback::kDefaultWarningColor);
+	inline constexpr HostPaletteColor kDefaultFeedbackErrorColor =
+		ToHostPaletteColor(FieldFeedback::kDefaultErrorColor);
 	inline constexpr HostPaletteColor kDefaultPaletteBackgroundColor{
 		0x05, 0x05, 0x05
 	};
@@ -56,6 +84,18 @@ namespace DearModdingUI
 		float uiScale{ Theme::kDefaultUserScale };
 		std::string bodyFontFamily{ kDefaultBodyFontFamily };
 		std::string menuToggleKey{ MenuToggleKeyName(kMenuDefaultToggleKey) };
+		FieldFeedbackPlacement feedbackPlacement{
+			DEFAULT_FIELD_FEEDBACK_LAYOUT
+		};
+		HostPaletteColor feedbackInfoColor{
+			kDefaultFeedbackInfoColor
+		};
+		HostPaletteColor feedbackWarningColor{
+			kDefaultFeedbackWarningColor
+		};
+		HostPaletteColor feedbackErrorColor{
+			kDefaultFeedbackErrorColor
+		};
 
 		[[nodiscard]] bool operator==(
 			const HostInterfaceSettings&) const noexcept = default;
@@ -73,6 +113,18 @@ namespace DearModdingUI
 		float paletteBackgroundOpacity{ kDefaultPaletteBackgroundOpacity };
 		bool backgroundBlur{ true };
 		float backgroundBlurStrength{ kDefaultBackgroundBlurStrength };
+		FieldFeedbackPlacement feedbackPlacement{
+			DEFAULT_FIELD_FEEDBACK_LAYOUT
+		};
+		HostPaletteColor feedbackInfoColor{
+			kDefaultFeedbackInfoColor
+		};
+		HostPaletteColor feedbackWarningColor{
+			kDefaultFeedbackWarningColor
+		};
+		HostPaletteColor feedbackErrorColor{
+			kDefaultFeedbackErrorColor
+		};
 
 		[[nodiscard]] bool operator==(
 			const HostInterfacePreviewSettings&) const noexcept = default;
@@ -94,6 +146,12 @@ namespace DearModdingUI
 		std::string bodyFontFamily{ kDefaultBodyFontFamily };
 		std::string menuToggleKey{ MenuToggleKeyName(kMenuDefaultToggleKey) };
 		std::map<std::string, std::string> hotkeys;
+		std::string feedbackPlacement{
+			FieldFeedbackLayoutName(DEFAULT_FIELD_FEEDBACK_LAYOUT)
+		};
+		std::string feedbackInfoColor{ EncodeHostAccentColor(kDefaultFeedbackInfoColor) };
+		std::string feedbackWarningColor{ EncodeHostAccentColor(kDefaultFeedbackWarningColor) };
+		std::string feedbackErrorColor{ EncodeHostAccentColor(kDefaultFeedbackErrorColor) };
 
 		[[nodiscard]] bool operator==(
 			const PersistedHostInterfaceSettings&) const noexcept = default;
@@ -235,6 +293,8 @@ namespace DearModdingUI
 			a_settings.iconColorMode = Theme::IconColorMode::kColored;
 		a_settings.sidebarLayout =
 			NormalizeUserSidebarLayout(a_settings.sidebarLayout);
+		a_settings.feedbackPlacement =
+			NormalizeFieldFeedbackLayout(a_settings.feedbackPlacement);
 		a_settings.windowBackgroundOpacity = ClampHostSetting(
 			a_settings.windowBackgroundOpacity,
 			kMinWindowBackgroundOpacity,
@@ -280,7 +340,19 @@ namespace DearModdingUI
 			a_settings.backgroundBlurStrength,
 			a_settings.uiScale,
 			a_settings.bodyFontFamily,
-			a_settings.menuToggleKey
+			a_settings.menuToggleKey,
+			ParseFieldFeedbackLayout(
+				a_settings.feedbackPlacement).value_or(
+					DEFAULT_FIELD_FEEDBACK_LAYOUT),
+			DecodeHostColor(
+				a_settings.feedbackInfoColor,
+				kDefaultFeedbackInfoColor),
+			DecodeHostColor(
+				a_settings.feedbackWarningColor,
+				kDefaultFeedbackWarningColor),
+			DecodeHostColor(
+				a_settings.feedbackErrorColor,
+				kDefaultFeedbackErrorColor)
 		});
 	}
 
@@ -300,7 +372,12 @@ namespace DearModdingUI
 			a_settings.uiScale,
 			a_settings.bodyFontFamily,
 			a_settings.menuToggleKey,
-			{}
+			{},
+			std::string{ FieldFeedbackLayoutName(
+				a_settings.feedbackPlacement) },
+			EncodeHostAccentColor(a_settings.feedbackInfoColor),
+			EncodeHostAccentColor(a_settings.feedbackWarningColor),
+			EncodeHostAccentColor(a_settings.feedbackErrorColor)
 		};
 	}
 
@@ -327,7 +404,11 @@ namespace DearModdingUI
 			a_settings.paletteBackgroundColor,
 			a_settings.paletteBackgroundOpacity,
 			a_settings.backgroundBlur,
-			a_settings.backgroundBlurStrength
+			a_settings.backgroundBlurStrength,
+			a_settings.feedbackPlacement,
+			a_settings.feedbackInfoColor,
+			a_settings.feedbackWarningColor,
+			a_settings.feedbackErrorColor
 		};
 	}
 

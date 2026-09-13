@@ -100,6 +100,7 @@ xmake build -P "$projectRoot" -y dmui-preview
 Useful arguments:
 
 - `--screenshot <path>`: Captures a PNG image headlessly and exits.
+- `--scroll-y <pixels>`: Scrolls page content before capture.
 - `--page <id>`: Navigates directly to a registered settings page.
 - `--sidebar <tree|twopane|drilldown|iconrail>`: Selects a sidebar presentation layout.
 - `--presentation <overlay|notification|image|plot|dialog>`: Tests specific presentation services.
@@ -107,6 +108,10 @@ Useful arguments:
 Presentation presets use the shared exercises in `tools\shared`; MCM and navigation
 scenarios live in `tools\preview\fixtures`. Preview binaries and fixtures are not packaged.
 Increase `--frames` if capture fails because a scenario has not finished initializing.
+
+Field feedback demos use `--page setting-feedback/label`,
+`--page setting-feedback/control`, or `--page setting-feedback/strip`.
+These preview-only overrides do not change saved preferences.
 
 ## Stable UI contract
 

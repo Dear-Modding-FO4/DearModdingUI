@@ -209,6 +209,10 @@ namespace vmm_tests
 			draft = committed;
 			draft.sidebarLayout = SidebarLayoutKind::TwoPane;
 			checkAppearance(draft);
+			draft = committed;
+			draft.feedbackPlacement = FieldFeedbackPlacement::kUnderLabel;
+			draft.feedbackInfoColor = { 0x00, 0x72, 0xB2 };
+			checkAppearance(draft);
 		});
 
 		runner.test("host settings persistence round trips every stored value", [] {
@@ -237,7 +241,11 @@ namespace vmm_tests
 					kMinBackgroundBlurStrength,
 					Theme::kMinUserScale,
 					"Jost",
-					"Delete"
+					"Delete",
+					FieldFeedbackPlacement::kUnderControl,
+					{ 0x12, 0x34, 0x56 },
+					{ 0x65, 0x43, 0x21 },
+					{ 0xAA, 0xBB, 0xCC }
 				}
 			};
 			for (const auto& runtime : settings)
@@ -265,6 +273,10 @@ namespace vmm_tests
 			persisted.uiScale = 99.0f;
 			persisted.bodyFontFamily = "..\\escaped";
 			persisted.menuToggleKey = "PageUp";
+			persisted.feedbackPlacement = "beside";
+			persisted.feedbackInfoColor = "blue";
+			persisted.feedbackWarningColor = "#GG0000";
+			persisted.feedbackErrorColor = "12345";
 			const auto decoded = DecodeHostInterfaceSettings(persisted);
 			require(
 				decoded.accentColor == kDefaultHostAccentColor,
@@ -295,6 +307,16 @@ namespace vmm_tests
 				decoded.menuToggleKey ==
 					MenuToggleKeyName(kMenuDefaultToggleKey),
 				"malformed toggle key did not fall back");
+			require(
+				decoded.feedbackPlacement ==
+						DEFAULT_FIELD_FEEDBACK_LAYOUT &&
+					decoded.feedbackInfoColor ==
+						kDefaultFeedbackInfoColor &&
+					decoded.feedbackWarningColor ==
+						kDefaultFeedbackWarningColor &&
+					decoded.feedbackErrorColor ==
+						kDefaultFeedbackErrorColor,
+				"malformed feedback appearance did not fall back");
 			require(
 				DefaultHostInterfaceSettings() == HostInterfaceSettings{},
 				"reset did not restore shipped defaults");
@@ -409,6 +431,10 @@ namespace vmm_tests
 			PersistedHostInterfaceSettings settings;
 			settings.menuToggleKey = "Home";
 			settings.sidebarLayout = "twopane";
+			settings.feedbackPlacement = "strip";
+			settings.feedbackInfoColor = "#123456";
+			settings.feedbackWarningColor = "#654321";
+			settings.feedbackErrorColor = "#ABCDEF";
 			settings.hotkeys.emplace("example.action", "Ctrl+H");
 			const auto saved = PersistHostInterfaceSettings(path, settings);
 			require(saved.saved && !saved.usedCrossVolumeFallback,

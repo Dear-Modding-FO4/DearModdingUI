@@ -18,6 +18,7 @@ namespace DearModdingUIPreview
 		bool mcmInstalled{ true };
 		bool gameLoaded{ true };
 		bool includeNavigationComparisonFixtures{};
+		bool includeSettingFeedbackFixtures{};
 	};
 
 	class FixtureRunner final

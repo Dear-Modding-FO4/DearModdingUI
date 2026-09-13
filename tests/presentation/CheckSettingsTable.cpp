@@ -3,6 +3,7 @@
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/host/UIAdapter.h>
+#include <DearModdingUI/settings/HostSettingsColorControls.h>
 #include "../Harness.h"
 #include "../support/ImGuiTestContext.h"
 
@@ -11,6 +12,9 @@
 
 #include <DearModdingUI/Presentation.h>
 #include <DearModdingUI/Client.h>
+
+#include <cmath>
+#include <limits>
 
 namespace vmm_tests
 {
@@ -87,6 +91,39 @@ namespace vmm_tests
 			int m_beginPopupDepth{ 0 };
 			int m_errors{ 0 };
 		};
+
+		class FeedbackAppearanceGuard
+		{
+		public:
+			FeedbackAppearanceGuard() noexcept :
+				m_original(FieldFeedback::CurrentAppearance())
+			{}
+
+			~FeedbackAppearanceGuard() noexcept
+			{
+				FieldFeedback::SetAppearance(m_original);
+			}
+
+		private:
+			FieldFeedback::Appearance m_original;
+		};
+
+		void BeginFeedbackField(DMUI_ClientHandle a_owner, const char* a_id)
+		{
+			const auto field = SettingsTable::BeginField(
+				a_owner, a_id, a_id, nullptr,
+				SettingsTable::RowLayout::kLabelValue);
+			require(field.result == DMUI_RESULT_OK && field.visible,
+				"feedback field did not begin");
+		}
+
+		void EndFeedbackField(DMUI_ClientHandle a_owner, bool a_reset = false)
+		{
+			bool resetPressed{};
+			require(SettingsTable::EndField(
+						a_owner, { a_reset, false }, resetPressed) == DMUI_RESULT_OK,
+				"feedback field did not end");
+		}
 
 		[[nodiscard]] DMUI_ThemeColors TestTheme() noexcept
 		{
@@ -710,6 +747,287 @@ namespace vmm_tests
 			}
 			require(frame.IsAtBaseline() && frame.Errors() == 0,
 				"callback recovery reported or retained abandoned brackets");
+		});
+
+		runner.test("standalone feedback owns text and recovers its brackets", [] {
+			constexpr DMUI_ClientHandle owner{ 7 };
+			constexpr DMUI_ClientHandle other{ 8 };
+			FeedbackAppearanceGuard appearance;
+			FieldFeedback::SetAppearance({
+				FieldFeedbackPlacement::kUnderLabel,
+				FieldFeedback::kDefaultInfoColor,
+				FieldFeedback::kDefaultWarningColor,
+				FieldFeedback::kDefaultErrorColor
+			});
+
+			ImGuiTestFrame frame;
+			{
+				const SettingsTable::ClientCallbackGuard guard{ owner, false };
+				require(!SettingsTable::AcceptsClient(owner) &&
+						SettingsTable::AcceptsFieldClient(owner),
+					"standalone field widened settings-table permission");
+				auto message = std::string{
+					"Original client-owned 100% ##literal caf\xC3\xA9\nSecond line."
+				};
+				ImGui::LogToBuffer();
+				BeginFeedbackField(owner, "standalone");
+				bool value{};
+				(void)ImGui::Checkbox("##Value", &value);
+				const auto controlId =
+					ImGui::GetCurrentContext()->LastItemData.ID;
+				require(SettingsTable::SetFieldFeedback(
+							other,
+							DMUI_FIELD_FEEDBACK_SEVERITY_WARNING,
+							"foreign") ==
+						DMUI_RESULT_UNBALANCED_BRACKET &&
+						SettingsTable::SetFieldFeedback(
+							owner,
+							DMUI_FIELD_FEEDBACK_SEVERITY_WARNING,
+							message) == DMUI_RESULT_OK &&
+						ImGui::GetCurrentContext()->LastItemData.ID ==
+							controlId,
+					"feedback ownership or last-item semantics changed");
+				message.assign(message.size(), 'x');
+				EndFeedbackField(owner);
+				const std::string logged{
+					ImGui::GetCurrentContext()->LogBuffer.c_str()
+				};
+				ImGui::LogFinish();
+				require(
+					logged.contains(
+						"Warning: Original client-owned 100% ##literal caf\xC3\xA9") &&
+						logged.contains("Second line.") &&
+						!logged.contains(std::string(16, 'x')),
+					"feedback did not retain and draw the literal client text");
+
+				BeginFeedbackField(owner, "abandoned");
+				ImGui::Button("Value");
+				require(SettingsTable::SetFieldFeedback(
+							owner,
+							DMUI_FIELD_FEEDBACK_SEVERITY_ERROR,
+							"Abandoned") == DMUI_RESULT_OK,
+					"abandoned field feedback was rejected");
+			}
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"standalone field recovery changed the ImGui stack");
+		});
+
+		runner.test("under-control feedback follows the complete control group", [] {
+			constexpr DMUI_ClientHandle owner{ 7 };
+			FeedbackAppearanceGuard appearance;
+			FieldFeedback::SetAppearance({
+				FieldFeedbackPlacement::kUnderControl,
+				FieldFeedback::PackColor(0x2A, 0xE3, 0x4D),
+				FieldFeedback::kDefaultWarningColor,
+				FieldFeedback::kDefaultErrorColor
+			});
+
+			ImGuiTestFrame frame;
+			const SettingsTable::ClientCallbackGuard guard{ owner };
+			const auto table = SettingsTable::Begin(owner, "reset-alignment");
+			require(table.result == DMUI_RESULT_OK && table.visible,
+				"reset alignment table did not begin");
+			BeginFeedbackField(owner, "grouped-control");
+			ImGui::BeginGroup();
+			ImGui::Button("Primary control");
+			ImGui::TextUnformatted("Additional grouped control content");
+			ImGui::EndGroup();
+			const auto controlRect =
+				ImGui::GetCurrentContext()->LastItemData.Rect;
+			const auto resetMinX =
+				ImGui::GetCurrentTable()->Columns[1].WorkMinX;
+			auto* draw = ImGui::GetWindowDrawList();
+			const auto firstVertex = draw->VtxBuffer.Size;
+			require(SettingsTable::SetFieldFeedback(
+						owner,
+						DMUI_FIELD_FEEDBACK_SEVERITY_INFO,
+						"Informational text below the entire grouped control.") ==
+					DMUI_RESULT_OK,
+				"under-control feedback was rejected");
+			EndFeedbackField(owner, true);
+
+			const auto feedbackColor = ImGui::GetColorU32(
+				FieldFeedback::SeverityColor(
+					DMUI_FIELD_FEEDBACK_SEVERITY_INFO));
+			auto feedbackMinY = (std::numeric_limits<float>::max)();
+			auto feedbackMaxY = (std::numeric_limits<float>::lowest)();
+			auto resetMinY = (std::numeric_limits<float>::max)();
+			auto resetMaxY = (std::numeric_limits<float>::lowest)();
+			for (int index = firstVertex; index < draw->VtxBuffer.Size; ++index)
+			{
+				const auto& vertex = draw->VtxBuffer[index];
+				if (vertex.col == feedbackColor)
+				{
+					feedbackMinY = (std::min)(feedbackMinY, vertex.pos.y);
+					feedbackMaxY = (std::max)(feedbackMaxY, vertex.pos.y);
+				}
+				if (vertex.pos.x >= resetMinX)
+				{
+					resetMinY = (std::min)(resetMinY, vertex.pos.y);
+					resetMaxY = (std::max)(resetMaxY, vertex.pos.y);
+				}
+			}
+			require(
+				feedbackMaxY > feedbackMinY &&
+					feedbackMinY >= controlRect.Max.y &&
+					resetMaxY > resetMinY &&
+					std::abs(
+						(resetMinY + resetMaxY) * 0.5f -
+						(controlRect.Min.y + controlRect.Max.y) * 0.5f) <
+						ImGui::GetTextLineHeight(),
+				"feedback overlapped the group or displaced reset");
+
+			BeginFeedbackField(owner, "cleared");
+			ImGui::Button("Cleared control");
+			require(
+				ImGui::GetCurrentContext()->LastItemData.Rect.Min.y >
+					feedbackMaxY,
+				"next row overlapped under-control feedback");
+			require(SettingsTable::SetFieldFeedback(
+						owner,
+						DMUI_FIELD_FEEDBACK_SEVERITY_ERROR,
+						"Transient") == DMUI_RESULT_OK &&
+					SettingsTable::SetFieldFeedback(
+						owner,
+						DMUI_FIELD_FEEDBACK_SEVERITY_INFO,
+						{}) == DMUI_RESULT_OK,
+				"same-frame feedback clear failed");
+			EndFeedbackField(owner);
+			const auto* outer = ImGui::GetCurrentTable();
+			const auto clearedHeight = outer->RowPosY2 - outer->RowPosY1;
+
+			BeginFeedbackField(owner, "plain");
+			ImGui::Button("Plain control");
+			EndFeedbackField(owner);
+			outer = ImGui::GetCurrentTable();
+			const auto plainHeight = outer->RowPosY2 - outer->RowPosY1;
+			require(std::abs(clearedHeight - plainHeight) < 0.5f,
+				"cleared feedback retained row extent");
+			require(SettingsTable::End(owner) == DMUI_RESULT_OK,
+				"under-control table did not end");
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"under-control feedback changed the ImGui stack");
+		});
+
+		runner.test("feedback strip wraps inside padding before the next row", [] {
+			constexpr DMUI_ClientHandle owner{ 7 };
+			FeedbackAppearanceGuard appearance;
+			FieldFeedback::SetAppearance({
+				FieldFeedbackPlacement::kFullWidthStrip,
+				FieldFeedback::kDefaultInfoColor,
+				FieldFeedback::PackColor(0x2A, 0xE3, 0x4D),
+				FieldFeedback::kDefaultErrorColor
+			});
+
+			ImGuiTestFrame frame;
+			const SettingsTable::ClientCallbackGuard guard{ owner };
+			const auto table = SettingsTable::Begin(owner, "strip-layout");
+			require(table.result == DMUI_RESULT_OK && table.visible,
+				"strip table did not begin");
+			const auto outerId = ImGui::GetCurrentTable()->ID;
+			BeginFeedbackField(owner, "strip");
+			ImGui::Button("Value");
+			const auto* outer =
+				ImGui::GetCurrentContext()->Tables.GetByKey(outerId);
+			const auto stripMinX = outer->Columns[0].WorkMinX;
+			const auto stripMaxX = outer->Columns[1].WorkMaxX;
+			auto* draw = ImGui::GetWindowDrawList();
+			const auto firstVertex = draw->VtxBuffer.Size;
+			ImGui::LogToBuffer();
+			require(SettingsTable::SetFieldFeedback(
+						owner,
+						DMUI_FIELD_FEEDBACK_SEVERITY_WARNING,
+						"100% ##literal caf\xC3\xA9\n"
+						"A long second line wraps across the full-width strip "
+						"without escaping its horizontal padding.") ==
+					DMUI_RESULT_OK,
+				"strip feedback was rejected");
+			EndFeedbackField(owner);
+			const std::string logged{
+				ImGui::GetCurrentContext()->LogBuffer.c_str()
+			};
+			ImGui::LogFinish();
+
+			const auto feedbackColor = ImGui::GetColorU32(
+				FieldFeedback::SeverityColor(
+					DMUI_FIELD_FEEDBACK_SEVERITY_WARNING));
+			auto textMinX = (std::numeric_limits<float>::max)();
+			auto textMaxX = (std::numeric_limits<float>::lowest)();
+			auto textMinY = (std::numeric_limits<float>::max)();
+			auto textMaxY = (std::numeric_limits<float>::lowest)();
+			for (int index = firstVertex; index < draw->VtxBuffer.Size; ++index)
+			{
+				const auto& vertex = draw->VtxBuffer[index];
+				if (vertex.col != feedbackColor ||
+					vertex.pos.x <= stripMinX + 3.0f * Theme::Scale())
+					continue;
+				textMinX = (std::min)(textMinX, vertex.pos.x);
+				textMaxX = (std::max)(textMaxX, vertex.pos.x);
+				textMinY = (std::min)(textMinY, vertex.pos.y);
+				textMaxY = (std::max)(textMaxY, vertex.pos.y);
+			}
+			const auto padding = 8.0f * Theme::Scale();
+			require(
+				textMaxY - textMinY > ImGui::GetTextLineHeight() &&
+					textMinX >= stripMinX + padding - 0.5f &&
+					textMaxX <= stripMaxX - padding + 0.5f &&
+					logged.contains(
+						"Warning: 100% ##literal caf\xC3\xA9") &&
+					logged.contains("A long second line"),
+				"strip text lost inline literal formatting or padding");
+
+			BeginFeedbackField(owner, "following");
+			ImGui::Button("Following control");
+			require(
+				ImGui::GetCurrentContext()->LastItemData.Rect.Min.y > textMaxY,
+				"next row overlapped the feedback strip");
+			EndFeedbackField(owner);
+			require(SettingsTable::End(owner) == DMUI_RESULT_OK,
+				"strip table did not end");
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"feedback strip changed the ImGui stack");
+		});
+
+		runner.test("color presets align with roomy and narrow pickers", [] {
+			ImGuiTestFrame frame;
+			const std::array presets{
+				HostSettingsViewDetail::ColorPreset{
+					"Blue", "Blue", { 0x00, 0x72, 0xB2 } },
+				HostSettingsViewDetail::ColorPreset{
+					"Orange", "Orange", { 0xE6, 0x9F, 0x00 } },
+				HostSettingsViewDetail::ColorPreset{
+					"Sky", "Sky", { 0x56, 0xB4, 0xE9 } },
+				HostSettingsViewDetail::ColorPreset{
+					"Purple", "Purple", { 0xCC, 0x79, 0xA7 } }
+			};
+			auto color = HostAccentColor{};
+			const auto draw = [&](const char* id, float width) {
+				ImGui::PushID(id);
+				const auto result =
+					HostSettingsViewDetail::DrawColorSettingControl(
+						color,
+						presets,
+						width);
+				ImGui::PopID();
+				return result;
+			};
+			const auto roomy = draw("roomy", 420.0f);
+			const auto narrow = draw("narrow", 145.0f);
+			const auto aligned = [](const auto& result) {
+				return std::abs(
+						result.pickerMaxX - result.presetsMaxX) < 0.5f &&
+					result.presetsMinX >= result.pickerMinX - 0.5f &&
+					std::abs(
+						result.pickerHeight - result.presetHeight) < 0.5f;
+			};
+			require(
+				aligned(roomy) &&
+					aligned(narrow) &&
+					roomy.presetsInline &&
+					!narrow.presetsInline,
+				"color presets did not share the picker span");
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"color setting control changed the ImGui stack");
 		});
 	}
 }

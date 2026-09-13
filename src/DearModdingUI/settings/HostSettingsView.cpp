@@ -1,5 +1,7 @@
 #include <DearModdingUI/settings/HostSettingsView.h>
 
+#include "HostSettingsColorControls.h"
+
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/controls/SettingsTable.h>
@@ -19,12 +21,7 @@ namespace DearModdingUI
 {
 	namespace
 	{
-		struct ColorPreset
-		{
-			const char* name;
-			const char* description;
-			HostAccentColor color;
-		};
+		using HostSettingsViewDetail::ColorPreset;
 
 		inline constexpr std::array kAccentPresets{
 			ColorPreset{
@@ -162,49 +159,6 @@ namespace DearModdingUI
 			return true;
 		}
 
-		void DrawColorPresets(
-			HostAccentColor& a_color,
-			std::span<const ColorPreset> a_presets,
-			bool& a_changed) noexcept
-		{
-			if (a_presets.empty())
-				return;
-			constexpr const char* label{ "Color-vision-friendly presets" };
-			const auto swatchSize = ImGui::GetFrameHeight();
-			const auto& style = ImGui::GetStyle();
-			const auto labelWidth = ImGui::CalcTextSize(label).x;
-			const auto swatchesWidth =
-				swatchSize * static_cast<float>(a_presets.size()) +
-				style.ItemSpacing.x *
-					static_cast<float>(a_presets.size() - 1);
-			const auto presetsFitInline =
-				labelWidth + style.ItemSpacing.x + swatchesWidth <=
-				ImGui::GetContentRegionAvail().x;
-			ImGui::AlignTextToFramePadding();
-			ImGui::TextUnformatted(label);
-			if (presetsFitInline)
-				ImGui::SameLine();
-			for (size_t index = 0; index < a_presets.size(); ++index)
-			{
-				const auto& preset = a_presets[index];
-				ImGui::PushID(static_cast<int>(index));
-				if (index > 0)
-					ImGui::SameLine();
-				if (ImGui::ColorButton(
-						preset.name,
-						HostAccentToImVec4(preset.color),
-						ImGuiColorEditFlags_NoAlpha,
-						{ swatchSize, swatchSize }))
-				{
-					a_color = preset.color;
-					a_changed = true;
-				}
-				if (ImGui::IsItemHovered())
-					ImGui::SetTooltip("%s", preset.description);
-				ImGui::PopID();
-			}
-		}
-
 		[[nodiscard]] bool DrawColorSettingRow(
 			const char* a_id,
 			const char* a_label,
@@ -220,21 +174,11 @@ namespace DearModdingUI
 					a_description,
 					true,
 					[&]() noexcept {
-						auto color = HostAccentToImVec4(a_color);
-						ImGui::SetNextItemWidth(ControlWidth());
-						if (ImGui::ColorEdit3(
-								"##Value",
-								&color.x,
-								ImGuiColorEditFlags_NoAlpha |
-									ImGuiColorEditFlags_DisplayRGB |
-									ImGuiColorEditFlags_InputRGB |
-									ImGuiColorEditFlags_PickerHueBar))
-						{
-							a_color = HostAccentFromImVec4(color);
-							changed = true;
-						}
-						if (!a_presets.empty())
-							DrawColorPresets(a_color, a_presets, changed);
+						changed |= HostSettingsViewDetail::
+							DrawColorSettingControl(
+								a_color,
+								a_presets,
+								ControlWidth()).changed;
 					},
 					[&]() noexcept {
 						return a_color != a_defaultColor;
@@ -244,6 +188,55 @@ namespace DearModdingUI
 				changed = true;
 			}
 			return changed;
+		}
+
+		void DrawFeedbackExample(
+			const char* a_id,
+			const char* a_label,
+			DMUI_FieldFeedbackSeverity a_severity,
+			const char* a_message) noexcept
+		{
+			const auto begun = SettingsTable::BeginField(
+				DMUI_INVALID_CLIENT_HANDLE,
+				a_id,
+				a_label,
+				"Live preview of the selected placement and semantic color.",
+				SettingsTable::RowLayout::kLabelValue);
+			if (begun.result != DMUI_RESULT_OK || !begun.visible)
+				return;
+			ImGui::TextUnformatted("Client-owned value");
+			(void)SettingsTable::SetFieldFeedback(
+				DMUI_INVALID_CLIENT_HANDLE,
+				a_severity,
+				a_message);
+			bool ignored{};
+			(void)SettingsTable::EndField(
+				DMUI_INVALID_CLIENT_HANDLE,
+				{ false, false },
+				ignored);
+		}
+
+		void DrawFeedbackExamples() noexcept
+		{
+			ImGui::Spacing();
+			ImGui::TextUnformatted("Field feedback preview");
+			DrawHelp(
+				"Clients supply and clear these messages. The host only presents them.");
+			DrawFeedbackExample(
+				"FeedbackInfoPreview",
+				"Informational example",
+				DMUI_FIELD_FEEDBACK_SEVERITY_INFO,
+				"Restart the game for changes to take effect.");
+			DrawFeedbackExample(
+				"FeedbackWarningPreview",
+				"Warning example",
+				DMUI_FIELD_FEEDBACK_SEVERITY_WARNING,
+				"Long reach may allow pickpocketing through walls.");
+			DrawFeedbackExample(
+				"FeedbackErrorPreview",
+				"Error example",
+				DMUI_FIELD_FEEDBACK_SEVERITY_ERROR,
+				"Minimum cannot exceed maximum.");
 		}
 
 		void DrawAppearance() noexcept
@@ -466,9 +459,82 @@ namespace DearModdingUI
 				changed = true;
 			}
 
+			const auto* selectedFeedbackLayout =
+				FindFieldFeedbackLayout(settings.feedbackPlacement);
+			if (!selectedFeedbackLayout)
+				selectedFeedbackLayout = FindFieldFeedbackLayout(
+					DEFAULT_FIELD_FEEDBACK_LAYOUT);
+			if (DrawSettingsRow(
+					"FieldFeedbackLayout",
+					"Field feedback placement",
+					selectedFeedbackLayout->description.data(),
+					true,
+					[&]() noexcept {
+						ImGui::SetNextItemWidth(ControlWidth());
+						if (ImGui::BeginCombo(
+								"##Value",
+								selectedFeedbackLayout->label.data()))
+						{
+							for (const auto& layout : FIELD_FEEDBACK_LAYOUTS)
+							{
+								const auto selected =
+									layout.kind == settings.feedbackPlacement;
+								if (ImGui::Selectable(
+										layout.label.data(),
+										selected))
+								{
+									settings.feedbackPlacement = layout.kind;
+									changed = true;
+								}
+								if (ImGui::IsItemHovered())
+								{
+									ImGui::SetTooltip(
+										"%.*s",
+										static_cast<int>(
+											layout.description.size()),
+										layout.description.data());
+								}
+								if (selected)
+									ImGui::SetItemDefaultFocus();
+							}
+							ImGui::EndCombo();
+						}
+					},
+					[&]() noexcept {
+						return settings.feedbackPlacement !=
+							defaults.feedbackPlacement;
+					}))
+			{
+				settings.feedbackPlacement = defaults.feedbackPlacement;
+				changed = true;
+			}
+
+			changed |= DrawColorSettingRow(
+				"FieldFeedbackInfoColor",
+				"Field feedback: info",
+				"Color used only for informational field feedback.",
+				settings.feedbackInfoColor,
+				defaults.feedbackInfoColor,
+				kAccentPresets);
+			changed |= DrawColorSettingRow(
+				"FieldFeedbackWarningColor",
+				"Field feedback: warning",
+				"Color used only for warning field feedback.",
+				settings.feedbackWarningColor,
+				defaults.feedbackWarningColor,
+				kAccentPresets);
+			changed |= DrawColorSettingRow(
+				"FieldFeedbackErrorColor",
+				"Field feedback: error",
+				"Color used only for error field feedback.",
+				settings.feedbackErrorColor,
+				defaults.feedbackErrorColor,
+				kAccentPresets);
+
 			(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
 			if (changed)
 				PreviewDraft();
+			DrawFeedbackExamples();
 		}
 
 		void DrawReadability() noexcept

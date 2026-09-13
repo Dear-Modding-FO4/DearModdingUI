@@ -190,10 +190,10 @@ namespace DearModdingUI
 			&ApiQueryHotkeyBinding,
 			&ApiUnregisterHotkeyAction,
 			&ApiBeginSettingsTable,
-			&ApiBeginSettingsRow,
-			&ApiEndSettingsRow,
 			&ApiEndSettingsTable,
-			&ApiBeginSettingsRowEx,
+			&ApiBeginField,
+			&ApiSetFieldFeedback,
+			&ApiEndField,
 			&ApiRegisterPageActivityObserver,
 			&ApiDrawLinkRow,
 			&ApiDrawFaq,
@@ -366,10 +366,9 @@ namespace DearModdingUI
 			a_page,
 			&RegisteredPage::handle);
 		const SettingsTable::ClientCallbackGuard settingsTableGuard{
+			page != pages.end() ? page->client : DMUI_INVALID_CLIENT_HANDLE,
 			page != pages.end() &&
-					page->kind == DMUI_PAGE_KIND_SETTINGS ?
-				page->client :
-				DMUI_INVALID_CLIENT_HANDLE
+				page->kind == DMUI_PAGE_KIND_SETTINGS
 		};
 		const RenderExecution::ClientGuard executionGuard{
 			page != pages.end() ? page->client : DMUI_INVALID_CLIENT_HANDLE,

@@ -12,7 +12,8 @@ static_assert(!std::is_move_constructible_v<dmui::FontGuard>);
 static_assert(!std::is_copy_constructible_v<dmui::DisabledScope>);
 static_assert(!std::is_move_constructible_v<dmui::TooltipScope>);
 static_assert(!std::is_copy_constructible_v<dmui::SettingsTableScope>);
-static_assert(!std::is_move_constructible_v<dmui::SettingsRowScope>);
+static_assert(!std::is_copy_constructible_v<dmui::FieldScope>);
+static_assert(!std::is_move_constructible_v<dmui::FieldScope>);
 
 namespace
 {
@@ -250,7 +251,7 @@ namespace
 		dmui::SettingsTableScope settingsTable{ client, "settings" };
 		if (settingsTable.Visible())
 		{
-			dmui::SettingsRowScope row{
+			dmui::FieldScope row{
 				client,
 				"enabled",
 				"Enabled",

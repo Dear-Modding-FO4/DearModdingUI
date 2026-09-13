@@ -4,6 +4,7 @@
 
 #include "fixtures/MCMFixtures.h"
 #include "fixtures/NavigationFixtures.h"
+#include "fixtures/SettingFeedbackFixtures.h"
 
 #include <d3d11.h>
 
@@ -66,6 +67,7 @@ namespace DearModdingUIPreview
 		DearModdingUI::MCM::Win32FileListingAdapter realMcmFiles;
 		DmuiTestFixtures::McmFixture mcmFixture;
 		std::vector<std::unique_ptr<dmui::Client>> navigationClients;
+		DmuiTestFixtures::SettingFeedbackFixture settingFeedback;
 	};
 
 	FixtureRunner::FixtureRunner() :
@@ -113,6 +115,9 @@ namespace DearModdingUIPreview
 				!DmuiTestFixtures::RegisterNavigationComparisonFixtures(
 					m_impl->navigationClients,
 					a_error))
+				return false;
+			if (a_options.includeSettingFeedbackFixtures &&
+				!m_impl->settingFeedback.Register(a_error))
 				return false;
 			return true;
 		}

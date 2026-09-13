@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/SettingsActions.h>
 #include <DearModdingUI/controls/Controls.h>
+#include <DearModdingUI/controls/FieldFeedback.h>
 #include <DearModdingUI/presentation/Theme.h>
 
 #include <imgui/imgui.h>
@@ -33,8 +34,13 @@ namespace DearModdingUI::SettingsTable
 			ImRect labelRect;
 			std::string label;
 			std::string description;
+			std::string feedback;
+			DMUI_FieldFeedbackSeverity feedbackSeverity{
+				DMUI_FIELD_FEEDBACK_SEVERITY_INFO
+			};
 			RowLayout layout{ RowLayout::kLabelValue };
 			bool fullSpanClipPushed{ false };
+			bool standalone{ false };
 		};
 
 		thread_local RenderState s_state;
@@ -42,6 +48,7 @@ namespace DearModdingUI::SettingsTable
 			DMUI_INVALID_CLIENT_HANDLE
 		};
 		thread_local uint32_t s_callbackDepth{ 0 };
+		thread_local bool s_settingsAllowed{ false };
 		thread_local ImGuiErrorRecoveryState s_callbackRecovery;
 		thread_local bool s_hasCallbackRecovery{ false };
 
@@ -121,13 +128,19 @@ namespace DearModdingUI::SettingsTable
 			};
 		}
 
-		void DrawLabel(const ImRect& a_contentRect) noexcept
+		void DrawLabel(
+			const ImRect& a_contentRect,
+			const FieldFeedback::LayoutPlan& a_feedback) noexcept
 		{
+			const auto totalHeight = s_state.labelHeight +
+				FieldFeedback::RequiredExtent(
+					a_feedback,
+					FieldFeedback::Region::kLabel);
 			ImGui::SetCursorScreenPos({
 				a_contentRect.Min.x,
 				a_contentRect.Min.y + RowContentOffsetY(
 					a_contentRect.GetHeight(),
-					{ s_state.labelHeight },
+					{ totalHeight },
 					RowContentMetric::kBox)
 			});
 			// Wrap positions are window-local, unlike the content rectangle.
@@ -146,6 +159,9 @@ namespace DearModdingUI::SettingsTable
 				ImGui::TextDisabled("%s", s_state.description.c_str());
 			}
 			ImGui::PopTextWrapPos();
+			FieldFeedback::Draw(
+				a_feedback,
+				FieldFeedback::Region::kLabel);
 		}
 
 		[[nodiscard]] float ResetColumnWidth(float a_buttonExtent) noexcept
@@ -169,8 +185,12 @@ namespace DearModdingUI::SettingsTable
 			s_state.labelRect = {};
 			s_state.label.clear();
 			s_state.description.clear();
+			s_state.feedback.clear();
+			s_state.feedbackSeverity =
+				DMUI_FIELD_FEEDBACK_SEVERITY_INFO;
 			s_state.layout = RowLayout::kLabelValue;
 			s_state.fullSpanClipPushed = false;
+			s_state.standalone = false;
 		}
 
 		void RestoreFullSpanContent() noexcept
@@ -192,6 +212,8 @@ namespace DearModdingUI::SettingsTable
 		void RecoverOpenBrackets() noexcept
 		{
 			const auto owner = s_state.bracket.Owner();
+			const auto standalone = s_state.standalone;
+			auto tableClosed = false;
 			if (s_state.bracket.CurrentPhase() == Phase::kRow &&
 				HasExpectedTable(
 					s_state.controlsId,
@@ -213,17 +235,22 @@ namespace DearModdingUI::SettingsTable
 				ImGui::EndTable();
 				ClearTableState();
 				(void)s_state.bracket.EndTable(owner);
+				tableClosed = true;
 			}
+			if (standalone && tableClosed)
+				ImGui::PopID();
 		}
 	}
 
 	ClientCallbackGuard::ClientCallbackGuard(
-		DMUI_ClientHandle a_client) noexcept
+		DMUI_ClientHandle a_client,
+		bool a_settingsAllowed) noexcept
 	{
 		if (s_callbackDepth == 0)
 		{
 			ResetBracketState();
 			s_callbackClient = a_client;
+			s_settingsAllowed = a_settingsAllowed;
 			s_hasCallbackRecovery = HasDrawingContext();
 			if (s_hasCallbackRecovery)
 				ImGui::ErrorRecoveryStoreState(&s_callbackRecovery);
@@ -243,11 +270,20 @@ namespace DearModdingUI::SettingsTable
 				ImGui::ErrorRecoveryTryToRecoverState(&s_callbackRecovery);
 			ResetBracketState();
 			s_callbackClient = DMUI_INVALID_CLIENT_HANDLE;
+			s_settingsAllowed = false;
 			s_hasCallbackRecovery = false;
 		}
 	}
 
 	bool AcceptsClient(DMUI_ClientHandle a_client) noexcept
+	{
+		return s_callbackDepth == 1 &&
+			s_settingsAllowed &&
+			a_client != DMUI_INVALID_CLIENT_HANDLE &&
+			a_client == s_callbackClient;
+	}
+
+	bool AcceptsFieldClient(DMUI_ClientHandle a_client) noexcept
 	{
 		return s_callbackDepth == 1 &&
 			a_client != DMUI_INVALID_CLIENT_HANDLE &&
@@ -414,7 +450,7 @@ namespace DearModdingUI::SettingsTable
 
 	DMUI_Result EndRow(
 		DMUI_ClientHandle a_owner,
-		const RowOptions& a_options,
+		const FieldEndOptions& a_options,
 		bool& a_resetPressed) noexcept
 	{
 		a_resetPressed = false;
@@ -425,18 +461,52 @@ namespace DearModdingUI::SettingsTable
 				s_state.controlsIdDepth))
 			return DMUI_RESULT_UNBALANCED_BRACKET;
 		const auto* controls = ImGui::GetCurrentTable();
+		const auto controlsMaxY = controls->OuterRect.Max.y;
+		const auto controlContentRect = TableRowContentRect(controls, 0);
+		const auto controlContentEnd = ImGui::GetCursorScreenPos();
 		(void)ImGui::TableSetColumnIndex(1);
 		const auto resetContentRect = TableRowContentRect(controls, 1);
+		const auto* outerTable =
+			ImGui::GetCurrentContext()->Tables.GetByKey(s_state.tableId);
+		if (!outerTable)
+			return DMUI_RESULT_UNBALANCED_BRACKET;
+		const auto labelWidth = (std::max)(
+			outerTable->Columns[0].WorkMaxX -
+				outerTable->Columns[0].WorkMinX,
+			1.0f);
+		const auto containerWidth = (std::max)(
+			outerTable->Columns[1].WorkMaxX -
+				outerTable->Columns[0].WorkMinX,
+			1.0f);
+		const auto feedback = FieldFeedback::ResolveLayout({
+			s_state.feedback,
+			s_state.feedbackSeverity,
+			s_state.layout == RowLayout::kLabelValue,
+			labelWidth,
+			controlContentRect.GetWidth(),
+			containerWidth
+		});
+		(void)ImGui::TableSetColumnIndex(0);
+		if (FieldFeedback::RequiredExtent(
+				feedback,
+				FieldFeedback::Region::kControl) > 0.0f)
+		{
+			ImGui::SetCursorScreenPos(controlContentEnd);
+			FieldFeedback::Draw(
+				feedback,
+				FieldFeedback::Region::kControl);
+		}
+		(void)ImGui::TableSetColumnIndex(1);
 		if (a_options.resetVisible)
 		{
 			a_resetPressed = DrawSettingsActionButton(
 				"##DearModdingUI.SettingsRowReset",
 				{
 					resetContentRect.Min.x,
-					resetContentRect.Min.y + RowContentOffsetY(
-						resetContentRect.GetHeight(),
-						{ s_state.buttonExtent },
-						RowContentMetric::kBox)
+					ResolveResetButtonOriginY(
+						resetContentRect.Min.y,
+						resetContentRect.Max.y,
+						s_state.buttonExtent)
 				},
 				{ s_state.resetWidth, s_state.buttonExtent },
 				SettingsAction::kReset,
@@ -453,26 +523,161 @@ namespace DearModdingUI::SettingsTable
 			return DMUI_RESULT_UNBALANCED_BRACKET;
 		const auto* table = ImGui::GetCurrentTable();
 		(void)ImGui::TableSetColumnIndex(0);
-		if (s_state.layout == RowLayout::kFullSpan)
+		const auto labelExtent = FieldFeedback::RequiredExtent(
+			feedback,
+			FieldFeedback::Region::kLabel);
+		if (labelExtent > 0.0f)
 		{
-			if (s_state.labelHeight > 0.0f)
+			ImGui::Dummy({ 0.0f, labelExtent });
+		}
+		const auto containerExtent = FieldFeedback::RequiredExtent(
+			feedback,
+			FieldFeedback::Region::kContainer);
+		const auto contentMaxY =
+			(std::max)(s_state.labelRect.Max.y, controlsMaxY);
+		if (containerExtent > 0.0f)
+		{
+			const auto first = TableRowContentRect(table, 0);
+			ImGui::SetCursorScreenPos({
+				first.Min.x,
+				contentMaxY
+			});
+			const auto clip = s_state.window->ClipRect;
+			ImGui::PushClipRect(
+				clip.Min,
+				{ first.Min.x + feedback.width, clip.Max.y },
+				false);
+			FieldFeedback::Draw(
+				feedback,
+				FieldFeedback::Region::kContainer);
+			ImGui::PopClipRect();
+		}
+		const auto drawLabel =
+			s_state.layout != RowLayout::kFullSpan ||
+			s_state.labelHeight > 0.0f;
+		if (drawLabel)
+		{
+			auto labelRect =
+				s_state.layout == RowLayout::kFullSpan ?
+					s_state.labelRect :
+					TableRowContentRect(table, 0);
+			if (containerExtent > 0.0f)
+				labelRect.Max.y = contentMaxY;
+			if (s_state.layout == RowLayout::kFullSpan)
 			{
 				const auto clip = s_state.window->ClipRect;
 				ImGui::PushClipRect(
 					clip.Min,
 					{ s_state.fullSpanMaxX, clip.Max.y },
 					false);
-				DrawLabel(s_state.labelRect);
+				DrawLabel(labelRect, feedback);
 				ImGui::PopClipRect();
 			}
-		}
-		else
-		{
-			DrawLabel(TableRowContentRect(table, 0));
+			else
+				DrawLabel(labelRect, feedback);
 		}
 		ImGui::PopID();
 		ClearRowState();
 		return s_state.bracket.EndRow(a_owner);
+	}
+
+	BeginResult BeginField(
+		DMUI_ClientHandle a_owner,
+		const char* a_id,
+		const char* a_label,
+		const char* a_description,
+		RowLayout a_layout) noexcept
+	{
+		if (!a_id || a_id[0] == '\0')
+			return { DMUI_RESULT_INVALID_ARGUMENT, false };
+		if (a_layout == RowLayout::kLabelValue &&
+			(!a_label || a_label[0] == '\0'))
+			return { DMUI_RESULT_INVALID_ARGUMENT, false };
+		if (a_description && (!a_label || a_label[0] == '\0'))
+			return { DMUI_RESULT_INVALID_ARGUMENT, false };
+		if (s_state.bracket.CurrentPhase() == Phase::kTable)
+		{
+			return BeginRow(
+				a_owner,
+				a_id,
+				a_label ? a_label : "",
+				a_description,
+				a_layout);
+		}
+
+		ImGui::PushID(a_id);
+		const auto table = Begin(
+			a_owner,
+			"##DearModdingUI.StandaloneField");
+		if (table.result != DMUI_RESULT_OK || !table.visible)
+		{
+			ImGui::PopID();
+			return table;
+		}
+		const auto row = BeginRow(
+			a_owner,
+			"##Field",
+			a_label ? a_label : "",
+			a_description,
+			a_layout);
+		if (row.result != DMUI_RESULT_OK || !row.visible)
+		{
+			(void)End(a_owner);
+			ImGui::PopID();
+			return row;
+		}
+		s_state.standalone = true;
+		return row;
+	}
+
+	DMUI_Result SetFieldFeedback(
+		DMUI_ClientHandle a_owner,
+		DMUI_FieldFeedbackSeverity a_severity,
+		std::string_view a_message) noexcept
+	{
+		if (s_state.bracket.CurrentPhase() != Phase::kRow ||
+			s_state.bracket.Owner() != a_owner ||
+			!HasExpectedTable(
+				s_state.controlsId,
+				s_state.controlsIdDepth))
+			return DMUI_RESULT_UNBALANCED_BRACKET;
+		if (!FieldFeedback::IsValidSeverity(a_severity))
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		try
+		{
+			s_state.feedback.assign(a_message);
+			s_state.feedbackSeverity = a_severity;
+			return DMUI_RESULT_OK;
+		}
+		catch (const std::bad_alloc&)
+		{
+			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		}
+		catch (...)
+		{
+			return DMUI_RESULT_CALLBACK_FAILED;
+		}
+	}
+
+	DMUI_Result EndField(
+		DMUI_ClientHandle a_owner,
+		const FieldEndOptions& a_options,
+		bool& a_resetPressed) noexcept
+	{
+		if (s_state.bracket.CurrentPhase() != Phase::kRow)
+			return DMUI_RESULT_UNBALANCED_BRACKET;
+		const auto standalone = s_state.standalone;
+		const auto rowResult = EndRow(
+			a_owner,
+			a_options,
+			a_resetPressed);
+		if (rowResult != DMUI_RESULT_OK)
+			return rowResult;
+		if (!standalone)
+			return DMUI_RESULT_OK;
+		const auto tableResult = End(a_owner);
+		ImGui::PopID();
+		return tableResult;
 	}
 
 	DMUI_Result End(DMUI_ClientHandle a_owner) noexcept

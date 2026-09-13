@@ -114,13 +114,13 @@ namespace DmuiTests::Detail
 	{
 		auto& client = m_context.Client();
 		const auto visible =
-			client.BeginSettingsRow(a_id, a_label, a_description);
+			client.BeginField(a_id, a_label, a_description);
 		if (!visible)
 			return false;
 		if (!*visible)
 			return true;
 		a_draw();
-		return client.EndSettingsRow(false, false).has_value();
+		return client.EndField(false, false).has_value();
 	}
 
 	bool OverlayExercise::DrawFloatRow(
@@ -243,7 +243,7 @@ namespace DmuiTests::Detail
 			(void)client.EndSettingsTable();
 			return;
 		}
-		const auto placement = client.BeginSettingsRow(
+		const auto placement = client.BeginField(
 			"overlay-placement",
 			"Observed placement",
 			"Latest host-owned placement and completion edge.",
@@ -267,7 +267,7 @@ namespace DmuiTests::Detail
 				m_arrangementCompletions,
 				m_frameRequests,
 				m_frameReleases);
-			(void)client.EndSettingsRow(false, false);
+			(void)client.EndField(false, false);
 		}
 		(void)client.EndSettingsTable();
 	}

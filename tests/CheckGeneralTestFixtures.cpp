@@ -268,6 +268,31 @@ namespace vmm_tests
 				"client did not preserve host-selected glyph or request fields");
 		});
 
+		runner.test("field scope wrappers reject missing host operations", [] {
+			ResetFixture();
+			dmui::Client client{
+				"field-feedback-missing-host",
+				"Field Feedback Missing Host",
+				{ 1, 0 }
+			};
+			require(client.Connect(), "fixture client did not connect");
+			require(
+				!client.BeginField("field", "Field") &&
+					client.LastResult() == DMUI_RESULT_UNSUPPORTED_ABI,
+				"missing field begin was not reported as unsupported");
+			require(
+				!client.SetFieldFeedback(
+					dmui::FieldFeedbackSeverity::kInfo,
+					"Message") &&
+					client.LastResult() == DMUI_RESULT_UNSUPPORTED_ABI,
+				"missing feedback operation was not reported as unsupported");
+			require(
+				!client.EndField() &&
+					client.LastResult() == DMUI_RESULT_UNSUPPORTED_ABI,
+				"missing field end was not reported as unsupported");
+			ResetFixture();
+		});
+
 		runner.test("declarative groups resolve current labels at draw time", [] {
 			ResetFixture();
 			std::string currentLabel{ "HostOnlyUnmappedFirst" };

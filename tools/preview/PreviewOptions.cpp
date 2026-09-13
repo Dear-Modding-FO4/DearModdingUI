@@ -40,6 +40,27 @@ namespace DearModdingUIPreview
 			return true;
 		}
 
+		[[nodiscard]] bool ParseNonNegative(
+			std::wstring_view a_text,
+			uint32_t a_maximum,
+			uint32_t& a_value) noexcept
+		{
+			if (a_text.empty())
+				return false;
+			uint64_t result{};
+			for (const auto character : a_text)
+			{
+				if (character < L'0' || character > L'9')
+					return false;
+				result = result * 10u +
+					static_cast<uint64_t>(character - L'0');
+				if (result > a_maximum)
+					return false;
+			}
+			a_value = static_cast<uint32_t>(result);
+			return true;
+		}
+
 		[[nodiscard]] std::optional<std::string> WideToUtf8(
 			std::wstring_view a_text)
 		{
@@ -81,6 +102,7 @@ namespace DearModdingUIPreview
 			<< L"  --height <n>             Backbuffer height (default 2160)\n"
 			<< L"  --page <client-id/page-id>  Open a registered settings page\n"
 			<< L"  --host-page <home|health|settings>  Open a host page\n"
+			<< L"  --scroll-y <pixels>      Scroll the page content before capture\n"
 			<< L"  --sidebar <tree|twopane|drilldown|iconrail>  Select the sidebar layout\n"
 			<< L"  --navigation <grouped|destinations>  Enable a preview-only navigation comparison\n"
 			<< L"  --origin <native|bridged>  Select the destinations comparison tab\n"
@@ -187,6 +209,20 @@ namespace DearModdingUIPreview
 					a_error = L"Host page must be home, health, or settings.";
 					return false;
 				}
+			}
+			else if (argument == L"--scroll-y")
+			{
+				uint32_t scrollY{};
+				if (!ParseNonNegative(
+						value,
+						kMaximumDimension * 16u,
+						scrollY))
+				{
+					a_error =
+						L"Content scroll must be between 0 and 262144 pixels.";
+					return false;
+				}
+				a_options.contentScrollY = scrollY;
 			}
 			else if (argument == L"--sidebar")
 			{

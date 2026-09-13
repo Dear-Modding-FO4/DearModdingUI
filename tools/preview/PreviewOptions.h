@@ -21,6 +21,7 @@ namespace DearModdingUIPreview
 		std::optional<std::filesystem::path> screenshot;
 		std::optional<std::string> page;
 		std::optional<DearModdingUI::HostPageKind> hostPage;
+		std::optional<uint32_t> contentScrollY;
 		std::optional<std::vector<std::string>> expandedMods;
 		std::optional<DearModdingUI::SidebarLayoutKind> sidebarOverride;
 		std::optional<DearModdingUI::NavigationPresentationKind>

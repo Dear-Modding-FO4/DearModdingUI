@@ -52,7 +52,7 @@ namespace DmuiTests::Detail
 	{
 		auto& client = m_context.Client();
 		const auto visible =
-			client.BeginSettingsRow(a_id, a_label, a_description);
+			client.BeginField(a_id, a_label, a_description);
 		if (!visible)
 			return false;
 		if (!*visible)
@@ -61,7 +61,7 @@ namespace DmuiTests::Detail
 		const auto changed = a_draw();
 		const auto completed = dmui::ui::IsItemDeactivatedAfterEdit();
 		RecordEdit(a_counters, a_id, changed, completed);
-		const auto reset = client.EndSettingsRow(true, !a_isDefault);
+		const auto reset = client.EndField(true, !a_isDefault);
 		if (!reset)
 			return false;
 		if (*reset && !a_isDefault)
@@ -163,7 +163,7 @@ namespace DmuiTests::Detail
 			return;
 		}
 
-		const auto counters = client.BeginSettingsRow(
+		const auto counters = client.BeginField(
 			"edit-counters",
 			"Lifecycle counters",
 			"changed / completed / simulated saves",
@@ -192,7 +192,7 @@ namespace DmuiTests::Detail
 				m_multilineEdits.resets,
 				m_multilineEdits.saves,
 				m_simulatedSaves);
-			(void)client.EndSettingsRow(false, false);
+			(void)client.EndField(false, false);
 		}
 		(void)client.EndSettingsTable();
 	}

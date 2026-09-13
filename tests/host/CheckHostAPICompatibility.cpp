@@ -16,11 +16,21 @@ namespace vmm_tests
 
 	void run_host_api_compatibility_checks(Runner& runner)
 	{
-		runner.test("host API extensions preserve the published prefix", [] {
+		runner.test("host ABI 2 publishes unified field brackets", [] {
 			require(
-				offsetof(DMUI_HostAPI, beginSettingsRowEx) ==
+				DMUI_HOST_ABI_CURRENT == DMUI_HOST_ABI_2 &&
+					offsetof(DMUI_HostAPI, endSettingsTable) ==
+						DMUI_HOST_API_BEGIN_SETTINGS_TABLE_SIZE &&
+					offsetof(DMUI_HostAPI, beginField) ==
 						DMUI_HOST_API_END_SETTINGS_TABLE_SIZE &&
-					DMUI_HOST_API_BEGIN_SETTINGS_ROW_EX_SIZE <
+					DMUI_HOST_API_BEGIN_FIELD_SIZE <
+						DMUI_HOST_API_SET_FIELD_FEEDBACK_SIZE &&
+					DMUI_HOST_API_SET_FIELD_FEEDBACK_SIZE <
+						DMUI_HOST_API_END_FIELD_SIZE &&
+					DMUI_HOST_API_END_FIELD_SIZE ==
+						DMUI_HOST_API_REGISTER_PAGE_ACTIVITY_OBSERVER_SIZE -
+							sizeof(DMUI_RegisterPageActivityObserverFn) &&
+					DMUI_HOST_API_END_FIELD_SIZE <
 						DMUI_HOST_API_REGISTER_PAGE_ACTIVITY_OBSERVER_SIZE &&
 					DMUI_HOST_API_REGISTER_PAGE_ACTIVITY_OBSERVER_SIZE <
 						DMUI_HOST_API_DRAW_LINK_ROW_SIZE &&
@@ -73,7 +83,11 @@ namespace vmm_tests
 					DMUI_HOST_API_RESOLVE_ICON_GLYPH_SIZE == 448 &&
 					sizeof(DMUI_HostAPI) ==
 						DMUI_HOST_API_RESOLVE_ICON_GLYPH_SIZE,
-				"the versioned host API prefix moved");
+				"the ABI 2 host table layout changed");
+			require(
+				DMUI_GetAPI(DMUI_HOST_ABI_1) == nullptr &&
+					DMUI_GetAPI(DMUI_HOST_ABI_2) != nullptr,
+				"host did not reject the superseded settings-row ABI");
 		});
 
 	}

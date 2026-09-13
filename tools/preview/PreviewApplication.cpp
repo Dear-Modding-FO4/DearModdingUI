@@ -153,7 +153,9 @@ namespace DearModdingUIPreview
 					"DMUI_PREVIEW_GAME_LOADED",
 					true),
 				.includeNavigationComparisonFixtures =
-					options.navigationOverride.has_value()
+					options.navigationOverride.has_value(),
+				.includeSettingFeedbackFixtures =
+					options.page && options.page->starts_with("setting-feedback/")
 			};
 			if (!fixtures->Register(
 					renderer.Device(),
@@ -218,6 +220,9 @@ namespace DearModdingUIPreview
 			}
 			if (!SelectInitialPage(a_error))
 				return false;
+			if (options.contentScrollY)
+				ConfigurePreviewContentScroll(
+					static_cast<float>(*options.contentScrollY));
 			return ConfigureSidebar(a_error);
 		}
 
