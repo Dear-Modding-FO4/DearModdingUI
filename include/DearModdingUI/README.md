@@ -23,8 +23,8 @@ registration then return `DMUI_RESULT_HOST_NOT_INITIALIZED`. Export presence doe
 renderer is ready: register at `kPostPostLoad` and wait for exactly one lifecycle callback.
 
 Within one host ABI generation, updates preserve unchanged table offsets and append
-new operations. Clients negotiate optional entries independently. Host ABI 2 replaces
-prerelease row scopes with fields; ABI 1 clients must migrate and rebuild.
+new operations. Clients negotiate optional entries independently. Field operations extend
+the original host ABI; existing binaries remain supported, including settings-row calls.
 Internal implementation and file-layout changes do not change either ABI.
 
 Client, category, page, action, hotkey-action, frame-observer, and page-activity-observer registration closes when the first valid
@@ -162,10 +162,10 @@ ImGui's disabled-widget state. Drawing is length-delimited and unformatted, so l
 optional value font once, and preserves the caller's current font for the label.
 `DMUI_StyleMetrics::fontSizeBase` reports the base font size.
 
-The public `SettingsTableScope` and `FieldScope` own only successful visible begin calls and
-preserve clipping as a successful invisible result. Their explicit ends are idempotent; field end
-returns the optional Reset result. A field opened inside a settings table is its next row; the same
-scope opened outside a table owns equivalent standalone geometry. `DisabledScope` balances both enabled and disabled calls, while
+The public `SettingsTableScope`, `SettingsRowScope`, and `FieldScope` own only successful visible
+begin calls and preserve clipping as a successful invisible result. Their explicit ends are
+idempotent and return the optional Reset result. Existing row code remains supported unchanged;
+`FieldScope` optionally adds standalone geometry and feedback. `DisabledScope` balances both enabled and disabled calls, while
 `TooltipScope` owns rich tooltip content only after the requested hover test and a successful
 `BeginTooltip`. The generic `DrawChoice` helper separates stable values and keys from visible labels,
 supports disabled options, leaves unknown current values unchanged, and reports a completed change
@@ -177,7 +177,7 @@ and examples.
 `FieldScope::SetFeedback` supplies frame-local Info, Warning, or Error text.
 The client owns validation and value behavior; the host user chooses placement
 and colors. See the [controls guide](https://github.com/Dear-Modding-FO4/DearModdingUI-API/blob/main/docs/controls-guide.md#settings-tables-and-rows)
-for usage and ABI 2 migration.
+for usage and compatibility details.
 
 Declarative `ChoiceSettingControl::unmatchedLabel` customizes the unknown-value preview and defaults
 to `"Unavailable"`. It never replaces the bound value: consumers can display `"None"` for a missing
@@ -196,6 +196,8 @@ wrapper marshals this contract to `std::string&` and returns sizing results thro
 `std::optional<float>`.
 
 `beginSettingsTable` and `endSettingsTable` optionally group fields into settings rows.
+The original `beginSettingsRow`, `beginSettingsRowEx`, and `endSettingsRow` operations remain
+available with their original layout and behavior.
 `beginField` and `endField` manage either a row or standalone field using a stable
 caller-supplied ID, label, and optional description. `DMUI_FieldBeginOptions` selects
 label/value or full-span geometry; `DMUI_FieldEndOptions` controls Reset visibility

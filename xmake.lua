@@ -101,6 +101,7 @@ local source_sets = {
         "src/DearModdingUI/host/Diagnostics.cpp",
         "src/DearModdingUI/host/Hotkeys.cpp",
         "src/DearModdingUI/host/IconResolution.cpp",
+        "src/DearModdingUI/host/HostAPISettingsRows.cpp",
         "src/DearModdingUI/host/MenuDismissal.cpp",
         "src/DearModdingUI/host/Registry*.cpp",
         "src/DearModdingUI/host/RenderExecution.cpp",

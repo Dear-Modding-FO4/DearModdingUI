@@ -87,6 +87,29 @@ namespace DearModdingUI::SettingsTable
 			DMUI_RESULT_OK;
 	}
 
+	[[nodiscard]] constexpr DMUI_Result ValidateRowOptions(
+		const DMUI_SettingsRowOptions* a_options) noexcept
+	{
+		if (!a_options)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		return a_options->structSize < DMUI_SETTINGS_ROW_OPTIONS_0_1_SIZE ?
+			DMUI_RESULT_STRUCT_TOO_SMALL :
+			DMUI_RESULT_OK;
+	}
+
+	[[nodiscard]] constexpr DMUI_Result ValidateRowBeginOptions(
+		const DMUI_SettingsRowBeginOptions* a_options) noexcept
+	{
+		if (!a_options)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		if (a_options->structSize < DMUI_SETTINGS_ROW_BEGIN_OPTIONS_0_1_SIZE)
+			return DMUI_RESULT_STRUCT_TOO_SMALL;
+		return a_options->layout == DMUI_SETTINGS_ROW_LAYOUT_LABEL_VALUE ||
+				a_options->layout == DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN ?
+			DMUI_RESULT_OK :
+			DMUI_RESULT_INVALID_ARGUMENT;
+	}
+
 	[[nodiscard]] constexpr DMUI_Result ValidateFieldBeginOptions(
 		const DMUI_FieldBeginOptions* a_options) noexcept
 	{

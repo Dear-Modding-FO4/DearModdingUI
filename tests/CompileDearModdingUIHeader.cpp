@@ -44,7 +44,7 @@ static_assert(sizeof(DMUI_StatusSeverity) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_FontRole) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_SettingsAction) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_HotkeyBindingState) == sizeof(uint32_t));
-static_assert(DMUI_HOST_ABI_CURRENT == DMUI_HOST_ABI_2);
+static_assert(DMUI_HOST_ABI_CURRENT == DMUI_HOST_ABI_1);
 static_assert(DMUI_API_VERSION_CURRENT == DMUI_API_VERSION_0_1);
 static_assert(std::is_same_v<
 	decltype(&DMUI_GetAPI),

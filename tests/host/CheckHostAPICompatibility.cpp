@@ -1,94 +1,148 @@
-#include "../support/DearModdingUITestSupport.h"
-#include <DearModdingUI/host/Host.h>
-#include <algorithm>
-#include <array>
-#include <filesystem>
-#include <limits>
-#include <memory>
-#include <string>
-#include <tuple>
-#include <vector>
+#include "../Harness.h"
+#include "../support/ImGuiTestContext.h"
+
+#include <DearModdingUI/controls/SettingsTable.h>
+
+#include <imgui/imgui.h>
+
+#include <cstddef>
+
+namespace DearModdingUI::HostInternal
+{
+	DMUI_Result ValidateDrawingClient(DMUI_ClientHandle a_client) noexcept
+	{
+		return a_client == DMUI_INVALID_CLIENT_HANDLE ?
+			DMUI_RESULT_INVALID_ARGUMENT :
+			DMUI_RESULT_OK;
+	}
+}
 
 namespace vmm_tests
 {
 	using namespace DearModdingUI;
-	using namespace support::host;
 
 	void run_host_api_compatibility_checks(Runner& runner)
 	{
-		runner.test("host ABI 2 publishes unified field brackets", [] {
+		runner.test("published row layout uses production adapters", [] {
+			const auto* api = DMUI_GetAPI(DMUI_HOST_ABI_1);
+			require(api, "fixture host API was unavailable");
 			require(
-				DMUI_HOST_ABI_CURRENT == DMUI_HOST_ABI_2 &&
-					offsetof(DMUI_HostAPI, endSettingsTable) ==
-						DMUI_HOST_API_BEGIN_SETTINGS_TABLE_SIZE &&
-					offsetof(DMUI_HostAPI, beginField) ==
-						DMUI_HOST_API_END_SETTINGS_TABLE_SIZE &&
-					DMUI_HOST_API_BEGIN_FIELD_SIZE <
-						DMUI_HOST_API_SET_FIELD_FEEDBACK_SIZE &&
-					DMUI_HOST_API_SET_FIELD_FEEDBACK_SIZE <
-						DMUI_HOST_API_END_FIELD_SIZE &&
-					DMUI_HOST_API_END_FIELD_SIZE ==
-						DMUI_HOST_API_REGISTER_PAGE_ACTIVITY_OBSERVER_SIZE -
-							sizeof(DMUI_RegisterPageActivityObserverFn) &&
-					DMUI_HOST_API_END_FIELD_SIZE <
-						DMUI_HOST_API_REGISTER_PAGE_ACTIVITY_OBSERVER_SIZE &&
-					DMUI_HOST_API_REGISTER_PAGE_ACTIVITY_OBSERVER_SIZE <
-						DMUI_HOST_API_DRAW_LINK_ROW_SIZE &&
-					DMUI_HOST_API_DRAW_LINK_ROW_SIZE <
-						DMUI_HOST_API_DRAW_FAQ_SIZE &&
-					DMUI_HOST_API_DRAW_FAQ_SIZE <
-						DMUI_HOST_API_REPORT_DIAGNOSTIC_SIZE &&
-					DMUI_HOST_API_REPORT_DIAGNOSTIC_SIZE ==
-						offsetof(DMUI_HostAPI, queryServices) &&
-					DMUI_HOST_API_QUERY_SERVICES_SIZE <
-						DMUI_HOST_API_SET_HOTKEY_ACTION_ENABLED_SIZE &&
-					DMUI_HOST_API_SET_HOTKEY_ACTION_ENABLED_SIZE <
-						DMUI_HOST_API_IMPORT_D3D11_IMAGE_SIZE &&
-					DMUI_HOST_API_IMPORT_D3D11_IMAGE_SIZE <
-						DMUI_HOST_API_DRAW_IMAGE_SIZE &&
-					DMUI_HOST_API_DRAW_IMAGE_SIZE <
-						DMUI_HOST_API_RELEASE_IMAGE_SIZE &&
-					DMUI_HOST_API_RELEASE_IMAGE_SIZE <
-						DMUI_HOST_API_QUERY_IMAGE_SIZE &&
-					DMUI_HOST_API_QUERY_IMAGE_SIZE <
-						DMUI_HOST_API_CONFIGURE_OVERLAY_SIZE &&
-					DMUI_HOST_API_CONFIGURE_OVERLAY_SIZE <
-						DMUI_HOST_API_QUERY_OVERLAY_SIZE &&
-					DMUI_HOST_API_QUERY_OVERLAY_SIZE <
-						DMUI_HOST_API_POST_NOTIFICATION_SIZE &&
-					DMUI_HOST_API_POST_NOTIFICATION_SIZE <
-						DMUI_HOST_API_DRAW_ANNOTATED_PLOT_SIZE &&
-					DMUI_HOST_API_DRAW_ANNOTATED_PLOT_SIZE <
-						DMUI_HOST_API_REQUEST_DIALOG_SIZE &&
-					DMUI_HOST_API_REQUEST_DIALOG_SIZE <
-						DMUI_HOST_API_POLL_DIALOG_EVENT_SIZE &&
-					DMUI_HOST_API_POLL_DIALOG_EVENT_SIZE <
-						DMUI_HOST_API_RESOLVE_DIALOG_SUBMISSION_SIZE &&
-					DMUI_HOST_API_RESOLVE_DIALOG_SUBMISSION_SIZE <
-						DMUI_HOST_API_CANCEL_DIALOG_SIZE &&
-					DMUI_HOST_API_CANCEL_DIALOG_SIZE == 400 &&
-					DMUI_HOST_API_CANCEL_DIALOG_SIZE <
-						DMUI_HOST_API_CREATE_IMAGE_SIZE &&
-					DMUI_HOST_API_CREATE_IMAGE_SIZE <
-						DMUI_HOST_API_UPDATE_IMAGE_SIZE &&
-					DMUI_HOST_API_UPDATE_IMAGE_SIZE <
-						DMUI_HOST_API_REGISTER_CATEGORY_SIZE &&
-					DMUI_HOST_API_REGISTER_CATEGORY_SIZE <
-						DMUI_HOST_API_OPEN_EXTERNAL_SIZE &&
-					DMUI_HOST_API_OPEN_EXTERNAL_SIZE <
-						DMUI_HOST_API_QUERY_UI_API_SIZE &&
-					offsetof(DMUI_HostAPI, queryUIAPI) == 432 &&
-					DMUI_HOST_API_QUERY_UI_API_SIZE == 440 &&
+				offsetof(DMUI_HostAPI, beginSettingsRow) == 224 &&
+					offsetof(DMUI_HostAPI, endSettingsRow) == 232 &&
+					offsetof(DMUI_HostAPI, endSettingsTable) == 240 &&
+					offsetof(DMUI_HostAPI, beginSettingsRowEx) == 248 &&
+					offsetof(DMUI_HostAPI, registerPageActivityObserver) == 256 &&
 					offsetof(DMUI_HostAPI, resolveIconGlyph) == 440 &&
-					DMUI_HOST_API_RESOLVE_ICON_GLYPH_SIZE == 448 &&
-					sizeof(DMUI_HostAPI) ==
-						DMUI_HOST_API_RESOLVE_ICON_GLYPH_SIZE,
-				"the ABI 2 host table layout changed");
-			require(
-				DMUI_GetAPI(DMUI_HOST_ABI_1) == nullptr &&
-					DMUI_GetAPI(DMUI_HOST_ABI_2) != nullptr,
-				"host did not reject the superseded settings-row ABI");
-		});
+					offsetof(DMUI_HostAPI, beginField) == 448 &&
+					offsetof(DMUI_HostAPI, endField) == 464,
+				"append-only host table layout changed");
 
+			constexpr DMUI_ClientHandle owner{ 7 };
+			DMUI_SettingsRowBeginOptions shortBeginOptions{
+				sizeof(uint32_t),
+				DMUI_SETTINGS_ROW_LAYOUT_LABEL_VALUE
+			};
+			uint32_t visible{ 1u };
+			require(
+				api->beginSettingsRowEx(
+					owner,
+					"null-options",
+					"",
+					nullptr,
+					nullptr,
+					&visible) == DMUI_RESULT_INVALID_ARGUMENT &&
+					visible == 0u,
+				"legacy begin accepted null options");
+			visible = 1u;
+			require(
+				api->beginSettingsRowEx(
+					owner,
+					"short-options",
+					"",
+					nullptr,
+					&shortBeginOptions,
+					&visible) == DMUI_RESULT_STRUCT_TOO_SMALL &&
+					visible == 0u,
+				"legacy begin options did not enforce their published prefix");
+
+			support::ImGuiTestContext imgui{
+				{ .disableErrorRecovery = true }
+			};
+			imgui.BeginWindow(
+				"##LegacyHostAPITest",
+				{ 60.0f, 60.0f },
+				{ 640.0f, 480.0f });
+			{
+				const SettingsTable::ClientCallbackGuard guard{ owner };
+				const auto table = SettingsTable::Begin(owner, "legacy-settings");
+				require(table.result == DMUI_RESULT_OK && table.visible,
+					"shared settings table did not begin");
+
+				visible = 0u;
+				require(
+					api->beginSettingsRow(
+						owner, "empty-label", "", nullptr, &visible) ==
+							DMUI_RESULT_OK &&
+						visible != 0,
+					"legacy row rejected its published empty-label contract");
+				ImGui::TextUnformatted("Legacy value");
+				DMUI_SettingsRowOptions endOptions{
+					sizeof(DMUI_SettingsRowOptions),
+					0u,
+					0u
+				};
+				uint32_t resetPressed{ 1u };
+				require(
+					api->endSettingsRow(owner, nullptr, &resetPressed) ==
+							DMUI_RESULT_INVALID_ARGUMENT &&
+						resetPressed == 0u,
+					"legacy end accepted null options");
+				resetPressed = 1u;
+				const DMUI_SettingsRowOptions shortEndOptions{
+					sizeof(uint32_t) * 2u,
+					0u,
+					0u
+				};
+				require(
+					api->endSettingsRow(
+						owner, &shortEndOptions, &resetPressed) ==
+							DMUI_RESULT_STRUCT_TOO_SMALL &&
+						resetPressed == 0u,
+					"legacy end options did not enforce their published prefix");
+				require(
+					api->endSettingsRow(
+						owner, &endOptions, &resetPressed) == DMUI_RESULT_OK &&
+						resetPressed == 0u,
+					"legacy row did not end through the shared renderer");
+
+				DMUI_SettingsRowBeginOptions beginOptions{
+					sizeof(DMUI_SettingsRowBeginOptions),
+					DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN
+				};
+				visible = 0u;
+				require(
+					api->beginSettingsRowEx(
+						owner,
+						"full-span",
+						"",
+						"",
+						&beginOptions,
+						&visible) == DMUI_RESULT_OK &&
+						visible != 0,
+					"legacy full-span row did not begin");
+				ImGui::TextUnformatted("Full-width legacy value");
+				endOptions.resetVisible = 1u;
+				endOptions.resetEnabled = 1u;
+				resetPressed = 1u;
+				require(
+					api->endSettingsRow(
+						owner, &endOptions, &resetPressed) == DMUI_RESULT_OK &&
+						resetPressed == 0u,
+					"legacy reset options did not use the shared row end");
+				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
+					"shared settings table did not end");
+			}
+			imgui.EndWindow();
+		});
 	}
 }

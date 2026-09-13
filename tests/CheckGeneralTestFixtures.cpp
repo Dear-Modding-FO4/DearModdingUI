@@ -1,6 +1,9 @@
 #include "Harness.h"
+#include "support/ImGuiTestContext.h"
 
 #include <GeneralTestFixtures.h>
+#include <DearModdingUI/controls/SettingsTable.h>
+#include <DearModdingUI/host/HostAPIEntries.h>
 #include <DearModdingUI/host/UIAdapter.h>
 
 #include <cstdint>
@@ -27,6 +30,7 @@ namespace
 		size_t collapsingHeaderCalls{};
 		size_t separatorCalls{};
 		size_t settingsTableCalls{};
+		bool renderSettingsTables{};
 		DMUI_Result resolveResult{ DMUI_RESULT_OK };
 		uint32_t resolvedGlyph{};
 		std::string resolvedExplicitName;
@@ -128,20 +132,30 @@ namespace
 	}
 
 	DMUI_Result DMUI_CALL BeginSettingsTable(
-		DMUI_ClientHandle,
+		DMUI_ClientHandle a_client,
 		const char* a_id,
 		uint32_t* a_visible) noexcept
 	{
 		if (!a_id || !a_visible)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		++s_fixtureHost.settingsTableCalls;
+		if (s_fixtureHost.renderSettingsTables)
+		{
+			const auto result =
+				DearModdingUI::SettingsTable::Begin(a_client, a_id);
+			*a_visible = result.visible ? 1u : 0u;
+			return result.result;
+		}
 		*a_visible = 0;
 		return DMUI_RESULT_OK;
 	}
 
-	DMUI_Result DMUI_CALL EndSettingsTable(DMUI_ClientHandle) noexcept
+	DMUI_Result DMUI_CALL EndSettingsTable(
+		DMUI_ClientHandle a_client) noexcept
 	{
-		return DMUI_RESULT_OK;
+		return s_fixtureHost.renderSettingsTables ?
+			DearModdingUI::SettingsTable::End(a_client) :
+			DMUI_RESULT_OK;
 	}
 
 	DMUI_Result DMUI_CALL Separator(DMUI_ClientHandle) noexcept
@@ -188,7 +202,13 @@ namespace
 			result.drawCollapsingSectionHeader =
 				&DrawCollapsingSectionHeader;
 			result.beginSettingsTable = &BeginSettingsTable;
+			result.beginSettingsRow =
+				&DearModdingUI::HostAPIInternal::ApiBeginSettingsRow;
+			result.endSettingsRow =
+				&DearModdingUI::HostAPIInternal::ApiEndSettingsRow;
 			result.endSettingsTable = &EndSettingsTable;
+			result.beginSettingsRowEx =
+				&DearModdingUI::HostAPIInternal::ApiBeginSettingsRowEx;
 			result.queryUIAPI = &QueryUIAPI;
 			result.resolveIconGlyph = &ResolveIconGlyph;
 			return result;
@@ -270,12 +290,26 @@ namespace vmm_tests
 
 		runner.test("field scope wrappers reject missing host operations", [] {
 			ResetFixture();
+			FixtureAPI().structSize =
+				DMUI_HOST_API_RESOLVE_ICON_GLYPH_SIZE;
 			dmui::Client client{
 				"field-feedback-missing-host",
 				"Field Feedback Missing Host",
 				{ 1, 0 }
 			};
 			require(client.Connect(), "fixture client did not connect");
+			dmui::SettingsRowScope oldScope{
+				client, "scope", "Scope", nullptr
+			};
+			require(
+				oldScope.Result() == DMUI_RESULT_WRONG_THREAD,
+				"old-prefix row scope required appended field operations");
+			const auto oldRow =
+				client.BeginSettingsRow("row", "Row", nullptr);
+			require(
+				!oldRow &&
+					client.LastResult() == DMUI_RESULT_WRONG_THREAD,
+				"old-prefix row operation was treated as an unavailable field");
 			require(
 				!client.BeginField("field", "Field") &&
 					client.LastResult() == DMUI_RESULT_UNSUPPORTED_ABI,
@@ -291,6 +325,105 @@ namespace vmm_tests
 					client.LastResult() == DMUI_RESULT_UNSUPPORTED_ABI,
 				"missing field end was not reported as unsupported");
 			ResetFixture();
+		});
+
+		runner.test("declarative hidden rows use the ABI 1 row path", [] {
+			ResetFixture();
+			auto& api = FixtureAPI();
+			api.structSize = DMUI_HOST_API_RESOLVE_ICON_GLYPH_SIZE;
+			s_fixtureHost.renderSettingsTables = true;
+
+			dmui::Client client{
+				"declarative-hidden-rows",
+				"Declarative Hidden Rows",
+				{ 1, 0 }
+			};
+			require(client.Connect(), "fixture client did not connect");
+			bool hiddenSettingDrawn{};
+			bool followingSettingDrawn{};
+			const dmui::RowPresentation hidden{
+				.labelMode = dmui::RowPresentation::LabelMode::kHidden,
+				.layout = dmui::RowPresentation::Layout::kFullSpan
+			};
+			dmui::SettingGroup group{
+				.id = "content",
+				.settings = {
+					{
+						.id = "prose",
+						.description = "Applies now.",
+						.control = dmui::ReadOnlySettingControl{
+							.draw = [&] {
+								hiddenSettingDrawn = true;
+								dmui::ui::TextUnformatted("Rendered");
+							}
+						},
+						.presentation = hidden
+					},
+					{
+						.id = "following",
+						.control = dmui::ReadOnlySettingControl{
+							.draw = [&] {
+								followingSettingDrawn = true;
+								dmui::ui::TextUnformatted("Rendered");
+							}
+						}
+					}
+				},
+				.headingMode = dmui::SettingGroup::HeadingMode::kDivider,
+				.actionRows = {
+					{
+						.id = "action",
+						.buttonLabel = "Action",
+						.description = "Applies now.",
+						.activate = [] {},
+						.presentation = hidden
+					}
+				},
+				.rows = {
+					dmui::SettingGroup::SettingIndex{ 0 },
+					dmui::SettingGroup::ActionIndex{ 0 },
+					dmui::SettingGroup::SettingIndex{ 1 }
+				}
+			};
+			dmui::SettingsPage settings{
+				.groups = { std::move(group) },
+				.filterOptions = {
+					.showSearch = false,
+					.showModifiedOnly = false
+				}
+			};
+			support::ImGuiTestContext imgui{
+				{ .disableErrorRecovery = true }
+			};
+			const DearModdingUI::UI::Testing::ValidationOverride validation{
+				[](DMUI_ClientHandle) noexcept {
+					return DMUI_RESULT_OK;
+				}
+			};
+			imgui.BeginWindow(
+				"##DeclarativeLegacyRows",
+				{ 60.0f, 60.0f },
+				{ 640.0f, 480.0f });
+			const DearModdingUI::SettingsTable::ClientCallbackGuard guard{
+				s_fixtureHost.clientCount
+			};
+			const dmui::ui::detail::ScopedContext uiContext{
+				&FixtureUIAPI(),
+				s_fixtureHost.clientCount
+			};
+			settings.Draw(client);
+			const auto drawResult = client.LastResult();
+			imgui.EndWindow();
+
+			const auto complete =
+				drawResult == DMUI_RESULT_OK &&
+				hiddenSettingDrawn &&
+				followingSettingDrawn;
+			ResetFixture();
+			require(
+				complete,
+				std::string{ "hidden-label row aborted declarative page rendering: " } +
+					DMUI_ResultToString(drawResult));
 		});
 
 		runner.test("declarative groups resolve current labels at draw time", [] {

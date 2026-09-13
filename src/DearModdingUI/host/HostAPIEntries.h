@@ -40,7 +40,10 @@ namespace DearModdingUI::HostAPIInternal
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::settingsActionButtonWidth)> ApiSettingsActionButtonWidth;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::settingsActionButtonExtent)> ApiSettingsActionButtonExtent;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::beginSettingsTable)> ApiBeginSettingsTable;
+	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::beginSettingsRow)> ApiBeginSettingsRow;
+	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::endSettingsRow)> ApiEndSettingsRow;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::endSettingsTable)> ApiEndSettingsTable;
+	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::beginSettingsRowEx)> ApiBeginSettingsRowEx;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryVideoMemory)> ApiQueryVideoMemory;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryServices)> ApiQueryServices;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryUIAPI)> ApiQueryUIAPI;

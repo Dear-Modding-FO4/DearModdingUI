@@ -190,10 +190,10 @@ namespace DearModdingUI
 			&ApiQueryHotkeyBinding,
 			&ApiUnregisterHotkeyAction,
 			&ApiBeginSettingsTable,
+			&ApiBeginSettingsRow,
+			&ApiEndSettingsRow,
 			&ApiEndSettingsTable,
-			&ApiBeginField,
-			&ApiSetFieldFeedback,
-			&ApiEndField,
+			&ApiBeginSettingsRowEx,
 			&ApiRegisterPageActivityObserver,
 			&ApiDrawLinkRow,
 			&ApiDrawFaq,
@@ -217,7 +217,10 @@ namespace DearModdingUI
 			&ApiRegisterCategory,
 			&ApiOpenExternal,
 			&ApiQueryUIAPI,
-			&ApiResolveIconGlyph
+			&ApiResolveIconGlyph,
+			&ApiBeginField,
+			&ApiSetFieldFeedback,
+			&ApiEndField
 		};
 		return api;
 	}

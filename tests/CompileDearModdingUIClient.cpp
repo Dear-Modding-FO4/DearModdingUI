@@ -12,6 +12,8 @@ static_assert(!std::is_move_constructible_v<dmui::FontGuard>);
 static_assert(!std::is_copy_constructible_v<dmui::DisabledScope>);
 static_assert(!std::is_move_constructible_v<dmui::TooltipScope>);
 static_assert(!std::is_copy_constructible_v<dmui::SettingsTableScope>);
+static_assert(!std::is_copy_constructible_v<dmui::SettingsRowScope>);
+static_assert(!std::is_move_constructible_v<dmui::SettingsRowScope>);
 static_assert(!std::is_copy_constructible_v<dmui::FieldScope>);
 static_assert(!std::is_move_constructible_v<dmui::FieldScope>);
 
@@ -264,6 +266,21 @@ namespace
 				(void)dmui::ui::Checkbox("##Value", &enabled);
 				(void)row.End(true, enabled);
 			}
+			dmui::SettingsRowScope compatibleRow{
+				client,
+				"legacy-enabled",
+				"Legacy enabled",
+				"Existing source remains valid."
+			};
+			if (compatibleRow.Visible())
+				(void)compatibleRow.End(false, false);
+			const auto legacyDirect = client.BeginSettingsRow(
+				"legacy-direct",
+				"",
+				nullptr,
+				dmui::RowPresentation::Layout::kFullSpan);
+			if (legacyDirect.value_or(false))
+				(void)client.EndSettingsRow(true, true);
 			dmui::DrawDivider();
 			(void)settingsTable.End();
 		}
