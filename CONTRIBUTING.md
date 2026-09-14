@@ -46,6 +46,15 @@ Package versions come from `plugin_version` in `xmake.lua`.
 For diagnostic builds with the in-game test client, configure with `--test-release=y`.
 Packaging reads runtime assets from the working tree under `data\F4SE\Plugins`.
 
+## Editor integration
+
+Optional project generation, run from the repository root:
+
+| Editor | Command | Output |
+|---|---|---|
+| Visual Studio | `xmake project -k vsxmake` | `vsxmakeXXXX\` solution directory. |
+| clangd | `xmake project -k compile_commands` | `compile_commands.json`. |
+
 ## Repository layout
 
 | Path | Purpose |
