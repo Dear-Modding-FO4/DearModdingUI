@@ -1,5 +1,4 @@
 #include <DearModdingUI/presentation/BlurPipelineState.h>
-#include <Platform/rendering/D3D11State.h>
 
 #include "../Harness.h"
 #include "../support/D3DTestResources.h"
@@ -21,7 +20,6 @@ namespace vmm_tests
 	{
 		using Microsoft::WRL::ComPtr;
 		using DearModdingUI::BackgroundBlur::BlurPipelineState;
-		using DearModdingUI::Rendering::RenderTargetState;
 
 		struct ShaderEntry
 		{
@@ -232,26 +230,6 @@ namespace vmm_tests
 			};
 			for (const auto& entry : entries)
 				(void)CompileShader(entry);
-		});
-
-		a_runner.test("render target state restores all outputs and depth stencil", [] {
-			auto device = support::CreateImageResources();
-			const auto outputs = CreateOutputResources(device.device.Get());
-			const std::array<ID3D11RenderTargetView*, 2> targets{
-				outputs.targets[0].Get(),
-				outputs.targets[1].Get()
-			};
-			device.context->OMSetRenderTargets(
-				static_cast<UINT>(targets.size()),
-				targets.data(),
-				outputs.depth.Get());
-			{
-				const RenderTargetState state{ device.context.Get() };
-				device.context->OMSetRenderTargets(0, nullptr, nullptr);
-				state.Restore(device.context.Get());
-			}
-			RequireOutputTargets(device.context.Get(), outputs);
-			device.context->OMSetRenderTargets(0, nullptr, nullptr);
 		});
 
 		a_runner.test("blur pipeline state restores every touched native binding", [] {

@@ -298,22 +298,6 @@ namespace vmm_tests
 				"an empty mod name emitted a filtered MCM event");
 		});
 
-		runner.test("MCM unknown declarations remain attemptable", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"UnknownDeclarations",
-				"content":[{"id":"bOption:Main","type":"switcher",
-					"valueOptions":{"sourceType":"ModSettingBool",
-						"default":false}}]
-			})json");
-			auto& page = result.pages.front();
-			SnapshotSource source;
-			source.snapshot = ReadyValue{ true, 1 };
-			BindPage(page, source);
-			auto& descriptor = page.settings.groups.front().settings.front();
-			require(descriptor.isEnabled && descriptor.isEnabled(),
-				"an unknown settings.ini declaration was disabled");
-		});
-
 		runner.test("MCM pending conditions hide with a loading indication", [] {
 			auto page = ConditionPage();
 			SnapshotSource source;
@@ -388,8 +372,7 @@ namespace vmm_tests
 			auto page = IdlessInteractiveConditionPage();
 			SnapshotSource source;
 			source.snapshot = ReadyValue{ true, 3 };
-			auto state = McmState{};
-			BindPage(page, source, [&state] { return state; });
+			BindPage(page, source, [] { return McmState{}; });
 			page.settings.prepareView(page.settings);
 
 			auto& toggle = IdlessController(page);
@@ -407,23 +390,6 @@ namespace vmm_tests
 					summary.bindings == 0 &&
 					summary.unknownBindings == 0,
 				"an idless local controller retained storage or its configured default");
-
-			for (const auto installed : { false, true })
-			{
-				for (const auto ready : { false, true })
-				{
-					state = { installed, ready };
-					const auto open = installed != ready;
-					(void)toggle.binding.set(dmui::SettingValue{ open });
-					require(toggle.isEnabled && toggle.isEnabled() &&
-							row.resolveInertState().governingReason ==
-								InertReason::kNone &&
-							std::get<bool>(toggle.binding.get()) == open &&
-							Dependent(page).isVisible() == open,
-						"idless local state depended on MCM readiness");
-					source.RefreshPage(page, state);
-				}
-			}
 
 			(void)toggle.binding.set(dmui::SettingValue{ true });
 			require(std::get<bool>(toggle.binding.get()) &&

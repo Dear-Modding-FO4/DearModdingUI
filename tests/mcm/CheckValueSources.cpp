@@ -1,14 +1,7 @@
 #include "../support/MCMTestSupport.h"
-#include <algorithm>
 #include <array>
-#include <cmath>
-#include <filesystem>
-#include <fstream>
-#include <stdexcept>
 #include <string>
 #include <tuple>
-#include <unordered_set>
-#include <vector>
 
 namespace vmm_tests
 {
@@ -72,72 +65,6 @@ namespace vmm_tests
 						source.raw == raw,
 					"source type resolved incorrectly: " + std::string{ id });
 			}
-		});
-
-		runner.test("MCM mapped bindings correlate descriptors to sources", [] {
-			const auto result = ParseConfig(
-				kSyntheticConfig,
-				"synthetic-config.json");
-			require(result.configuration.has_value(),
-				"synthetic configuration did not parse");
-
-			const auto binding = [&](
-				const MappedPage& a_page,
-				std::string_view a_id) -> const MappedBinding& {
-				const auto found = std::ranges::find(
-					a_page.rows,
-					a_id,
-					&MappedRow::id);
-				require(found != a_page.rows.end() && found->binding,
-					"binding not found for descriptor: " + std::string{ a_id });
-				return *found->binding;
-			};
-
-			// Every binding descriptorId must resolve to a real descriptor on
-			// the same page, so phase 2 never re-derives uniquified ids.
-			for (const auto& page : result.pages)
-			{
-				for (const auto& row : page.rows)
-				{
-					if (!row.binding || !row.emitted)
-						continue;
-					[[maybe_unused]] const auto& descriptor =
-						SettingNamed(page, row.binding->descriptorId);
-				}
-			}
-
-			const auto& controls = PageNamed(result, "$EXAMPLE_CONTROLS");
-			const auto& property = binding(controls, "DisplayMode");
-			const auto* propertySource =
-				std::get_if<PropertyBinding>(&property.source);
-			require(property.Family() == SourceFamily::kProperty &&
-					property.valueKind == SourceValueKind::kInt &&
-					propertySource &&
-					propertySource->propertyName == "DisplayMode" &&
-					propertySource->scriptName ==
-						std::optional<std::string>{ "ExampleMod:Settings" } &&
-					propertySource->form == "ExampleCore.esm|101",
-				"property binding lost its resolved source");
-
-			const auto& modSetting =
-				binding(controls, "fSensitivity:SampleTweaks");
-			const auto* modSettingSource =
-				std::get_if<ModSettingBinding>(&modSetting.source);
-			require(modSetting.Family() == SourceFamily::kModSetting &&
-					modSettingSource &&
-					modSettingSource->key == "fSensitivity" &&
-					modSettingSource->section == "SampleTweaks" &&
-					modSettingSource->declaration == DeclarationState::kUnknown,
-				"mod setting binding lost its id");
-
-			const auto& sources = PageNamed(result, "$EXAMPLE_SOURCES");
-			const auto& global = binding(sources, "WorldScale");
-			const auto* globalSource =
-				std::get_if<GlobalBinding>(&global.source);
-			require(global.Family() == SourceFamily::kGlobal &&
-					globalSource &&
-					globalSource->form == "SampleWorld.esp|200",
-				"global binding lost its source form");
 		});
 
 	}

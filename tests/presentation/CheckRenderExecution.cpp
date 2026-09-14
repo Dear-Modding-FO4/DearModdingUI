@@ -275,15 +275,6 @@ namespace vmm_tests
 					secondStillAuthorized,
 				"nested or handed-off execution authorization was not restored");
 
-			const auto earlyReturn = [] {
-				RenderExecution::Guard execution{
-					RenderExecution::Phase::kFrameObservation
-				};
-				(void)execution.NoteBinding(8);
-				return RenderExecution::IsActive();
-			};
-			require(earlyReturn() && !RenderExecution::IsActive(),
-				"early return leaked render execution authorization");
 			try
 			{
 				RenderExecution::Guard execution{

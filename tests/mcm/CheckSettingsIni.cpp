@@ -46,18 +46,6 @@ bDiagnostics=0
 			SettingIdCase{ "sProfile:Main:Extra", "sProfile", "Main:Extra", false }
 		};
 
-		constexpr std::string_view kUndeclaredControlsConfig = R"json({
-			"modName":"FixtureBridge",
-			"displayName":"Fixture Bridge",
-			"content":[
-				{"id":"bEntry01:Troubleshooting","type":"switcher","valueOptions":{"sourceType":"ModSettingBool"}},
-				{"id":"bEntry02:Troubleshooting","type":"switcher","valueOptions":{"sourceType":"ModSettingBool"}},
-				{"id":"bEntry03:Troubleshooting","type":"switcher","valueOptions":{"sourceType":"ModSettingBool"}},
-				{"id":"bEntry04:Troubleshooting","type":"switcher","valueOptions":{"sourceType":"ModSettingBool"}},
-				{"id":"bEntry05:Troubleshooting","type":"switcher","valueOptions":{"sourceType":"ModSettingBool"}},
-				{"id":"bEntry06:Troubleshooting","type":"switcher","valueOptions":{"sourceType":"ModSettingBool"}}
-			]
-		})json";
 	}
 
 	void run_mcm_settings_ini_checks(Runner& runner)
@@ -71,6 +59,32 @@ bDiagnostics=0
 					settings.Contains({ "sProfile", "Main" }) &&
 					settings.Contains({ "bDiagnostics", "Advanced" }),
 				"sections, comments, malformed lines, duplicates, or colons changed declarations");
+
+			auto mapped = ParseConfig(R"json({
+				"modName":"DeclarationFixture",
+				"content":[
+					{"id":"bEnabled:Main","type":"switcher",
+					 "valueOptions":{"sourceType":"ModSettingBool"}},
+					{"id":"bMissing:Main","type":"switcher",
+					 "valueOptions":{"sourceType":"ModSettingBool"}}
+				]
+			})json", "declarations.json");
+			require(mapped.pages.size() == 1,
+				"declaration fixture did not map");
+			auto& page = mapped.pages.front();
+			require(page.rows.size() == 2 &&
+					page.rows[0].binding &&
+					page.rows[1].binding,
+				"declaration fixture did not retain both bindings");
+			ApplyDeclarations(page, settings);
+			require(
+				std::get<ModSettingBinding>(
+					page.rows[0].binding->source).declaration ==
+						DeclarationState::kDeclared &&
+					std::get<ModSettingBinding>(
+						page.rows[1].binding->source).declaration ==
+						DeclarationState::kUndeclared,
+				"matching and missing declarations were not applied");
 		});
 
 		runner.test("MCM setting ids normalize section and key", [] {
@@ -89,38 +103,6 @@ bDiagnostics=0
 			require(!ParseSettingIdentifier(kSettingIdCases[3].id) &&
 					!ParseSettingIdentifier(kSettingIdCases[4].id),
 				"malformed setting ids stopped being represented");
-		});
-
-		runner.test("MCM undeclared bool controls are detectable", [] {
-			auto result = ParseConfig(
-				kUndeclaredControlsConfig,
-				"undeclared-controls.json");
-			require(result.configuration && result.pages.size() == 1,
-				"undeclared-control fixture did not map six bindings");
-			ApplyDeclarations(
-				result.pages.front(),
-				ParseSettingsIni(kSettingsIniFixture));
-			auto count = size_t{};
-			for (const auto& row : result.pages.front().rows)
-			{
-				if (!row.binding)
-					continue;
-				const auto* binding =
-					std::get_if<ModSettingBinding>(&row.binding->source);
-				require(binding &&
-						binding->declaration == DeclarationState::kUndeclared,
-					"an absent declaration was not marked undeclared");
-				++count;
-			}
-			require(count == 6,
-				"undeclared-control fixture did not map six bindings");
-			require(SummarizeCompatibility(result.pages.front())
-						.undeclaredModSettings == 6,
-				"compatibility summary lost undeclared settings");
-			require(
-				SummarizeActionableCompatibility(result.pages.front()) ==
-					"Compatibility: 6 undeclared persisted settings.",
-				"undeclared persisted settings lost their registration warning");
 		});
 
 		runner.test("MCM absent settings ini leaves declarations unknown", [] {

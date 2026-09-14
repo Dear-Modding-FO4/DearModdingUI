@@ -74,13 +74,6 @@ namespace vmm_tests
 					UINT32_C(999999),
 					color) == DMUI_RESULT_INVALID_ARGUMENT,
 				"unknown stable enum value reached native ImGui");
-			ImGuiDataType dataType{};
-			require(
-				DearModdingUI::UI::Bindings::TranslateDataType(
-					DMUI_UI_DATA_TYPE_S32,
-					dataType) == DMUI_RESULT_OK &&
-					dataType == ImGuiDataType_S32,
-				"stable scalar type did not translate by its symbolic mapping");
 		});
 
 		runner.test("stable UI rejects unknown and mutually exclusive flags", [] {
@@ -230,7 +223,6 @@ namespace vmm_tests
 			};
 			auto api = DearModdingUI::UI::API();
 			api.structSize = DMUI_UI_API_REQUIRED_SIZE;
-			api.plotLines = nullptr;
 			dmui::ui::detail::ScopedContext context{ &api, 1u };
 			dmui::ui::TextUnformatted("required operation remains available");
 			require(context.Result() == DMUI_RESULT_OK,

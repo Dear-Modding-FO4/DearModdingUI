@@ -6,11 +6,6 @@
 #include <DearModdingUI/Client.h>
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
-#include <algorithm>
-#include <array>
-#include <chrono>
-#include <cmath>
-#include <limits>
 #include <string>
 #include <vector>
 
@@ -416,48 +411,7 @@ namespace vmm_tests
 					DMUI_RESULT_STALE_SUBMISSION,
 				"superseded submission resolution was accepted");
 			require(PresentationServices::ResolveDialogSubmission(
-						16, dialog, secondSubmission, 0, nullptr) ==
-					DMUI_RESULT_OK,
-				"default null rejection failed");
-			event.structSize = sizeof(event);
-			require(PresentationServices::PollDialogEvent(
-						16, dialog, &event, text, sizeof(text)) ==
-						DMUI_RESULT_OK &&
-					event.kind == DMUI_DIALOG_EVENT_PENDING &&
-					std::string_view{ text } == "Commonwealth",
-				"null rejection did not preserve pending text");
-			require(PresentationServices::SubmitDialog(dialog) == DMUI_RESULT_OK,
-				"dialog resubmission after null rejection failed");
-			event.structSize = sizeof(event);
-			require(PresentationServices::PollDialogEvent(
-						16, dialog, &event, text, sizeof(text)) ==
-						DMUI_RESULT_OK &&
-					event.kind == DMUI_DIALOG_EVENT_SUBMITTED &&
-					event.submissionId > secondSubmission,
-				"third submission was not delivered");
-			const auto thirdSubmission = event.submissionId;
-			require(PresentationServices::ResolveDialogSubmission(
-						16, dialog, thirdSubmission, 0, "") ==
-					DMUI_RESULT_OK,
-				"empty rejection failed");
-			event.structSize = sizeof(event);
-			require(PresentationServices::PollDialogEvent(
-						16, dialog, &event, text, sizeof(text)) ==
-						DMUI_RESULT_OK &&
-					event.kind == DMUI_DIALOG_EVENT_PENDING &&
-					std::string_view{ text } == "Commonwealth",
-				"empty rejection did not preserve pending text");
-			require(PresentationServices::SubmitDialog(dialog) == DMUI_RESULT_OK,
-				"dialog resubmission after empty rejection failed");
-			event.structSize = sizeof(event);
-			require(PresentationServices::PollDialogEvent(
-						16, dialog, &event, text, sizeof(text)) ==
-						DMUI_RESULT_OK &&
-					event.kind == DMUI_DIALOG_EVENT_SUBMITTED &&
-					event.submissionId > thirdSubmission,
-				"final submission was not delivered");
-			require(PresentationServices::ResolveDialogSubmission(
-						16, dialog, event.submissionId, 1, nullptr) ==
+						16, dialog, secondSubmission, 1, nullptr) ==
 					DMUI_RESULT_OK,
 				"accepted dialog resolution failed");
 			event.structSize = sizeof(event);

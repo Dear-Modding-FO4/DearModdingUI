@@ -225,41 +225,7 @@ namespace vmm_tests
 
 	void run_mcm_file_choice_checks(Runner& runner)
 	{
-		runner.test("MCM dropdownFiles retains file metadata and string binding", [] {
-			const auto result = ParseConfig(kFileConfig, "file-config.json");
-			require(result.configuration && result.pages.size() == 1,
-				"dropdownFiles fixture did not parse");
-			const auto& declared =
-				result.configuration->pages.front().controls.front();
-			require(declared.type == ControlType::kFileMenu &&
-					declared.valueOptions &&
-					declared.valueOptions->filePath ==
-						std::optional<std::string>{ "Data/Interface/Presets" } &&
-					declared.valueOptions->fileMask ==
-						std::optional<std::string>{ "*.xml" },
-				"dropdownFiles metadata was not retained");
-			const auto& row = result.pages.front().rows.front();
-			require(row.fileChoices &&
-					row.fileChoices->path == declared.valueOptions->filePath &&
-					row.fileChoices->mask == "*.xml" &&
-					row.binding &&
-					row.binding->valueKind == SourceValueKind::kString,
-				"dropdownFiles did not map through an ordinary string binding");
-			require(Choices(result.pages.front()).options.size() == 1 &&
-					Choices(result.pages.front()).options.front().value.empty() &&
-					Choices(result.pages.front()).options.front().label == "None" &&
-					Choices(result.pages.front()).unmatchedLabel == "None" &&
-					std::get<std::string>(
-						Descriptor(result.pages.front()).defaultValue).empty(),
-				"dropdownFiles did not map None as its ordinary empty default");
-			require(!std::ranges::any_of(
-						result.diagnostics,
-						[](const Diagnostic& a_diagnostic) {
-							return a_diagnostic.message.find("no options") !=
-								std::string::npos;
-						}),
-				"dropdownFiles incorrectly required static options");
-
+		runner.test("MCM property dropdownFiles accepts an omitted mask", [] {
 			const auto property = ParseConfig(R"json({
 				"modName":"PropertyFiles",
 				"content":[
@@ -280,7 +246,7 @@ namespace vmm_tests
 					propertyRow.fileChoices->path ==
 						std::optional<std::string>{ "Data/Interface/Files" } &&
 					propertyRow.fileChoices->mask == "*",
-				"property string file dropdown or omitted mask was not supported");
+				"property file dropdown lost its string binding or default mask");
 		});
 
 		runner.test("MCM dropdownFiles validates path and string source", [] {

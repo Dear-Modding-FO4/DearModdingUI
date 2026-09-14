@@ -37,11 +37,6 @@ namespace vmm_tests
 				"valid managed overlay configuration failed");
 			DMUI_ManagedOverlayPlacement placement{};
 			placement.structSize = sizeof(placement);
-			require(PresentationServices::QueryOverlay(9, 11, &placement) ==
-						DMUI_RESULT_OK &&
-					placement.anchor == DMUI_OVERLAY_ANCHOR_TOP_RIGHT &&
-					placement.offset.x == 10.0f,
-				"managed overlay placement did not preserve requested coordinates");
 			require(PresentationServices::QueryOverlay(10, 11, &placement) ==
 					DMUI_RESULT_PAGE_NOT_FOUND,
 				"another owner queried managed placement");

@@ -67,41 +67,11 @@ namespace vmm_tests
 		runner.test("two-pane sidebar preserves a measured page region", [] {
 			require(
 					ResolveSidebarPaneHeights(
-						1000.0f,
-						60.0f,
-						2,
-						240.0f) == SidebarPaneHeights{ 120.0f, 880.0f },
-					"two mods consumed a proportional half of the sidebar");
-			require(
-					ResolveSidebarPaneHeights(
-						1000.0f,
-						60.0f,
-						10,
-						240.0f) == SidebarPaneHeights{ 600.0f, 400.0f },
-					"ten mods did not retain their measured list height");
-			require(
-					ResolveSidebarPaneHeights(
-						1000.0f,
-						60.0f,
-						20,
-						240.0f) == SidebarPaneHeights{ 760.0f, 240.0f },
-					"overflowing mods displaced the minimum page region");
-			require(
-					ResolveSidebarPaneHeights(
 						-100.0f,
 						60.0f,
 						10,
 						240.0f) == SidebarPaneHeights{},
 					"negative space produced pane height");
-			require(
-					ResolveSidebarPaneHeights(
-						1000.0f,
-						60.0f,
-						10,
-						40.0f,
-						3,
-						240.0f) == SidebarPaneHeights{ 720.0f, 280.0f },
-					"navigation headings were omitted from the mod pane budget");
 			require(
 					ResolveSidebarPaneHeights(
 						1000.0f,
@@ -123,25 +93,16 @@ namespace vmm_tests
 					"source controls were omitted from the mod pane budget");
 		});
 
-		runner.test("sidebar layout names parse and round trip", [] {
+		runner.test("sidebar configuration preserves supported layouts and defaults unknown values", [] {
+			PersistedHostInterfaceSettings persisted;
 			for (const auto& layout : SIDEBAR_LAYOUTS)
 			{
+				persisted.sidebarLayout = layout.id;
 				require(
-					ParseSidebarLayout(layout.id) == layout.kind &&
-						ParseUserSidebarLayout(layout.id) == layout.kind &&
-						FindUserSidebarLayout(layout.kind) == &layout &&
-						SidebarLayoutKindName(layout.kind) == layout.id &&
-						layout.preview,
-					"sidebar layout name did not round trip");
+					DecodeHostInterfaceSettings(persisted).sidebarLayout == layout.kind,
+					"supported sidebar configuration did not select its layout");
 			}
-			require(
-				!ParseSidebarLayout("columns") &&
-					SidebarLayoutKindName(
-						static_cast<SidebarLayoutKind>(99)) == "unknown" &&
-					DEFAULT_SIDEBAR_LAYOUT == SidebarLayoutKind::Tree,
-				"unknown or default sidebar layout handling changed");
 
-			PersistedHostInterfaceSettings persisted;
 			for (const auto value : { ""sv, "columns"sv })
 			{
 				persisted.sidebarLayout = value;

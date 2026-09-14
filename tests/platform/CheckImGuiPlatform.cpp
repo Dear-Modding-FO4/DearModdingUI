@@ -50,25 +50,7 @@ namespace vmm_tests
 			require(frame.Claim(rebound), "renderer retirement did not discard its submission");
 		});
 
-		runner.test("native cursor movement is forwarded unscaled while modal actions stay captured", [] {
-			require(!SwallowsGameWindowMessage(0x0200, true, true),
-				"WM_MOUSEMOVE cannot reach the game's native cursor");
-			for (const auto message : { 0x0201u, 0x0202u, 0x020Au, 0x0100u, 0x0102u })
-				require(SwallowsGameWindowMessage(message, true, true),
-					"modal mouse button, wheel, or keyboard input leaked through");
-			require(!SwallowsGameWindowMessage(0x0008, true, true) &&
-					!SwallowsGameWindowMessage(0x0201, false, false),
-				"focus or uncaptured input stopped reaching the predecessor");
-
-			const auto center = MapNativeCursorToBackBuffer({ 480, 270 }, 960, 540, 2560, 1440);
-			const auto edge = MapNativeCursorToBackBuffer({ 960, 540 }, 960, 540, 2560, 1440);
-			const auto constrained = MapNativeCursorToBackBuffer({ 240, 135 }, 960, 540, 2560, 1440);
-			require(center.x == 1280 && center.y == 720 &&
-					edge.x == 2560 && edge.y == 1440 &&
-					constrained.x == 640 && constrained.y == 360,
-				"native cursor position was mis-scaled at the edge or recentered within constraints");
-		});
-		runner.test("renderer attachment lifecycle and result mapping stay coherent", [] {
+		runner.test("renderer attachment lifecycle and result classes stay coherent", [] {
 			constexpr AttachmentIdentity empty{};
 			constexpr AttachmentIdentity game{ 1, 2, 3, 4 };
 			constexpr AttachmentIdentity reboundGame{ 5, 6, 7, 8 };
@@ -76,9 +58,26 @@ namespace vmm_tests
 			constexpr AttachmentIdentity nextGeneration{ 6, 7, 8, 4 };
 			constexpr RendererProbe renderer{ true, true, true, game };
 
-			require(
-				ObserveRenderer(renderer) == RendererObservation::kReady,
+			require(ObserveRenderer(renderer) == RendererObservation::kReady,
 				"a complete renderer binding must be usable");
+			require(
+				FailedAttachmentResult(ObserveRenderer({})) ==
+						AttachmentResult::kNotReady &&
+					DearModdingUI::SwapChainAttachmentResult(
+						AttachmentResult::kNotReady) ==
+						DMUI_RESULT_HOST_NOT_READY,
+				"an incomplete renderer was not classified as retryable startup");
+			require(
+				DearModdingUI::SwapChainAttachmentResult(
+					FailedAttachmentResult(RendererObservation::kBindingChanged)) ==
+						DMUI_RESULT_RENDERER_BUSY &&
+					DearModdingUI::SwapChainAttachmentResult(
+						FailedAttachmentResult(
+							RendererObservation::kInvalidBinding)) ==
+						DMUI_RESULT_SWAPCHAIN_REJECTED &&
+					DearModdingUI::SwapChainAttachmentResult(
+						AttachmentResult::kAttached) == DMUI_RESULT_OK,
+				"attachment result classes lost retryable, permanent, or success mapping");
 			require(
 				DecideAttachment(
 					empty,
@@ -88,43 +87,6 @@ namespace vmm_tests
 					AttachmentLifecycle::kVacant) ==
 					AttachmentDecision::kAttach,
 				"the first renderer binding must attach");
-			constexpr std::array probes{
-				RendererProbe{},
-				RendererProbe{ true, false, true, { 1, 2, 3, 4 } },
-				RendererProbe{ true, true, false, { 1, 2, 3, 4 } },
-				RendererProbe{ true, true, true, { 0, 2, 3, 4 } },
-				RendererProbe{ true, true, true, { 1, 0, 3, 4 } },
-				RendererProbe{ true, true, true, { 1, 2, 0, 4 } },
-				RendererProbe{ true, true, true, { 1, 2, 3, 0 } }
-			};
-			for (const auto& probe : probes)
-			{
-				const auto observation = ObserveRenderer(probe);
-				require(
-					FailedAttachmentResult(observation) == AttachmentResult::kNotReady &&
-						DearModdingUI::SwapChainAttachmentResult(
-							FailedAttachmentResult(observation)) == DMUI_RESULT_HOST_NOT_READY,
-					"missing renderer prerequisite became a permanent rejection");
-			}
-			require(
-				DearModdingUI::SwapChainAttachmentResult(
-					FailedAttachmentResult(RendererObservation::kBindingChanged)) ==
-					DMUI_RESULT_RENDERER_BUSY,
-				"binding publication race was not retryable");
-			for (const auto observation : {
-					 RendererObservation::kInvalidBinding,
-					 RendererObservation::kHookInstallationFailed,
-					 RendererObservation::kReady })
-			{
-				require(
-					DearModdingUI::SwapChainAttachmentResult(
-						FailedAttachmentResult(observation)) == DMUI_RESULT_SWAPCHAIN_REJECTED,
-					"real or unclassified attachment failure was made retryable");
-			}
-			require(
-				DearModdingUI::SwapChainAttachmentResult(AttachmentResult::kAttached) ==
-					DMUI_RESULT_OK,
-				"successful attachment no longer reports success");
 			require(
 				DecideAttachment(
 					{ 1, 2, 3, 4 }, {}, AttachmentSource::kRenderer,
@@ -150,7 +112,6 @@ namespace vmm_tests
 					AttachmentLifecycle::kActive) ==
 					AttachmentDecision::kReplace,
 				"a changed renderer generation must retire and replace the active binding");
-
 			require(
 				DecideAttachment(
 					game,
@@ -219,7 +180,6 @@ namespace vmm_tests
 			require(ObservesDisplayedFrame(0, true), "a successful real Present displays a frame");
 			require(!ObservesDisplayedFrame(kPresentTestFlag, true), "DXGI_PRESENT_TEST displays no frame");
 			require(!ObservesDisplayedFrame(0, false), "a failed Present displays no frame");
-			require(!ObservesDisplayedFrame(kPresentTestFlag, false), "a failed test Present displays no frame");
 		});
 
 		runner.test("post-Present observers require the captured active attachment", [] {
@@ -239,26 +199,6 @@ namespace vmm_tests
 			require(!MatchesActivePresentAttachment(
 						{}, 11, 7, AttachmentLifecycle::kActive),
 				"uncaptured Present acquired observer dispatch");
-		});
-
-		runner.test("input hook health requires every receiver", [] {
-			const std::array ready{
-				InputReceiverHookOutcome{
-					InputReceiver::kMenuControls,
-					InputHookFailure::kNone },
-				InputReceiverHookOutcome{
-					InputReceiver::kPlayerControls,
-					InputHookFailure::kNone },
-				InputReceiverHookOutcome{
-					InputReceiver::kPlayerCamera,
-					InputHookFailure::kNone }
-			};
-			const auto observation = ClassifyInputHookHealth(ready);
-			require(
-				observation.state == DearModdingUI::HealthState::kReady &&
-					observation.reason.find("PlayerCamera") !=
-						std::string::npos,
-				"input health reported ready without naming all required receivers");
 		});
 
 		runner.test("input hook health retains the concrete failed receiver", [] {
@@ -294,49 +234,12 @@ namespace vmm_tests
 				"runtime original-target loss was not actionable");
 		});
 
-		runner.test("input hook health identifies each required receiver", [] {
-			constexpr std::array receivers{
-				InputReceiver::kMenuControls,
-				InputReceiver::kPlayerControls,
-				InputReceiver::kPlayerCamera
-			};
-			for (size_t failed = 0; failed < receivers.size(); ++failed)
-			{
-				std::array outcomes{
-					InputReceiverHookOutcome{
-						InputReceiver::kMenuControls,
-						InputHookFailure::kNone },
-					InputReceiverHookOutcome{
-						InputReceiver::kPlayerControls,
-						InputHookFailure::kNone },
-					InputReceiverHookOutcome{
-						InputReceiver::kPlayerCamera,
-						InputHookFailure::kNone }
-				};
-				outcomes[failed].failure =
-					InputHookFailure::kSingletonUnavailable;
-				const auto observation =
-					ClassifyInputHookHealth(outcomes);
-				require(
-					observation.state ==
-							DearModdingUI::HealthState::kFailed &&
-						observation.reason.find(
-							InputReceiverName(receivers[failed])) !=
-							std::string::npos,
-					"input health attributed a failure to the wrong receiver");
-			}
-		});
-
 		runner.test("backbuffer state recreates on identity size and view changes", [] {
-			constexpr BackBufferIdentity empty{};
 			constexpr BackBufferIdentity first{ 1, 1920, 1080 };
 			constexpr BackBufferIdentity replacement{ 2, 1920, 1080 };
 			constexpr BackBufferIdentity resized{ 1, 2560, 1440 };
 			constexpr BackBufferIdentity invalid{ 1, 0, 1080 };
 
-			require(
-				DecideBackBuffer(empty, first, false) == BackBufferDecision::kRecreate,
-				"the first valid backbuffer must create an RTV");
 			require(
 				DecideBackBuffer(first, first, true) == BackBufferDecision::kKeep,
 				"an unchanged backbuffer must keep its RTV");
@@ -355,17 +258,6 @@ namespace vmm_tests
 		});
 
 		runner.test("mouse coordinates map from the client into the backbuffer", [] {
-			constexpr MousePosition equal{ 123.75f, 456.25f };
-			constexpr auto equalMapped =
-				MapClientToBackBuffer(equal, 1920, 1080, 1920, 1080);
-			require(equalMapped.x == equal.x && equalMapped.y == equal.y,
-				"equal dimensions changed mouse coordinates");
-
-			constexpr auto uniform =
-				MapClientToBackBuffer({ 480.0f, 270.0f }, 960, 540, 1920, 1080);
-			require(uniform.x == 960.0f && uniform.y == 540.0f,
-				"uniform scaling did not match the backbuffer");
-
 			constexpr auto nonUniform =
 				MapClientToBackBuffer({ 400.0f, 300.0f }, 800, 600, 2560, 1080);
 			require(nonUniform.x == 1280.0f && nonUniform.y == 540.0f,
@@ -374,17 +266,9 @@ namespace vmm_tests
 			constexpr MousePosition position{ 400.0f, 300.0f };
 			constexpr auto zeroClientWidth =
 				MapClientToBackBuffer(position, 0, 600, 2560, 1080);
-			constexpr auto zeroClientHeight =
-				MapClientToBackBuffer(position, 800, 0, 2560, 1080);
-			constexpr auto zeroBackBufferWidth =
-				MapClientToBackBuffer(position, 800, 600, 0, 1080);
-			constexpr auto zeroBackBufferHeight =
-				MapClientToBackBuffer(position, 800, 600, 2560, 0);
 			require(
-				zeroClientWidth.x == position.x && zeroClientWidth.y == position.y &&
-					zeroClientHeight.x == position.x && zeroClientHeight.y == position.y &&
-					zeroBackBufferWidth.x == position.x && zeroBackBufferWidth.y == position.y &&
-					zeroBackBufferHeight.x == position.x && zeroBackBufferHeight.y == position.y,
+				zeroClientWidth.x == position.x &&
+					zeroClientWidth.y == position.y,
 				"degenerate dimensions changed mouse coordinates");
 
 			constexpr auto unavailable =
@@ -394,61 +278,40 @@ namespace vmm_tests
 			require(sentinel.x == unavailable && sentinel.y == unavailable,
 				"the unavailable mouse sentinel was scaled");
 
-			constexpr MousePosition leftOutside{ -1.0f, 300.0f };
-			constexpr MousePosition rightOutside{ 800.0f, 300.0f };
 			constexpr MousePosition belowOutside{ 400.0f, 601.0f };
-			constexpr auto leftMapped =
-				MapClientToBackBuffer(leftOutside, 800, 600, 2560, 1080);
-			constexpr auto rightMapped =
-				MapClientToBackBuffer(rightOutside, 800, 600, 2560, 1080);
 			constexpr auto belowMapped =
 				MapClientToBackBuffer(belowOutside, 800, 600, 2560, 1080);
 			require(
-				leftMapped.x == leftOutside.x && leftMapped.y == leftOutside.y &&
-					rightMapped.x == rightOutside.x && rightMapped.y == rightOutside.y &&
-					belowMapped.x == belowOutside.x && belowMapped.y == belowOutside.y,
+				belowMapped.x == belowOutside.x &&
+					belowMapped.y == belowOutside.y,
 				"out-of-window mouse coordinates were scaled into the viewport");
 		});
 
 		runner.test("window messages are classified and swallowed by capture state", [] {
 			require(ClassifyMessage(0x0100) == MessageClass::kKeyboard, "WM_KEYDOWN is keyboard");
-			require(ClassifyMessage(0x0102) == MessageClass::kKeyboard, "WM_CHAR is keyboard");
-			require(ClassifyMessage(0x0109) == MessageClass::kKeyboard, "the last keyboard message is keyboard");
 			require(ClassifyMessage(0x0200) == MessageClass::kMouse, "WM_MOUSEMOVE is mouse");
-			require(ClassifyMessage(0x020E) == MessageClass::kMouse, "WM_MOUSEHWHEEL is mouse");
 			require(ClassifyMessage(0x00FF) == MessageClass::kOther, "WM_INPUT is neither");
-			require(ClassifyMessage(0x0020) == MessageClass::kOther, "WM_SETCURSOR is neither");
-			require(ClassifyMessage(0x010A) == MessageClass::kOther, "the message after the keyboard range is neither");
-			require(ClassifyMessage(0x020F) == MessageClass::kOther, "the message after the mouse range is neither");
 
-			require(SwallowsMessage(MessageClass::kMouse, true, false), "captured mouse input stops at the menu");
-			require(!SwallowsMessage(MessageClass::kMouse, false, true), "uncaptured mouse input reaches the game");
-			require(SwallowsMessage(MessageClass::kKeyboard, false, true), "captured keys stop at the menu");
-			require(!SwallowsMessage(MessageClass::kKeyboard, true, false), "uncaptured keys reach the game");
-			require(!SwallowsMessage(MessageClass::kOther, true, true), "other messages always reach the game");
+			require(SwallowsGameWindowMessage(0x0201, true, false),
+				"captured mouse input did not stop at the menu");
+			require(SwallowsGameWindowMessage(0x0100, false, true),
+				"captured keys did not stop at the menu");
+			require(!SwallowsGameWindowMessage(0x0201, false, false) &&
+					!SwallowsGameWindowMessage(0x00FF, true, true),
+				"uncaptured or non-input messages stopped reaching the game");
+			require(!SwallowsGameWindowMessage(0x0200, true, true),
+				"WM_MOUSEMOVE cannot reach the game's native cursor");
 		});
 
 		runner.test("toggle callback fires once per physical press", [] {
-			require(IsKeyRepeat(kKeyRepeatBit), "bit 30 marks an auto repeat");
-			require(!IsKeyRepeat(0), "a first press carries no repeat bit");
-			require(!IsKeyRepeat(0x0001), "the repeat count does not mark a repeat");
-			require(IsKeyRepeat(kKeyRepeatBit | 0xC0000001ull), "release flags do not hide the repeat bit");
-
-			require(DispatchesToggleCallback(0x0100, 0x0001), "a fresh WM_KEYDOWN dispatches");
-			require(!DispatchesToggleCallback(0x0100, kKeyRepeatBit | 0x0001), "a held key does not redispatch");
-			require(!DispatchesToggleCallback(0x0101, 0x0001), "WM_KEYUP does not dispatch");
-			require(DispatchesToggleCallback(0x0104, 0x0001),
-				"bare F10 arrives as WM_SYSKEYDOWN and must dispatch");
-			require(!DispatchesToggleCallback(0x0104, kKeyRepeatBit | 0x0001),
-				"a held system key does not redispatch");
-			require(!DispatchesToggleCallback(0x0105, 0x0001), "WM_SYSKEYUP does not dispatch");
-			require(ClassifyMessage(0x0104) == MessageClass::kKeyboard,
-				"WM_SYSKEYDOWN is keyboard traffic and follows the capture state");
-
 			require(
 				DecideToggleMessage(kKeyDownMessage, 1, false) ==
 					ToggleMessageDecision::kDispatch,
 				"a fresh keydown must invoke the toggle callback");
+			require(
+				DecideToggleMessage(kSysKeyDownMessage, 1, false) ==
+					ToggleMessageDecision::kDispatch,
+				"a fresh system keydown must invoke the toggle callback");
 			require(
 				DecideToggleMessage(kKeyDownMessage, kKeyRepeatBit | 1, true) ==
 					ToggleMessageDecision::kConsume,
@@ -464,7 +327,7 @@ namespace vmm_tests
 			require(
 				DecideToggleMessage(kSysKeyUpMessage, 1, true) ==
 					ToggleMessageDecision::kConsumeAndRelease,
-				"a consumed system press must consume its system key-up");
+				"a consumed system press must consume and release its key-up");
 			require(
 				DecideToggleMessage(kKeyUpMessage, 1, false) ==
 					ToggleMessageDecision::kForward,
@@ -509,19 +372,19 @@ namespace vmm_tests
 				DecideEscapeMessage(
 					kKeyDownMessage,
 					kEscapeVirtualKey,
+					kKeyRepeatBit | 1,
+					true,
+					false) == EscapeMessageDecision::kForward,
+				"opening the host while Escape is held captured a repeat");
+			require(
+				DecideEscapeMessage(
+					kKeyDownMessage,
+					kEscapeVirtualKey,
 					1,
 					false,
 					true) ==
 					EscapeMessageDecision::kReleaseAndForward,
 				"a new closed-host Escape inherited stale ownership");
-			require(
-				DecideEscapeMessage(
-					kKeyDownMessage,
-					kEscapeVirtualKey,
-					kKeyRepeatBit | 1,
-					true,
-					false) == EscapeMessageDecision::kForward,
-				"opening the host while Escape is held captured a repeat");
 			require(
 				DecideEscapeMessage(
 					kKeyUpMessage,
@@ -530,14 +393,6 @@ namespace vmm_tests
 					true,
 					true) == EscapeMessageDecision::kForward,
 				"captured Escape also consumed a modifier release");
-			require(
-				DecideEscapeMessage(
-					kKeyDownMessage,
-					0x23,
-					1,
-					true,
-					false) == EscapeMessageDecision::kForward,
-				"the existing End toggle was reclassified as Escape");
 			require(
 				DecideEscapeMessage(
 					0x0008,

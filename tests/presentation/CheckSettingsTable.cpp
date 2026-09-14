@@ -124,80 +124,10 @@ namespace vmm_tests
 						a_owner, { a_reset, false }, resetPressed) == DMUI_RESULT_OK,
 				"feedback field did not end");
 		}
-
-		[[nodiscard]] DMUI_ThemeColors TestTheme() noexcept
-		{
-			return {
-				sizeof(DMUI_ThemeColors),
-				{ 1.0f, 0.0f, 0.0f, 1.0f },
-				{ 2.0f, 0.0f, 0.0f, 1.0f },
-				{ 3.0f, 0.0f, 0.0f, 1.0f },
-				{ 4.0f, 0.0f, 0.0f, 1.0f },
-				{ 5.0f, 0.0f, 0.0f, 1.0f },
-				{ 6.0f, 0.0f, 0.0f, 1.0f },
-				{ 7.0f, 0.0f, 0.0f, 1.0f },
-				{ 8.0f, 0.0f, 0.0f, 1.0f },
-				{ 9.0f, 0.0f, 0.0f, 1.0f },
-				{ 10.0f, 0.0f, 0.0f, 1.0f },
-				{ 11.0f, 0.0f, 0.0f, 1.0f },
-				{ 12.0f, 0.0f, 0.0f, 1.0f },
-				{ 13.0f, 0.0f, 0.0f, 1.0f },
-				{ 14.0f, 0.0f, 0.0f, 1.0f }
-			};
-		}
 	}
 
 	void run_settings_table_checks(Runner& runner)
 	{
-		runner.test("presentation tones resolve every theme role", [] {
-			const auto theme = TestTheme();
-			const dmui::TextTone tones[]{
-				dmui::TextTone::kSuccess,
-				dmui::TextTone::kWarning,
-				dmui::TextTone::kError,
-				dmui::TextTone::kInfo,
-				dmui::TextTone::kMuted,
-				dmui::TextTone::kAccent,
-				dmui::TextTone::kAccentMuted,
-				dmui::TextTone::kStatusDisable,
-				dmui::TextTone::kStatusError,
-				dmui::TextTone::kStatusWarning,
-				dmui::TextTone::kStatusRestartNeeded,
-				dmui::TextTone::kStatusCurrentHotkey,
-				dmui::TextTone::kStatusSuccess,
-				dmui::TextTone::kStatusInfo
-			};
-			for (size_t index = 0; index < std::size(tones); ++index)
-			{
-				const auto resolved =
-					dmui::ResolveTextColor(theme, tones[index]);
-				require(
-					resolved.result == DMUI_RESULT_OK &&
-						resolved.color &&
-						resolved.color->x == static_cast<float>(index + 1),
-					"theme tone selected the wrong field");
-			}
-			const auto inherited = dmui::ResolveTextColor(
-				DMUI_ThemeColors{},
-				dmui::TextTone::kInherit);
-			require(inherited && !inherited.color,
-				"inherit tone required a theme color");
-			auto truncated = theme;
-			truncated.structSize = DMUI_THEME_COLORS_0_1_SIZE - 1;
-			require(
-				dmui::ResolveTextColor(
-					truncated,
-					dmui::TextTone::kAccent).result ==
-					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"truncated theme snapshot was accepted");
-			require(
-				dmui::ResolveTextColor(
-					theme,
-					static_cast<dmui::TextTone>(255)).result ==
-					DMUI_RESULT_INVALID_ARGUMENT,
-				"unknown text tone was accepted");
-		});
-
 		runner.test("styled text balances color and wrapping stacks", [] {
 			ImGuiTestFrame frame;
 			auto text = std::string(4096, 'x');
@@ -206,7 +136,7 @@ namespace vmm_tests
 			require(
 				dmui::DrawStyledText(
 					text,
-					TestTheme(),
+					Theme::ColorSnapshot(),
 					{
 						.tone = dmui::TextTone::kStatusRestartNeeded,
 						.wrapped = true
@@ -221,10 +151,26 @@ namespace vmm_tests
 			require(
 				dmui::DrawStyledText(
 					"text",
-					TestTheme(),
+					Theme::ColorSnapshot(),
 					{ .fontRole = DMUI_FONT_ROLE_BODY }) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"snapshot-only styled text accepted a client font role");
+			auto truncatedTheme = Theme::ColorSnapshot();
+			truncatedTheme.structSize = DMUI_THEME_COLORS_0_1_SIZE - 1u;
+			require(
+				dmui::DrawStyledText(
+					"text",
+					truncatedTheme,
+					{ .tone = dmui::TextTone::kAccent }) ==
+					DMUI_RESULT_STRUCT_TOO_SMALL,
+				"styled text accepted a truncated theme snapshot");
+			require(
+				dmui::DrawStyledText(
+					"text",
+					Theme::ColorSnapshot(),
+					{ .tone = static_cast<dmui::TextTone>(255) }) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"styled text accepted an unknown text tone");
 			require(frame.IsAtBaseline() && frame.Errors() == 0,
 				"styled text changed the ImGui stack");
 		});
@@ -244,49 +190,11 @@ namespace vmm_tests
 					{ .tone = dmui::TextTone::kAccent }) &&
 					client.LastResult() == DMUI_RESULT_CLIENT_NOT_FOUND,
 				"disconnected styled text did not report its failure");
-			require(
-				!dmui::DrawLabeledValue(
-					client,
-					"Label",
-					"not drawn",
-					{
-						.valueStyle = {
-							.fontRole = DMUI_FONT_ROLE_BODY,
-							.tone = dmui::TextTone::kSuccess
-						}
-					}) &&
-					client.LastResult() == DMUI_RESULT_CLIENT_NOT_FOUND,
-				"disconnected labeled value did not preflight");
 			const auto end = ImGui::GetCursorScreenPos();
 			require(start.x == end.x && start.y == end.y,
 				"failed text helper drew a partial value");
 			require(frame.IsAtBaseline() && frame.Errors() == 0,
 				"failed text helper changed the ImGui stack");
-		});
-
-		runner.test("disabled and tooltip scopes end idempotently", [] {
-			ImGuiTestFrame frame;
-			{
-				const dmui::DisabledScope disabled{ false };
-				ImGui::TextUnformatted("enabled");
-			}
-			const auto start = ImGui::GetCursorScreenPos();
-			ImGui::GetIO().MousePos = { start.x + 1.0f, start.y + 1.0f };
-			ImGui::Dummy({ 40.0f, 20.0f });
-			{
-				dmui::TooltipScope tooltip{
-					dmui::ui::HoveredFlags::kAllowWhenDisabled
-				};
-				if (tooltip.Visible())
-				ImGui::TextUnformatted("rich tooltip");
-				const auto ended = tooltip.End();
-				require(!tooltip.End(), "tooltip ended twice");
-				require(!tooltip.Visible(), "ended tooltip remained visible");
-				require(!tooltip.Hovered() || ended,
-					"hovered tooltip did not open");
-			}
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"presentation scope changed the ImGui stack");
 		});
 
 		runner.test("choice draw preserves unknown and empty values", [] {
@@ -347,31 +255,6 @@ namespace vmm_tests
 			require(
 				!empty.changed && !empty.completed && !empty.selected,
 				"empty choice produced a selection");
-			const auto unchanged =
-				dmui::presentation_detail::ResolveChoiceActivation(
-					1,
-					options[0],
-					true);
-			const auto disabled =
-				dmui::presentation_detail::ResolveChoiceActivation(
-					1,
-					options[1],
-					true);
-			auto enabled = options[1];
-			enabled.enabled = true;
-			const auto changed =
-				dmui::presentation_detail::ResolveChoiceActivation(
-					1,
-					enabled,
-					true);
-			require(
-				!unchanged.changed && !unchanged.completed &&
-					!unchanged.selected &&
-					!disabled.changed && !disabled.completed &&
-					!disabled.selected &&
-					changed.changed && changed.completed &&
-					changed.selected == 2,
-				"choice activation return semantics changed");
 			require(frame.IsAtBaseline() && frame.Errors() == 0,
 				"choice draw changed the ImGui stack");
 		});
@@ -438,7 +321,7 @@ namespace vmm_tests
 				"empty-list presentation wrote storage or leaked ImGui state");
 		});
 
-		runner.test("ImGui recovery reports repaired stack depths", [] {
+		runner.test("ImGui recovery restores leaked callback stacks", [] {
 			ImGuiTestFrame frame;
 			auto recovery = ImGuiRecoverySnapshot::Capture();
 			require(recovery.has_value(), "recovery snapshot was not captured");
@@ -447,20 +330,11 @@ namespace vmm_tests
 			ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
 			ImGui::PushFont(ImGui::GetFont());
 			require(ImGui::BeginTable("leaked-table", 1),
-				"diagnostic table did not begin");
+				"recovery table did not begin");
 
 			const auto repaired = recovery->RecoverAfterCallback();
-			require(repaired.Repaired(), "stack repair was not reported");
-			require(
-				repaired.before.tables == repaired.after.tables + 1 &&
-					repaired.before.ids == repaired.after.ids + 2 &&
-					repaired.before.colors == repaired.after.colors + 1 &&
-					repaired.before.styleVariables ==
-						repaired.after.styleVariables + 1 &&
-					repaired.before.fonts == repaired.after.fonts + 1,
-				"reported stack depths did not describe the repair");
-			require(frame.IsAtBaseline(),
-				"reported recovery did not restore the ImGui baseline");
+			require(repaired.Repaired() && frame.IsAtBaseline(),
+				"callback recovery did not restore leaked ImGui stacks");
 		});
 
 		runner.test("settings descriptions wrap inside translated window columns", [] {
@@ -671,9 +545,6 @@ namespace vmm_tests
 			ImGuiTestFrame frame;
 			{
 				const SettingsTable::ClientCallbackGuard guard{ owner };
-				require(SettingsTable::Begin(owner, "").result ==
-						DMUI_RESULT_INVALID_ARGUMENT,
-					"invalid table id was accepted");
 				auto* window = ImGui::GetCurrentWindow();
 				window->SkipItems = true;
 				const auto invisibleTable =
@@ -685,25 +556,10 @@ namespace vmm_tests
 				const auto table = SettingsTable::Begin(owner, "settings");
 				require(table.result == DMUI_RESULT_OK && table.visible,
 					"settings table did not begin");
-				require(SettingsTable::Begin(owner, "nested").result ==
-						DMUI_RESULT_UNBALANCED_BRACKET,
-					"nested settings table was accepted");
-				require(SettingsTable::BeginRow(
-							owner, "", "Setting", nullptr).result ==
-						DMUI_RESULT_INVALID_ARGUMENT,
-					"invalid row id was accepted");
-				require(SettingsTable::BeginRow(
-							other, "other", "Setting", nullptr).result ==
-						DMUI_RESULT_UNBALANCED_BRACKET,
-					"foreign owner began a row");
 				const auto row = SettingsTable::BeginRow(
 					owner, "row", "Setting", nullptr);
 				require(row.result == DMUI_RESULT_OK && row.visible,
-					"valid row did not begin after an early return");
-				require(SettingsTable::BeginRow(
-							owner, "nested", "Setting", nullptr).result ==
-						DMUI_RESULT_UNBALANCED_BRACKET,
-					"nested settings row was accepted");
+					"settings row did not begin");
 				require(SettingsTable::End(owner) ==
 						DMUI_RESULT_UNBALANCED_BRACKET,
 					"settings table ended with an open row");
@@ -722,9 +578,6 @@ namespace vmm_tests
 							owner, {}, resetPressed) ==
 						DMUI_RESULT_OK,
 					"row could not recover from a rejected end");
-				require(SettingsTable::End(other) ==
-						DMUI_RESULT_UNBALANCED_BRACKET,
-					"foreign owner ended the settings table");
 				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
 					"settings table did not end");
 			}

@@ -108,6 +108,8 @@ namespace vmm_tests
 				"a throwing page escaped its host guard");
 			require(drawRegistry.InvokePage(drawPage) == DMUI_RESULT_CALLBACK_FAILED,
 				"a faulted page was invoked again");
+			require(drawRegistry.PageFailed(drawPage) && drawRegistry.HasSettingsPages(),
+				"faulting a page removed the host's settings shell");
 
 			auto drawActionDescriptor = Action(
 				"throw", "Throw", nullptr, 0, drawState);

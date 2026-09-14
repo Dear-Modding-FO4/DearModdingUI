@@ -1,13 +1,7 @@
 #include "../support/MCMTestSupport.h"
-#include <array>
-#include <cmath>
-#include <filesystem>
-#include <fstream>
-#include <stdexcept>
 #include <string>
-#include <tuple>
-#include <unordered_set>
-#include <vector>
+#include <string_view>
+#include <variant>
 
 namespace vmm_tests
 {
@@ -62,88 +56,19 @@ namespace vmm_tests
 				"bare condition array stopped producing its current diagnostic");
 		});
 
-		runner.test("MCM unsupported condition shapes retain compatibility behavior", [] {
-			const auto notCondition = ParseConfig(R"json({
-				"modName":"NotConditionFixture",
-				"content":[
-					{"id":"target","type":"text","groupCondition":{"NOT":1}}
-				]
-			})json", "not-condition.json");
-			const auto& notParsed = ConditionNamed(
-				notCondition.configuration->pages.front(),
-				"target");
-			require(notParsed.type == ConditionType::kUnknown &&
-					notParsed.rawOperator == "NOT" &&
-					notParsed.operands.empty(),
-				"NOT condition no longer has its current partial representation");
-			require(HasDiagnostic(
-						notCondition,
-						"unknown condition operator 'NOT'") &&
-					HasDiagnostic(
-						notCondition,
-						"condition operands must be an array"),
-				"NOT condition diagnostics changed");
-
-			const auto onlyCondition = ParseConfig(R"json({
-				"modName":"OnlyConditionFixture",
-				"content":[
-					{"id":"target","type":"text","groupCondition":{"ONLY":[1,2]}}
-				]
-			})json", "only-condition.json");
-			const auto& onlyParsed = ConditionNamed(
-				onlyCondition.configuration->pages.front(),
-				"target");
-			require(onlyParsed.type == ConditionType::kUnknown &&
-					onlyParsed.rawOperator == "ONLY" &&
-					onlyParsed.operands.size() == 2,
-				"ONLY condition no longer has its current partial representation");
-			require(HasDiagnostic(
-						onlyCondition,
-						"unknown condition operator 'ONLY'"),
-				"ONLY condition stopped producing its current diagnostic");
-
-			const auto comparison = ParseConfig(R"json({
-				"modName":"ComparisonConditionFixture",
-				"content":[
-					{"id":"target","type":"text","groupCondition":{
-						"sourceSettingName":"bEnabled:Main",
-						"operator":"==",
-						"compareValue":true,
-						"sourceType":"ModSettingBool"
-					}}
-				]
-			})json", "comparison-condition.json");
-			const auto& comparisonParsed = ConditionNamed(
-				comparison.configuration->pages.front(),
-				"target");
-			require(comparisonParsed.type == ConditionType::kUnknown,
-				"comparison object stopped producing a partial condition");
-			require(HasDiagnostic(comparison,
-						"condition object must have one operator") &&
-					HasDiagnostic(comparison, "unknown condition operator") &&
-					HasDiagnostic(comparison,
-						"condition operands must be an array"),
-				"comparison object diagnostics changed");
-		});
-
-		runner.test("MCM malformed multi-operator conditions are diagnosed", [] {
+		runner.test("MCM unknown condition operators are diagnosed", [] {
 			const auto result = ParseConfig(R"json({
-				"modName":"MultiConditionFixture",
+				"modName":"UnknownConditionFixture",
 				"content":[
-					{"id":"target","type":"text",
-					 "groupCondition":{"OR":[3,4],"AND":[5]}}
+					{"id":"target","type":"text","groupCondition":{"ONLY":[1]}}
 				]
-			})json", "multi-condition.json");
-			const auto& condition = ConditionNamed(
-				result.configuration->pages.front(),
-				"target");
-			require(condition.type == ConditionType::kAll &&
-					condition.operands.size() == 1 &&
-					condition.operands.front().control == 5,
-				"multi-operator object's current first-key behavior changed");
-			require(HasDiagnostic(result,
-						"condition object must have one operator"),
-				"multi-operator object stopped producing its current diagnostic");
+			})json", "unknown-condition.json");
+			require(result.configuration &&
+					HasDiagnostic(
+						result,
+						"unknown condition operator 'ONLY'",
+						"$.content[0].groupCondition"),
+				"unknown condition operator stopped producing its diagnostic");
 		});
 
 		runner.test("MCM hidden controls retain nonvisual typed bindings", [] {

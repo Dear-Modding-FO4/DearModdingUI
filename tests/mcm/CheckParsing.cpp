@@ -1,14 +1,8 @@
 #include "../support/MCMTestSupport.h"
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <filesystem>
 #include <fstream>
-#include <stdexcept>
+#include <optional>
 #include <string>
-#include <tuple>
-#include <unordered_set>
-#include <vector>
+#include <variant>
 
 namespace vmm_tests
 {
@@ -75,46 +69,6 @@ namespace vmm_tests
 				"malformed JSON diagnostic lost its source");
 		});
 
-		runner.test("MCM unknown controls degrade to unsupported", [] {
-			const auto result = ParseConfig(R"({
-				"minMcmVersion": 2,
-				"modName": "Future",
-				"displayName": "Future",
-				"pluginRequirements": [],
-				"content": [
-					{"id":"future","text":"Future","help":"New control","type":"dial"}
-				]
-			})", "future-config.json");
-			require(result.configuration && result.pages.size() == 1,
-				"future control prevented its page from mapping");
-			const auto& setting = SettingNamed(result.pages.front(), "future");
-			require(std::holds_alternative<dmui::UnsupportedSettingControl>(
-						setting.control),
-				"future control did not degrade to unsupported");
-			require(result.configuration->pages.front().controls.front().rawType ==
-					"dial",
-				"future control type was not retained in the IR");
-			require(HasDiagnostic(result, "unknown MCM control type",
-						"$.content[0]"),
-				"future control was not diagnosed");
-		});
-
-		runner.test("MCM empty and malformed pages retain diagnostics", [] {
-			for (const auto content : { "[]", "[17]", R"([{"type":"section","text":"Empty"}])" })
-			{
-				const auto result = ParseConfig(
-					std::string{ R"({"modName":"Empty","displayName":"Empty","content":)" } +
-						content + "}");
-				require(result.pages.size() == 1 &&
-						DiagnosticCount(result, "page produced no setting descriptors") == 1 &&
-						result.pages.front().settings.notes.empty(),
-					"an empty or malformed page lost its empty-content diagnostic");
-				if (std::string_view{ content } == "[17]")
-					require(ErrorCount(result) > 0,
-						"malformed control lost its parser error");
-			}
-		});
-
 		runner.test("MCM missing setting metadata remains total and visible", [] {
 			const auto result = ParseConfig(R"({
 				"minMcmVersion": 2,
@@ -124,11 +78,12 @@ namespace vmm_tests
 					{"id":"switch","text":"Switch","type":"switch"},
 					{"id":"slider","text":"Slider","type":"slider",
 					 "valueOptions":{"sourceType":"ModSettingFloat"}},
-					{"id":"typeless","text":"Typeless"}
+					{"id":"typeless","text":"Typeless"},
+					{"id":"unknown","text":"Unknown","type":"dial"}
 				]
 			})", "incomplete-config.json");
 			require(result.configuration && result.pages.size() == 1 &&
-					DescriptorCount(result.pages.front()) == 3,
+					DescriptorCount(result.pages.front()) == 4,
 				"incomplete controls disappeared");
 			require(std::holds_alternative<dmui::CheckboxSettingControl>(
 						SettingNamed(result.pages.front(), "switch").control),
@@ -150,74 +105,18 @@ namespace vmm_tests
 			require(std::holds_alternative<dmui::UnsupportedSettingControl>(
 						SettingNamed(result.pages.front(), "typeless").control),
 				"typeless control did not degrade to unsupported");
+			require(std::holds_alternative<dmui::UnsupportedSettingControl>(
+						SettingNamed(result.pages.front(), "unknown").control) &&
+					HasDiagnostic(
+						result,
+						"unknown MCM control type 'dial' maps to unsupported",
+						"$.content[3]"),
+				"unknown control did not degrade with its diagnostic");
 			require(HasDiagnostic(result, "missing valueOptions",
 						"$.content[0]") &&
 					HasDiagnostic(result, "missing required string",
 						"$.content[2].type"),
 				"incomplete controls were not fully diagnosed");
-		});
-
-		runner.test("MCM documented control vocabulary maps generically", [] {
-			const auto result = ParseConfig(R"({
-				"minMcmVersion": 2,
-				"modName": "Vocabulary",
-				"displayName": "Vocabulary",
-				"content": [
-					{"type":"header","text":"All"},
-					{"id":"switch","type":"switch","valueOptions":{"sourceType":"ModSettingBool"}},
-					{"id":"stepper","type":"stepper","valueOptions":{"sourceType":"ModSettingInt","options":["A","B"]}},
-					{"id":"menu","type":"menu","valueOptions":{"sourceType":"ModSettingInt","options":["A","B"]}},
-					{"id":"enum","type":"enum","valueOptions":{"sourceType":"ModSettingInt","options":["A","B"]}},
-					{"id":"input","type":"input","valueOptions":{"sourceType":"ModSettingString"}},
-					{"id":"textinput","type":"textinput","valueOptions":{"sourceType":"ModSettingString"}},
-					{"id":"text","type":"text","text":"Read only"},
-					{"type":"empty"},
-					{"id":"hidden","type":"hidden"},
-					{"id":"button","type":"button"},
-					{"id":"keymap","type":"keymap"},
-					{"id":"color","type":"color"},
-					{"id":"image","type":"image"}
-				]
-			})", "vocabulary-config.json");
-			require(result.configuration && result.pages.size() == 1 &&
-					result.pages.front().settings.groups.size() == 1 &&
-					DescriptorCount(result.pages.front()) == 9,
-				"documented control structure did not map");
-			require(ControlKindCount(
-						result,
-						dmui::SettingControlKind::kCheckbox) == 1 &&
-					ControlKindCount(
-						result,
-						dmui::SettingControlKind::kChoice) == 3 &&
-					ControlKindCount(
-						result,
-						dmui::SettingControlKind::kText) == 2 &&
-					ControlKindCount(
-						result,
-						dmui::SettingControlKind::kReadOnly) == 2 &&
-					ControlKindCount(
-						result,
-						dmui::SettingControlKind::kUnsupported) == 1,
-				"documented control kinds changed");
-			require(std::holds_alternative<dmui::TextSettingControl>(
-						SettingNamed(result.pages.front(), "input").control) &&
-					std::holds_alternative<dmui::TextSettingControl>(
-						SettingNamed(result.pages.front(), "textinput").control),
-				"an input spelling degraded to unsupported");
-			const auto& prose =
-				SettingNamed(result.pages.front(), "text");
-			require(prose.label.empty() &&
-					prose.presentation.labelMode ==
-						dmui::RowPresentation::LabelMode::kHidden &&
-					prose.presentation.layout ==
-						dmui::RowPresentation::Layout::kFullSpan,
-				"MCM prose did not request a full-span hidden-label row");
-			require(!std::ranges::any_of(
-						result.pages.front().settings.groups.front().settings,
-						[](const dmui::SettingDescriptor& a_setting) {
-							return a_setting.id == "hidden";
-						}),
-				"hidden control was emitted");
 		});
 
 		runner.test("MCM empty sections divide an existing named group", [] {

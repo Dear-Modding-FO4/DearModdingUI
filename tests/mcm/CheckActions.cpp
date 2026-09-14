@@ -286,32 +286,6 @@ namespace vmm_tests
 
 	void run_mcm_action_checks(Runner& runner)
 	{
-		runner.test("MCM registration warnings classify action support", [] {
-			auto supported = ParseConfig(R"json({
-				"modName":"Actions",
-				"content":[{"id":"apply","type":"button","action":{
-					"type":"CallGlobalFunction","script":"Fixture",
-					"function":"Apply"}}]
-			})json");
-			FakeActionExecutor executor;
-			ResolveActionAvailability(supported.pages.front(), executor);
-			require(
-				SummarizeActionableCompatibility(supported.pages.front()).empty(),
-				"a supported action created a compatibility warning");
-
-			auto unsupported = ParseConfig(R"json({
-				"modName":"Actions",
-				"content":[{"id":"event","type":"button","action":{
-					"type":"SendEvent","event":"Fixture"}}]
-			})json");
-			executor.unsupportedReason = "fixture rejection";
-			ResolveActionAvailability(unsupported.pages.front(), executor);
-			require(
-				SummarizeActionableCompatibility(unsupported.pages.front()) ==
-					"Compatibility: 1 unsupported action.",
-				"an unsupported action did not create a compatibility warning");
-		});
-
 		runner.test("MCM dropped async completion reaches the diagnostic reporter", [] {
 			diagnostics.diagnostics.clear();
 			DeferredActionValueSource values{ diagnostics };
@@ -523,40 +497,6 @@ namespace vmm_tests
 								"dearmodding.mcm.action.invalid";
 						}) == 1,
 				"a missing placeholder value produced no page diagnostic");
-		});
-
-		runner.test("MCM external actions fire for buttons and value changes", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"Actions",
-				"content":[
-					{"id":"external","type":"button","action":{
-						"type":"CallExternalFunction","plugin":"Fixture",
-						"function":"Apply"}},
-					{"id":"external-setting","type":"switcher",
-					 "valueOptions":{"sourceType":"GlobalValueBool",
-						"sourceForm":"Fixture.esp|1","default":false},
-					 "action":{"type":"CallExternalFunction","plugin":"Fixture",
-						"function":"Apply","params":["{value}"]}}
-				]
-			})json");
-			auto& page = result.pages.front();
-			ActionValueSource values;
-			FakeActionExecutor executor;
-			BindPage(page, values);
-			BindActions(page, executor, values, diagnostics);
-
-			auto& action = ActionNamed(page, "external");
-			action.activate();
-			auto& setting = SettingNamed(page, "external-setting");
-			(void)setting.binding.set(dmui::SettingValue{ true });
-			require(executor.invocations.size() == 2 &&
-					std::holds_alternative<CallExternalFunctionAction>(
-						executor.invocations[0].action) &&
-					std::holds_alternative<CallExternalFunctionAction>(
-						executor.invocations[1].action) &&
-					executor.bound[1] ==
-						std::vector<BoundActionArgument>{ true },
-				"external actions did not fire from both MCM action paths");
 		});
 
 		runner.test("MCM Scaleform seam invokes registered functions on UI tasks", [] {

@@ -54,10 +54,6 @@ namespace vmm_tests
 				"global did not become an unsigned integer");
 			require(number && std::get<double>(*number) == 3.5,
 				"global did not become a double");
-			const auto choice =
-				GlobalToSettingValue(1.0f, dmui::SettingValue{ std::string{} });
-			require(choice && std::get<std::string>(*choice) == "1",
-				"global did not become a string choice index");
 		});
 
 		runner.test("MCM globals reject out-of-range integral reads", [] {

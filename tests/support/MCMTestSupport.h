@@ -15,8 +15,6 @@ namespace vmm_tests::support::mcm
 {
 	using namespace DearModdingUI::MCM;
 
-	extern const std::string_view kSyntheticConfig;
-
 	[[nodiscard]] std::filesystem::path TemporaryConfigPath(
 		std::string_view a_name);
 
@@ -27,9 +25,6 @@ namespace vmm_tests::support::mcm
 		~TemporaryFileCleanup();
 	};
 
-	[[nodiscard]] const MappedPage& PageNamed(
-		const LoadResult& a_result,
-		std::string_view a_name);
 	[[nodiscard]] const dmui::SettingDescriptor& SettingNamed(
 		const MappedPage& a_page,
 		std::string_view a_id);
@@ -43,9 +38,6 @@ namespace vmm_tests::support::mcm
 		const Page& a_page,
 		std::string_view a_id);
 	[[nodiscard]] size_t DescriptorCount(const MappedPage& a_page);
-	[[nodiscard]] size_t ControlKindCount(
-		const LoadResult& a_result,
-		dmui::SettingControlKind a_kind);
 	[[nodiscard]] bool HasDiagnostic(
 		const LoadResult& a_result,
 		std::string_view a_message,
@@ -55,5 +47,4 @@ namespace vmm_tests::support::mcm
 		const LoadResult& a_result,
 		std::string_view a_message);
 	[[nodiscard]] std::string ErrorMessages(const LoadResult& a_result);
-	void RequireNear(double a_actual, double a_expected);
 }

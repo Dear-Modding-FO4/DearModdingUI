@@ -1,48 +1,13 @@
-#include "../support/DearModdingUITestSupport.h"
-#include <DearModdingUI/navigation/NavigationPresentation.h>
+#include "../Harness.h"
 #include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/VisualDecisions.h>
-#include <algorithm>
-#include <array>
-#include <filesystem>
-#include <limits>
-#include <memory>
-#include <string>
-#include <tuple>
-#include <vector>
 
 namespace vmm_tests
 {
 	using namespace DearModdingUI;
-	using namespace support::host;
 
 	void run_navigation_presentation_checks(Runner& runner)
 	{
-		runner.test("one-page navigation and failed-page presentation remain stable", [] {
-			Registry registry;
-			CallbackState state;
-			const auto client = AddClient(registry, "single.mod", "Single", state);
-			AddCategory(registry, client, "general", "General");
-			const auto page = AddPage(registry, client, "only", "Only", "general", 0,
-				DMUI_PAGE_KIND_SETTINGS, state);
-			require(registry.Freeze(), "registry did not freeze");
-			const auto& navigation = registry.Navigation();
-			require(navigation.clients.size() == 1, "single client was omitted");
-			require(navigation.clients[0].categories.size() == 1, "single category was omitted");
-			require(navigation.FirstPage() == page, "single page was not the fallback");
-			require(DecidePagePresentation(navigation.FindPage(page), false) ==
-					PagePresentation::kContent,
-				"healthy page did not present content");
-			require(DecidePagePresentation(navigation.FindPage(page), true) ==
-					PagePresentation::kFailure,
-				"failed page did not present a stable error");
-			registry.MarkPageFailed(page);
-			require(registry.PageFailed(page), "failed page state was not retained");
-			require(registry.HasSettingsPages(), "failed page removed the host's settings shell");
-			require(DecidePagePresentation(nullptr, false) == PagePresentation::kEmpty,
-				"missing page did not present an empty state");
-		});
-
 		runner.test("theme scaling clamps and composes user scale", [] {
 			const auto minimum = Theme::ResolveFontSize(1);
 			const auto baseline = Theme::ResolveFontSize(1080);

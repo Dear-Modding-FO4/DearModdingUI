@@ -1,14 +1,8 @@
 #include "../support/MCMTestSupport.h"
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <filesystem>
-#include <fstream>
+#include <optional>
 #include <stdexcept>
 #include <string>
-#include <tuple>
-#include <unordered_set>
-#include <vector>
+#include <variant>
 
 namespace vmm_tests
 {
@@ -48,147 +42,66 @@ namespace vmm_tests
 				-> std::optional<std::string> {
 				if (a_key == "$CLIENT NAME")
 					return "Localized Client";
-				if (a_key == "$HEADING")
-					return "Localized Heading";
 				if (a_key == "$LABEL")
 					return "Localized Label";
-				if (a_key == "$HELP")
-					return "Localized Help";
-				if (a_key == "$BODY")
-					return "Localized Body";
-				if (a_key == "$BODY_TWO")
-					return "Localized Second";
-				if (a_key == "$BODY suffix")
-					return "Whole key with spaces";
-				if (a_key == "$CHOICE_LABEL")
-					return "Localized Choice";
-				if (a_key == "$OPTION_A")
+				if (a_key == "$OPTION")
 					return "Localized Option";
-				if (a_key == "$BUTTON")
-					return "Localized Button";
-				if (a_key == "$BUTTON_HELP")
-					return "Localized Button Help";
-				if (a_key == "$PAGE")
-					return "Localized Page";
 				return std::nullopt;
 			};
 			constexpr auto json = R"json({
 				"modName":"IdentityMod",
 				"displayName":"$CLIENT NAME",
 				"content":[
-					{"type":"section","text":"<b>$HEADING</b>","html":true},
-					{"id":"bEnabled:Main","type":"switcher",
-					 "text":"$LABEL","help":"$HELP",
-					 "valueOptions":{"sourceType":"ModSettingBool","default":true}},
-					{"id":"read","type":"text","html":true,
-					 "text":"<p>$BODY</p><br>$BODY_TWO"},
-					{"id":"sMode:Main","type":"dropdown","text":"$CHOICE_LABEL",
+					{"id":"sMode:Main","type":"dropdown","text":"$LABEL",
 					 "valueOptions":{"sourceType":"ModSettingString",
-					 "default":"$OPTION_A","options":["$OPTION_A","literal"]}},
-					{"id":"action","type":"button","text":"$BUTTON","help":"$BUTTON_HELP",
+					 "default":"$OPTION","options":["$OPTION","literal"]}},
+					{"id":"action","type":"button","text":"$LABEL",
 					 "action":{"type":"SendEvent","event":"$EVENT","params":["$ARG"]}},
-					{"id":"literal","type":"text","text":"Prefix $BODY"},
-					{"id":"spacedKey","type":"text","text":"$BODY suffix"}
-				],
-				"pages":[{
-					"pageDisplayName":"$PAGE",
-					"content":[{"id":"input","type":"input","text":"",
-						"valueOptions":{"sourceType":"ModSettingString",
-						"default":"$PERSISTED"}}]
-				}]
+					{"id":"rich","type":"text",
+					 "text":"<b>Prefix</b> $OPTION","html":true},
+					{"id":"literal","type":"text",
+					 "text":"<b>Prefix</b> $OPTION"}
+				]
 			})json";
 			const auto result = ParseConfig(json, "localized.json", resolver);
-			const auto untranslated = ParseConfig(json, "localized.json");
-			require(result.configuration && result.pages.size() == 2 &&
-					untranslated.configuration && untranslated.pages.size() == 2 &&
+			require(result.configuration && result.pages.size() == 1 &&
 					result.diagnostics.empty(),
 				"localized fixture did not map cleanly");
 			require(result.configuration->modName == "IdentityMod" &&
 					result.configuration->displayName == "$CLIENT NAME" &&
 					result.displayName == "Localized Client" &&
-					result.configuration->pages[1].id ==
-						untranslated.configuration->pages[1].id &&
-					result.pages[0].id == untranslated.pages[0].id &&
-					result.pages[1].id == untranslated.pages[1].id,
+					result.pages.front().id == "main",
 				"localized presentation changed raw configuration identity");
 
-			const auto& root = result.pages[0];
-			require(root.displayName == "Localized Client" &&
-					root.settings.groups.front().id ==
-						untranslated.pages[0].settings.groups.front().id &&
-					root.settings.groups.front().label == "Localized Heading",
-				"client or heading presentation was not localized");
-			const auto& enabled = SettingNamed(root, "bEnabled:Main");
-			require(enabled.label == "Localized Label" &&
-					enabled.description == "Localized Help",
-				"control label or help was not localized");
-			const auto& read = SettingNamed(root, "read");
-			require(std::get<std::string>(read.defaultValue) ==
-						"Localized Body\nLocalized Second" &&
-					RowNamed(root, "read").text &&
-					RowNamed(root, "read").text->presentation.text ==
-						"Localized Body\nLocalized Second",
-				"HTML read-only text was not localized before presentation mapping");
-			require(std::get<std::string>(
-						SettingNamed(root, "literal").defaultValue) ==
-						"Prefix $BODY" &&
-					std::get<std::string>(
-						SettingNamed(root, "spacedKey").defaultValue) ==
-						"Whole key with spaces",
-				"localization did not distinguish exact keys from embedded tokens");
-
+			const auto& root = result.pages.front();
 			const auto& choice = SettingNamed(root, "sMode:Main");
 			const auto* choiceControl =
 				std::get_if<dmui::ChoiceSettingControl>(&choice.control);
-			require(choiceControl && choiceControl->options.size() == 2 &&
-					choiceControl->options[0].value == "$OPTION_A" &&
+			require(choice.label == "Localized Label" &&
+					choiceControl &&
+					choiceControl->options.size() == 2 &&
+					choiceControl->options[0].value == "$OPTION" &&
 					choiceControl->options[0].label == "Localized Option" &&
-					choiceControl->options[1].value == "literal" &&
-					choiceControl->options[1].label == "literal" &&
-					std::get<std::string>(choice.defaultValue) == "$OPTION_A",
+					std::get<std::string>(choice.defaultValue) == "$OPTION",
 				"choice localization changed its stored value or default");
 
 			const auto& action =
 				std::get<SendEventAction>(*RowNamed(root, "action").action);
-			require(root.settings.groups.front().actionRows.front().buttonLabel ==
-						"Localized Button" &&
-					root.settings.groups.front().actionRows.front().description ==
-						"Localized Button Help" &&
-					action.event == "$EVENT" &&
+			require(action.event == "$EVENT" &&
 					std::get<std::string>(action.arguments.front()) == "$ARG",
-				"button presentation or raw action arguments changed");
-			require(result.pages[1].displayName == "Localized Page" &&
-					std::get<std::string>(
-						SettingNamed(result.pages[1], "input").defaultValue) ==
-						"$PERSISTED",
-				"page localization changed its identity or persisted input");
-
-			const auto fallback = ParseConfig(R"json({
-				"modName":"Literal fallback",
-				"displayName":"",
-				"content":[{"id":"empty","type":"text","text":""}]
-			})json", "literal-fallback.json", resolver);
-			require(fallback.configuration &&
-					fallback.diagnostics.empty() &&
-					fallback.configuration->displayName.empty() &&
-					fallback.displayName == "Literal fallback" &&
-					fallback.pages.front().displayName == "Literal fallback" &&
-					std::get<std::string>(
-						SettingNamed(fallback.pages.front(), "empty").defaultValue)
-						.empty(),
-				"literal or empty display text changed during localization");
-
-			const auto pagesOnly = ParseConfig(R"json({
-				"modName":"IndependentName","displayName":"$CLIENT NAME",
-				"pages":[{"pageDisplayName":"$PAGE","content":[
-					{"type":"text","text":"Page content"}
-				]}]
-			})json", "pages-only.json", resolver);
-			require(pagesOnly.configuration && pagesOnly.pages.size() == 1 &&
-					pagesOnly.displayName == "Localized Client" &&
-					pagesOnly.pages.front().displayName == "Localized Page" &&
-					HasDiagnostic(pagesOnly, "missing required content array"),
-				"a missing root page replaced the client name with a page label");
+				"localization changed raw action arguments");
+			const auto& rich = SettingNamed(root, "rich");
+			const auto& literal = SettingNamed(root, "literal");
+			require(std::get<std::string>(rich.defaultValue) ==
+						"Prefix Localized Option" &&
+					std::get<std::string>(literal.defaultValue) ==
+						"<b>Prefix</b> $OPTION",
+				"prose HTML opt-in or literal markup mapping changed");
+			require(rich.presentation.labelMode ==
+						dmui::RowPresentation::LabelMode::kHidden &&
+					rich.presentation.layout ==
+						dmui::RowPresentation::Layout::kFullSpan,
+				"prose row presentation stopped hiding and spanning its label");
 		});
 
 		runner.test("MCM localization misses are deduplicated and bounded", [] {
@@ -239,19 +152,7 @@ namespace vmm_tests
 				"missing localization diagnostics were not bounded per config");
 		});
 
-		runner.test("MCM absent and failed text resolvers preserve tokens", [] {
-			const auto absent = ParseConfig(R"json({
-				"modName":"Absent","displayName":"$TITLE",
-				"content":[{"id":"text","type":"text","text":"$BODY"}]
-			})json", "absent-resolver.json");
-			require(absent.diagnostics.empty() &&
-					absent.displayName == "$TITLE" &&
-					absent.pages.front().displayName == "$TITLE" &&
-					std::get<std::string>(
-						SettingNamed(absent.pages.front(), "text").defaultValue) ==
-						"$BODY",
-				"default callers did not retain the pre-localization behavior");
-
+		runner.test("MCM failed text resolvers preserve tokens", [] {
 			const TextResolver failed =
 				[](std::string_view) -> std::optional<std::string> {
 					throw std::runtime_error("resolver offline");

@@ -4,7 +4,7 @@
 #include <DearModdingUI/settings/HostSettingsHealthState.h>
 #include <DearModdingUI/settings/HostSettingsView.h>
 #include <DearModdingUI/SettingsActions.h>
-#include <DearModdingUI/controls/ChromeGeometry.h>
+#include <DearModdingUI/VisualDecisions.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/ThemeDefaults.h>
 #include <DearModdingUI/presentation/TypographyHealth.h>
@@ -26,90 +26,20 @@ namespace vmm_tests
 	void run_host_settings_checks(Runner& runner)
 	{
 		runner.test("settings action rows keep fixed non-overlapping geometry", [] {
-			struct Case
-			{
-				float fontSize;
-				float uiScale;
-			};
-			constexpr std::array cases{
-				Case{ 16.0f, 1.0f },
-				Case{ 18.0f, 1.25f },
-				Case{ 21.0f, 1.5f },
-				Case{ 28.0f, 2.0f }
-			};
-			for (const auto& test : cases)
-			{
-				const auto fontSize = test.fontSize * test.uiScale;
-				const auto buttonPadding = 2.0f * test.uiScale;
-				const auto framePadding = 8.0f * test.uiScale;
-				const auto spacing = 4.0f * test.uiScale;
-				const auto buttonExtent = TitleBarButtonExtent(
-					fontSize, buttonPadding);
-				const std::array widths{
-					ActionButtonWidth(true, 0.0f, buttonExtent, framePadding),
-					ActionButtonWidth(true, 0.0f, buttonExtent, framePadding),
-					ActionButtonWidth(true, 0.0f, buttonExtent, framePadding)
-				};
-				const auto cleanWidthSum =
-					ResolveSettingsActionButtonWidthSum(widths, false, 0);
-				const auto dirtyWidthSum =
-					ResolveSettingsActionButtonWidthSum(widths, true, 7);
-				require(cleanWidthSum == dirtyWidthSum,
-					"draft state or pending count changed action-row extent");
-				const auto clean = ResolveHostSettingsTitleRowLayout(
-					100.0f,
-					1900.0f,
-					cleanWidthSum,
-					widths.size(),
-					buttonExtent,
-					spacing);
-				const auto dirty = ResolveHostSettingsTitleRowLayout(
-					100.0f,
-					1900.0f,
-					dirtyWidthSum,
-					widths.size(),
-					buttonExtent,
-					spacing);
-				const auto cleanPage = ResolvePageActionRowLayout(
-					100.0f,
-					1900.0f,
-					cleanWidthSum,
-					widths.size(),
-					spacing);
-				const auto dirtyPage = ResolvePageActionRowLayout(
-					100.0f,
-					1900.0f,
-					dirtyWidthSum,
-					widths.size(),
-					spacing);
-				const auto priorClose = ResolveTrailingControlLayout(
-					100.0f, 1900.0f, buttonExtent, spacing);
-				require(
-					clean.titleMaxX <= clean.actionsMinX &&
-						clean.actionsMaxX + spacing == clean.closeMinX &&
-						clean.closeMinX == priorClose.controlMinX &&
-						clean.closeMaxX == priorClose.controlMaxX,
-					"settings title controls overlapped");
-
-				auto position = clean.actionsMinX;
-				for (const auto width : widths)
-				{
-					require(position + width <= clean.actionsMaxX,
-						"settings action exceeded its reserved strip");
-					position += width + spacing;
-				}
-				require(position - spacing == clean.actionsMaxX,
-					"settings action spacing changed");
-				require(
-					clean.reservedWidth == dirty.reservedWidth &&
-						clean.actionsMinX == dirty.actionsMinX &&
-						clean.closeMinX == dirty.closeMinX,
-					"dirty state changed settings title geometry");
-				require(
-					cleanPage.reservedWidth == dirtyPage.reservedWidth &&
-						cleanPage.actionsMinX == dirtyPage.actionsMinX,
-					"pending count changed Addictol settings action geometry");
-			}
+			constexpr std::array widths{ 24.0f, 28.0f, 32.0f };
+			const auto widthSum =
+				ResolveSettingsActionButtonWidthSum(widths, false, 0);
+			require(
+				widthSum == ResolveSettingsActionButtonWidthSum(widths, true, 7),
+				"draft state or pending count changed action-row extent");
+			const auto layout = ResolveHostSettingsTitleRowLayout(
+				100.0f, 400.0f, widthSum, widths.size(), 24.0f, 4.0f);
+			require(
+				layout.titleMaxX <= layout.actionsMinX &&
+					layout.actionsMaxX - layout.actionsMinX == 92.0f &&
+					layout.actionsMaxX + 4.0f == layout.closeMinX &&
+					layout.closeMinX == 376.0f && layout.closeMaxX == 400.0f,
+				"settings actions lost their reserved width or overlapped the close control");
 		});
 
 		runner.test("sidebar layout commits outside the discardable settings preview", [] {
