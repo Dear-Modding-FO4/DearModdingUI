@@ -3,6 +3,7 @@
 #include <REX/REX.h>
 
 #include <GeneralTestSuite.h>
+#include "MCMTestEndpoint.h"
 #include <d3d11.h>
 
 #undef ERROR
@@ -127,6 +128,8 @@ namespace DmuiTests
 				return false;
 
 			F4SE::Init(a_f4se);
+			if (!RegisterMCMTestEndpoint())
+				return false;
 			const auto* messaging = F4SE::GetMessagingInterface();
 			if (!messaging)
 			{

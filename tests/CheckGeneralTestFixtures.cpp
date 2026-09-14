@@ -7,7 +7,6 @@
 #include <DearModdingUI/host/UIAdapter.h>
 
 #include <cstdint>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -15,6 +14,8 @@ namespace
 {
 	struct CapturedPage
 	{
+		std::string id;
+		std::string categoryId;
 		DMUI_PageDrawCallback draw{};
 		void* userData{};
 	};
@@ -73,6 +74,8 @@ namespace
 			s_fixtureHost.failPageRegistrationAt)
 			return DMUI_RESULT_RESOURCE_EXHAUSTED;
 		s_fixtureHost.pages.push_back({
+			a_descriptor->id ? a_descriptor->id : "",
+			a_descriptor->categoryId ? a_descriptor->categoryId : "",
 			a_descriptor->draw,
 			a_descriptor->userData
 		});
@@ -259,28 +262,39 @@ namespace vmm_tests
 {
 	void run_general_test_fixture_checks(Runner& runner)
 	{
-		runner.test("synthetic registration failure retains callback owners", [] {
+		runner.test("fixture page registration retains partial callbacks", [] {
 			ResetFixture();
 			s_fixtureHost.failPageRegistrationAt = 2;
-			DmuiTestFixtures::SyntheticSettingsState state;
-			std::vector<std::unique_ptr<dmui::Client>> clients;
+			DmuiTestFixtures::SettingsFixtureState state;
+			dmui::Client client{
+				DmuiTestFixtures::kClientId,
+				DmuiTestFixtures::kClientDisplayName,
+				{ 0, 1 }
+			};
 			std::string error;
+			require(client.Connect(), "fixture client did not connect");
 
 			require(
-				!DmuiTestFixtures::RegisterSyntheticClients(clients, state, error) &&
+				!DmuiTestFixtures::RegisterFixturePages(client, state, error) &&
+					error.find("fixtures-navigation-tuning") !=
+						std::string::npos &&
 					error.find("RESOURCE_EXHAUSTED") != std::string::npos,
 				"partial registration did not report its host failure");
-			require(!clients.empty() &&
-					clients.size() == s_fixtureHost.clientCount &&
-					s_fixtureHost.pages.size() == 1,
-				"partial registration lost its successful page or client owner");
+			require(
+				s_fixtureHost.clientCount == 1 &&
+					s_fixtureHost.pages.size() == 1 &&
+					s_fixtureHost.pages.front().id ==
+						"fixtures-navigation-overview" &&
+					s_fixtureHost.pages.front().categoryId ==
+						"fixtures-navigation",
+				"partial registration did not retain the first fixture page");
 
 			const auto& callback = s_fixtureHost.pages.front();
 			require(callback.draw && callback.userData,
-				"retained navigation callback is incomplete");
+				"retained fixture callback is incomplete");
 			callback.draw(callback.userData);
 			require(s_fixtureHost.drawCalls > 0,
-				"retained callback owner was not usable after registration failure");
+				"caller-owned client callback was unusable after page failure");
 			ResetFixture();
 		});
 

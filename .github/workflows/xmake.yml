@@ -73,19 +73,36 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             xmake package-release -P "$projectRoot"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            foreach ($component in @('DearModdingUI','DearModdingUI-MCM')) {
+            $components = if ($variant -eq 'test') { @('DearModdingUI') } else { @('DearModdingUI','DearModdingUI-MCM') }
+            foreach ($component in $components) {
               $zip = [IO.Compression.ZipFile]::OpenRead(
                 (Join-Path $projectRoot ".Build\packages\$component-$env:PRODUCT_VERSION-$variant.zip"))
               try {
                 $names = @($zip.Entries | Where-Object { $_.Name } | ForEach-Object FullName)
                 $expected = @("F4SE/Plugins/$component.dll")
                 if ($component -eq 'DearModdingUI' -and $variant -eq 'test') {
-                  $expected += 'F4SE/Plugins/dmui-test-client.dll'
+                  $expected += 'F4SE/Plugins/DearModdingUI-MCM.dll','F4SE/Plugins/dmui-test-client.dll'
                 }
                 $dlls = @($names | Where-Object { $_ -like '*.dll' })
                 if (Compare-Object $expected $dlls) { throw "$component has the wrong DLLs." }
-                if ($names | Where-Object { $_ -notmatch '^F4SE/Plugins/.+\.(dll|toml|ttf|hlsl)$' }) {
+                $fixtures = @()
+                if ($variant -eq 'test') {
+                  $fixtureRoot = Join-Path $projectRoot 'tools\shared\fixtures\mcm\data'
+                  $fixtures = @(Get-ChildItem $fixtureRoot -Recurse -File | ForEach-Object {
+                    [IO.Path]::GetRelativePath($fixtureRoot, $_.FullName).Replace('\','/')
+                  })
+                  foreach ($fixture in $fixtures) {
+                    if ($fixture -notin $names) { throw "Test bundle is missing $fixture." }
+                  }
+                  foreach ($required in @('DMUITests.esp','Scripts/DMUITestQuest.pex','Scripts/DMUITestFunctions.pex','MCM/Config/DMUITests/config.json')) {
+                    if ($required -notin $names) { throw "Test fixture is missing $required." }
+                  }
+                }
+                if ($names | Where-Object { $_ -notmatch '^F4SE/Plugins/.+\.(dll|toml|ttf|hlsl)$' -and $_ -notin $fixtures }) {
                   throw "$component contains non-runtime files."
+                }
+                if ($names | Where-Object { $_ -like 'MCM/Settings/*' }) {
+                  throw 'Packages must not overwrite user MCM settings or keybinds.'
                 }
                 if ($component -eq 'DearModdingUI-MCM' -and $names.Count -ne 1) {
                   throw 'The MCM archive must contain only the bridge DLL.'
@@ -93,6 +110,9 @@ jobs:
               } finally {
                 $zip.Dispose()
               }
+            }
+            if ($variant -eq 'test' -and (Test-Path ".Build\packages\DearModdingUI-MCM-$env:PRODUCT_VERSION-test.zip")) {
+              throw 'The test distribution must contain one installable bundle.'
             }
           }
           if (Test-Path '.Build/ci-no-deploy') {
@@ -164,12 +184,6 @@ jobs:
           name: dearmoddingui-${{ steps.version.outputs.version }}-test-${{ github.sha }}
           path: .Build/packages/DearModdingUI-${{ steps.version.outputs.version }}-test.zip
           if-no-files-found: error
-      - uses: actions/upload-artifact@v6
-        with:
-          name: dearmoddingui-mcm-${{ steps.version.outputs.version }}-test-${{ github.sha }}
-          path: .Build/packages/DearModdingUI-MCM-${{ steps.version.outputs.version }}-test.zip
-          if-no-files-found: error
-
   publish:
     if: github.event_name == 'workflow_dispatch' && inputs.release_version != ''
     needs: build

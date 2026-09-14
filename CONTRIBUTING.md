@@ -35,7 +35,7 @@ xmake build -P "$projectRoot" -y
 xmake package-release -P "$projectRoot"
 ```
 
-The build produces two installable packages in `.Build/packages/`:
+Release builds produce two installable packages in `.Build/packages/`:
 
 | Package | Description |
 |---|---|
@@ -43,7 +43,8 @@ The build produces two installable packages in `.Build/packages/`:
 | `DearModdingUI-MCM-<version>-release.zip` | Optional bridge DLL for legacy MCM menus. Requires the host. |
 
 Package versions come from `plugin_version` in `xmake.lua`.
-For diagnostic builds with the in-game test client, configure with `--test-release=y`.
+With `--test-release=y`, packaging instead produces one
+`DearModdingUI-<version>-test.zip`; see [test bundle setup](tools/test-client/README.md).
 Packaging reads runtime assets from the working tree under `data\F4SE\Plugins`.
 
 ## Editor integration

@@ -4,7 +4,6 @@
 
 #include <filesystem>
 #include <memory>
-#include <optional>
 #include <string>
 
 struct ID3D11Device;
@@ -13,7 +12,8 @@ namespace DearModdingUIPreview
 {
 	struct FixtureOptions
 	{
-		std::optional<std::filesystem::path> mcmConfigPath;
+		std::filesystem::path mcmConfigPath;
+		std::filesystem::path dataRoot;
 		std::filesystem::path userKeybindsPath;
 		bool mcmInstalled{ true };
 		bool gameLoaded{ true };

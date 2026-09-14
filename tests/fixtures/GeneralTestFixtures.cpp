@@ -28,10 +28,67 @@ namespace DmuiTestFixtures
 
 	namespace
 	{
+		inline constexpr std::array kFixtureCategories{
+			dmui::CategoryDescriptor{
+				"fixtures-navigation",
+				"Fixture navigation",
+				100
+			},
+			dmui::CategoryDescriptor{
+				"fixtures-navigation-advanced",
+				"Fixture navigation - Advanced",
+				110
+			},
+			dmui::CategoryDescriptor{
+				"fixtures-configuration",
+				"Fixture configuration",
+				120
+			}
+		};
+
+		struct FixturePage
+		{
+			dmui::PageDescriptor descriptor;
+			const char* detail;
+		};
+
+		inline constexpr std::array kFixturePages{
+			FixturePage{
+				{
+					"fixtures-navigation-overview",
+					"Navigation overview",
+					"fixtures-navigation",
+					"Basic category and page navigation.",
+					0
+				},
+				"Expected: this page and Navigation tuning share one category."
+			},
+			FixturePage{
+				{
+					"fixtures-navigation-tuning",
+					"Navigation tuning",
+					"fixtures-navigation",
+					"Sibling-page ordering within a category.",
+					10
+				},
+				"Expected: this page follows Navigation overview."
+			},
+			FixturePage{
+				{
+					"fixtures-navigation-diagnostics",
+					"Navigation diagnostics",
+					"fixtures-navigation-advanced",
+					"Navigation across fixture categories.",
+					0
+				},
+				"Expected: switching here changes category without changing clients."
+			}
+		};
+
 		template <dmui::SettingValueAlternative T>
 		[[nodiscard]] dmui::SettingDescriptor MakeBoundSetting(
-			SyntheticSettingsState* a_state,
-			T SyntheticSettingsValues::* a_member,
+			SettingsFixtureState* a_state,
+			T SettingsFixtureValues::* a_member,
 			std::string a_id,
 			std::string a_label,
 			std::string a_description,
@@ -63,6 +120,125 @@ namespace DmuiTestFixtures
 					a_state->defaults.*a_member;
 			};
 			return setting;
+		}
+
+		[[nodiscard]] dmui::SettingsPage MakeSettingsFixturePage(
+			SettingsFixtureState* a_state)
+		{
+			dmui::SettingsPage page;
+			page.filterOptions.searchHint = "Search fixture configuration...";
+			page.notes.push_back({
+				"Fixture values exist only in memory; Apply never writes a file.",
+				true
+			});
+			page.actions.showReset = true;
+			page.actions.reset = [a_state]() {
+				a_state->draft = a_state->defaults;
+			};
+			page.actions.revert = [a_state]() {
+				a_state->draft = a_state->committed;
+			};
+			page.actions.apply = [a_state]() {
+				a_state->committed = a_state->draft;
+			};
+
+			dmui::SettingGroup general{
+				"general",
+				"General",
+				0,
+				{},
+				true
+			};
+			general.settings.push_back(MakeBoundSetting(
+				a_state,
+				&SettingsFixtureValues::enabled,
+				"enabled",
+				"Enable fixture feature",
+				"Exercises an immediate in-memory Boolean setting.",
+				dmui::CheckboxSettingControl{},
+				dmui::SettingApplyTiming::kImmediate));
+			general.settings.push_back(MakeBoundSetting(
+				a_state,
+				&SettingsFixtureValues::preset,
+				"preset",
+				"Preset",
+				"Exercises an in-memory choice.",
+				dmui::ChoiceSettingControl{
+					{
+						{ "Balanced", "Balanced" },
+						{ "Quality", "Quality" },
+						{ "Performance", "Performance" }
+					}
+				}));
+			general.settings.push_back(MakeBoundSetting(
+				a_state,
+				&SettingsFixtureValues::profileName,
+				"profile-name",
+				"Profile name",
+				"Exercises an in-memory text value.",
+				dmui::TextSettingControl{ 96 }));
+
+			dmui::SettingGroup performance{
+				"performance",
+				"Performance",
+				10,
+				{},
+				true
+			};
+			dmui::SignedSettingControl workerControl;
+			workerControl.range =
+				dmui::NumericSettingRange<int64_t>{ int64_t{ 1 }, int64_t{ 16 } };
+			workerControl.format = "%lld threads";
+			performance.settings.push_back(MakeBoundSetting(
+				a_state,
+				&SettingsFixtureValues::workerThreads,
+				"worker-threads",
+				"Worker threads",
+				"Exercises a bounded integer setting.",
+				std::move(workerControl)));
+
+			dmui::DoubleSettingControl animationControl;
+			animationControl.range =
+				dmui::NumericSettingRange<double>{ 0.5, 2.0 };
+			animationControl.format = "%.2fx";
+			performance.settings.push_back(MakeBoundSetting(
+				a_state,
+				&SettingsFixtureValues::animationSpeed,
+				"animation-speed",
+				"Animation speed",
+				"Exercises an immediate floating-point setting.",
+				std::move(animationControl),
+				dmui::SettingApplyTiming::kImmediate));
+
+			dmui::DoubleSettingControl pacingControl;
+			pacingControl.range =
+				dmui::NumericSettingRange<double>{ 0.25, std::nullopt };
+			pacingControl.format = "%.2f ms";
+			pacingControl.dragSpeed = 0.05f;
+			performance.settings.push_back(MakeBoundSetting(
+				a_state,
+				&SettingsFixtureValues::framePacingWindow,
+				"frame-pacing-window",
+				"Frame pacing window",
+				"Exercises an open-ended drag control.",
+				std::move(pacingControl)));
+
+			page.groups.push_back(std::move(general));
+			page.groups.push_back(std::move(performance));
+			return page;
+		}
+
+		[[nodiscard]] bool SetRegistrationError(
+			const dmui::Client& a_client,
+			std::string_view a_scope,
+			std::string& a_error)
+		{
+			a_error = "Could not register ";
+			a_error += a_scope;
+			a_error += " (result ";
+			a_error += DMUI_ResultToString(a_client.LastResult());
+			a_error += ").";
+			return false;
 		}
 	}
 
@@ -122,271 +298,60 @@ namespace DmuiTestFixtures
 		return result;
 	}
 
-	bool RegisterSyntheticClients(
-		std::vector<std::unique_ptr<dmui::Client>>& a_clients,
-		SyntheticSettingsState& a_settings,
+	bool RegisterFixturePages(
+		dmui::Client& a_client,
+		SettingsFixtureState& a_settings,
 		std::string& a_error) noexcept
 	{
 		try
 		{
 			a_error.clear();
-			a_clients.reserve(a_clients.size() + kSyntheticClients.size());
-			for (const auto& fixture : kSyntheticClients)
+			for (const auto& category : kFixtureCategories)
 			{
-				auto client = std::make_unique<dmui::Client>(
-					fixture.id,
-					fixture.displayName,
-					dmui::Version{ 0, 1 },
-					"test-tube",
-					std::string_view{ fixture.id } ==
-							"dearmodding.tests.synthetic.status" ?
-						dmui::ClientOrigin{
-							dmui::ClientOriginKind::kBridged,
-							"Synthetic Test Bridge"
-						} :
-						dmui::ClientOrigin{});
-				if (!client->Connect())
-				{
-					a_error = std::string{ "Could not connect " } +
-						fixture.displayName + " (result " +
-						DMUI_ResultToString(client->LastResult()) + ").";
-					return false;
-				}
-				auto* registered = client.get();
-				a_clients.push_back(std::move(client));
-
-				if (std::string_view{ fixture.id } ==
-					"dearmodding.tests.synthetic.navigation")
-				{
-					if (!registered->AddCategory({
-							.id = "general",
-							.displayName = "General"
-						}) ||
-						!registered->AddCategory({
-							.id = "advanced",
-							.displayName = "Advanced",
-							.sortKey = 10
-						}))
-					{
-						a_error =
-							"Could not register synthetic navigation categories (result " +
-							std::string{ DMUI_ResultToString(
-								registered->LastResult()) } + ").";
-						return false;
-					}
-					const std::array pages{
-						dmui::PageDescriptor{
-							.id = "overview",
-							.displayName = "Overview",
-							.categoryId = "general",
-							.summary = "Synthetic navigation overview."
-						},
-						dmui::PageDescriptor{
-							.id = "tuning",
-							.displayName = "Tuning",
-							.categoryId = "general",
-							.summary = "Synthetic navigation tuning page.",
-							.sortKey = 10
-						},
-						dmui::PageDescriptor{
-							.id = "diagnostics",
-							.displayName = "Diagnostics",
-							.categoryId = "advanced",
-							.summary = "Synthetic navigation diagnostic page.",
-							.sortKey = 20
-						}
-					};
-					for (const auto& page : pages)
-					{
-						if (!registered->AddPage(
-								page,
-								[registered, page] {
-									(void)registered->DrawSectionHeader(
-										page.displayName);
-									(void)registered->DrawBulletText(page.summary);
-									(void)registered->DrawBulletText(
-										"Synthetic navigation data; no mod is installed.");
-								}))
-						{
-							a_error =
-								"Could not register synthetic navigation pages (result " +
-								std::string{ DMUI_ResultToString(
-									registered->LastResult()) } + ").";
-							return false;
-						}
-					}
-				}
-				else if (std::string_view{ fixture.id } ==
-					"dearmodding.tests.synthetic.configuration")
-				{
-					if (!registered->AddSettingsPage(
-						{
-							.id = fixture.pageId,
-							.displayName = fixture.pageDisplayName,
-							.summary = fixture.summary
-						},
-						MakeSyntheticSettingsPage(&a_settings)))
-					{
-						a_error =
-							"Could not register synthetic configuration settings (result " +
-							std::string{ DMUI_ResultToString(
-								registered->LastResult()) } + ").";
-						return false;
-					}
-				}
-				else if (!registered->AddPage(
-					{
-						.id = fixture.pageId,
-						.displayName = fixture.pageDisplayName,
-						.summary = fixture.summary
-					},
-					[registered, fixture] {
-						(void)registered->DrawSectionHeader(
-							fixture.pageDisplayName);
-						(void)registered->DrawBulletText(fixture.summary);
-						(void)registered->DrawBulletText(
-							"Expected: Health attributes this entry to Synthetic Test Bridge.");
-					}))
-				{
-					a_error = std::string{ "Could not register " } +
-						fixture.displayName + " (result " +
-						DMUI_ResultToString(registered->LastResult()) + ").";
-					return false;
-				}
-				if (std::string_view{ fixture.id } ==
-					"dearmodding.tests.synthetic.status")
-				{
-					if (!registered->SetStatus(
-						DMUI_STATUS_SEVERITY_INFO,
-						"[Fixture] Synthetic status observation.") ||
-						!registered->ReportDiagnostic({
-							DMUI_STATUS_SEVERITY_WARNING,
-							"synthetic-status.toml",
-							"[Fixture] Deliberate diagnostic warning.",
-							"Expected only in the DMUI test suite."
-						}))
-					{
-						a_error =
-							"Could not register synthetic status observations (result " +
-							std::string{ DMUI_ResultToString(
-								registered->LastResult()) } + ").";
-						return false;
-					}
-				}
+				if (!a_client.AddCategory(category))
+					return SetRegistrationError(
+						a_client,
+						std::string{ "fixture category '" } +
+							category.id + "'",
+						a_error);
 			}
+
+			for (const auto& page : kFixturePages)
+			{
+				if (!a_client.AddPage(
+					page.descriptor,
+					[client = &a_client, page] {
+						(void)client->DrawSectionHeader(page.descriptor.displayName);
+						(void)client->DrawBulletText(page.descriptor.summary);
+						(void)client->DrawBulletText(page.detail);
+					}))
+					return SetRegistrationError(
+						a_client,
+						std::string{ "fixture page '" } + page.descriptor.id + "'",
+						a_error);
+			}
+
+			if (!a_client.AddSettingsPage(
+					{
+						.id = "fixtures-configuration-settings",
+						.displayName = "In-memory configuration",
+						.categoryId = "fixtures-configuration",
+						.summary =
+							"Declarative settings backed only by fixture memory."
+					},
+					MakeSettingsFixturePage(&a_settings)))
+				return SetRegistrationError(
+					a_client,
+					"fixture page 'fixtures-configuration-settings'",
+					a_error);
+
 			return true;
 		}
 		catch (const std::exception& a_exception)
 		{
-			a_error = "Synthetic fixture registration threw: ";
+			a_error = "Fixture page registration threw: ";
 			a_error += a_exception.what();
 			return false;
 		}
-	}
-
-	dmui::SettingsPage MakeSyntheticSettingsPage(
-		SyntheticSettingsState* a_state)
-	{
-		dmui::SettingsPage page;
-		page.filterOptions.searchHint = "Search synthetic configuration...";
-		page.notes.push_back({
-			"Fixture values exist only in memory; Apply never writes a file.",
-			true
-		});
-		page.actions.showReset = true;
-		page.actions.reset = [a_state]() {
-			a_state->draft = a_state->defaults;
-		};
-		page.actions.revert = [a_state]() {
-			a_state->draft = a_state->committed;
-		};
-		page.actions.apply = [a_state]() {
-			a_state->committed = a_state->draft;
-		};
-
-		dmui::SettingGroup general{
-			"general",
-			"General",
-			0,
-			{},
-			true
-		};
-		general.settings.push_back(MakeBoundSetting(
-			a_state,
-			&SyntheticSettingsValues::enabled,
-			"enabled",
-			"Enable synthetic feature",
-			"Exercises an immediate in-memory Boolean setting.",
-			dmui::CheckboxSettingControl{},
-			dmui::SettingApplyTiming::kImmediate));
-		general.settings.push_back(MakeBoundSetting(
-			a_state,
-			&SyntheticSettingsValues::preset,
-			"preset",
-			"Preset",
-			"Exercises an in-memory choice.",
-			dmui::ChoiceSettingControl{
-				{
-					{ "Balanced", "Balanced" },
-					{ "Quality", "Quality" },
-					{ "Performance", "Performance" }
-				}
-			}));
-		general.settings.push_back(MakeBoundSetting(
-			a_state,
-			&SyntheticSettingsValues::profileName,
-			"profile-name",
-			"Profile name",
-			"Exercises an in-memory text value.",
-			dmui::TextSettingControl{ 96 }));
-
-		dmui::SettingGroup performance{
-			"performance",
-			"Performance",
-			10,
-			{},
-			true
-		};
-		dmui::SignedSettingControl workerControl;
-		workerControl.range =
-			dmui::NumericSettingRange<int64_t>{ int64_t{ 1 }, int64_t{ 16 } };
-		workerControl.format = "%lld threads";
-		performance.settings.push_back(MakeBoundSetting(
-			a_state,
-			&SyntheticSettingsValues::workerThreads,
-			"worker-threads",
-			"Worker threads",
-			"Exercises a bounded integer setting.",
-			std::move(workerControl)));
-
-		dmui::DoubleSettingControl animationControl;
-		animationControl.range =
-			dmui::NumericSettingRange<double>{ 0.5, 2.0 };
-		animationControl.format = "%.2fx";
-		performance.settings.push_back(MakeBoundSetting(
-			a_state,
-			&SyntheticSettingsValues::animationSpeed,
-			"animation-speed",
-			"Animation speed",
-			"Exercises an immediate floating-point setting.",
-			std::move(animationControl),
-			dmui::SettingApplyTiming::kImmediate));
-
-		dmui::DoubleSettingControl pacingControl;
-		pacingControl.range =
-			dmui::NumericSettingRange<double>{ 0.25, std::nullopt };
-		pacingControl.format = "%.2f ms";
-		pacingControl.dragSpeed = 0.05f;
-		performance.settings.push_back(MakeBoundSetting(
-			a_state,
-			&SyntheticSettingsValues::framePacingWindow,
-			"frame-pacing-window",
-			"Frame pacing window",
-			"Exercises an open-ended drag control.",
-			std::move(pacingControl)));
-
-		page.groups.push_back(std::move(general));
-		page.groups.push_back(std::move(performance));
-		return page;
 	}
 }

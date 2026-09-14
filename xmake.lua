@@ -7,6 +7,25 @@ local function project_dir(relative)
     return path.join(os.projectdir(), relative)
 end
 
+-- Project-script OS access is read-only; build callbacks supply filesystem writes.
+local function copy_mcm_fixture_data(destination, build_os)
+    local source = project_dir("tools/shared/fixtures/mcm/data")
+    for _, required in ipairs({
+        "DMUITests.esp",
+        "Scripts/DMUITestQuest.pex",
+        "Scripts/DMUITestFunctions.pex",
+        "MCM/Config/DMUITests/config.json",
+        "MCM/Config/DMUITests/settings.ini",
+        "MCM/Config/DMUITests/keybinds.json"
+    }) do
+        if not build_os.isfile(path.join(source, required)) then
+            raise("missing MCM test fixture %s; see tools/test-client/fixture-builder", required)
+        end
+    end
+    build_os.mkdir(destination)
+    build_os.cp(path.join(source, "*"), destination)
+end
+
 local function canonical_path(value)
     return path.normalize(path.absolute(value)):lower()
 end
@@ -305,12 +324,14 @@ target("dmui-preview", function()
     )
 
     after_build(function(target)
-        local data_dir = path.join(target:targetdir(), "Data/F4SE/Plugins")
-        os.mkdir(data_dir)
+        local data_root = path.join(target:targetdir(), "Data")
+        local plugins = path.join(data_root, "F4SE/Plugins")
+        os.mkdir(plugins)
         os.cp(
             path.join(project_dir("data/F4SE/Plugins"), "*"),
-            data_dir
+            plugins
         )
+        copy_mcm_fixture_data(data_root, os)
     end)
 end)
 
@@ -411,9 +432,11 @@ target("dmui-test-client", function()
     end)
 
     add_source_sets("diagnostic_client")
-    add_files("tools/test-client/Main.cpp")
+    add_files("tools/test-client/*.cpp")
+    add_headerfiles("tools/test-client/*.h")
     add_extrafiles(
         "tools/test-client/README.md",
+        "tools/shared/fixtures/mcm/data/**",
         "tests/fixtures/GeneralTestFixtures.h",
         "tools/shared/GeneralTestSuite.h",
         "tools/shared/TestHotkeyDescriptors.h"
@@ -488,7 +511,7 @@ end)
 task("package-release", function()
     set_menu {
         usage = "xmake package-release",
-        description = "Build separate host and MCM archives for the configured variant",
+        description = "Build release component archives or one complete test bundle",
         options = {
             { "P", "project-root", "kv", nil, "Absolute project root" }
         }
@@ -520,7 +543,20 @@ task("package-release", function()
         local data_root = project_dir("data")
         local runtime_assets = os.files(project_dir("data/F4SE/Plugins/**"))
         table.sort(runtime_assets)
-        for _, component in ipairs({ plugin_name, "DearModdingUI-MCM" }) do
+        local components = { plugin_name, "DearModdingUI-MCM" }
+        if variant == "test" then
+            components = { plugin_name }
+            for _, obsolete in ipairs({
+                path.join(package_owner, "test", "DearModdingUI-MCM"),
+                path.join(package_owner, "DearModdingUI-MCM-" .. plugin_version .. "-test.zip"),
+                path.join(package_owner, "DearModdingUI-MCM-" .. plugin_version .. "-test.partial.zip")
+            }) do
+                if os.exists(obsolete) then
+                    os.rm(obsolete)
+                end
+            end
+        end
+        for _, component in ipairs(components) do
             local folder = path.join(package_owner, variant, component)
             local zip = path.join(
                 package_owner, component .. "-" .. plugin_version .. "-" .. variant .. ".zip")
@@ -537,10 +573,13 @@ task("package-release", function()
             end
             local plugins = path.join(folder, "F4SE", "Plugins")
             os.mkdir(plugins)
-            os.cp(path.join(output_root, component .. ".dll"), plugins)
+            local packaged_targets = variant == "test" and targets or { component }
+            for _, name in ipairs(packaged_targets) do
+                os.cp(path.join(output_root, name .. ".dll"), plugins)
+            end
             if component == plugin_name then
                 if variant == "test" then
-                    os.cp(path.join(output_root, "dmui-test-client.dll"), plugins)
+                    copy_mcm_fixture_data(folder, os)
                 end
                 for _, source in ipairs(runtime_assets) do
                     local extension = path.extension(source):lower()

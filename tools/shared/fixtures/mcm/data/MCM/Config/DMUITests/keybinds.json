@@ -1,0 +1,14 @@
+{
+  "modName": "DMUITests",
+  "keybinds": [
+    {
+      "id": "TestHotkey",
+      "desc": "Increment the DMUI MCM fixture counter",
+      "action": {
+        "type": "CallGlobalFunction",
+        "script": "DMUITestFunctions",
+        "function": "IncrementCounter"
+      }
+    }
+  ]
+}

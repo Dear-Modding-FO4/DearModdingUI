@@ -123,18 +123,20 @@ namespace DmuiTests
 					return false;
 				}
 
-				std::string syntheticError;
-				if (!DmuiTestFixtures::RegisterSyntheticClients(
-						m_syntheticClients,
-						m_syntheticSettings,
-						syntheticError))
+				std::string fixtureError;
+				if (!DmuiTestFixtures::RegisterFixturePages(
+						client,
+						m_fixtureSettings,
+						fixtureError))
 				{
 					m_context.Error(
-						"dmui-test-client: synthetic fixtures failed: {}"sv,
-						syntheticError);
+						"dmui-test-client: fixture pages failed: {}"sv,
+						fixtureError);
 					MarkInitializationIncomplete(
-						"synthetic fixture clients",
-						DMUI_RESULT_CALLBACK_FAILED);
+						"fixture pages",
+						client.LastResult() == DMUI_RESULT_OK ?
+							DMUI_RESULT_CALLBACK_FAILED :
+							client.LastResult());
 					return false;
 				}
 
@@ -467,6 +469,9 @@ namespace DmuiTests
 					LogSnapshot("manual-button");
 				(void)m_context.Client().DrawSectionHeader("Expected outcomes");
 				(void)m_context.Client().DrawBulletText(
+					"Fixture navigation and in-memory configuration share "
+					"this client; no fixture warning is published at startup.");
+				(void)m_context.Client().DrawBulletText(
 					"Unchanged clicks do not increment simulated saves; "
 					"completed edits and effective resets do.");
 				(void)m_context.Client().DrawBulletText(
@@ -611,6 +616,7 @@ namespace DmuiTests
 				}
 			}
 
+			DmuiTestFixtures::SettingsFixtureState m_fixtureSettings;
 			Detail::DiagnosticContext m_context;
 			Detail::SettingsExercise m_settings;
 			Detail::PresentationResources m_resources;
@@ -635,8 +641,6 @@ namespace DmuiTests
 			uint64_t m_hiddenMenuObservations{};
 			uint64_t m_settingsDraws{};
 			PresentationScenarioState m_presentationState;
-			DmuiTestFixtures::SyntheticSettingsState m_syntheticSettings;
-			std::vector<std::unique_ptr<dmui::Client>> m_syntheticClients;
 		};
 	}
 

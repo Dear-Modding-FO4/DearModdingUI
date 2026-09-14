@@ -1,0 +1,1 @@
+This nested fixture must not appear in non-recursive file choices.

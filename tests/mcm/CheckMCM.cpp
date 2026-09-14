@@ -7,6 +7,7 @@ namespace vmm_tests
 	void run_mcm_parsing_checks(Runner&);
 	void run_mcm_value_source_checks(Runner&);
 	void run_mcm_condition_checks(Runner&);
+	void run_mcm_integration_fixture_checks(Runner&);
 
 	void run_mcm_checks(Runner& runner)
 	{
@@ -15,5 +16,6 @@ namespace vmm_tests
 		run_mcm_parsing_checks(runner);
 		run_mcm_value_source_checks(runner);
 		run_mcm_condition_checks(runner);
+		run_mcm_integration_fixture_checks(runner);
 	}
 }

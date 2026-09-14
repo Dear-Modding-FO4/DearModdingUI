@@ -1,30 +1,19 @@
 #pragma once
 
 #include <DearModdingUI/MCM/Availability.h>
-#include <DearModdingUI/MCM/FileChoices.h>
 
 #include <filesystem>
 #include <memory>
-#include <optional>
 #include <string>
 
 namespace DmuiTestFixtures
 {
-	class BuiltinMcmFileListingAdapter final :
-		public DearModdingUI::MCM::FileListingAdapter
-	{
-	public:
-		[[nodiscard]] DearModdingUI::MCM::FileListingResult List(
-			std::string_view a_path,
-			std::string_view a_mask) override;
-	};
-
 	struct McmFixtureOptions
 	{
-		std::optional<std::filesystem::path> configPath;
+		std::filesystem::path configPath;
+		std::filesystem::path dataRoot;
 		std::filesystem::path userKeybindsPath;
 		DearModdingUI::MCM::McmState state{ true, true };
-		DearModdingUI::MCM::FileListingAdapter* fileListing{};
 	};
 
 	class McmFixture final

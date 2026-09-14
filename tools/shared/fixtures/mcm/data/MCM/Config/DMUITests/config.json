@@ -1,0 +1,143 @@
+{
+  "modName": "DMUITests",
+  "displayName": "DMUI MCM Tests",
+  "minMcmVersion": 1,
+  "pluginRequirements": ["DMUITests.esp"],
+  "content": [
+    {"id": "overview", "type": "section", "text": "MCM integration"},
+    {"id": "instructions", "type": "text", "text": "Use a disposable save with DMUITests.esp enabled. These pages exercise the production MCM bridge. Globals and properties belong only to this test plugin; persisted settings belong only to DMUITests."},
+    {"id": "availability", "type": "text", "text": "Property and persisted-setting controls require a loaded game. Persisted settings also require Mod Configuration Menu. The desktop preview simulates values and does not execute Papyrus or Scaleform actions."}
+  ],
+  "pages": [
+    {
+      "id": "globals",
+      "pageDisplayName": "Globals",
+      "content": [
+        {"id": "globals", "type": "section", "text": "Game-backed globals"},
+        {"id": "globalHelp", "type": "text", "text": "Edit each type, leave this page, and return. Values should survive a save/reload. Editing the float also invokes the native external-action probe; inspect dmui-test-client.log for its received value."},
+        {"id": "GlobalFloat", "type": "slider", "text": "Float and external action",
+          "valueOptions": {"sourceType": "GlobalValueFloat", "sourceForm": "DMUITests.esp|801", "default": 0.5, "min": 0.0, "max": 1.0, "step": 0.1},
+          "action": {"type": "CallExternalFunction", "plugin": "DMUITests", "function": "RecordCall", "params": ["global-float", "{value}"]}},
+        {"id": "GlobalInteger", "type": "slider", "text": "Integer",
+          "valueOptions": {"sourceType": "GlobalValueInt", "sourceForm": "DMUITests.esp|802", "default": 3, "min": 0, "max": 10, "step": 1}},
+        {"id": "GlobalEnabled", "type": "switcher", "text": "Boolean",
+          "valueOptions": {"sourceType": "GlobalValueBool", "sourceForm": "DMUITests.esp|803", "default": true}},
+        {"id": "GlobalChoice", "type": "dropdown", "text": "Numeric choice",
+          "valueOptions": {"sourceType": "GlobalValueInt", "sourceForm": "DMUITests.esp|804", "default": 0, "options": ["First", "Second", "Third"]}}
+      ]
+    },
+    {
+      "id": "properties",
+      "pageDisplayName": "Properties",
+      "content": [
+        {"id": "properties", "type": "section", "text": "Attached Papyrus properties"},
+        {"id": "propertyHelp", "type": "text", "text": "These controls read and write DMUITestQuest on the fixture quest. The integer also controls hidden-state conditions on the Conditions page. Values should survive page changes and a save/reload."},
+        {"id": "PropertyEnabled", "type": "switcher", "text": "Boolean property",
+          "valueOptions": {"sourceType": "PropertyValueBool", "sourceForm": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "propertyName": "Enabled", "default": true}},
+        {"id": "PropertyInteger", "type": "slider", "text": "Integer property",
+          "valueOptions": {"sourceType": "PropertyValueInt", "sourceForm": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "propertyName": "IntegerValue", "default": 3, "min": 0, "max": 10, "step": 1}},
+        {"id": "PropertyFloat", "type": "slider", "text": "Float property",
+          "valueOptions": {"sourceType": "PropertyValueFloat", "sourceForm": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "propertyName": "FloatValue", "default": 0.5, "min": 0.0, "max": 1.0, "step": 0.1}},
+        {"id": "PropertyText", "type": "input", "text": "String property",
+          "valueOptions": {"sourceType": "PropertyValueString", "sourceForm": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "propertyName": "TextValue", "default": "Initial value"}},
+        {"id": "PropertyChoice", "type": "dropdown", "text": "Property choice",
+          "valueOptions": {"sourceType": "PropertyValueInt", "sourceForm": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "propertyName": "ChoiceValue", "default": 0, "options": ["First", "Second", "Third"]}}
+      ]
+    },
+    {
+      "id": "persisted",
+      "pageDisplayName": "Persisted settings",
+      "content": [
+        {"id": "persisted", "type": "section", "text": "MCM storage"},
+        {"id": "storageHelp", "type": "text", "text": "Changes use MCM's Papyrus natives and emit its setting-change events. Inspect MCM\\Settings\\DMUITests.ini in the active mod-manager profile, then restart the game to verify persistence. This package never replaces that generated user file."},
+        {"id": "bEnabled:Main", "type": "switcher", "text": "Persisted boolean",
+          "valueOptions": {"sourceType": "ModSettingBool", "default": true}},
+        {"id": "iCount:Main", "type": "slider", "text": "Persisted integer",
+          "valueOptions": {"sourceType": "ModSettingInt", "default": 3, "min": 0, "max": 10, "step": 1}},
+        {"id": "fScale:Main", "type": "slider", "text": "Persisted float",
+          "valueOptions": {"sourceType": "ModSettingFloat", "default": 0.5, "min": 0.0, "max": 1.0, "step": 0.1}},
+        {"id": "sText:Main", "type": "input", "text": "Persisted string",
+          "valueOptions": {"sourceType": "ModSettingString", "default": "Initial value"}},
+        {"id": "iChoice:Main", "type": "dropdown", "text": "Persisted choice",
+          "valueOptions": {"sourceType": "ModSettingInt", "default": 0, "options": ["First", "Second", "Third"]}}
+      ]
+    },
+    {
+      "id": "conditions",
+      "pageDisplayName": "Conditions",
+      "content": [
+        {"id": "conditions", "type": "section", "text": "Source-backed and local disclosure"},
+        {"id": "bShowDetails:Conditions", "type": "switcher", "text": "Persisted disclosure", "groupControl": 1,
+          "valueOptions": {"sourceType": "ModSettingBool", "default": true}},
+        {"id": "persistentDetails", "type": "text", "text": "Visible while the persisted disclosure is enabled.", "groupCondition": 1},
+        {"type": "switcher", "text": "Local disclosure (not persisted)", "groupControl": 2,
+          "valueOptions": {"sourceType": "ModSettingBool"}},
+        {"id": "localDetails", "type": "text", "text": "This idless controller is page-local and remains usable without MCM storage.", "groupCondition": 2},
+        {"id": "HiddenInteger", "type": "hiddenSwitcher", "groupControl": 3,
+          "valueOptions": {"sourceType": "PropertyValueInt", "sourceForm": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "propertyName": "IntegerValue", "default": 3}},
+        {"id": "combinedDetails", "type": "text", "text": "Visible when persisted disclosure is enabled AND the integer property is nonzero. Set that property to zero, then return here.", "groupCondition": {"AND": [1, 3]}}
+      ]
+    },
+    {
+      "id": "actions",
+      "pageDisplayName": "Actions",
+      "content": [
+        {"id": "actions", "type": "section", "text": "Real action dispatch"},
+        {"id": "actionHelp", "type": "text", "text": "Member and global actions update the quest's counter and last-action properties below. The external action reports its invocation in dmui-test-client.log. The preview deliberately does not execute these game actions."},
+        {"id": "memberAction", "type": "button", "text": "Increment through named script",
+          "action": {"type": "CallFunction", "form": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "function": "IncrementCounter"}},
+        {"id": "attachedAction", "type": "button", "text": "Increment through attached-script discovery",
+          "action": {"type": "CallFunction", "form": "DMUITests.esp|800", "function": "IncrementCounter"}},
+        {"id": "globalAction", "type": "button", "text": "Increment through global function",
+          "action": {"type": "CallGlobalFunction", "script": "DMUITestFunctions", "function": "IncrementCounter"}},
+        {"id": "externalAction", "type": "button", "text": "Invoke native external probe",
+          "action": {"type": "CallExternalFunction", "plugin": "DMUITests", "function": "RecordCall", "params": ["button", 1.5]}},
+        {"id": "actionInteger", "type": "slider", "text": "Write property, then dispatch its accepted value",
+          "valueOptions": {"sourceType": "PropertyValueInt", "sourceForm": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "propertyName": "IntegerValue", "default": 3, "min": 0, "max": 10, "step": 1},
+          "action": {"type": "CallFunction", "form": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "function": "SetIntegerValue", "params": ["{value}"]}},
+        {"id": "ActionCount", "type": "slider", "text": "Observed action count",
+          "valueOptions": {"sourceType": "PropertyValueInt", "sourceForm": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "propertyName": "ActionCount", "default": 0, "min": 0, "max": 10000, "step": 1}},
+        {"id": "LastAction", "type": "input", "text": "Observed last action",
+          "valueOptions": {"sourceType": "PropertyValueString", "sourceForm": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "propertyName": "LastAction", "default": "None"}},
+        {"id": "resetProperties", "type": "button", "text": "Reset fixture properties",
+          "action": {"type": "CallFunction", "form": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "function": "ResetFixture"}}
+      ]
+    },
+    {
+      "id": "files",
+      "pageDisplayName": "File choices",
+      "content": [
+        {"id": "files", "type": "section", "text": "Virtualized file enumeration"},
+        {"id": "fileHelp", "type": "text", "text": "The list reads this test mod's Presets directory on page activation, not every frame. None (empty value), the real file named None, and the Profiles directory are distinct entries. Nested.txt must not appear at the top level. Selection persists through MCM storage."},
+        {"id": "sPreset:Files", "type": "dropdownFiles", "text": "Preset",
+          "valueOptions": {"sourceType": "ModSettingString", "path": "Data\\MCM\\Config\\DMUITests\\Presets", "mask": "*", "default": ""}}
+      ]
+    },
+    {
+      "id": "text-input",
+      "pageDisplayName": "Text and keybinds",
+      "content": [
+        {"id": "text", "type": "section", "text": "Presentation and localization"},
+        {"id": "rich", "type": "text", "html": true, "text": "<p align='center'><b>Formatted test text</b></p>First line<br>Second line &amp; an entity."},
+        {"id": "literal", "type": "text", "html": false, "text": "Literal markup stays visible: <Press E> <b>not formatting</b> &amp;"},
+        {"id": "localized", "type": "text", "text": "$DMUITESTS_LocalizedText"},
+        {"id": "keybindHelp", "type": "text", "text": "DMUI reads MCM's bindings without overwriting them. Assign TestHotkey through the original MCM menu, restart, and inspect the displayed binding here. The key invokes the fixture's global action. Unbound is expected before assignment."},
+        {"id": "TestHotkey", "type": "hotkey", "text": "Test hotkey"}
+      ]
+    },
+    {
+      "id": "failures",
+      "pageDisplayName": "Expected failures",
+      "content": [
+        {"id": "failures", "type": "section", "text": "Manual negative probes"},
+        {"id": "failureHelp", "type": "text", "text": "These buttons intentionally fail without changing fixture state. The page must remain usable and explain the error. No negative probe runs automatically."},
+        {"id": "missingMethod", "type": "button", "text": "Request a missing Papyrus method",
+          "action": {"type": "CallFunction", "form": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "function": "MissingMethod"}},
+        {"id": "wrongArguments", "type": "button", "text": "Send the wrong argument count",
+          "action": {"type": "CallFunction", "form": "DMUITests.esp|800", "scriptName": "DMUITestQuest", "function": "IncrementCounter", "params": [1]}},
+        {"id": "missingExternal", "type": "button", "text": "Request a missing external function",
+          "action": {"type": "CallExternalFunction", "plugin": "DMUITests", "function": "MissingFunction"}}
+      ]
+    }
+  ]
+}

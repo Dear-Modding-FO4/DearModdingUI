@@ -5,11 +5,9 @@
 #include <array>
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace DmuiTestFixtures
 {
@@ -22,40 +20,7 @@ namespace DmuiTestFixtures
 	inline constexpr std::string_view kCategoryId{ "exercises" };
 	inline constexpr std::string_view kCategoryDisplayName{ "Exercises" };
 
-	struct SyntheticClient
-	{
-		const char* id;
-		const char* displayName;
-		const char* pageId;
-		const char* pageDisplayName;
-		const char* summary;
-	};
-
-	inline constexpr std::array kSyntheticClients{
-		SyntheticClient{
-			"dearmodding.tests.synthetic.navigation",
-			"[Fixture] Navigation Client",
-			"navigation",
-			"Navigation fixture",
-			"Synthetic categories and pages for navigation inspection."
-		},
-		SyntheticClient{
-			"dearmodding.tests.synthetic.status",
-			"[Fixture] Status Client",
-			"status",
-			"Status fixture",
-			"Synthetic status and diagnostic presentation."
-		},
-		SyntheticClient{
-			"dearmodding.tests.synthetic.configuration",
-			"[Fixture] Configuration Client",
-			"configuration",
-			"Configuration fixture",
-			"In-memory synthetic configuration with no persistence."
-		}
-	};
-
-	struct SyntheticSettingsValues
+	struct SettingsFixtureValues
 	{
 		bool enabled;
 		std::string preset;
@@ -64,12 +29,12 @@ namespace DmuiTestFixtures
 		double animationSpeed;
 		double framePacingWindow;
 
-		bool operator==(const SyntheticSettingsValues&) const = default;
+		bool operator==(const SettingsFixtureValues&) const = default;
 	};
 
-	struct SyntheticSettingsState
+	struct SettingsFixtureState
 	{
-		SyntheticSettingsValues defaults{
+		SettingsFixtureValues defaults{
 			true,
 			"Balanced",
 			"Commonwealth",
@@ -77,7 +42,7 @@ namespace DmuiTestFixtures
 			1.0,
 			2.0
 		};
-		SyntheticSettingsValues committed{
+		SettingsFixtureValues committed{
 			true,
 			"Quality",
 			"4K Preview",
@@ -85,7 +50,7 @@ namespace DmuiTestFixtures
 			1.15,
 			2.5
 		};
-		SyntheticSettingsValues draft{ committed };
+		SettingsFixtureValues draft{ committed };
 	};
 
 	enum class ExerciseKind : uint8_t
@@ -187,11 +152,8 @@ namespace DmuiTestFixtures
 		dmui::Client& a_client,
 		DrawExercise a_draw) noexcept;
 
-	[[nodiscard]] bool RegisterSyntheticClients(
-		std::vector<std::unique_ptr<dmui::Client>>& a_clients,
-		SyntheticSettingsState& a_settings,
+	[[nodiscard]] bool RegisterFixturePages(
+		dmui::Client& a_client,
+		SettingsFixtureState& a_settings,
 		std::string& a_error) noexcept;
-
-	[[nodiscard]] dmui::SettingsPage MakeSyntheticSettingsPage(
-		SyntheticSettingsState* a_state);
 }

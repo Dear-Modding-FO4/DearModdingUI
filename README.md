@@ -25,7 +25,8 @@
 Install the core package from [Releases](https://github.com/Dear-Modding-FO4/DearModdingUI/releases/latest)
 with Mod Organizer 2 or Vortex, or extract it into Fallout 4's `Data` folder.
 Add the optional **DearModdingUI-MCM** companion package for legacy MCM menus.
-Use `release` packages for normal play; the host `test` package includes the diagnostic client.
+Use `release` packages for normal play. The [test bundle](tools/test-client/README.md)
+includes native and MCM fixtures for a disposable save.
 
 Press **End** to toggle the menu. **Escape** cancels an active edit, dismisses a
 dialog, or closes the menu. The built-in Settings page controls appearance and

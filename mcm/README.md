@@ -10,8 +10,8 @@ game-facing adapters. Only that target depends on F4SE. Pure parsing, control
 decoding and mapping, value caches and conditions, value-source routing, and
 page binding stay under `src\configuration`, `src\mapping`, and `src\bindings`,
 with shared private helpers in `src\support`. Public pure interfaces stay under
-`include`. Synthetic MCM scenarios live in `..\tools\preview\fixtures`, not in
-production bridge code.
+`include`. Shared test fixture data lives in `..\tools\shared\fixtures\mcm\data`,
+outside the production bridge.
 
 `ParseConfig` and `LoadConfig` are `noexcept` and total. Input is third-party JSON, so every failure
 is diagnosed and skipped rather than thrown or aborted on, and condition nesting is capped at

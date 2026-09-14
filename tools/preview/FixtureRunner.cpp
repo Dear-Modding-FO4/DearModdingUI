@@ -1,7 +1,5 @@
 #include "FixtureRunner.h"
 
-#include <DearModdingUI/MCM/Win32FileListingAdapter.h>
-
 #include "fixtures/MCMFixtures.h"
 #include "fixtures/NavigationFixtures.h"
 #include "fixtures/SettingFeedbackFixtures.h"
@@ -64,7 +62,6 @@ namespace DearModdingUIPreview
 	{
 		PreviewEnvironment environment;
 		DmuiTests::GeneralTestSuite testSuite{ environment };
-		DearModdingUI::MCM::Win32FileListingAdapter realMcmFiles;
 		DmuiTestFixtures::McmFixture mcmFixture;
 		std::vector<std::unique_ptr<dmui::Client>> navigationClients;
 		DmuiTestFixtures::SettingFeedbackFixture settingFeedback;
@@ -98,15 +95,12 @@ namespace DearModdingUIPreview
 
 			DmuiTestFixtures::McmFixtureOptions mcmOptions{
 				.configPath = a_options.mcmConfigPath,
+				.dataRoot = a_options.dataRoot,
 				.userKeybindsPath = a_options.userKeybindsPath,
 				.state = {
 					a_options.mcmInstalled,
 					a_options.gameLoaded
-				},
-				.fileListing = a_options.mcmConfigPath ?
-					static_cast<DearModdingUI::MCM::FileListingAdapter*>(
-						&m_impl->realMcmFiles) :
-					nullptr
+				}
 			};
 			if (!m_impl->mcmFixture.Register(mcmOptions, a_error))
 				return false;

@@ -137,12 +137,24 @@ namespace DearModdingUIPreview
 				const auto* value = std::getenv(a_name);
 				return value ? std::string_view{ value } != "0" : a_default;
 			};
+			const auto runtimeDirectory =
+				Addictol::Support::GetRuntimeDirectory();
+			if (runtimeDirectory.empty())
+			{
+				a_error = L"Could not resolve the preview executable directory.";
+				return false;
+			}
+			const auto resourceRoot =
+				std::filesystem::path{ runtimeDirectory };
+			const auto dataRoot = resourceRoot / "Data";
 			const FixtureOptions fixtureOptions{
 				.mcmConfigPath = configOverride ?
-					std::optional{
-						std::filesystem::path{ configOverride }
-					} :
-					std::nullopt,
+					std::filesystem::path{ configOverride } :
+					dataRoot / "MCM" / "Config" / "DMUITests" /
+						"config.json",
+				.dataRoot = configOverride ?
+					std::filesystem::current_path() / "Data" :
+					dataRoot,
 				.userKeybindsPath =
 					std::filesystem::current_path() /
 					"Data" / "MCM" / "Settings" / "Keybinds.json",
