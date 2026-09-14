@@ -258,6 +258,23 @@ target("dmui-tests", function()
     )
 end)
 
+target("dmui-icon-comparison", function()
+    set_default(false)
+    set_kind("binary")
+    configure_dmui_target()
+    set_exceptions("cxx")
+    set_targetdir(project_dir(".Build/IconComparison/Bin"))
+    set_objectdir(".LinkConf/xmake/dmui-icon-comparison")
+    set_dependir(".LinkConf/xmake/dmui-icon-comparison/deps")
+
+    add_files("tools/icon-comparison/NativeBridge.cpp")
+    add_includedirs(
+        "tests",
+        "Depends/commonlibf4/lib/dearmoddingui-api/include",
+        "Depends/nlohmann-json/single_include"
+    )
+end)
+
 target("dmui-preview", function()
     set_kind("binary")
     configure_dmui_target()

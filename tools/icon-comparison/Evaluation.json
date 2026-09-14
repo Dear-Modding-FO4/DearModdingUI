@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "host_revision": "d034b47634db8abea018cbd5b5616eb85b254c25",
+  "commonlib_revision": "5c923bd44c7971b55f50b380d9b867a95a271bb5",
+  "api_revision": "c8dc8fba311875a559f94d87dda2de0c1f8008b3",
+  "embedding_threshold": 0.85,
+  "embedding_margin": 0.02,
+  "embedding_threads": 1,
+  "embedding_instruction": null,
+  "query_template": "{heading} Context: {context} (omit Context when empty)",
+  "catalog_template": "{canonical words}. Related terms: {sorted unique exported terms}.",
+  "threshold_policy": "Development-only sweep; maximize issued fallback candidates on nonnegative headings subject to zero issued matches on declared negative controls. Break equal coverage toward the higher threshold and margin. This calibrates abstention, not accuracy; positive acceptability remains pending Kuz review. No held-out tuning.",
+  "threshold_policy_reason": "Development raw suggestions exposed incomplete positive shortlists (for example grains for Nourishment, ear for Acoustics, and plugs for Receptacles). Kuz was unavailable to adjudicate. Do not treat those unconfirmed lists as definitive wrong-answer labels. The score grid covers the observed development score range; held-out output has not informed it.",
+  "threshold_grid": [0.5, 0.55, 0.6, 0.62, 0.64, 0.66, 0.68, 0.7, 0.72, 0.74, 0.76, 0.78, 0.8, 0.82, 0.85, 0.9, 0.95, 1.0],
+  "margin_grid": [0.0, 0.01, 0.02, 0.04, 0.08],
+  "cold_processes": 10,
+  "warm_repetitions": 3,
+  "warmup_queries": 10,
+  "judgment_status": "pending_Kuz_review",
+  "download_limit_bytes": 250000000,
+  "artifact_limit_bytes": 1073741824
+}

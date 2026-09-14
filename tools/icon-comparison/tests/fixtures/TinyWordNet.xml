@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Authored test data dedicated to the public domain under CC0-1.0. -->
+<LexicalResource xmlns:dc="https://globalwordnet.github.io/schemas/dc/">
+  <Lexicon id="tiny-en" label="Tiny authored test wordnet" language="en"
+           email="nobody@example.invalid"
+           license="https://creativecommons.org/publicdomain/zero/1.0/"
+           version="1.0" url="https://example.invalid/"
+           citation="Authored test fixture">
+    <LexicalEntry id="tiny-car">
+      <Lemma writtenForm="car" partOfSpeech="n"/>
+      <Sense id="tiny-car-1" synset="tiny-s-car"/>
+    </LexicalEntry>
+    <LexicalEntry id="tiny-automobile">
+      <Lemma writtenForm="automobile" partOfSpeech="n"/>
+      <Sense id="tiny-automobile-1" synset="tiny-s-car"/>
+    </LexicalEntry>
+    <LexicalEntry id="tiny-dog">
+      <Lemma writtenForm="dog" partOfSpeech="n"/>
+      <Sense id="tiny-dog-1" synset="tiny-s-dog"/>
+    </LexicalEntry>
+    <LexicalEntry id="tiny-poodle">
+      <Lemma writtenForm="poodle" partOfSpeech="n"/>
+      <Sense id="tiny-poodle-1" synset="tiny-s-poodle"/>
+    </LexicalEntry>
+    <LexicalEntry id="tiny-animal">
+      <Lemma writtenForm="animal" partOfSpeech="n"/>
+      <Sense id="tiny-animal-1" synset="tiny-s-animal"/>
+    </LexicalEntry>
+    <LexicalEntry id="tiny-bank">
+      <Lemma writtenForm="bank" partOfSpeech="n"/>
+      <Sense id="tiny-bank-finance-1" synset="tiny-s-bank-finance"/>
+      <Sense id="tiny-bank-river-1" synset="tiny-s-bank-river"/>
+    </LexicalEntry>
+    <LexicalEntry id="tiny-depository">
+      <Lemma writtenForm="depository" partOfSpeech="n"/>
+      <Sense id="tiny-depository-1" synset="tiny-s-bank-finance"/>
+    </LexicalEntry>
+    <LexicalEntry id="tiny-shore">
+      <Lemma writtenForm="shore" partOfSpeech="n"/>
+      <Sense id="tiny-shore-1" synset="tiny-s-bank-river"/>
+    </LexicalEntry>
+    <LexicalEntry id="tiny-camera">
+      <Lemma writtenForm="camera" partOfSpeech="n"/>
+      <Sense id="tiny-camera-1" synset="tiny-s-camera"/>
+    </LexicalEntry>
+    <LexicalEntry id="tiny-mouse">
+      <Lemma writtenForm="mouse" partOfSpeech="n"/>
+      <Form writtenForm="mice"/>
+      <Sense id="tiny-mouse-1" synset="tiny-s-mouse"/>
+    </LexicalEntry>
+    <LexicalEntry id="tiny-rodent">
+      <Lemma writtenForm="rodent" partOfSpeech="n"/>
+      <Sense id="tiny-rodent-1" synset="tiny-s-mouse"/>
+    </LexicalEntry>
+
+    <Synset id="tiny-s-car" ili="in" partOfSpeech="n">
+      <Definition>a road vehicle with four wheels</Definition>
+    </Synset>
+    <Synset id="tiny-s-poodle" ili="in" partOfSpeech="n">
+      <Definition>a dog with a curly coat</Definition>
+      <SynsetRelation relType="hypernym" target="tiny-s-dog"/>
+    </Synset>
+    <Synset id="tiny-s-dog" ili="in" partOfSpeech="n">
+      <Definition>a domesticated canine animal</Definition>
+      <SynsetRelation relType="hypernym" target="tiny-s-animal"/>
+    </Synset>
+    <Synset id="tiny-s-animal" ili="in" partOfSpeech="n">
+      <Definition>a living organism that can move</Definition>
+    </Synset>
+    <Synset id="tiny-s-bank-finance" ili="in" partOfSpeech="n">
+      <Definition>a financial institution that accepts money deposits</Definition>
+    </Synset>
+    <Synset id="tiny-s-bank-river" ili="in" partOfSpeech="n">
+      <Definition>sloping land beside a river and water</Definition>
+    </Synset>
+    <Synset id="tiny-s-camera" ili="in" partOfSpeech="n">
+      <Definition>equipment used to take photographs</Definition>
+    </Synset>
+    <Synset id="tiny-s-mouse" ili="in" partOfSpeech="n">
+      <Definition>a small rodent</Definition>
+    </Synset>
+  </Lexicon>
+</LexicalResource>

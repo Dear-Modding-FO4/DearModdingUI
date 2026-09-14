@@ -27,3 +27,22 @@ The DearModdingUI shell, theme, font roles, cursor behavior, and blur were porte
 Jost and Atkinson Hyperlegible are distributed under the SIL Open Font License 1.1. Their license texts are retained beside the font files as `OFL.txt`; Atkinson Hyperlegible also includes an `UPSTREAM.md` provenance record.
 
 The Phosphor icon font is distributed under the MIT License. Its license and pinned upstream provenance are retained beside the font as `LICENSE` and `UPSTREAM.md`.
+
+## Optional semantic icon comparison
+
+`tools\icon-comparison` acquires dependencies only for the opt-in offline experiment;
+none are included in host or MCM release packages.
+
+Open English WordNet 2025 is developed by the Open English WordNet team from
+Princeton WordNet. Its CC BY 4.0 and Princeton WordNet terms require credit to both.
+The comparison creates a modified local index and displays selected definitions
+and relation paths. The pinned license sources are recorded in
+`tools\icon-comparison\dependencies\Acquisition.json`.
+
+BAAI's BGE-small-en-v1.5 model declares the MIT License. Its pinned model card,
+tokenizer configuration, and FP32 ONNX weights are acquired together. ONNX Runtime
+is MIT-licensed and Hugging Face Tokenizers is Apache-2.0-licensed.
+The complete pinned wheel dependency and license inventory is recorded in
+`tools\icon-comparison\dependencies\Dependencies.json`; original package notices
+are retained in the acquired wheels/environment. Acquired data, weights, and
+runtimes are not committed to this repository.
