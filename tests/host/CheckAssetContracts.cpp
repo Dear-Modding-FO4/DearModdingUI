@@ -194,7 +194,7 @@ namespace vmm_tests
 					}).glyph == acorn,
 				"explicit lookup, direct matches, or plural precedence changed");
 			require(
-				ResolveInferredIconGlyphOrZero("Status Focus Class") ==
+				ResolveInferredIconGlyphOrZero("Census Focus Class") ==
 						char32_t{} &&
 					ResolveInferredIconGlyphOrZero("Acornucopia") ==
 						char32_t{} &&

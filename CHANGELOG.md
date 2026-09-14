@@ -5,6 +5,11 @@ All notable changes to DearModdingUI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Automatic heading icons**: Expanded the authored vocabulary for common interface roles and gameplay sections, including overview, status, assets, character resources, damage, skills, and companions. Specific headings such as Sleep Tuning and Damage Done select their subject rather than incidental search tags. Explicit icon choices and the host ABI are unchanged; clients already using host icon resolution do not need to rebuild.
+
 ## [0.1.2] - 2026-09-11
 
 ### Added
@@ -62,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional `DearModdingUI-MCM` bridge translating legacy MCM JSON configurations.
 - In-game diagnostic test client and standalone desktop UI preview (`dmui-preview`).
 
+[Unreleased]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.2...HEAD
 [0.1.2]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Dear-Modding-FO4/DearModdingUI/releases/tag/v0.1.0
