@@ -2,7 +2,10 @@
 #include <Support/Detours.h>
 
 #include <RE/B/BSInputEventReceiver.h>
+#include <RE/B/BSInputEventUser.h>
+#include <RE/D/DeviceConnectEvent.h>
 #include <RE/H/hkRefPtr.h>
+#include <RE/I/InputEvent.h>
 #include <RE/M/MenuControls.h>
 #include <RE/P/PlayerCamera.h>
 #include <RE/P/PlayerControls.h>
@@ -69,6 +72,27 @@ namespace Addictol::GameInput
 			DearModdingUI::HostSubsystemHealthRegistry()
 		};
 
+		void ObserveMenuInput(
+			RE::MenuControls& a_controls,
+			const RE::InputEvent* a_queueHead)
+		{
+			for (auto* event = a_queueHead; event; event = event->next)
+			{
+				const auto* connection = event->As<RE::DeviceConnectEvent>();
+				for (auto* handler : a_controls.handlers)
+				{
+					if (*event->handled == RE::InputEvent::HANDLED_RESULT::kStop)
+						break;
+					if (!handler->inputEventHandlingEnabled)
+						continue;
+
+					// Device-switch observers use the predicate without accepting game actions.
+					if (handler->ShouldHandleEvent(event) && connection)
+						handler->OnDeviceConnectEvent(connection);
+				}
+			}
+		}
+
 		void PublishRuntimeFailure(InputReceiver a_receiver) noexcept
 		{
 			if (s_runtimeFailureReported.exchange(true, std::memory_order_acq_rel))
@@ -119,6 +143,12 @@ namespace Addictol::GameInput
 
 			const auto decision = DecideInputQueue(
 				s_blocked.load(std::memory_order_acquire));
+			if (decision == InputQueueDecision::kDiscard &&
+				a_receiverKind == InputReceiver::kMenuControls)
+			{
+				ObserveMenuInput(
+					*static_cast<RE::MenuControls*>(a_receiver), a_queueHead);
+			}
 			original(
 				a_receiver,
 				decision == InputQueueDecision::kDiscard ? nullptr : a_queueHead);

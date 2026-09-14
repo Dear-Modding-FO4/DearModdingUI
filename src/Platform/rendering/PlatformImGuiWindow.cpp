@@ -1,5 +1,4 @@
 // CommonLib declarations must precede the Windows SDK macros.
-#include <RE/C/ControlMap.h>
 #include <RE/U/UI.h>
 #include <REX/REX.h>
 
@@ -52,8 +51,6 @@ namespace Addictol::platformImguiDetail
 		std::array<WindowHookRecord, kWindowHookCapacity> s_windowHooks{};
 		std::array<std::atomic<bool>, 256> s_consumedToggleKeys{};
 		std::atomic<bool> s_consumedEscape{ false };
-		bool s_previousIgnoreKeyboardMouse{ false };
-		bool s_inputSuppressed{ false };
 
 		[[nodiscard]] WindowHookRecord* FindWindowHook(
 			HWND a_window) noexcept
@@ -65,33 +62,6 @@ namespace Addictol::platformImguiDetail
 					return std::addressof(record);
 			}
 			return nullptr;
-		}
-
-		void SetGameInputSuppressed(bool a_suppressed) noexcept
-		{
-			auto* controlMap = RE::ControlMap::GetSingleton();
-			if (!controlMap)
-			{
-				if (!a_suppressed)
-					s_inputSuppressed = false;
-				return;
-			}
-			if (a_suppressed)
-			{
-				if (!s_inputSuppressed)
-				{
-					s_previousIgnoreKeyboardMouse =
-						controlMap->ignoreKeyboardMouse;
-					s_inputSuppressed = true;
-				}
-				controlMap->SetIgnoreKeyboardMouse(true);
-			}
-			else if (s_inputSuppressed)
-			{
-				controlMap->SetIgnoreKeyboardMouse(
-					s_previousIgnoreKeyboardMouse);
-				s_inputSuppressed = false;
-			}
 		}
 
 		void RetireWindowHook(
@@ -482,7 +452,6 @@ namespace Addictol::platformImguiDetail
 			std::memory_order_acq_rel);
 		const auto suppress = ShouldSuppressGameInput(active);
 		GameInput::SetBlocked(suppress);
-		SetGameInputSuppressed(suppress);
 		if (previous != active)
 			ResetGameCursorWaitLocked();
 		if (previous == active || !ImGui::GetCurrentContext())

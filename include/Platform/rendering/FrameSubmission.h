@@ -27,9 +27,14 @@ namespace Addictol::ImguiPlatform
 			return Matches(a_attachment) && m_complete;
 		}
 
-		void FinishPresent(PresentAttachmentToken a_attachment, uint32_t a_flags) noexcept
+		void FinishPresent(
+			PresentAttachmentToken a_attachment,
+			uint32_t a_flags,
+			bool a_presentSucceeded) noexcept
 		{
-			if ((a_flags & kPresentTestFlag) == 0 && Matches(a_attachment))
+			if (a_presentSucceeded &&
+				(a_flags & kPresentTestFlag) == 0 &&
+				Matches(a_attachment))
 				Reset();
 		}
 
