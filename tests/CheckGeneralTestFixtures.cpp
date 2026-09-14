@@ -30,12 +30,15 @@ namespace
 		size_t collapsingHeaderCalls{};
 		size_t separatorCalls{};
 		size_t settingsTableCalls{};
+		size_t feedbackCalls{};
 		bool renderSettingsTables{};
 		DMUI_Result resolveResult{ DMUI_RESULT_OK };
 		uint32_t resolvedGlyph{};
+		DMUI_FieldFeedbackSeverity feedbackSeverity{};
 		std::string resolvedExplicitName;
 		std::string resolvedPrimaryMetadata;
 		std::string resolvedSecondaryMetadata;
+		std::string feedbackMessage;
 		std::vector<uint32_t> drawnGlyphs;
 		std::vector<std::string> drawnLabels;
 	};
@@ -164,6 +167,23 @@ namespace
 		return DMUI_RESULT_OK;
 	}
 
+	DMUI_Result DMUI_CALL SetFieldFeedback(
+		DMUI_ClientHandle a_client,
+		const DMUI_FieldFeedback* a_feedback) noexcept
+	{
+		const auto result = DearModdingUI::SettingsTable::SetFieldFeedback(
+			a_client,
+			a_feedback->severity,
+			a_feedback->message ? a_feedback->message : "");
+		if (result != DMUI_RESULT_OK)
+			return result;
+		++s_fixtureHost.feedbackCalls;
+		s_fixtureHost.feedbackSeverity = a_feedback->severity;
+		s_fixtureHost.feedbackMessage =
+			a_feedback->message ? a_feedback->message : "";
+		return result;
+	}
+
 	[[nodiscard]] DMUI_UIAPI& FixtureUIAPI() noexcept
 	{
 		static auto api = [] {
@@ -211,6 +231,7 @@ namespace
 				&DearModdingUI::HostAPIInternal::ApiBeginSettingsRowEx;
 			result.queryUIAPI = &QueryUIAPI;
 			result.resolveIconGlyph = &ResolveIconGlyph;
+			result.setFieldFeedback = &SetFieldFeedback;
 			return result;
 		}();
 		return api;
@@ -222,6 +243,7 @@ namespace
 		auto& api = FixtureAPI();
 		api.structSize = sizeof(api);
 		api.resolveIconGlyph = &ResolveIconGlyph;
+		api.setFieldFeedback = &SetFieldFeedback;
 	}
 }
 
@@ -424,6 +446,141 @@ namespace vmm_tests
 				complete,
 				std::string{ "hidden-label row aborted declarative page rendering: " } +
 					DMUI_ResultToString(drawResult));
+		});
+
+		runner.test("declarative feedback follows visible row state each frame", [] {
+			ResetFixture();
+			s_fixtureHost.renderSettingsTables = true;
+			dmui::Client client{
+				"declarative-feedback",
+				"Declarative Feedback",
+				{ 1, 0 }
+			};
+			require(client.Connect(), "fixture client did not connect");
+
+			bool value{};
+			bool editNotified{};
+			bool feedbackEnabled{ true };
+			size_t editEvents{};
+			size_t feedbackQueries{};
+			ImVec2 controlCenter{};
+			dmui::SettingsPage settings{
+				.groups = {
+					{
+						.id = "content",
+						.settings = {
+							{
+								.id = "shown",
+								.label = "Shown setting",
+								.control = dmui::CheckboxSettingControl{},
+								.defaultValue = false,
+								.binding = dmui::BindSetting(
+									[&] { return value; },
+									[&](bool a_value) {
+										value = a_value;
+										return value;
+									}),
+								.onEdit = [&](const dmui::SettingEditEvent& a_event) {
+									++editEvents;
+									editNotified =
+										value && std::get<bool>(a_event.value);
+								},
+								.resolveFeedback = [&]()
+									-> std::optional<dmui::FieldFeedback> {
+									++feedbackQueries;
+									const auto minimum = ImGui::GetItemRectMin();
+									const auto maximum = ImGui::GetItemRectMax();
+									controlCenter = {
+										(minimum.x + maximum.x) * 0.5f,
+										(minimum.y + maximum.y) * 0.5f
+									};
+									if (!feedbackEnabled)
+										return std::nullopt;
+									return dmui::FieldFeedback{
+										value ?
+											dmui::FieldFeedbackSeverity::kInfo :
+											dmui::FieldFeedbackSeverity::kWarning,
+										value && editNotified ?
+											"Edited after notification" :
+											"Waiting for edit"
+									};
+								}
+							}
+						},
+						.headingMode = dmui::SettingGroup::HeadingMode::kDivider
+					}
+				},
+				.filterOptions = {
+					.showSearch = false,
+					.showModifiedOnly = false
+				}
+			};
+			support::ImGuiTestContext imgui{
+				{ .disableErrorRecovery = true }
+			};
+			const DearModdingUI::UI::Testing::ValidationOverride validation{
+				[](DMUI_ClientHandle) noexcept {
+					return DMUI_RESULT_OK;
+				}
+			};
+			const auto drawFrame =
+				[&](std::optional<bool> a_mouseDown = std::nullopt) {
+					if (a_mouseDown)
+					{
+						auto& io = ImGui::GetIO();
+						io.AddMousePosEvent(controlCenter.x, controlCenter.y);
+						io.AddMouseButtonEvent(
+							ImGuiMouseButton_Left,
+							*a_mouseDown);
+					}
+					imgui.BeginWindow(
+						"##DeclarativeFeedback",
+						{ 60.0f, 60.0f },
+						{ 640.0f, 480.0f });
+					{
+						const DearModdingUI::SettingsTable::ClientCallbackGuard
+							guard{ s_fixtureHost.clientCount };
+						const dmui::ui::detail::ScopedContext uiContext{
+							&FixtureUIAPI(),
+							s_fixtureHost.clientCount
+						};
+						settings.Draw(client);
+					}
+					imgui.EndWindow(true);
+				};
+
+			(void)drawFrame();
+			(void)drawFrame();
+			require(
+				client.LastResult() == DMUI_RESULT_OK &&
+					feedbackQueries == 2 &&
+					s_fixtureHost.feedbackCalls == 2 &&
+					editEvents == 0 &&
+					s_fixtureHost.feedbackMessage == "Waiting for edit",
+				"visible feedback was not refreshed independently of edits");
+
+			(void)drawFrame(true);
+			(void)drawFrame(false);
+			require(
+				value &&
+					editEvents == 1 &&
+					editNotified &&
+					feedbackQueries == 4 &&
+					s_fixtureHost.feedbackCalls == 4 &&
+					s_fixtureHost.feedbackSeverity ==
+						DMUI_FIELD_FEEDBACK_SEVERITY_INFO &&
+					s_fixtureHost.feedbackMessage == "Edited after notification",
+				"feedback did not observe the accepted edit and notification");
+
+			feedbackEnabled = false;
+			drawFrame();
+			require(
+				client.LastResult() == DMUI_RESULT_OK &&
+					feedbackQueries == 5 &&
+					s_fixtureHost.feedbackCalls == 4,
+				"null feedback was submitted instead of clearing the frame");
+
+			ResetFixture();
 		});
 
 		runner.test("declarative groups resolve current labels at draw time", [] {
