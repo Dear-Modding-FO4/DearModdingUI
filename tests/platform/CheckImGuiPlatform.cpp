@@ -34,17 +34,22 @@ namespace vmm_tests
 			frame.Complete(first);
 			require(frame.Submitted(first) && !frame.Claim(first),
 				"Present could draw again after the native draw closed the modal");
-			frame.FinishPresent(first, kPresentTestFlag);
-			frame.FinishPresent({ 12, 7 }, 0);
-			require(!frame.Claim(first),
-				"test or unrelated Present released the active frame");
-			require(frame.Claim(rebound), "new attachment generation inherited an old submission");
+			frame.FinishPresent(first, kPresentTestFlag, true);
+			frame.FinishPresent(first, 0, false);
+			frame.FinishPresent({ 12, 7 }, 0, true);
+			require(frame.Submitted(first) && !frame.Claim(first),
+				"test, failed, or unrelated Present released the active frame");
+			frame.FinishPresent(first, 0, true);
+			require(frame.Claim(first),
+				"a successful Present did not release the next frame");
+			require(frame.Claim(rebound),
+				"new attachment generation inherited an old submission");
 			frame.Complete(first);
-			frame.FinishPresent(first, 0);
+			frame.FinishPresent(first, 0, true);
 			require(!frame.Submitted(rebound) && !frame.Claim(rebound),
 				"stale draw or Present changed the new attachment's frame");
 			frame.Complete(rebound);
-			frame.FinishPresent(rebound, 0);
+			frame.FinishPresent(rebound, 0, true);
 			require(frame.Claim(rebound), "real Present did not release the next frame");
 			frame.Reset();
 			require(frame.Claim(rebound), "renderer retirement did not discard its submission");

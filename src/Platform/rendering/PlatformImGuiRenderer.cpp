@@ -634,7 +634,10 @@ namespace Addictol::platformImguiDetail
 			if (presented.Valid())
 			{
 				const ContextLock lock;
-				context.frameSubmission.FinishPresent(presented, a_flags);
+				context.frameSubmission.FinishPresent(
+					presented,
+					a_flags,
+					SUCCEEDED(result));
 			}
 			if (presented.Valid() &&
 				ObservesDisplayedFrame(
