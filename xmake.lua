@@ -19,7 +19,7 @@ local function copy_mcm_fixture_data(destination, build_os)
         "MCM/Config/DMUITests/keybinds.json"
     }) do
         if not build_os.isfile(path.join(source, required)) then
-            raise("missing MCM test fixture %s; see tools/test-client/fixture-builder", required)
+            raise("missing checked-in MCM test fixture: %s", path.join(source, required))
         end
     end
     build_os.mkdir(destination)

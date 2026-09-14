@@ -21,4 +21,4 @@ Builds never install anything, and packages never include generated user MCM
 settings or keybinds.
 
 Fixture data: `tools\shared\fixtures\mcm\data`.
-[Regenerate the checked-in ESP/PEX files](fixture-builder/README.md).
+Papyrus sources: `tools\shared\fixtures\mcm\scripts`.
