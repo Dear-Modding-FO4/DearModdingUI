@@ -228,7 +228,8 @@ namespace vmm_tests
 					false,
 					0.75f,
 					1.75f,
-					"Atkinson Hyperlegible"
+					"Atkinson Hyperlegible",
+					"F11"
 				},
 				HostInterfaceSettings{
 					Theme::IconColorMode::kColored,
@@ -341,13 +342,19 @@ namespace vmm_tests
 
 			std::ofstream(path)
 				<< "[Additional]\n"
-				<< "sMenuToggleKey = \"End\"\n"
+				<< "sMenuToggleKey = \"F11\"\n"
 				<< "sMenuSidebarLayout = \"tree\"\n";
 			loaded = LoadHostInterfaceSettings(path);
+			const auto toggleKey = ParseMenuToggleKey(loaded.settings.menuToggleKey);
 			require(
 				loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
-					loaded.settings.menuToggleKey == "End",
+					loaded.settings.menuToggleKey == "F11" &&
+					toggleKey.recognized && toggleKey.virtualKey == 0x7A,
 				"a valid host config did not report loaded");
+			require(
+				DecideMenuToggle(0x7A, toggleKey.virtualKey, false, true).open &&
+					!DecideMenuToggle(0x23, toggleKey.virtualKey, false, true).matched,
+				"the loaded F11 binding did not replace End for opening the menu");
 
 			std::ofstream(path, std::ios::trunc)
 				<< "[Additional\n";
