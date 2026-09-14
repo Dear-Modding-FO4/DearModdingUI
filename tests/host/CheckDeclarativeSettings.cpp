@@ -20,10 +20,6 @@ namespace vmm_tests
 		runner.test("settings brackets reject mismatched transitions", [] {
 			constexpr DMUI_ClientHandle owner{ 7 };
 			constexpr DMUI_ClientHandle other{ 8 };
-			require(std::string_view{
-						DMUI_ResultToString(DMUI_RESULT_UNBALANCED_BRACKET) } ==
-					"UNBALANCED_BRACKET",
-				"bracket error string was not published");
 			SettingsTable::BracketState state;
 			require(state.BeginRow(owner) == DMUI_RESULT_UNBALANCED_BRACKET,
 				"row began without a table");

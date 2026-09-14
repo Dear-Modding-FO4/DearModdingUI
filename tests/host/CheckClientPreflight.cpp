@@ -288,10 +288,6 @@ namespace vmm_tests
 			require(dmui::PreflightHostAPI(&api, options) ==
 						DMUI_RESULT_SERVICE_UNAVAILABLE &&
 					s_mockRegistrations == 0,
-				"release metadata incorrectly gated host ABI preflight");
-			require(dmui::PreflightHostAPI(&api, options) ==
-						DMUI_RESULT_SERVICE_UNAVAILABLE &&
-					s_mockRegistrations == 0,
 				"missing queryServices reached client registration");
 			api.queryServices = &MockQueryServices;
 			api.queryUIAPI = &MockQueryUIAPI;

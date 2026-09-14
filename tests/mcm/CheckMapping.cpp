@@ -7,7 +7,6 @@
 #include <stdexcept>
 #include <string>
 #include <tuple>
-#include <unordered_set>
 #include <vector>
 
 namespace vmm_tests
@@ -17,51 +16,55 @@ namespace vmm_tests
 
 	void run_mcm_mapping_structure_checks(Runner& runner)
 	{
-		runner.test("MCM synthetic config preserves page and group structure", [] {
-			const auto result = ParseConfig(
-				kSyntheticConfig,
-				"synthetic-config.json");
+		runner.test("MCM mapping preserves root and group boundaries", [] {
+			const auto result = ParseConfig(R"json({
+				"modName":"Structure",
+				"displayName":"Structure",
+				"content":[
+					{"id":"shared","type":"section","text":"Primary"},
+					{"id":"first","type":"text","text":"First"},
+					{"id":"shared","type":"section","text":"Secondary"},
+					{"id":"second","type":"text","text":"Second"}
+				],
+				"pages":[{
+					"id":"advanced",
+					"pageDisplayName":"Advanced",
+					"content":[
+						{"id":"shared","type":"section","text":"Advanced"},
+						{"id":"third","type":"text","text":"Third"}
+					]
+				}]
+			})json", "mapping-structure.json");
 			require(result.configuration.has_value(),
-				"synthetic configuration did not parse");
+				"mapping structure fixture did not parse");
 			require(ErrorCount(result) == 0,
-				"synthetic configuration produced parse errors: " +
+				"mapping structure fixture produced parse errors: " +
 					ErrorMessages(result));
-			require(result.configuration->modName == "ExampleMod" &&
-					result.configuration->minimumMcmVersion ==
-						std::optional<int64_t>{ 3 } &&
-					result.configuration->displayName == "$EXAMPLE_MENU" &&
-					result.configuration->pluginRequirements ==
-						std::vector<std::string>{
-							"ExampleCore.esm",
-							"SampleWorld.esp" },
-				"synthetic top-level metadata changed");
-			require(result.pages.size() == 3 &&
-					result.configuration->pages.front().root &&
-					result.configuration->pages.front().id == "main",
-				"synthetic root or page structure changed");
-
-			const std::array<size_t, 3> groups{ 2, 2, 2 };
-			const std::array<size_t, 3> settings{ 1, 6, 1 };
-			for (size_t index = 0; index < result.pages.size(); ++index)
-			{
-				require(result.pages[index].settings.groups.size() == groups[index],
-					"synthetic group shape changed");
-				require(DescriptorCount(result.pages[index]) == settings[index],
-					"synthetic descriptor shape changed");
-				std::unordered_set<std::string> ids;
-				for (const auto& group : result.pages[index].settings.groups)
-					require(ids.insert(group.id).second,
-						"duplicate group id survived mapping");
-			}
+			require(result.pages.size() == 2 &&
+					result.configuration->pages[0].root &&
+					result.pages[0].id == "main" &&
+					!result.configuration->pages[1].root &&
+					result.pages[1].id == "advanced",
+				"root and named page ordering changed");
+			const auto& rootGroups = result.pages[0].settings.groups;
 			require(
-				result.pages.front().settings.groups.front().label ==
-					"$EXAMPLE_ROOT_SECTION",
-				"synthetic root section label changed");
-			require(result.pages.front().settings.groups[0].id ==
-						"introduction" &&
-					result.pages.front().settings.groups[1].id ==
-						"introduction-2",
-				"duplicate synthetic group ids were not uniqued");
+				rootGroups.size() == 2 &&
+					rootGroups[0].id == "shared" &&
+					rootGroups[0].label == "Primary" &&
+					rootGroups[0].settings.size() == 1 &&
+					rootGroups[0].settings.front().id == "first" &&
+					rootGroups[1].id == "shared-2" &&
+					rootGroups[1].label == "Secondary" &&
+					rootGroups[1].settings.size() == 1 &&
+					rootGroups[1].settings.front().id == "second",
+				"duplicate group ids or section boundaries changed");
+			require(
+				result.pages[1].settings.groups.size() == 1 &&
+					result.pages[1].settings.groups.front().id == "shared" &&
+					result.pages[1].settings.groups.front().settings.size() == 1 &&
+					result.pages[1].settings.groups.front().settings.front().id ==
+						"third",
+				"group identity leaked across page boundaries");
 		});
 
 		runner.test("MCM synthetic config maps controls ranges and labels", [] {

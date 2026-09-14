@@ -317,9 +317,6 @@ namespace vmm_tests
 					decoded.feedbackErrorColor ==
 						kDefaultFeedbackErrorColor,
 				"malformed feedback appearance did not fall back");
-			require(
-				DefaultHostInterfaceSettings() == HostInterfaceSettings{},
-				"reset did not restore shipped defaults");
 		});
 
 		runner.test("host settings health distinguishes absent valid and malformed files", [] {

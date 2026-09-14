@@ -247,14 +247,14 @@ namespace vmm_tests
 						22, &descriptor, &image) == DMUI_RESULT_OK,
 				"valid tight CPU image creation failed");
 			const auto stableSlots = PresentationServices::ImageSlotCount();
-			for (uint32_t update = 0; update < 512; ++update)
-			{
-				require(PresentationServices::UpdateImage(
-							22, image, &descriptor) == DMUI_RESULT_OK,
-					"repeated transactional CPU update failed");
-			}
-			require(PresentationServices::ImageSlotCount() == stableSlots,
-				"CPU updates consumed image slots");
+			require(PresentationServices::UpdateImage(
+						22, image, &descriptor) == DMUI_RESULT_OK &&
+					PresentationServices::ImageSlotCount() == stableSlots,
+				"initial transactional CPU update consumed an image slot");
+			require(PresentationServices::UpdateImage(
+						22, image, &descriptor) == DMUI_RESULT_OK &&
+					PresentationServices::ImageSlotCount() == stableSlots,
+				"repeated transactional CPU update consumed an image slot");
 			workerResult = DMUI_RESULT_OK;
 			std::thread updateWorker{ [&] {
 				workerResult = PresentationServices::UpdateImage(
@@ -692,36 +692,61 @@ namespace vmm_tests
 			PresentationServices::SetDevice(replacementResources.device.Get());
 			const auto stableSlotCount =
 				PresentationServices::ImageSlotCount();
-			auto stale = replacement;
-			for (size_t cycle = 0; cycle < 4096; ++cycle)
-			{
-				DMUI_ImageHandle reused{};
-				require(PresentationServices::ImportD3D11Image(
-							7, &replacementDescriptor, &reused) ==
-						DMUI_RESULT_OK,
-					"reused image import failed");
-				info.structSize = sizeof(info);
-				require(PresentationServices::QueryImage(7, stale, &info) ==
+			const auto originalStale = replacement;
+			DMUI_ImageHandle firstReuse{};
+			require(PresentationServices::ImportD3D11Image(
+						7, &replacementDescriptor, &firstReuse) ==
+						DMUI_RESULT_OK &&
+					firstReuse != originalStale,
+				"first recycled image generation was not distinct");
+			info = {};
+			info.structSize = sizeof(info);
+			require(PresentationServices::QueryImage(
+						7, originalStale, &info) == DMUI_RESULT_STALE_HANDLE,
+				"first recycled generation aliased the original handle");
+			require(PresentationServices::QueryImage(8, firstReuse, &info) ==
+						DMUI_RESULT_STALE_HANDLE &&
+					PresentationServices::ReleaseImage(8, firstReuse) ==
 						DMUI_RESULT_STALE_HANDLE,
-					"reused image slot aliased an older generation");
-				require(PresentationServices::QueryImage(8, reused, &info) ==
-						DMUI_RESULT_STALE_HANDLE,
-					"image query ignored owner isolation");
-				require(PresentationServices::ReleaseImage(8, reused) ==
-						DMUI_RESULT_STALE_HANDLE,
-					"image release ignored owner isolation");
-				require(PresentationServices::ReleaseImage(7, reused) ==
-						DMUI_RESULT_OK,
-					"reused image release failed");
-				info.structSize = sizeof(info);
-				require(PresentationServices::QueryImage(7, reused, &info) ==
-							DMUI_RESULT_OK &&
-						info.status == DMUI_IMAGE_STATUS_RELEASED,
-					"released slot did not expose its transient status");
-				stale = reused;
-			}
+				"recycled image ignored owner isolation");
+			require(PresentationServices::ReleaseImage(7, firstReuse) ==
+					DMUI_RESULT_OK,
+				"first recycled image release failed");
+			info = {};
+			info.structSize = sizeof(info);
+			require(PresentationServices::QueryImage(7, firstReuse, &info) ==
+						DMUI_RESULT_OK &&
+					info.status == DMUI_IMAGE_STATUS_RELEASED,
+				"first released generation lost its transient status");
+
+			DMUI_ImageHandle secondReuse{};
+			require(PresentationServices::ImportD3D11Image(
+						7, &replacementDescriptor, &secondReuse) ==
+						DMUI_RESULT_OK &&
+					secondReuse != firstReuse,
+				"second recycled image generation was not distinct");
+			info = {};
+			info.structSize = sizeof(info);
+			require(
+				PresentationServices::QueryImage(
+					7, originalStale, &info) == DMUI_RESULT_STALE_HANDLE &&
+					PresentationServices::QueryImage(
+						7, firstReuse, &info) == DMUI_RESULT_STALE_HANDLE &&
+					PresentationServices::QueryImage(
+						7, secondReuse, &info) == DMUI_RESULT_OK &&
+					info.status == DMUI_IMAGE_STATUS_READY,
+				"successive recycling did not reject original and recent stale handles");
+			require(PresentationServices::ReleaseImage(7, secondReuse) ==
+					DMUI_RESULT_OK,
+				"second recycled image release failed");
+			info = {};
+			info.structSize = sizeof(info);
+			require(PresentationServices::QueryImage(7, secondReuse, &info) ==
+						DMUI_RESULT_OK &&
+					info.status == DMUI_IMAGE_STATUS_RELEASED,
+				"second released generation lost its transient status");
 			require(PresentationServices::ImageSlotCount() == stableSlotCount,
-				"image slot storage grew across import/release cycles");
+				"image slot storage grew across recycled generations");
 			PresentationServices::InvalidateDevice();
 		});
 

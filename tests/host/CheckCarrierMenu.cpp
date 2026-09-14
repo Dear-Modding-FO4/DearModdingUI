@@ -31,11 +31,6 @@ namespace vmm_tests
 					modal.drawSoftwareCursor &&
 					!modal.drawCustomCursor,
 				"modal drawing did not own exactly one software cursor");
-			require(
-				static_cast<uint32_t>(modal.drawSoftwareCursor) +
-						static_cast<uint32_t>(modal.drawCustomCursor) ==
-					1,
-				"the modal host did not present exactly one cursor");
 
 			require(DecideCursorTransition(false, true) ==
 					CursorOwnershipTransition::kAcquire,

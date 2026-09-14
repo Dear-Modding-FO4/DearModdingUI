@@ -17,34 +17,41 @@ namespace vmm_tests
 
 	void run_mcm_parsing_checks(Runner& runner)
 	{
-		runner.test("MCM LoadConfig reads a synthetic temporary file", [] {
+		runner.test("MCM LoadConfig reads a minimal temporary file", [] {
 			const auto path = TemporaryConfigPath("load-success");
 			const TemporaryFileCleanup cleanup{ path };
 			{
 				std::ofstream file(path, std::ios::binary);
 				require(file.is_open(),
 					"temporary MCM configuration could not be created");
-				file << kSyntheticConfig;
+				file << R"json({
+					"modName":"FileFixture",
+					"displayName":"$FILE_TITLE",
+					"content":[
+						{"id":"summary","type":"text","text":"Loaded from disk"}
+					]
+				})json";
 				require(file.good(),
 					"temporary MCM configuration could not be written");
 			}
 
 			const auto result = LoadConfig(path);
 			require(result.configuration &&
-					result.configuration->modName == "ExampleMod" &&
-					result.pages.size() == 3 &&
+					result.configuration->modName == "FileFixture" &&
+					result.pages.size() == 1 &&
+					DescriptorCount(result.pages.front()) == 1 &&
 					ErrorCount(result) == 0,
 				"temporary MCM configuration did not load");
 			const auto localized = LoadConfig(
 				path,
 				[](std::string_view a_key) -> std::optional<std::string> {
-					return a_key == "$EXAMPLE_MENU" ?
+					return a_key == "$FILE_TITLE" ?
 						std::optional<std::string>{ "Localized file title" } :
 						std::optional<std::string>{ std::string{ a_key } };
 				});
 			require(localized.pages.front().displayName ==
 						"Localized file title" &&
-					localized.configuration->displayName == "$EXAMPLE_MENU",
+					localized.configuration->displayName == "$FILE_TITLE",
 				"LoadConfig did not thread display localization");
 
 			const auto missingPath = TemporaryConfigPath("does-not-exist");

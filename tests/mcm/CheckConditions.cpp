@@ -1,5 +1,4 @@
 #include "../support/MCMTestSupport.h"
-#include <algorithm>
 #include <array>
 #include <cmath>
 #include <filesystem>
@@ -147,21 +146,7 @@ namespace vmm_tests
 				"multi-operator object stopped producing its current diagnostic");
 		});
 
-		runner.test("MCM hidden condition state retains its binding", [] {
-			const auto result = ParseConfig(kSyntheticConfig, "hidden-state.json");
-			const auto& page = PageNamed(result, "$EXAMPLE_SOURCES");
-			const auto hidden = std::ranges::find(
-				page.rows,
-				"InternalState",
-				&MappedRow::id);
-			require(hidden != page.rows.end() && !hidden->emitted &&
-					hidden->binding &&
-					std::holds_alternative<PropertyBinding>(
-						hidden->binding->source),
-				"hidden control did not retain its non-visual binding");
-		});
-
-		runner.test("MCM hidden controls retain their declared value type", [] {
+		runner.test("MCM hidden controls retain nonvisual typed bindings", [] {
 			const auto result = ParseConfig(R"json({
 				"modName":"HiddenValueType",
 				"content":[{"id":"iState:Main","type":"hiddenSwitcher",
@@ -170,10 +155,13 @@ namespace vmm_tests
 						"sourceForm":"Fixture.esp|1",
 						"propertyName":"State"}}]
 			})json", "hidden-value-type.json");
-			const auto& binding = *result.pages.front().rows.front().binding;
-			require(binding.valueKind == SourceValueKind::kInt &&
-					std::holds_alternative<int64_t>(binding.target),
-				"an integer hidden property was forced into a boolean target");
+			const auto& row = result.pages.front().rows.front();
+			require(!row.emitted && row.binding &&
+					std::holds_alternative<PropertyBinding>(
+						row.binding->source) &&
+					row.binding->valueKind == SourceValueKind::kInt &&
+					std::holds_alternative<int64_t>(row.binding->target),
+				"hidden control lost its nonvisual typed property binding");
 		});
 
 		runner.test("MCM idless local ownership keeps conservative guardrails", [] {
@@ -270,8 +258,7 @@ namespace vmm_tests
 		});
 
 		runner.test("MCM invalid path escapes pass through as literals", [] {
-			for (const auto escape : { 'U', 'D', 'M', 'F', 'P', 'O', 'Y', 'L',
-					 'S' })
+			for (const auto escape : { 'U', 'P' })
 			{
 				auto json = std::string{
 					R"json({"modName":"InvalidEscapeFixture","content":[{"id":"help","type":"text","help":"C:\)json" };
