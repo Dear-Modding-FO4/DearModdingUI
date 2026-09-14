@@ -57,6 +57,41 @@ namespace vmm_tests
 				bool a_focusRow = false,
 				bool a_disabled = false)
 			{
+				return RenderFrame(
+					[&] { return DrawSelectableRow(a_options); },
+					a_mouse, a_mouseDown, a_focusRow, a_disabled);
+			}
+
+			RowFrame HeadingFrame(
+				const RuledHeadingOptions& a_options,
+				ImVec2 a_mouse,
+				bool a_mouseDown,
+				bool a_focusRow = false)
+			{
+				return RenderFrame(
+					[&] {
+						DrawRuledHeading(a_options);
+						return RowResult{
+							.rect = { ImGui::GetItemRectMin(), ImGui::GetItemRectMax() }
+						};
+					},
+					a_mouse, a_mouseDown, a_focusRow, false);
+			}
+
+			void Key(ImGuiKey a_key, bool a_down)
+			{
+				ImGui::GetIO().AddKeyEvent(a_key, a_down);
+			}
+
+		private:
+			template <class Draw>
+			RowFrame RenderFrame(
+				Draw a_draw,
+				ImVec2 a_mouse,
+				bool a_mouseDown,
+				bool a_focusRow,
+				bool a_disabled)
+			{
 				auto& io = ImGui::GetIO();
 				io.AddMousePosEvent(a_mouse.x, a_mouse.y);
 				io.AddMouseButtonEvent(ImGuiMouseButton_Left, a_mouseDown);
@@ -70,7 +105,7 @@ namespace vmm_tests
 				ImGui::SetCursorScreenPos({ 20.0f, 40.0f });
 				if (a_disabled)
 					ImGui::BeginDisabled();
-				const auto row = DrawSelectableRow(a_options);
+				const auto row = a_draw();
 				RowFrame result{
 					.row = row,
 					.hovered = ImGui::IsItemHovered(),
@@ -122,12 +157,6 @@ namespace vmm_tests
 				return result;
 			}
 
-			void Key(ImGuiKey a_key, bool a_down)
-			{
-				ImGui::GetIO().AddKeyEvent(a_key, a_down);
-			}
-
-		private:
 			support::ImGuiTestContext m_imgui{
 				{
 					.displaySize = { 640.0f, 360.0f },
@@ -231,20 +260,9 @@ namespace vmm_tests
 		runner.test(
 			"collapsible row hover remains owned by the full row",
 			[] {
-				struct Case
-				{
-					RowHighlightStyle highlight;
-					RowClickBehavior click;
-				};
 				constexpr std::array cases{
-					Case{
-						RowHighlightStyle::kSelectable,
-						RowClickBehavior::kSelect
-					},
-					Case{
-						RowHighlightStyle::kRoundedFill,
-						RowClickBehavior::kToggle
-					}
+					RowHighlightStyle::kSelectable,
+					RowHighlightStyle::kRoundedFill
 				};
 				for (const auto& test : cases)
 				{
@@ -260,8 +278,7 @@ namespace vmm_tests
 							ImGui::GetColorU32(ImGuiCol_Text),
 						.hoveredTextColor =
 							ImGui::GetColorU32(ImGuiCol_Text),
-						.highlightStyle = test.highlight,
-						.clickBehavior = test.click
+						.highlightStyle = test
 					};
 					const auto initial = ui.Frame(
 						options,
@@ -279,71 +296,116 @@ namespace vmm_tests
 			});
 
 		runner.test(
-			"selectable collapsible row routes press origin without overlap",
+			"expandable rows share whole-row mouse keyboard and disabled behavior",
 			[] {
+				for (const auto highlight :
+					{ RowHighlightStyle::kSelectable, RowHighlightStyle::kRoundedFill })
+				{
+					InteractiveRow ui;
+					bool expanded{};
+					const RowOptions options{
+						.id = "ExpandableRow",
+						.label = "Expandable row",
+						.selected = true,
+						.leadingAffordance = RowLeadingAffordance::kArrow,
+						.expanded = &expanded,
+						.textColor = ImGui::GetColorU32(ImGuiCol_Text),
+						.hoveredTextColor = ImGui::GetColorU32(ImGuiCol_Text),
+						.highlightStyle = highlight
+					};
+					const auto initial = ui.Frame(
+						options, { -100.0f, -100.0f }, false);
+					const auto arrow = ArrowPoint(initial.row.rect);
+					const auto label = LabelPoint(initial.row.rect);
+					(void)ui.Frame(options, arrow, false);
+					const auto arrowDown = ui.Frame(options, arrow, true);
+					require(arrowDown.active && !expanded,
+						"row toggled before release or did not own the press");
+					const auto arrowRelease = ui.Frame(options, arrow, false);
+					require(expanded && arrowRelease.row.pressed,
+						"arrow click did not activate and expand the row");
+
+					for (const auto expected : { false, true })
+					{
+						(void)ui.Frame(options, label, false);
+						(void)ui.Frame(options, label, true);
+						const auto released = ui.Frame(options, label, false);
+						require(released.row.pressed && expanded == expected,
+							"label clicks did not collapse and reopen the row");
+					}
+
+					(void)ui.Frame(options, arrow, true);
+					require(ui.Frame(options, label, false).row.pressed && !expanded,
+						"arrow-to-label release did not stay within the same row");
+					(void)ui.Frame(options, label, true);
+					require(ui.Frame(options, arrow, false).row.pressed && expanded,
+						"label-to-arrow release did not stay within the same row");
+
+					(void)ui.Frame(options, arrow, true);
+					require(
+						!ui.Frame(options, { 600.0f, 300.0f }, false).row.pressed &&
+							expanded,
+						"release outside the row did not cancel the toggle");
+
+					for (const auto key : { ImGuiKey_Enter, ImGuiKey_Space })
+					{
+						const auto before = expanded;
+						(void)ui.Frame(options, arrow, false, true);
+						ui.Key(key, true);
+						const auto keyboard = ui.Frame(options, arrow, false);
+						ui.Key(key, false);
+						(void)ui.Frame(options, arrow, false);
+						require(keyboard.row.pressed && expanded != before,
+							"keyboard activation did not toggle the whole row");
+					}
+
+					const auto before = expanded;
+					(void)ui.Frame(options, arrow, true, false, true);
+					const auto disabledRelease =
+						ui.Frame(options, arrow, false, false, true);
+					require(!disabledRelease.row.pressed && expanded == before,
+						"disabled row accepted a toggle");
+					(void)ui.Frame(options, arrow, false, true, true);
+					ui.Key(ImGuiKey_Enter, true);
+					const auto disabledKeyboard = ui.Frame(options, arrow, false, false, true);
+					ui.Key(ImGuiKey_Enter, false);
+					(void)ui.Frame(options, arrow, false, false, true);
+					require(!disabledKeyboard.row.pressed && expanded == before,
+						"disabled row accepted keyboard activation");
+				}
+			});
+
+		runner.test("leading and centered headings share expansion interaction", [] {
+			for (const auto layout :
+				{ RuledHeadingLayout::kLeadingRow, RuledHeadingLayout::kCentered })
+			{
 				InteractiveRow ui;
 				bool expanded{};
-				const RowOptions options{
-					.id = "SelectableCollapsibleRow",
-					.label = "Selectable collapsible row",
-					.leadingAffordance = RowLeadingAffordance::kArrow,
+				const RuledHeadingOptions options{
+					.key = "SharedHeading",
+					.text = "Shared heading",
 					.expanded = &expanded,
-					.textColor = ImGui::GetColorU32(ImGuiCol_Text),
-					.hoveredTextColor =
-						ImGui::GetColorU32(ImGuiCol_Text)
+					.layout = layout
 				};
-				const auto initial = ui.Frame(
-					options,
-					{ -100.0f, -100.0f },
-					false);
-				const auto arrow = ArrowPoint(initial.row.rect);
-				const auto label = LabelPoint(initial.row.rect);
-
-				(void)ui.Frame(options, arrow, false);
-				const auto arrowDown = ui.Frame(options, arrow, true);
-				require(
-					arrowDown.active,
-					"arrow press did not activate the full row");
-				const auto arrowRelease = ui.Frame(options, arrow, false);
-				require(
-					expanded && !arrowRelease.row.pressed,
-					"arrow click did not toggle without selecting");
-
-				(void)ui.Frame(options, label, true);
-				const auto labelRelease = ui.Frame(options, label, false);
-				require(
-					labelRelease.row.pressed && expanded,
-					"label click did not select without toggling");
-
-				(void)ui.Frame(options, arrow, true);
-				const auto crossedFromArrow =
-					ui.Frame(options, label, false);
-				require(
-					!crossedFromArrow.row.pressed && expanded,
-					"arrow-to-label release was not canceled");
-
-				(void)ui.Frame(options, label, true);
-				const auto crossedFromLabel =
-					ui.Frame(options, arrow, false);
-				require(
-					!crossedFromLabel.row.pressed && expanded,
-					"label-to-arrow release was not canceled");
-
-				(void)ui.Frame(options, arrow, false, true);
+				(void)ui.HeadingFrame(options, { -100.0f, -100.0f }, false);
+				const auto initial = ui.HeadingFrame(
+					options, { -100.0f, -100.0f }, false);
+				const auto point = initial.row.rect.GetCenter();
+				for (const auto expected : { true, false, true })
+				{
+					(void)ui.HeadingFrame(options, point, false);
+					(void)ui.HeadingFrame(options, point, true);
+					(void)ui.HeadingFrame(options, point, false);
+					require(expanded == expected,
+						"heading layout changed whole-row toggle behavior");
+				}
+				(void)ui.HeadingFrame(options, point, false, true);
 				ui.Key(ImGuiKey_Enter, true);
-				const auto keyboard = ui.Frame(options, arrow, false);
+				(void)ui.HeadingFrame(options, point, false);
 				ui.Key(ImGuiKey_Enter, false);
-				(void)ui.Frame(options, arrow, false);
-				require(
-					keyboard.row.pressed && expanded,
-					"keyboard activation followed parked mouse position");
-
-				(void)ui.Frame(options, arrow, true, false, true);
-				const auto disabledRelease =
-					ui.Frame(options, arrow, false, false, true);
-				require(
-					!disabledRelease.row.pressed && expanded,
-					"disabled collapsible row accepted input");
-			});
+				(void)ui.HeadingFrame(options, point, false);
+				require(!expanded, "heading ignored keyboard expansion");
+			}
+		});
 	}
 }

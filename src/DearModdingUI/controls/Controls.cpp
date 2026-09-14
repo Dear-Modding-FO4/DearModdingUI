@@ -28,6 +28,27 @@ namespace DearModdingUI
 			return (std::max)((a_height - a_contentHeight) * 0.5f, 0.0f);
 		}
 
+		[[nodiscard]] bool DrawRowInteraction(
+			const char* a_id,
+			const ImVec2& a_size,
+			RowHighlightStyle a_highlight,
+			bool a_selected,
+			bool* a_expanded) noexcept
+		{
+			const auto pressed = a_highlight == RowHighlightStyle::kSelectable ?
+				ImGui::Selectable(
+					a_id,
+					a_selected,
+					a_expanded ?
+						ImGuiSelectableFlags_NoAutoClosePopups :
+						ImGuiSelectableFlags_None,
+					a_size) :
+				ImGui::InvisibleButton(a_id, a_size, ImGuiButtonFlags_EnableNav);
+			if (pressed && a_expanded)
+				*a_expanded = !*a_expanded;
+			return pressed;
+		}
+
 		void DrawIcon(
 			ImDrawList* a_drawList,
 			char32_t a_glyph,
@@ -403,10 +424,6 @@ namespace DearModdingUI
 			return {};
 		const auto height =
 			a_options.height > 0.0f ? a_options.height : ImGui::GetFrameHeight();
-		const auto splitArrow =
-			a_options.leadingAffordance == RowLeadingAffordance::kArrow &&
-			a_options.expanded &&
-			a_options.clickBehavior == RowClickBehavior::kSelect;
 		ImGui::PushID(a_options.id);
 		if (a_options.flushHorizontalHighlight)
 		{
@@ -418,73 +435,16 @@ namespace DearModdingUI
 			(std::max)(ImGui::GetContentRegionAvail().x, 0.0f),
 			height
 		};
-		auto pressed =
-			a_options.highlightStyle == RowHighlightStyle::kSelectable ?
-			ImGui::Selectable(
-				"##Row",
-				a_options.selected,
-				splitArrow ?
-					ImGuiSelectableFlags_NoAutoClosePopups :
-					ImGuiSelectableFlags_None,
-				size) :
-			ImGui::InvisibleButton("##Row", size);
+		const auto pressed = DrawRowInteraction(
+			"##Row",
+			size,
+			a_options.highlightStyle,
+			a_options.selected,
+			a_options.expanded);
 		const auto hovered = ImGui::IsItemHovered();
 		if (a_options.flushHorizontalHighlight)
 			ImGui::PopStyleVar();
 		const ImRect rect{ ImGui::GetItemRectMin(), ImGui::GetItemRectMax() };
-		auto arrowPressed = false;
-		if (splitArrow)
-		{
-			const auto rowID = ImGui::GetItemID();
-			const auto pressOriginID = window->GetID("##RowPressOrigin");
-			constexpr auto kPressOriginNone = 0;
-			constexpr auto kPressOriginArrow = 1;
-			constexpr auto kPressOriginLabel = 2;
-			const auto slotWidth =
-				ImGui::GetFontSize() +
-				ImGui::GetStyle().FramePadding.x * 2.0f;
-			auto* storage = ImGui::GetStateStorage();
-			if (ImGui::IsItemActivated())
-			{
-				const auto& context = *ImGui::GetCurrentContext();
-				const auto pressOrigin =
-					context.ActiveId == rowID &&
-						context.ActiveIdSource == ImGuiInputSource_Mouse &&
-						context.ActiveIdClickOffset.x < slotWidth ?
-					kPressOriginArrow :
-					context.ActiveIdSource == ImGuiInputSource_Mouse ?
-						kPressOriginLabel :
-						kPressOriginNone;
-				storage->SetInt(pressOriginID, pressOrigin);
-			}
-			if (pressed)
-			{
-				const auto releaseOverArrow =
-					ImGui::GetIO().MousePos.x < rect.Min.x + slotWidth;
-				switch (storage->GetInt(pressOriginID))
-				{
-				case kPressOriginArrow:
-					arrowPressed = releaseOverArrow;
-					pressed = false;
-					break;
-				case kPressOriginLabel:
-					pressed = !releaseOverArrow;
-					break;
-				default:
-					break;
-				}
-			}
-			if (ImGui::IsItemDeactivated())
-				storage->SetInt(pressOriginID, kPressOriginNone);
-			if (pressed &&
-				a_options.highlightStyle ==
-					RowHighlightStyle::kSelectable &&
-				(window->Flags & ImGuiWindowFlags_Popup) &&
-				(ImGui::GetItemFlags() & ImGuiItemFlags_AutoClosePopups))
-			{
-				ImGui::CloseCurrentPopup();
-			}
-		}
 		auto* drawList = ImGui::GetWindowDrawList();
 		if (a_options.highlightStyle == RowHighlightStyle::kRoundedFill &&
 			(hovered || a_options.selected))
@@ -569,11 +529,6 @@ namespace DearModdingUI
 				0.0f,
 				&clip);
 		}
-		if (a_options.expanded &&
-			(arrowPressed ||
-				(pressed &&
-					a_options.clickBehavior == RowClickBehavior::kToggle)))
-			*a_options.expanded = !*a_options.expanded;
 		ImGui::PopID();
 		return { pressed, rect };
 	}
@@ -609,8 +564,7 @@ namespace DearModdingUI
 				.glyph = a_options.glyph,
 				.textColor = ImGui::GetColorU32(color),
 				.hoveredTextColor = ImGui::GetColorU32(hoveredColor),
-				.highlightStyle = RowHighlightStyle::kRoundedFill,
-				.clickBehavior = RowClickBehavior::kToggle
+				.highlightStyle = RowHighlightStyle::kRoundedFill
 			});
 			const auto textMin =
 				row.rect.Min.x + ImGui::GetStyle().FramePadding.x +
@@ -644,14 +598,16 @@ namespace DearModdingUI
 		const auto gap = ImGui::GetStyle().ItemSpacing.x;
 		const auto lineLength =
 			(std::max)((width - layout.contentWidth - gap * 2.0f) * 0.5f, 0.0f);
-		auto clicked = false;
 		auto hovered = false;
 		if (a_options.expanded)
 		{
 			ImGui::PushID(a_options.key);
-			clicked = ImGui::InvisibleButton(
+			(void)DrawRowInteraction(
 				"##DearModdingUI.RuledHeading",
-				{ width, layout.contentHeight });
+				{ width, layout.contentHeight },
+				RowHighlightStyle::kRoundedFill,
+				false,
+				a_options.expanded);
 			hovered = ImGui::IsItemHovered();
 		}
 		else
@@ -677,8 +633,6 @@ namespace DearModdingUI
 			a_options.ruleStyle);
 		if (a_options.expanded)
 		{
-			if (clicked)
-				*a_options.expanded = !*a_options.expanded;
 			ImGui::PopID();
 		}
 	}

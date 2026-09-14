@@ -18,6 +18,7 @@ namespace vmm_tests
 	void run_client_status_checks(Runner&);
 	void run_asset_contract_checks(Runner&);
 	void run_host_control_checks(Runner&);
+	void run_sidebar_interaction_checks(Runner&);
 	void run_host_settings_checks(Runner&);
 	void run_navigation_presentation_checks(Runner&);
 	void run_carrier_menu_checks(Runner&);
@@ -41,6 +42,7 @@ namespace vmm_tests
 		run_client_status_checks(runner);
 		run_asset_contract_checks(runner);
 		run_host_control_checks(runner);
+		run_sidebar_interaction_checks(runner);
 		run_host_settings_checks(runner);
 		run_navigation_presentation_checks(runner);
 		run_carrier_menu_checks(runner);

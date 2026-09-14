@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Expandable sidebar rows**: Origin, multi-page mod, and category rows share whole-row expand/collapse behavior. Toggling a mod no longer selects its landing page or forces it open; single-page mods and flat mod lists retain direct navigation.
 - **Automatic heading icons**: Expanded the authored vocabulary for common interface roles and gameplay sections, including overview, status, assets, character resources, damage, skills, and companions. Specific headings such as Sleep Tuning and Damage Done select their subject rather than incidental search tags. Explicit icon choices and the host ABI are unchanged; clients already using host icon resolution do not need to rebuild.
 
 ## [0.1.2] - 2026-09-11

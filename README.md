@@ -124,9 +124,11 @@ changes are saved immediately.
 | **Drill-down** | Selecting a mod replaces the mod list with its pages; All Mods returns to the list. |
 | **Icon rail** | A narrow, independently scrolling mod-icon column leaves the remaining sidebar width for pages. Hover an icon to see its name. |
 
-Click an origin heading, such as Native or MCM, to collapse or expand its group
-where headings are shown. Tree mod expansion markers are small and muted; they
-appear on hover, keyboard focus, or while the mod is expanded.
+Click anywhere on an origin, multi-page tree mod, or category row to collapse or
+expand its children without changing the active page. Single-page mods open
+directly; the two-pane, drill-down, and icon-rail mod lists retain direct page
+selection. Tree mod expansion markers are small and muted; they appear on hover,
+keyboard focus, or while the mod is expanded.
 
 Drag the sidebar/content divider to change the overall sidebar width.
 Two-pane also lets you resize the Mods/Pages split. These widths are remembered

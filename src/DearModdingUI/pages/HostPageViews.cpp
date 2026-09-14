@@ -327,8 +327,7 @@ namespace DearModdingUI
 						.expanded = &expanded->second,
 						.textColor = textColor,
 						.hoveredTextColor = textColor,
-						.highlightStyle = RowHighlightStyle::kRoundedFill,
-						.clickBehavior = RowClickBehavior::kToggle
+						.highlightStyle = RowHighlightStyle::kRoundedFill
 					});
 				}
 				if (!expanded->second)

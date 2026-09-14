@@ -618,10 +618,8 @@ namespace DearModdingUI
 					a_context.selection,
 					a_kind,
 					expanded);
-				if (row.pressed)
+				if (row.pressed && !expanded)
 				{
-					if (expanded)
-						*expanded = true;
 					a_context.intent.Offer(
 						NavigationRequest::Client(client.handle));
 				}

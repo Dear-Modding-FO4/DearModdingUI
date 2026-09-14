@@ -31,12 +31,6 @@ namespace DearModdingUI
 		kRoundedFill
 	};
 
-	enum class RowClickBehavior : uint32_t
-	{
-		kSelect,
-		kToggle
-	};
-
 	enum class RowDisclosureStyle : uint32_t
 	{
 		kDefault,
@@ -62,7 +56,6 @@ namespace DearModdingUI
 		RowHighlightStyle highlightStyle{
 			RowHighlightStyle::kSelectable
 		};
-		RowClickBehavior clickBehavior{ RowClickBehavior::kSelect };
 		bool centerGlyph{ false };
 		RowDisclosureStyle disclosureStyle{ RowDisclosureStyle::kDefault };
 	};
