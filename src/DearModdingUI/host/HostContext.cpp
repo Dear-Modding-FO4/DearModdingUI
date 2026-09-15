@@ -4,6 +4,9 @@
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/MenuDismissal.h>
 
+#include <REX/REX.h>
+#include <RE/M/Main.h>
+
 namespace DearModdingUI::HostInternal
 {
 	thread_local std::vector<ClientFontPush> g_clientFontPushes;
@@ -26,6 +29,11 @@ namespace DearModdingUI::HostInternal
 	void SetMenuVisibleState(Service& a_service, bool a_visible) noexcept
 	{
 		a_service.menuVisible.store(a_visible, std::memory_order_release);
+
+		// pause/unpause game
+		auto main = RE::Main::GetSingleton();
+		if (main) main->freezeTime = a_visible;
+
 		if (!a_visible)
 		{
 			ResetMenuEscapeRequest();
