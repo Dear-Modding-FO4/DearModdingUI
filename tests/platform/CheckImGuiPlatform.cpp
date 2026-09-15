@@ -32,27 +32,51 @@ namespace vmm_tests
 			require(!frame.Claim(first) && !frame.Submitted(first),
 				"reentrant or repeated cursor predicate entered a second frame");
 			frame.Complete(first);
+			const auto firstSequence = frame.Sequence();
 			require(frame.Submitted(first) && !frame.Claim(first),
 				"Present could draw again after the native draw closed the modal");
-			frame.FinishPresent(first, kPresentTestFlag, true);
-			frame.FinishPresent(first, 0, false);
-			frame.FinishPresent({ 12, 7 }, 0, true);
+			frame.FinishPresent(first, firstSequence, kPresentTestFlag, true);
+			frame.FinishPresent(first, firstSequence, 0, false);
+			frame.FinishPresent({ 12, 7 }, firstSequence, 0, true);
 			require(frame.Submitted(first) && !frame.Claim(first),
 				"test, failed, or unrelated Present released the active frame");
-			frame.FinishPresent(first, 0, true);
+			frame.FinishPresent(first, firstSequence, 0, true);
 			require(frame.Claim(first),
 				"a successful Present did not release the next frame");
 			require(frame.Claim(rebound),
 				"new attachment generation inherited an old submission");
 			frame.Complete(first);
-			frame.FinishPresent(first, 0, true);
+			frame.FinishPresent(first, firstSequence, 0, true);
 			require(!frame.Submitted(rebound) && !frame.Claim(rebound),
 				"stale draw or Present changed the new attachment's frame");
 			frame.Complete(rebound);
-			frame.FinishPresent(rebound, 0, true);
+			frame.FinishPresent(rebound, frame.Sequence(), 0, true);
 			require(frame.Claim(rebound), "real Present did not release the next frame");
 			frame.Reset();
 			require(frame.Claim(rebound), "renderer retirement did not discard its submission");
+		});
+
+		runner.test("delayed Present cannot release a newer submission on the same attachment", [] {
+			FrameSubmission frame;
+			constexpr PresentAttachmentToken attachment{ 11, 7 };
+			require(frame.Claim(attachment), "initial frame claim failed");
+			frame.Complete(attachment);
+			const auto delayedPresent = frame.Sequence();
+			frame.FinishPresent(attachment, delayedPresent, 0, true);
+			require(frame.Claim(attachment), "next native frame claim failed");
+			frame.Complete(attachment);
+			const auto currentPresent = frame.Sequence();
+			frame.FinishPresent(attachment, delayedPresent, 0, true);
+			require(frame.Submitted(attachment) && !frame.Claim(attachment),
+				"an older nested or deferred Present released a newer native frame");
+			frame.FinishPresent(attachment, currentPresent, 0, true);
+			require(frame.Claim(attachment), "current Present did not release its frame");
+			frame.Reset();
+			require(frame.Claim(attachment), "post-resize frame claim failed");
+			frame.Complete(attachment);
+			frame.FinishPresent(attachment, currentPresent, 0, true);
+			require(frame.Submitted(attachment),
+				"a pre-resize Present released a post-resize submission");
 		});
 
 		runner.test("renderer attachment lifecycle and result classes stay coherent", [] {

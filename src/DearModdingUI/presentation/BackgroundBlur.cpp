@@ -702,8 +702,7 @@ namespace DearModdingUI::BackgroundBlur
 	{
 		g_regions = {};
 		g_regionCount = 0;
-		g_resources.frameContext = nullptr;
-		g_resources.frameTarget = nullptr;
+		InvalidateBackBuffer();
 	}
 
 	void SetHostWindow(
@@ -733,7 +732,9 @@ namespace DearModdingUI::BackgroundBlur
 
 	void InvalidateBackBuffer() noexcept
 	{
-		ReleaseFrameTextures();
+		// Scratch textures own no backbuffer reference; their descriptor controls reuse.
+		g_resources.frameContext = nullptr;
+		g_resources.frameTarget = nullptr;
 	}
 
 	void ResetDeviceResources() noexcept

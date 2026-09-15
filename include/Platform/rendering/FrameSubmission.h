@@ -13,6 +13,7 @@ namespace Addictol::ImguiPlatform
 				return false;
 			m_attachment = a_attachment;
 			m_complete = false;
+			++m_sequence;
 			return true;
 		}
 
@@ -27,13 +28,20 @@ namespace Addictol::ImguiPlatform
 			return Matches(a_attachment) && m_complete;
 		}
 
+		[[nodiscard]] uint64_t Sequence() const noexcept
+		{
+			return m_sequence;
+		}
+
 		void FinishPresent(
 			PresentAttachmentToken a_attachment,
+			uint64_t a_sequence,
 			uint32_t a_flags,
 			bool a_presentSucceeded) noexcept
 		{
 			if (a_presentSucceeded &&
 				(a_flags & kPresentTestFlag) == 0 &&
+				a_sequence == m_sequence &&
 				Matches(a_attachment))
 				Reset();
 		}
@@ -53,6 +61,7 @@ namespace Addictol::ImguiPlatform
 		}
 
 		PresentAttachmentToken m_attachment{};
+		uint64_t m_sequence{};
 		bool m_complete{};
 	};
 }

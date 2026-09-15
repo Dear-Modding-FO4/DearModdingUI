@@ -239,6 +239,24 @@ namespace vmm_tests
 				outputs.targets[0].Get(),
 				outputs.targets[1].Get()
 			};
+			const D3D11_BUFFER_DESC unorderedDescription{
+				256, D3D11_USAGE_DEFAULT, D3D11_BIND_UNORDERED_ACCESS,
+				0, D3D11_RESOURCE_MISC_BUFFER_STRUCTURED, sizeof(uint32_t)
+			};
+			ComPtr<ID3D11Buffer> unorderedBuffer;
+			ComPtr<ID3D11UnorderedAccessView> unorderedView;
+			D3D11_UNORDERED_ACCESS_VIEW_DESC unorderedViewDescription{};
+			unorderedViewDescription.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+			unorderedViewDescription.Buffer.NumElements = 64;
+			unorderedViewDescription.Buffer.Flags = D3D11_BUFFER_UAV_FLAG_APPEND;
+			require(SUCCEEDED(device.device->CreateBuffer(
+						&unorderedDescription, nullptr, &unorderedBuffer)) &&
+					SUCCEEDED(device.device->CreateUnorderedAccessView(
+						unorderedBuffer.Get(), &unorderedViewDescription, &unorderedView)),
+				"unordered-access output creation failed");
+			auto* unorderedBinding = unorderedView.Get();
+			constexpr UINT unorderedSlot = 3;
+			constexpr UINT unorderedCount = 17;
 
 			D3D11_BLEND_DESC blendDescription{};
 			blendDescription.RenderTarget[0].BlendEnable = TRUE;
@@ -369,10 +387,11 @@ namespace vmm_tests
 			auto* samplerBinding = sampler.Get();
 			auto* resourceBinding = device.view.Get();
 
-			device.context->OMSetRenderTargets(
+			device.context->OMSetRenderTargetsAndUnorderedAccessViews(
 				static_cast<UINT>(targets.size()),
 				targets.data(),
-				outputs.depth.Get());
+				outputs.depth.Get(),
+				unorderedSlot, 1, &unorderedBinding, &unorderedCount);
 			device.context->OMSetBlendState(
 				blend.Get(),
 				blendFactor.data(),
@@ -428,6 +447,28 @@ namespace vmm_tests
 			}
 
 			RequireOutputTargets(device.context.Get(), outputs);
+			ComPtr<ID3D11UnorderedAccessView> actualUnordered;
+			device.context->OMGetRenderTargetsAndUnorderedAccessViews(
+				0, nullptr, nullptr, unorderedSlot, 1, &actualUnordered);
+			require(actualUnordered.Get() == unorderedView.Get(),
+				"blur pipeline discarded the native unordered-access output");
+			const D3D11_BUFFER_DESC countDescription{
+				sizeof(uint32_t), D3D11_USAGE_STAGING, 0,
+				D3D11_CPU_ACCESS_READ, 0, 0
+			};
+			ComPtr<ID3D11Buffer> countBuffer;
+			require(SUCCEEDED(device.device->CreateBuffer(
+						&countDescription, nullptr, &countBuffer)),
+				"UAV counter readback creation failed");
+			device.context->CopyStructureCount(countBuffer.Get(), 0, unorderedView.Get());
+			D3D11_MAPPED_SUBRESOURCE mappedCount{};
+			require(SUCCEEDED(device.context->Map(
+						countBuffer.Get(), 0, D3D11_MAP_READ, 0, &mappedCount)),
+				"UAV counter readback failed");
+			const auto actualCount = *static_cast<const uint32_t*>(mappedCount.pData);
+			device.context->Unmap(countBuffer.Get(), 0);
+			require(actualCount == unorderedCount,
+				"blur pipeline reset the native unordered-access counter");
 
 			ComPtr<ID3D11BlendState> actualBlend;
 			std::array<float, 4> actualBlendFactor{};
