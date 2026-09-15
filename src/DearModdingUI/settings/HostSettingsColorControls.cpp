@@ -6,6 +6,43 @@
 
 namespace DearModdingUI::HostSettingsViewDetail
 {
+	bool DrawGameColorSyncControls(
+		HostAccentColor& a_color,
+		std::optional<HostAccentColor> a_hudColor,
+		std::optional<HostAccentColor> a_pipboyColor,
+		float a_width) noexcept
+	{
+		const auto drawButton = [&](
+			const char* a_label,
+			std::optional<HostAccentColor> a_source) noexcept {
+			ImGui::BeginDisabled(!a_source);
+			const auto pressed = ImGui::Button(a_label);
+			ImGui::EndDisabled();
+			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+			{
+				ImGui::SetTooltip("%s", a_source ?
+					"Copy this game color to the accent preview. Use Apply to save." :
+					"Color unavailable. Requires Fallout 4 with valid game color preferences.");
+			}
+			if (!pressed || !a_source || a_color == *a_source)
+				return false;
+			a_color = *a_source;
+			return true;
+		};
+
+		constexpr const char* hudLabel{ "Sync from HUD" };
+		constexpr const char* pipboyLabel{ "Sync from Pip-Boy" };
+		const auto& style = ImGui::GetStyle();
+		const auto buttonWidth = ImGui::CalcTextSize(hudLabel).x +
+			ImGui::CalcTextSize(pipboyLabel).x +
+			style.FramePadding.x * 4.0f + style.ItemSpacing.x;
+		auto changed = drawButton(hudLabel, a_hudColor);
+		if (buttonWidth <= a_width)
+			ImGui::SameLine();
+		changed |= drawButton(pipboyLabel, a_pipboyColor);
+		return changed;
+	}
+
 	ColorSettingControlResult DrawColorSettingControl(
 		HostAccentColor& a_color,
 		std::span<const ColorPreset> a_presets,

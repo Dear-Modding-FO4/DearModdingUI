@@ -1,6 +1,8 @@
 #include "../support/DearModdingUITestSupport.h"
+#include "../support/ImGuiTestContext.h"
 #include <DearModdingUI/presentation/FontCatalog.h>
 #include <DearModdingUI/settings/HostSettings.h>
+#include <DearModdingUI/settings/HostSettingsColorControls.h>
 #include <DearModdingUI/settings/HostSettingsHealthState.h>
 #include <DearModdingUI/settings/HostSettingsView.h>
 #include <DearModdingUI/SettingsActions.h>
@@ -8,6 +10,7 @@
 #include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/ThemeDefaults.h>
 #include <DearModdingUI/presentation/TypographyHealth.h>
+#include <Platform/settings/GameColors.h>
 #include <algorithm>
 #include <array>
 #include <filesystem>
@@ -107,6 +110,94 @@ namespace vmm_tests
 			require(state.committed == changed &&
 					HostSettingsDraftDiffers(state),
 				"reset committed instead of updating the draft");
+		});
+
+		runner.test("game color buttons edit only the discardable accent and persist through host settings", [] {
+			support::ImGuiTestContext imgui{ { .disableInputTrickle = true } };
+			auto original = DefaultHostInterfaceSettings();
+			original.accentColor = { 0x12, 0x34, 0x56 };
+			original.paletteBackgroundColor = { 0x32, 0x54, 0x76 };
+			original.feedbackInfoColor = { 0x65, 0x43, 0x21 };
+			original.iconColorMode = Theme::IconColorMode::kMonochrome;
+			auto state = BeginHostSettingsDraft(original);
+			auto hud = ReadGameColor(GameColorSource::kHUD);
+			auto pipboy = ReadGameColor(GameColorSource::kPipboy);
+			require(!hud && !pipboy,
+				"standalone color sources fabricated game preferences");
+
+			ImVec2 pipboyTarget{};
+			const auto frame = [&](ImVec2 mouse, bool down) {
+				auto& io = ImGui::GetIO();
+				io.AddMousePosEvent(mouse.x, mouse.y);
+				io.AddMouseButtonEvent(ImGuiMouseButton_Left, down);
+				imgui.BeginWindow(
+					"##GameColorSync",
+					{ 0.0f, 0.0f },
+					{ 420.0f, 160.0f },
+					ImGuiWindowFlags_NoDecoration |
+						ImGuiWindowFlags_NoSavedSettings);
+				ImGui::SetCursorScreenPos({ 20.0f, 40.0f });
+				const auto changed =
+					HostSettingsViewDetail::DrawGameColorSyncControls(
+						state.draft.accentColor, hud, pipboy, 340.0f);
+				const auto lastButton = ImGui::GetItemRectMin();
+				pipboyTarget = { lastButton.x + 5.0f, lastButton.y + 5.0f };
+				imgui.EndWindow();
+				return changed;
+			};
+			const auto click = [&](ImVec2 target) {
+				(void)frame(target, false);
+				(void)frame(target, true);
+				return frame(target, false);
+			};
+			(void)frame({ -100.0f, -100.0f }, false);
+			const ImVec2 hudTarget{ 25.0f, 45.0f };
+			require(!click(hudTarget) && !click(pipboyTarget) &&
+					state.draft == original && !HostSettingsDraftDiffers(state),
+				"unavailable game colors changed the custom accent");
+
+			hud = HostAccentColor{ 0x08, 0xA9, 0xFA };
+			require(!click(pipboyTarget) && state.draft == original,
+				"an unavailable Pip-Boy source copied the HUD color");
+			require(click(hudTarget), "HUD sync button did not apply its color");
+			auto expected = original;
+			expected.accentColor = *hud;
+			require(state.draft == expected && state.committed == original &&
+					HostSettingsDraftDiffers(state) &&
+					PreviewHostInterfaceSettings(state.draft).accentColor == *hud,
+				"HUD sync bypassed the draft or changed other overrides");
+			hud = HostAccentColor{ 0xA0, 0xB0, 0xC0 };
+			require(!frame({ -100.0f, -100.0f }, false) &&
+					state.draft == expected,
+				"game colors were followed automatically instead of copied once");
+			RevertHostSettingsDraft(state);
+			require(state.draft == original && !HostSettingsDraftDiffers(state),
+				"revert did not restore the custom accent");
+
+			pipboy = HostAccentColor{ 0xE1, 0x72, 0x03 };
+			require(click(pipboyTarget),
+				"Pip-Boy sync button did not apply its color");
+			expected.accentColor = *pipboy;
+			require(state.draft == expected && state.committed == original,
+				"Pip-Boy sync used the wrong source or changed other overrides");
+			require(!click(pipboyTarget),
+				"syncing the current accent reported a new edit");
+
+			const auto path = std::filesystem::current_path() /
+				".Build" / "Tests" / "GameColorSync.toml";
+			auto persisted = EncodeHostInterfaceSettings(state.draft);
+			persisted.hotkeys = { { "test.action", "F8" } };
+			require(PersistHostInterfaceSettings(path, persisted).saved,
+				"synced color could not be saved through host persistence");
+			const auto loaded = LoadHostInterfaceSettings(path);
+			std::filesystem::remove(path);
+			require(loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
+					loaded.settings == expected &&
+					loaded.hotkeys == persisted.hotkeys,
+				"synced accent or unrelated overrides changed on reload");
+			LeaveHostSettingsDraft(state);
+			require(state.draft == original,
+				"leaving settings retained an unapplied synced color");
 		});
 
 		runner.test("host settings previews separate appearance from typography", [] {

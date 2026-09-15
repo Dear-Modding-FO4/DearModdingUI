@@ -141,7 +141,8 @@ local source_sets = {
         "src/DearModdingUI/presentation/Presentation*.cpp",
         "src/DearModdingUI/presentation/ThemeColors.cpp",
         "src/Platform/files/ExternalOpen.cpp",
-        "src/Platform/input/CursorLoader.cpp"
+        "src/Platform/input/CursorLoader.cpp",
+        "src/Platform/settings/GameColors.cpp"
     },
     ui = {
         "src/DearModdingUI/host/Host*.cpp",

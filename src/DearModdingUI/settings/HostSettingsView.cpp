@@ -7,6 +7,7 @@
 #include <DearModdingUI/controls/SettingsTable.h>
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/presentation/Theme.h>
+#include <Platform/settings/GameColors.h>
 
 #include <imgui/imgui.h>
 
@@ -305,6 +306,20 @@ namespace DearModdingUI
 				settings.accentColor,
 				defaults.accentColor,
 				kAccentPresets);
+
+			(void)DrawSettingsRow(
+				"SyncGameColor",
+				"Sync accent with game",
+				"Copies the current HUD or Pip-Boy color once. Use Apply to save or Revert to discard.",
+				false,
+				[&]() noexcept {
+					changed |= HostSettingsViewDetail::DrawGameColorSyncControls(
+						settings.accentColor,
+						ReadGameColor(GameColorSource::kHUD),
+						ReadGameColor(GameColorSource::kPipboy),
+						ControlWidth());
+				},
+				[]() noexcept { return false; });
 
 			if (DrawSettingsRow(
 					"IconColorMode",
