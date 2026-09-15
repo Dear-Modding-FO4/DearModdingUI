@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-14
+
+### Added
+- **Game color accent synchronization**: Added one-click accent color synchronization in Appearance settings to copy the active HUD (`iHUDColor`) or Pip-Boy (`fPipboyEffectColor`) color configuration from game preferences.
+- **Configurable field feedback presentation**: Added configurable field-level feedback presentation for mod settings. Mod pages can provide frame-local Info, Warning, and Error messages on fields and setting rows. Users can configure feedback placement (`sFieldFeedbackLayout`: `strip`, `label`, or `control`) and custom palette colors (`sFieldFeedbackInfoColor`, `sFieldFeedbackWarningColor`, `sFieldFeedbackErrorColor`) in `DearModdingUI.toml` or the in-game Appearance settings.
+- **Field layout API**: Extended the host C ABI and C++ client wrapper with `beginField` and `endField` (`FieldScope`), supporting standalone field geometry, full-span row layouts, and declarative setting feedback while maintaining binary compatibility with existing settings row implementations.
+
+### Changed
+- **Unified test release distribution**: Consolidated development test packages into a single unified archive containing the host plugin, MCM bridge, diagnostic test client, and test game fixtures.
+- **Automatic heading icons**: Expanded the authored icon vocabulary for common interface roles and gameplay sections, including overview, status, character resources, damage, skills, and companions. Specific headings such as *Sleep Tuning* and *Damage Done* select their core subject rather than incidental search tags.
+
 ### Fixed
-- **Expandable sidebar rows**: Origin, multi-page mod, and category rows share whole-row expand/collapse behavior. Toggling a mod no longer selects its landing page or forces it open; single-page mods and flat mod lists retain direct navigation.
-- **Automatic heading icons**: Expanded the authored vocabulary for common interface roles and gameplay sections, including overview, status, assets, character resources, damage, skills, and companions. Specific headings such as Sleep Tuning and Damage Done select their subject rather than incidental search tags. Explicit icon choices and the host ABI are unchanged; clients already using host icon resolution do not need to rebuild.
+- **Rendering pipeline state preservation**: Preserved D3D11 render targets and Unordered Access Views (UAVs) across background blur passes, restoring bound UAV slots and structure counters to prevent display interference with graphics mods and third-party render hooks.
+- **Frame submission synchronization**: Retained frame submissions across failed or deferred `Present` calls and indexed submissions by sequence numbers, preventing delayed present events from prematurely releasing newer frame submissions on the same attachment.
+- **Device switching during modal capture**: Preserved gamepad and keyboard/mouse device connect events while the modal menu is open, allowing seamless input device switching during modal input capture.
+- **Expandable sidebar rows**: Unified whole-row expand and collapse interactions across origin groups, multi-page mods, and category headers. Toggling a mod row no longer inadvertently triggers page navigation or forces disclosure open; single-page mods and flat mod lists retain direct navigation.
 
 ## [0.1.2] - 2026-09-11
 
@@ -68,7 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional `DearModdingUI-MCM` bridge translating legacy MCM JSON configurations.
 - In-game diagnostic test client and standalone desktop UI preview (`dmui-preview`).
 
-[Unreleased]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Dear-Modding-FO4/DearModdingUI/releases/tag/v0.1.0
