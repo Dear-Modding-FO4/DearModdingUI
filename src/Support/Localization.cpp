@@ -1,6 +1,8 @@
 ﻿#include <Support/Localization.h>
 #include <Support/Runtime.h>
 
+#include <RE/S/Setting.h>
+
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -219,11 +221,62 @@ namespace DearModdingUI::Support
 	BaseLocalizeString::operator std::string& () noexcept { return value; }
 	BaseLocalizeString::operator const std::string& () const noexcept { return value; }
 
-	void LocalizeStore::Init(const std::string& a_file) noexcept { file = a_file; }
+	void LocalizeStore::Init(const std::string& a_file, bool a_isMultilang) noexcept
+	{ 
+		file = a_file;
+		if (a_isMultilang)
+		{
+			// Retrieve the global collection of INI settings
+			auto settings = RE::INISettingCollection::GetSingleton();
+			if (!settings)
+			{
+				REX::WARN("RE::INISettingCollection::GetSingleton return nullptr");
+				return;
+			}
+
+			// Look up the SLanguage:General setting
+			// Yeah, exactly SLanguage:General this Bethesda
+			auto setting = settings->GetSetting("SLanguage:General");
+
+			// dump
+			/*for (auto& s : settings->settings)
+			{
+				REX::INFO(s->GetKey());
+			}*/
+
+			if (setting && (setting->GetType() == RE::Setting::SETTING_TYPE::kString))
+			{
+				std::string lang = setting->GetString().data();
+				lang.insert(0, "_");
+
+				auto it = a_file.find_last_of('.');
+				if (it == std::string::npos)
+					file += lang.data();
+				else
+					file.insert(it, lang.data());
+			}
+			else
+			{
+				REX::WARN("RE::INISettingCollection::GetSetting no found \"sLanguage:General\" setting");
+				return;
+			}
+		}
+	}
+
+	bool LocalizeStore::Exists() const noexcept
+	{
+		return std::filesystem::exists(file);
+	}
+
 	void LocalizeStore::Add(ILocalizeString* a_localize) noexcept
 	{
 		if (a_localize)
 			localizes.emplace_back(a_localize);
+	}
+
+	std::string LocalizeStore::GetFileName() const noexcept
+	{
+		return file;
 	}
 
 	void LocalizationManager::Load()

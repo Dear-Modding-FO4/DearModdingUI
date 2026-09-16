@@ -5,8 +5,6 @@
 #include <DearModdingUI/host/ImGuiRecovery.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/controls/SettingsTable.h>
-#include <Support/Localization.h>
-#include <Support/Runtime.h>
 #include "HostAPIEntries.h"
 #include "HostContext.h"
 
@@ -25,10 +23,6 @@
 namespace DearModdingUI
 {
 	using namespace std::literals;
-
-#if 0
-	Support::LOC TEST("$Weather40", "<><>");
-#endif
 
 	namespace
 	{
@@ -236,20 +230,7 @@ namespace DearModdingUI
 		auto& service = GetService();
 		auto expected = DMUI_HOST_STATE_NOT_INITIALIZED;
 
-		// TODO: Add support multilang... get current lang from game config (maybe implement it into LocalizationManager)
-		auto localizeFile = Addictol::Support::GetRuntimeDirectory() +
-			"Data/F4SE/Plugins/DearModdingUI/Translation/DearModdingUI.txt";
-
-		if (std::filesystem::exists(localizeFile))
-		{
-			auto localizationManager = Support::LocalizationManager::GetSingleton();
-			localizationManager->Init(localizeFile);
-			localizationManager->Load();
-
-#if 0
-			REX::INFO("TEST LOC: {}"sv, TEST.GetValue());
-#endif
-		}
+		
 
 		service.state.compare_exchange_strong(
 			expected,

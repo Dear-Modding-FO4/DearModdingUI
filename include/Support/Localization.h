@@ -14,9 +14,11 @@ namespace DearModdingUI::Support
 
 	struct ILocalizeStore
 	{
-		virtual void Init(const std::string& a_file) = 0;
-		virtual void Add(ILocalizeString* a_setting) = 0;
+		virtual void Init(const std::string& a_file, bool a_isMultilang = false) noexcept = 0;
+		virtual bool Exists() const noexcept = 0;
+		virtual void Add(ILocalizeString* a_setting) noexcept = 0;
 		virtual void Load() = 0;
+		virtual std::string GetFileName() const noexcept = 0;
 	};
 
 	class BaseLocalizeString :
@@ -44,8 +46,10 @@ namespace DearModdingUI::Support
 		std::string						file;
 		std::vector<ILocalizeString*>	localizes;
 	public:
-		void Init(const std::string& a_file) noexcept override;
+		void Init(const std::string& a_file, bool a_isMultilang = false) noexcept override;
+		bool Exists() const noexcept override;
 		void Add(ILocalizeString* a_localize) noexcept override;
+		std::string GetFileName() const noexcept override;
 	};
 
 	class LocalizationManager :
