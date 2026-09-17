@@ -1,6 +1,9 @@
 #include "../support/DearModdingUITestSupport.h"
 #include <DearModdingUI/controls/ChromeGeometry.h>
 #include <DearModdingUI/controls/Controls.h>
+#include <DearModdingUI/host/RenderExecution.h>
+#include <DearModdingUI/host/UIAdapter.h>
+#include <DearModdingUI/TextView.h>
 #include "../support/ImGuiTestContext.h"
 
 #include <imgui/imgui.h>
@@ -8,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <filesystem>
 #include <limits>
 #include <memory>
@@ -200,10 +204,177 @@ namespace vmm_tests
 						a_frame.row.rect.Max.y - epsilon,
 				"row hover highlight did not cover the full row");
 		}
+
+		[[nodiscard]] std::pair<std::string, bool> EditSearch(
+			std::string a_initial,
+			size_t a_maximumBytes,
+			const char* a_input)
+		{
+			support::ImGuiTestContext imgui{
+				{
+					.disableInputTrickle = true,
+					.disableErrorRecovery = true
+				}
+			};
+			std::vector<char> buffer(a_maximumBytes + 1);
+			std::ranges::copy(a_initial, buffer.begin());
+			const auto beginFrame = [&] {
+				imgui.BeginWindow(
+					"##SearchCapacity",
+					{ 0.0f, 0.0f },
+					{ 640.0f, 180.0f },
+					ImGuiWindowFlags_NoDecoration |
+						ImGuiWindowFlags_NoSavedSettings,
+					ImGuiCond_Always);
+				ImGui::SetCursorScreenPos({ 20.0f, 20.0f });
+			};
+			beginFrame();
+			(void)DrawSearchInput(
+				"SearchCapacity",
+				"Search...",
+				buffer.data(),
+				buffer.size());
+			imgui.EndWindow(true);
+
+			auto& io = ImGui::GetIO();
+			io.AddMousePosEvent(80.0f, 32.0f);
+			io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+			beginFrame();
+			(void)DrawSearchInput(
+				"SearchCapacity",
+				"Search...",
+				buffer.data(),
+				buffer.size());
+			imgui.EndWindow(true);
+
+			io.AddMousePosEvent(80.0f, 32.0f);
+			io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+			io.AddInputCharactersUTF8(a_input);
+			beginFrame();
+			const auto changed = DrawSearchInput(
+				"SearchCapacity",
+				"Search...",
+				buffer.data(),
+				buffer.size());
+			imgui.EndWindow(true);
+			return { std::string{ buffer.data() }, changed };
+		}
 	}
 
 	void run_host_control_checks(Runner& runner)
 	{
+		runner.test("text navigation preserves literal labels and wrapped button geometry", [] {
+			support::ImGuiTestContext imgui;
+			imgui.BeginWindow("##TextNavigation", { 0, 0 }, { 480, 240 });
+			RenderExecution::Guard execution{ RenderExecution::Phase::kFrameDraw };
+			RenderExecution::ClientGuard client{ 1, true };
+			dmui::ui::detail::ScopedContext context{ &UI::API(), 1 };
+			const auto& style = ImGui::GetStyle();
+			const DMUI_StyleMetrics metrics{
+				.structSize = sizeof(DMUI_StyleMetrics),
+				.itemSpacing = { style.ItemSpacing.x, style.ItemSpacing.y },
+				.framePadding = { style.FramePadding.x, style.FramePadding.y }
+			};
+			const std::array<size_t, 1> lines{ 0 };
+			const dmui::TextViewRequest request{ .text = "abc", .lineOffsets = lines };
+			dmui::TextViewState state;
+			using Item = std::pair<std::string_view, size_t>;
+			const std::array<Item, 2> items{
+				std::pair{ "A", 0u }, std::pair{ "##B", 2u }
+			};
+			const auto origin = ImGui::GetCursorScreenPos();
+			const auto firstWidth = ImGui::CalcTextSize("A").x + style.FramePadding.x * 2;
+			const auto expectedSecondX = origin.x + firstWidth + style.ItemSpacing.x;
+			const auto verticesBefore = ImGui::GetWindowDrawList()->VtxBuffer.Size;
+			(void)dmui::DrawTextViewNavigation(
+				"sections", std::span<const Item>{ items }, metrics, request, state,
+				[](const auto& item) { return item; });
+			require(
+				std::abs(ImGui::GetItemRectMin().x - expectedSecondX) < 0.01f &&
+					ImGui::GetItemRectSize().y >= ImGui::GetFrameHeight(),
+				"literal text overlay changed the next button's layout anchor or height");
+			size_t textVertices{};
+			const auto* draw = ImGui::GetWindowDrawList();
+			for (int i = verticesBefore; i < draw->VtxBuffer.Size; ++i)
+				if (draw->VtxBuffer[i].col == ImGui::GetColorU32(ImGuiCol_Text))
+					++textVertices;
+			require(textVertices == 16, "double-hash navigation label was not drawn literally");
+
+			const auto available = ImGui::GetContentRegionAvail().x;
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + available - 60.0f);
+			const auto right = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
+			const std::array<Item, 1> longItem{
+				std::pair{ "A long section label that must fit", 0u }
+			};
+			(void)dmui::DrawTextViewNavigation(
+				"narrow", std::span<const Item>{ longItem }, metrics, request, state,
+				[](const auto& item) { return item; });
+			require(ImGui::GetItemRectMax().x <= right + 0.01f,
+				"navigation button overflowed its narrow pane");
+			require(context.Result() == DMUI_RESULT_OK,
+				"navigation helper failed through the production UI adapter");
+			imgui.EndWindow(true);
+		});
+
+		runner.test("host search rejects invalid capacity without changing the query", [] {
+			std::string query(513, 'a');
+			require(
+				DrawSearchInput("search", "Search...", query, 512) ==
+					DMUI_RESULT_INVALID_ARGUMENT &&
+					query == std::string(513, 'a'),
+				"oversized query was silently accepted or truncated");
+			query = "query";
+			require(
+				DrawSearchInput("search", "Search...", query,
+					static_cast<size_t>((std::numeric_limits<int>::max)())) ==
+						DMUI_RESULT_INVALID_ARGUMENT &&
+					query == "query",
+				"unsafe ImGui buffer capacity was accepted");
+		});
+
+		runner.test("search input honors caller UTF8 capacity", [] {
+			const auto at255 = EditSearch(std::string(255, 'a'), 512, "b");
+			require(
+				at255.second && at255.first.size() == 256 &&
+					at255.first.find('b') != std::string::npos,
+				"255-byte search did not grow through the shared control");
+
+			const auto at256 = EditSearch(std::string(256, 'a'), 512, "b");
+			require(
+				at256.second && at256.first.size() == 257 &&
+					at256.first.find('b') != std::string::npos,
+				"256-byte search was truncated by a fixed host buffer");
+
+			const auto at512 = EditSearch(std::string(511, 'a'), 512, "b");
+			require(
+				at512.second && at512.first.size() == 512 &&
+					at512.first.find('b') != std::string::npos,
+				"512-byte client capacity was not usable");
+
+			const auto completeUtf8 =
+				EditSearch(std::string(510, 'a'), 512, "\xC3\xA9");
+			require(
+				completeUtf8.second &&
+					completeUtf8.first.size() == 512 &&
+					completeUtf8.first.find("\xC3\xA9") != std::string::npos,
+				"complete multibyte input was not preserved at the boundary");
+
+			const auto rejectedUtf8 =
+				EditSearch(std::string(511, 'a'), 512, "\xC3\xA9");
+			require(
+				!rejectedUtf8.second &&
+					rejectedUtf8.first == std::string(511, 'a'),
+				"partial multibyte input was accepted or truncated");
+
+			const auto partialInput =
+				EditSearch(std::string(511, 'a'), 512, "b\xC3\xA9");
+			require(
+				partialInput.second && partialInput.first.size() == 512 &&
+					std::ranges::count(partialInput.first, 'a') == 511 &&
+					partialInput.first.find('b') != std::string::npos,
+				"bounded input lost existing text or split the final UTF8 sequence");
+		});
+
 		runner.test("host close and footer gear stay clear of adjacent content", [] {
 			require(ShouldDrawHeaderClose(false, true),
 				"undocked titleless host lost its close button");

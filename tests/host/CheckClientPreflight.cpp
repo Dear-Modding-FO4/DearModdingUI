@@ -363,6 +363,85 @@ namespace vmm_tests
 				"available requested PlotLines tail failed preflight");
 		});
 
+		runner.test("official client preflight validates requested host prefix", [] {
+			auto api = PreflightHostAPI();
+			api.registerPage = &MockRegisterPage;
+			api.queryState = [](DMUI_HostStateInfo*) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			api.requestFrame = [](DMUI_ClientHandle, DMUI_PageHandle) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			api.releaseFrame = api.requestFrame;
+			api.isMenuVisible = [](uint32_t*) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			api.selectPage = api.requestFrame;
+			api.attachSwapChain = [](DMUI_ClientHandle, void*) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			api.registerAction = [](
+									 DMUI_ClientHandle,
+									 const DMUI_ActionDescriptor*,
+									 DMUI_ActionHandle*) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			api.setStatus = [](
+							 DMUI_ClientHandle,
+							 DMUI_StatusSeverity,
+							 const char*) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			api.getThemeColors = [](
+								 DMUI_ClientHandle,
+								 DMUI_ThemeColors*) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			api.pushFont = [](DMUI_ClientHandle, DMUI_FontRole) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			api.popFont = [](DMUI_ClientHandle) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			api.drawSectionHeader = [](
+									 DMUI_ClientHandle,
+									 const char*,
+									 uint32_t) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			api.drawSearchInput = [](
+								 DMUI_ClientHandle,
+								 const char*,
+								 const char*,
+								 char*,
+								 size_t,
+								 uint32_t*) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			const dmui::ClientOptions options{
+				.minimumHostAPISize = DMUI_HOST_API_DRAW_SEARCH_INPUT_SIZE
+			};
+			require(
+				dmui::PreflightHostAPI(&api, options) == DMUI_RESULT_OK,
+				"complete requested host prefix failed preflight");
+
+			api.getThemeColors = nullptr;
+			require(
+				dmui::PreflightHostAPI(&api, options) ==
+					DMUI_RESULT_UNSUPPORTED_ABI,
+				"missing required host widget operation reached registration");
+			api.getThemeColors = [](
+								 DMUI_ClientHandle,
+								 DMUI_ThemeColors*) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			api.structSize = DMUI_HOST_API_DRAW_SEARCH_INPUT_SIZE - 1;
+			require(
+				dmui::PreflightHostAPI(&api, options) ==
+					DMUI_RESULT_STRUCT_TOO_SMALL,
+				"short requested host prefix reached registration");
+		});
+
 		runner.test("navigation icon preflight requires page and category entries", [] {
 			s_mockServices = DMUI_HOST_SERVICE_NAVIGATION_ICONS;
 			auto api = PreflightHostAPI();

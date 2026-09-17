@@ -190,10 +190,17 @@ their explicitly selected Copy or Open action after a click. Existing host Home 
 disabled links remain hoverable so their note or target can explain the state. FAQ rows use host-owned disclosure state keyed by the widget ID
 and entry index. The sizing calls return live host font and style measurements through `float` output
 parameters. Search buffers must have a nonzero capacity and contain a NUL terminator within that
-capacity. A successful call always leaves the buffer NUL-terminated, truncates edited output to
-`capacity - 1`, and reports whether the text changed through the fixed-width output flag. The C++
-wrapper marshals this contract to `std::string&` and returns sizing results through
-`std::optional<float>`.
+capacity, which must fit in `INT_MAX`. A successful call leaves the buffer NUL-terminated and
+reports changes through the fixed-width output flag. New input is limited to the remaining
+capacity at UTF-8 boundaries. The C++ search wrapper takes an explicit maximum byte length, rejects
+an already oversized string, and returns the changed flag through `std::optional<bool>`.
+
+`drawTextView` is an optional API 0.2 operation within host ABI 1. It draws borrowed,
+NUL-free UTF-8 text with a host-owned monospace font, independent scrolling, clipped
+lines, literal-match highlighting, and byte-offset reveal. Call it only from the owning
+client's drawing callback. `TextView.h` supplies request/state and navigation helpers;
+the client owns text, line starts, matches, and their revisions. Neither parsing nor
+searching moves into the host.
 
 `beginSettingsTable` and `endSettingsTable` optionally group fields into settings rows.
 The original `beginSettingsRow`, `beginSettingsRowEx`, and `endSettingsRow` operations remain
@@ -452,9 +459,11 @@ retires the attachment, releases host-owned COM/resources, and requests immediat
 revision, and an additive function-table prefix. This identity is independent
 of the API release label, the product version declared in
 [xmake.lua](../../xmake.lua), and the host's internal Dear ImGui version.
-Clients set `requiredServices`, `minimumUIRevision`, and
-`minimumUIAPISize` in `ClientOptions`; the wrapper validates both services and
-all required UI operations before `registerClient`.
+Clients set `requiredServices`, `minimumHostAPISize`, `minimumUIRevision`, and
+`minimumUIAPISize` in `ClientOptions`; the wrapper validates the requested host
+prefix, services, and all required stable UI operations before `registerClient`.
+Clients that require the shared text viewer use
+`DMUI_HOST_API_DRAW_TEXT_VIEW_SIZE`.
 
 The API provides frame-demand and swapchain wrappers,
 contextual hotkey enablement, owner/generation-scoped D3D11 image resources,

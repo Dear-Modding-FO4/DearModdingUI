@@ -119,7 +119,7 @@ namespace Addictol::Support
 
 		auto w2mb = [](const wchar_t* a_src, int32_t a_srcLen, char* a_dst = nullptr, int32_t a_dstLen = 0)
 			{
-				return REX::W32::WideCharToMultiByte(CP_ACP, 0, a_src, a_srcLen, a_dst, a_dstLen, nullptr, nullptr);
+				return ::WideCharToMultiByte(CP_ACP, 0, a_src, a_srcLen, a_dst, a_dstLen, nullptr, nullptr);
 			};
 
 		auto len = w2mb(s.c_str(), static_cast<int32_t>(s.length()));
@@ -141,7 +141,7 @@ namespace Addictol::Support
 
 		auto mb2w = [](const char* a_src, std::int32_t a_srcLen, wchar_t* a_dst = nullptr, std::int32_t a_dstLen = 0)
 			{
-				return REX::W32::MultiByteToWideChar(CP_ACP, 0, a_src, a_srcLen, a_dst, a_dstLen);
+				return ::MultiByteToWideChar(CP_ACP, 0, a_src, a_srcLen, a_dst, a_dstLen);
 			};
 
 		int len = mb2w(s.c_str(), static_cast<int32_t>(s.length()));

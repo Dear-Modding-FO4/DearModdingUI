@@ -191,7 +191,17 @@ namespace
 		}
 		(void)client.DrawSectionHeader("Section");
 		std::string search;
-		(void)client.DrawSearchInput("search", "Search...", search);
+		(void)client.DrawSearchInput("search", "Search...", search, 512);
+		const std::array<size_t, 1> lineOffsets{ 0 };
+		const dmui::TextViewRequest textView{
+			.text = search,
+			.lineOffsets = lineOffsets,
+			.contentRevision = 1,
+			.viewport = { 0.0f, 320.0f }
+		};
+		dmui::TextViewState textViewState;
+		(void)dmui::RevealTextOffset(textView, textViewState, 0);
+		(void)client.DrawTextView("text-view", textView, textViewState);
 		bool expanded{ true };
 		(void)client.DrawCollapsingSectionHeader(
 			"section",

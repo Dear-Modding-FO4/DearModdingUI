@@ -118,6 +118,7 @@ Useful arguments:
 Presentation presets use the shared exercises in `tools\shared`; MCM and navigation
 scenarios live in `tools\preview\fixtures`. Preview binaries and fixtures are not packaged.
 Increase `--frames` if capture fails because a scenario has not finished initializing.
+Captures also check text-view draw-context rejection and equal ASCII advances through the production monospace font role.
 
 Field feedback demos use `--page setting-feedback/label`,
 `--page setting-feedback/control`, or `--page setting-feedback/strip`.

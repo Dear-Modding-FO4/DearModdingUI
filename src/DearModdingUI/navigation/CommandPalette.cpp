@@ -5,6 +5,7 @@
 #include <DearModdingUI/host/MenuDismissal.h>
 #include <DearModdingUI/presentation/Theme.h>
 
+#include <REX/REX.h>
 #include <imgui/imgui.h>
 
 #include <algorithm>
@@ -13,6 +14,8 @@
 
 namespace DearModdingUI
 {
+	using namespace std::literals;
+
 	namespace
 	{
 		inline constexpr char kCommandPalettePopupId[] =
@@ -125,10 +128,17 @@ namespace DearModdingUI
 		}
 
 		const auto previousQuery = a_state.query;
-		DrawSearchInput(
+		const auto searchResult = DrawSearchInput(
 			"NavigationPaletteSearch",
 			"Search mods, pages, and actions...",
-			a_state.query);
+			a_state.query,
+			512);
+		if (searchResult != DMUI_RESULT_OK)
+		{
+			REX::ERROR("DearModdingUI: command palette search failed ({})"sv,
+				static_cast<uint32_t>(searchResult));
+			ImGui::TextUnformatted("Search input unavailable.");
+		}
 		auto results = BuildResults(a_model, a_selection, a_state);
 		a_state.selection = ResolvePaletteSelectionIndex(
 			a_state.selection,

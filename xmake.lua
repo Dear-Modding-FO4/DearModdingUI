@@ -129,6 +129,7 @@ local source_sets = {
         "src/DearModdingUI/controls/Controls.cpp",
         "src/DearModdingUI/controls/FieldFeedback.cpp",
         "src/DearModdingUI/controls/SettingsTable.cpp",
+        "src/DearModdingUI/controls/TextViewer.cpp",
         "src/DearModdingUI/navigation/Navigation*.cpp",
         "src/DearModdingUI/navigation/SidebarView.cpp",
         "src/DearModdingUI/pages/Health.cpp",
@@ -255,6 +256,7 @@ target("dmui-tests", function()
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileUI.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileNoWindowsMacros.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileSettingsActions.cpp",
+        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileTextView.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileVisualDecisions.cpp"
     )
     add_includedirs(

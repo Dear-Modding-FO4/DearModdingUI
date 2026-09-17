@@ -23,6 +23,7 @@ namespace vmm_tests
 	void run_navigation_presentation_checks(Runner&);
 	void run_carrier_menu_checks(Runner&);
 	void run_registry_lifecycle_checks(Runner&);
+	void run_text_viewer_checks(Runner&);
 
 	void run_dear_modding_ui_checks(Runner& runner)
 	{
@@ -47,5 +48,6 @@ namespace vmm_tests
 		run_navigation_presentation_checks(runner);
 		run_carrier_menu_checks(runner);
 		run_registry_lifecycle_checks(runner);
+		run_text_viewer_checks(runner);
 	}
 }

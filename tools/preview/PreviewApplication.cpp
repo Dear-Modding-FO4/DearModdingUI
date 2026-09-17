@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -55,6 +56,63 @@ namespace DearModdingUIPreview
 		};
 
 		PreviewHealthReporter g_previewHealthReporter;
+
+		[[nodiscard]] bool VerifyTextViewDrawAccess(std::wstring& a_error)
+		{
+			const auto& pages = OrderedPages();
+			if (pages.empty())
+			{
+				a_error = L"The text-view access check requires a registered client.";
+				return false;
+			}
+			const auto owner = pages.front().client;
+			const size_t lineOffsets[]{ 0 };
+			const DMUI_TextViewDescriptor descriptor{
+				.structSize = sizeof(DMUI_TextViewDescriptor),
+				.id = "preview-access-check",
+				.lineOffsets = lineOffsets,
+				.lineCount = 1
+			};
+			DMUI_TextViewState state{ .structSize = sizeof(DMUI_TextViewState) };
+			if (HostAPI().drawTextView(owner, &descriptor, &state) !=
+				DMUI_RESULT_WRONG_THREAD)
+			{
+				a_error = L"The text viewer accepted a call outside its render callback.";
+				return false;
+			}
+			RenderExecution::Guard execution{ RenderExecution::Phase::kFrameDraw };
+			RenderExecution::ClientGuard client{ owner, true };
+			auto* context = ImGui::GetCurrentContext();
+			ImGui::SetCurrentContext(nullptr);
+			const auto result = HostAPI().drawTextView(owner, &descriptor, &state);
+			ImGui::SetCurrentContext(context);
+			if (result != DMUI_RESULT_HOST_NOT_READY)
+			{
+				a_error = L"The text viewer accepted a call without a live ImGui context.";
+				return false;
+			}
+			return true;
+		}
+
+		[[nodiscard]] bool VerifyMonospaceFont(std::wstring& a_error)
+		{
+			if (!Theme::PushFont(Theme::FontRole::kMonospace))
+			{
+				a_error = L"The production monospace font role did not load.";
+				return false;
+			}
+			const auto narrow = ImGui::CalcTextSize("iiii").x;
+			const auto wide = ImGui::CalcTextSize("WWWW").x;
+			const auto digits = ImGui::CalcTextSize("0123").x;
+			Theme::PopFont();
+			if (narrow <= 0.0f || std::abs(narrow - wide) > 0.01f ||
+				std::abs(narrow - digits) > 0.01f)
+			{
+				a_error = L"The production monospace role has unequal glyph advances.";
+				return false;
+			}
+			return true;
+		}
 	}
 
 	struct PreviewApplication::Impl
@@ -409,6 +467,8 @@ namespace DearModdingUIPreview
 
 		[[nodiscard]] bool RenderFrame(std::wstring& a_error)
 		{
+			if (options.screenshot && !VerifyTextViewDrawAccess(a_error))
+				return false;
 			{
 				RenderExecution::Guard execution{
 					RenderExecution::Phase::kFrameDraw
@@ -428,6 +488,11 @@ namespace DearModdingUIPreview
 				ImGui_ImplDX11_NewFrame();
 				ImGui_ImplWin32_NewFrame();
 				ImGui::NewFrame();
+				if (options.screenshot && !VerifyMonospaceFont(a_error))
+				{
+					ImGui::EndFrame();
+					return false;
+				}
 				DrawDemandedOverlays();
 				PresentationServices::DrawNotification();
 				if (IsMenuVisible())

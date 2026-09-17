@@ -220,7 +220,8 @@ namespace DearModdingUI
 			&ApiResolveIconGlyph,
 			&ApiBeginField,
 			&ApiSetFieldFeedback,
-			&ApiEndField
+			&ApiEndField,
+			&ApiDrawTextView
 		};
 		return api;
 	}

@@ -24,7 +24,10 @@ namespace vmm_tests
 	void run_host_api_compatibility_checks(Runner& runner)
 	{
 		runner.test("published row layout uses production adapters", [] {
-			const auto* api = DMUI_GetAPI(DMUI_HOST_ABI_1);
+			require(
+				DMUI_GetAPI(DMUI_HOST_ABI_1) != nullptr,
+				"optional viewer disconnected clients using the unchanged ABI");
+			const auto* api = DMUI_GetAPI(DMUI_HOST_ABI_CURRENT);
 			require(api, "fixture host API was unavailable");
 			require(
 				offsetof(DMUI_HostAPI, beginSettingsRow) == 224 &&
@@ -34,7 +37,8 @@ namespace vmm_tests
 					offsetof(DMUI_HostAPI, registerPageActivityObserver) == 256 &&
 					offsetof(DMUI_HostAPI, resolveIconGlyph) == 440 &&
 					offsetof(DMUI_HostAPI, beginField) == 448 &&
-					offsetof(DMUI_HostAPI, endField) == 464,
+					offsetof(DMUI_HostAPI, endField) == 464 &&
+					offsetof(DMUI_HostAPI, drawTextView) == 472,
 				"append-only host table layout changed");
 
 			constexpr DMUI_ClientHandle owner{ 7 };

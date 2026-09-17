@@ -5,8 +5,10 @@
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/controls/Faq.h>
 #include <DearModdingUI/host/Host.h>
+#include <DearModdingUI/host/RenderExecution.h>
 #include <DearModdingUI/controls/LinkRow.h>
 #include <DearModdingUI/controls/SettingsTable.h>
+#include <DearModdingUI/controls/TextViewer.h>
 #include <DearModdingUI/presentation/Theme.h>
 
 #include <imgui/imgui.h>
@@ -14,6 +16,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <new>
 #include <string>
 #include <vector>
@@ -115,7 +118,8 @@ namespace DearModdingUI::HostAPIInternal
 														   char *a_buffer, size_t a_capacity,
 														   uint32_t *a_changed) noexcept
 	{
-		if (!a_id || !a_hint || !a_buffer || !a_capacity || !a_changed)
+		if (!a_id || !a_hint || !a_buffer || !a_capacity || !a_changed ||
+			a_capacity > static_cast<size_t>((std::numeric_limits<int>::max)()))
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_changed = 0u;
 
@@ -128,19 +132,33 @@ namespace DearModdingUI::HostAPIInternal
 		if (validation != DMUI_RESULT_OK)
 			return validation;
 
+		*a_changed =
+			DrawSearchInput(a_id, a_hint, a_buffer, a_capacity) ? 1u : 0u;
+		return DMUI_RESULT_OK;
+	}
+
+	[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawTextView(
+		DMUI_ClientHandle a_client,
+		const DMUI_TextViewDescriptor* a_descriptor,
+		DMUI_TextViewState* a_state) noexcept
+	{
+		if (!a_descriptor || !a_state)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		if (a_descriptor->structSize < DMUI_TEXT_VIEW_DESCRIPTOR_0_2_SIZE ||
+			a_state->structSize < DMUI_TEXT_VIEW_STATE_0_2_SIZE)
+			return DMUI_RESULT_STRUCT_TOO_SMALL;
+		const auto validation = ValidateDrawingClient(a_client);
+		if (validation != DMUI_RESULT_OK)
+			return validation;
+		if (!RenderExecution::IsActiveClient(a_client, true))
+			return DMUI_RESULT_WRONG_THREAD;
+		if (!ImGui::GetCurrentContext() || !Theme::GetFonts().monospace)
+			return DMUI_RESULT_HOST_NOT_READY;
 		try
 		{
-			std::string search{a_buffer, length};
-			DrawSearchInput(a_id, a_hint, search);
-			*a_changed =
-				search.size() != length || std::memcmp(search.data(), a_buffer, length) != 0 ? 1u
-																							 : 0u;
-			const auto outputLength = (std::min)(search.size(), a_capacity - 1);
-			std::memcpy(a_buffer, search.data(), outputLength);
-			a_buffer[outputLength] = '\0';
-			return DMUI_RESULT_OK;
+			return DrawTextView(a_client, *a_descriptor, *a_state);
 		}
-		catch (const std::bad_alloc &)
+		catch (const std::bad_alloc&)
 		{
 			return DMUI_RESULT_RESOURCE_EXHAUSTED;
 		}

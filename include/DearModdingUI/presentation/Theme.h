@@ -18,6 +18,7 @@ namespace DearModdingUI::Theme
 		ImFont* heading{ nullptr };
 		ImFont* subheading{ nullptr };
 		ImFont* subtext{ nullptr };
+		ImFont* monospace{ nullptr };
 	};
 
 	class FontGuard

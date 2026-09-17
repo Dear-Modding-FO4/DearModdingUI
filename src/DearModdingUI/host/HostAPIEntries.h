@@ -32,6 +32,7 @@ namespace DearModdingUI::HostAPIInternal
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::drawSectionHeader)> ApiDrawSectionHeader;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::drawBulletText)> ApiDrawBulletText;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::drawSearchInput)> ApiDrawSearchInput;
+	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::drawTextView)> ApiDrawTextView;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::drawCollapsingSectionHeader)> ApiDrawCollapsingSectionHeader;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::drawLinkRow)> ApiDrawLinkRow;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::openExternal)> ApiOpenExternal;

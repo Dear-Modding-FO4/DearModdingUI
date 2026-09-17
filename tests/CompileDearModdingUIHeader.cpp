@@ -38,6 +38,10 @@ static_assert(std::is_standard_layout_v<DMUI_FieldFeedback>);
 static_assert(std::is_trivially_copyable_v<DMUI_FieldFeedback>);
 static_assert(std::is_standard_layout_v<DMUI_ThemeColors>);
 static_assert(std::is_trivially_copyable_v<DMUI_ThemeColors>);
+static_assert(std::is_standard_layout_v<DMUI_TextViewDescriptor>);
+static_assert(std::is_trivially_copyable_v<DMUI_TextViewDescriptor>);
+static_assert(std::is_standard_layout_v<DMUI_TextViewState>);
+static_assert(std::is_trivially_copyable_v<DMUI_TextViewState>);
 static_assert(std::is_standard_layout_v<DMUI_HostAPI>);
 static_assert(std::is_trivially_copyable_v<DMUI_HostAPI>);
 static_assert(sizeof(DMUI_StatusSeverity) == sizeof(uint32_t));
@@ -45,7 +49,7 @@ static_assert(sizeof(DMUI_FontRole) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_SettingsAction) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_HotkeyBindingState) == sizeof(uint32_t));
 static_assert(DMUI_HOST_ABI_CURRENT == DMUI_HOST_ABI_1);
-static_assert(DMUI_API_VERSION_CURRENT == DMUI_API_VERSION_0_1);
+static_assert(DMUI_API_VERSION_CURRENT == DMUI_API_VERSION_0_2);
 static_assert(std::is_same_v<
 	decltype(&DMUI_GetAPI),
 	const DMUI_HostAPI* (DMUI_CALL*)(uint32_t) noexcept>);
@@ -110,6 +114,11 @@ static_assert(std::is_nothrow_invocable_v<
 	char*,
 	size_t,
 	uint32_t*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_DrawTextViewFn,
+	DMUI_ClientHandle,
+	const DMUI_TextViewDescriptor*,
+	DMUI_TextViewState*>);
 static_assert(std::is_nothrow_invocable_v<
 	DMUI_DrawCollapsingSectionHeaderFn,
 	DMUI_ClientHandle,
@@ -213,7 +222,8 @@ static_assert(DMUI_FONT_ROLE_TITLE == 1u);
 static_assert(DMUI_FONT_ROLE_HEADING == 2u);
 static_assert(DMUI_FONT_ROLE_SUBHEADING == 3u);
 static_assert(DMUI_FONT_ROLE_SUBTEXT == 4u);
-static_assert(DMUI_FONT_ROLE_COUNT == 5u);
+static_assert(DMUI_FONT_ROLE_MONOSPACE == 5u);
+static_assert(DMUI_FONT_ROLE_COUNT == 6u);
 static_assert(DMUI_SETTINGS_ACTION_RESET == 0u);
 static_assert(DMUI_SETTINGS_ACTION_REVERT == 1u);
 static_assert(DMUI_SETTINGS_ACTION_APPLY == 2u);

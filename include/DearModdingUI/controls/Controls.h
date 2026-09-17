@@ -173,10 +173,16 @@ namespace DearModdingUI
 		const char* a_fallbackLabel,
 		const char* a_tooltip,
 		bool a_enabled) noexcept;
-	void DrawSearchInput(
+	[[nodiscard]] bool DrawSearchInput(
 		const char* a_id,
 		const char* a_hint,
-		std::string& a_search) noexcept;
+		char* a_buffer,
+		size_t a_capacity) noexcept;
+	[[nodiscard]] DMUI_Result DrawSearchInput(
+		const char* a_id,
+		const char* a_hint,
+		std::string& a_search,
+		size_t a_maximumBytes) noexcept;
 	void DrawSectionHeader(const char* a_text, char32_t a_glyph) noexcept;
 	void DrawSectionHeader(const char* a_text);
 	void DrawBulletText(const char* a_text) noexcept;

@@ -5,7 +5,9 @@
 #include <DearModdingUI/host/MenuDismissal.h>
 
 #include <REX/REX.h>
+#if !defined(DMUI_PREVIEW)
 #include <RE/M/Main.h>
+#endif
 
 namespace DearModdingUI::HostInternal
 {
@@ -30,9 +32,10 @@ namespace DearModdingUI::HostInternal
 	{
 		a_service.menuVisible.store(a_visible, std::memory_order_release);
 
-		// pause/unpause game
+#if !defined(DMUI_PREVIEW)
 		auto main = RE::Main::GetSingleton();
 		if (main) main->freezeTime = a_visible;
+#endif
 
 		if (!a_visible)
 		{

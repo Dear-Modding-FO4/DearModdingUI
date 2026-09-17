@@ -10,7 +10,10 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <limits>
+#include <new>
 #include <numbers>
+#include <vector>
 
 namespace DearModdingUI
 {
@@ -753,10 +756,11 @@ namespace DearModdingUI
 			TitleBarButtonPadding());
 	}
 
-	void DrawSearchInput(
+	bool DrawSearchInput(
 		const char* a_id,
 		const char* a_hint,
-		std::string& a_search) noexcept
+		char* a_buffer,
+		size_t a_capacity) noexcept
 	{
 		ImGui::PushID(a_id);
 		const auto scale = Theme::SearchScale();
@@ -778,14 +782,11 @@ namespace DearModdingUI
 			ImGuiStyleVar_FramePadding,
 			ImVec2(iconSpace, Theme::kSearchInputFramePaddingY * scale));
 		ImGui::SetNextItemWidth(width);
-		char buffer[256]{};
-		strncpy_s(buffer, a_search.c_str(), sizeof(buffer) - 1);
-		if (ImGui::InputTextWithHint(
+		const auto changed = ImGui::InputTextWithHint(
 				"##search",
 				a_hint,
-				buffer,
-				sizeof(buffer)))
-			a_search = buffer;
+				a_buffer,
+				a_capacity);
 		const ImVec2 iconPosition{
 			cursor.x + Theme::kSearchIconOffsetX * scale,
 			cursor.y + ContentOffsetY(frameHeight, iconSize)
@@ -804,6 +805,35 @@ namespace DearModdingUI
 		ImGui::PopStyleVar(2);
 		ImGui::PopStyleColor(5);
 		ImGui::PopID();
+		return changed;
+	}
+
+	DMUI_Result DrawSearchInput(
+		const char* a_id,
+		const char* a_hint,
+		std::string& a_search,
+		size_t a_maximumBytes) noexcept
+	{
+		if (!a_id || !a_hint || a_search.size() > a_maximumBytes ||
+			a_maximumBytes >= static_cast<size_t>((std::numeric_limits<int>::max)()) ||
+			a_search.find('\0') != std::string::npos)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		try
+		{
+			std::vector<char> buffer(a_maximumBytes + 1);
+			std::ranges::copy(a_search, buffer.begin());
+			if (DrawSearchInput(a_id, a_hint, buffer.data(), buffer.size()))
+				a_search.assign(buffer.data());
+			return DMUI_RESULT_OK;
+		}
+		catch (const std::bad_alloc&)
+		{
+			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		}
+		catch (...)
+		{
+			return DMUI_RESULT_CALLBACK_FAILED;
+		}
 	}
 
 	float SettingsActionButtonWidth(

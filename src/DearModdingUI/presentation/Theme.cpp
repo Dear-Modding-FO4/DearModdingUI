@@ -170,7 +170,8 @@ namespace DearModdingUI::Theme
 				a_fonts.title,
 				a_fonts.heading,
 				a_fonts.subheading,
-				a_fonts.subtext
+				a_fonts.subtext,
+				a_fonts.monospace
 			};
 			std::array<const ImFont*, static_cast<size_t>(FontRole::kCount)> merged{};
 			size_t mergedCount = 0;
@@ -260,6 +261,12 @@ namespace DearModdingUI::Theme
 			g_fonts.heading = loadRole(FontRole::kHeading);
 			g_fonts.subheading = loadRole(FontRole::kSubheading);
 			g_fonts.subtext = loadRole(FontRole::kSubtext);
+			ImFontConfig monospaceConfig{};
+			monospaceConfig.SizePixels = ResolveRoleFontSize(
+				FontRole::kMonospace,
+				a_backBufferHeight,
+				a_userScale);
+			g_fonts.monospace = atlas.AddFontDefaultVector(&monospaceConfig);
 			outcome.rolesLoaded[static_cast<size_t>(FontRole::kTitle)] =
 				g_fonts.title != nullptr;
 			outcome.rolesLoaded[static_cast<size_t>(FontRole::kHeading)] =
@@ -268,6 +275,8 @@ namespace DearModdingUI::Theme
 				g_fonts.subheading != nullptr;
 			outcome.rolesLoaded[static_cast<size_t>(FontRole::kSubtext)] =
 				g_fonts.subtext != nullptr;
+			outcome.rolesLoaded[static_cast<size_t>(FontRole::kMonospace)] =
+				g_fonts.monospace != nullptr;
 			if (!g_fonts.body)
 			{
 				g_fonts.body = atlas.AddFontDefault();
@@ -301,6 +310,8 @@ namespace DearModdingUI::Theme
 				return g_fonts.subheading;
 			case FontRole::kSubtext:
 				return g_fonts.subtext;
+			case FontRole::kMonospace:
+				return g_fonts.monospace;
 			default:
 				return g_fonts.body;
 			}
@@ -315,6 +326,7 @@ namespace DearModdingUI::Theme
 			g_fonts.heading = g_fonts.body;
 			g_fonts.subheading = g_fonts.body;
 			g_fonts.subtext = g_fonts.body;
+			g_fonts.monospace = g_fonts.body;
 			g_effectiveBodyFontFamily = "Built-in fallback";
 			a_io.FontDefault = g_fonts.body;
 			return g_fonts.body != nullptr;
