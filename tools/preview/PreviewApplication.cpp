@@ -154,6 +154,11 @@ namespace DearModdingUIPreview
 			return RunInteractive(error);
 		}
 
+		[[nodiscard]] bool IsTextViewScenario() const noexcept
+		{
+			return options.page && *options.page == "text-view/reader";
+		}
+
 		[[nodiscard]] bool Initialize(std::wstring& a_error)
 		{
 			ImGui_ImplWin32_EnableDpiAwareness();
@@ -225,7 +230,8 @@ namespace DearModdingUIPreview
 				.includeNavigationComparisonFixtures =
 					options.navigationOverride.has_value(),
 				.includeSettingFeedbackFixtures =
-					options.page && options.page->starts_with("setting-feedback/")
+					options.page && options.page->starts_with("setting-feedback/"),
+				.includeTextViewFixture = IsTextViewScenario()
 			};
 			if (!fixtures->Register(
 					renderer.Device(),
@@ -467,7 +473,8 @@ namespace DearModdingUIPreview
 
 		[[nodiscard]] bool RenderFrame(std::wstring& a_error)
 		{
-			if (options.screenshot && !VerifyTextViewDrawAccess(a_error))
+			if (options.screenshot && IsTextViewScenario() &&
+				!VerifyTextViewDrawAccess(a_error))
 				return false;
 			{
 				RenderExecution::Guard execution{
@@ -488,7 +495,8 @@ namespace DearModdingUIPreview
 				ImGui_ImplDX11_NewFrame();
 				ImGui_ImplWin32_NewFrame();
 				ImGui::NewFrame();
-				if (options.screenshot && !VerifyMonospaceFont(a_error))
+				if (options.screenshot && IsTextViewScenario() &&
+					!VerifyMonospaceFont(a_error))
 				{
 					ImGui::EndFrame();
 					return false;
@@ -541,6 +549,12 @@ namespace DearModdingUIPreview
 				if (!fixtures->ValidatePresentationCapture(fixtureError))
 					a_error.assign(fixtureError.begin(), fixtureError.end());
 			}
+			if (a_error.empty() && IsTextViewScenario())
+			{
+				std::string fixtureError;
+				if (!fixtures->ValidateTextViewCapture(fixtureError))
+					a_error.assign(fixtureError.begin(), fixtureError.end());
+			}
 			if (a_error.empty())
 				(void)renderer.Capture(*options.screenshot, a_error);
 			if (!a_error.empty())
@@ -549,6 +563,9 @@ namespace DearModdingUIPreview
 				return 1;
 			}
 			std::wcout << L"Wrote " << options.screenshot->wstring() << L'\n';
+			if (IsTextViewScenario())
+				std::wcout << L"Verified text-view public draw, later reveal, overlapping "
+					L"highlights, clipping, monospace role, and callback guards.\n";
 			return 0;
 		}
 

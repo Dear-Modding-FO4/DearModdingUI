@@ -3,6 +3,7 @@
 #include "fixtures/MCMFixtures.h"
 #include "fixtures/NavigationFixtures.h"
 #include "fixtures/SettingFeedbackFixtures.h"
+#include "fixtures/TextViewFixture.h"
 
 #include <d3d11.h>
 
@@ -65,6 +66,7 @@ namespace DearModdingUIPreview
 		DmuiTestFixtures::McmFixture mcmFixture;
 		std::vector<std::unique_ptr<dmui::Client>> navigationClients;
 		DmuiTestFixtures::SettingFeedbackFixture settingFeedback;
+		DmuiTestFixtures::TextViewFixture textView;
 	};
 
 	FixtureRunner::FixtureRunner() :
@@ -113,6 +115,9 @@ namespace DearModdingUIPreview
 			if (a_options.includeSettingFeedbackFixtures &&
 				!m_impl->settingFeedback.Register(a_error))
 				return false;
+			if (a_options.includeTextViewFixture &&
+				!m_impl->textView.Register(a_error))
+				return false;
 			return true;
 		}
 		catch (const std::exception& a_exception)
@@ -141,5 +146,10 @@ namespace DearModdingUIPreview
 	bool FixtureRunner::ValidatePresentationCapture(std::string& a_error) const
 	{
 		return m_impl->testSuite.ValidatePresentationCapture(a_error);
+	}
+
+	bool FixtureRunner::ValidateTextViewCapture(std::string& a_error) const
+	{
+		return m_impl->textView.ValidateCapture(a_error);
 	}
 }

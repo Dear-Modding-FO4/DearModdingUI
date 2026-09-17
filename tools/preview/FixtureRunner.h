@@ -19,6 +19,7 @@ namespace DearModdingUIPreview
 		bool gameLoaded{ true };
 		bool includeNavigationComparisonFixtures{};
 		bool includeSettingFeedbackFixtures{};
+		bool includeTextViewFixture{};
 	};
 
 	class FixtureRunner final
@@ -42,6 +43,7 @@ namespace DearModdingUIPreview
 		[[nodiscard]] uint64_t PresentationPage(
 			DmuiTests::PresentationScenario a_scenario) const noexcept;
 		[[nodiscard]] bool ValidatePresentationCapture(std::string& a_error) const;
+		[[nodiscard]] bool ValidateTextViewCapture(std::string& a_error) const;
 		void Stop() noexcept;
 
 	private:
