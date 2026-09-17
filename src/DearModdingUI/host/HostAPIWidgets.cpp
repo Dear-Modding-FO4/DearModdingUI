@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <limits>
 #include <new>
 #include <string>
 #include <vector>
@@ -118,23 +117,40 @@ namespace DearModdingUI::HostAPIInternal
 														   char *a_buffer, size_t a_capacity,
 														   uint32_t *a_changed) noexcept
 	{
-		if (!a_id || !a_hint || !a_buffer || !a_capacity || !a_changed ||
-			a_capacity > static_cast<size_t>((std::numeric_limits<int>::max)()))
+		DMUI_TextBuffer buffer{
+			.structSize = sizeof(DMUI_TextBuffer),
+			.data = a_buffer,
+			.capacity = a_capacity
+		};
+		return ApiDrawSearchInputBuffer(a_client, a_id, a_hint, &buffer, a_changed);
+	}
+
+	[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSearchInputBuffer(
+		DMUI_ClientHandle a_client,
+		const char* a_id,
+		const char* a_hint,
+		DMUI_TextBuffer* a_buffer,
+		uint32_t* a_changed) noexcept
+	{
+		if (!a_changed)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_changed = 0u;
-
-		size_t length = 0;
-		while (length < a_capacity && a_buffer[length])
-			++length;
-		if (length == a_capacity)
+		if (!a_id || !a_hint || !a_buffer)
 			return DMUI_RESULT_INVALID_ARGUMENT;
+		if (a_buffer->structSize < DMUI_TEXT_BUFFER_0_2_SIZE)
+			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		const auto validation = ValidateDrawingClient(a_client);
 		if (validation != DMUI_RESULT_OK)
 			return validation;
-
-		*a_changed =
-			DrawSearchInput(a_id, a_hint, a_buffer, a_capacity) ? 1u : 0u;
-		return DMUI_RESULT_OK;
+		if (!RenderExecution::IsActiveClient(a_client, true))
+			return DMUI_RESULT_WRONG_THREAD;
+		if (!ImGui::GetCurrentContext())
+			return DMUI_RESULT_HOST_NOT_READY;
+		bool changed{};
+		const auto result = DrawSearchInput(a_id, a_hint, *a_buffer, changed);
+		if (result == DMUI_RESULT_OK)
+			*a_changed = changed ? 1u : 0u;
+		return result;
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawTextView(

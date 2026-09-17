@@ -44,6 +44,7 @@ namespace DearModdingUIPreview
 			DmuiTests::PresentationScenario a_scenario) const noexcept;
 		[[nodiscard]] bool ValidatePresentationCapture(std::string& a_error) const;
 		[[nodiscard]] bool ValidateTextViewCapture(std::string& a_error) const;
+		void PrepareTextViewCapture(uint32_t a_frame);
 		void Stop() noexcept;
 
 	private:

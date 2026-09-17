@@ -126,11 +126,13 @@ These preview-only overrides do not change saved preferences.
 The reader scenario uses the public client API and production monospace role:
 
 ```powershell
-.\.Build\Preview\dmui-preview.exe --page text-view/reader --frames 8 --screenshot .Build\Preview\TextViewReader.png
+.\.Build\Preview\dmui-preview.exe --page text-view/reader --frames 12 --screenshot .Build\Preview\TextViewReader.png
 ```
 
-Its capture checks later-content reveal, overlapping highlights, clipping, font advances,
-and draw-context rejection. Section and search controls remain interactive without `--screenshot`.
+Its capture checks growable search typing and a 4,098-byte UTF-8 paste through the public API,
+same-frame edits, later-content reveal, overlapping highlights, clipping, font advances,
+and draw-context rejection. It uses an in-memory clipboard without changing the OS clipboard.
+Section and search controls remain interactive without `--screenshot`.
 
 ## Stable UI contract
 

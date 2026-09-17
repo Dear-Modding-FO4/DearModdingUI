@@ -16,6 +16,7 @@ namespace DmuiTestFixtures
 	public:
 		[[nodiscard]] bool Register(std::string& a_error);
 		[[nodiscard]] bool ValidateCapture(std::string& a_error) const;
+		void PrepareCaptureFrame(uint32_t a_frame);
 
 	private:
 		struct Section
@@ -40,6 +41,11 @@ namespace DmuiTestFixtures
 		dmui::TextViewState m_state;
 		uint64_t m_matchRevision{};
 		uint32_t m_childWindowId{};
+		uint32_t m_captureFrame{ UINT32_MAX };
+		dmui::ui::Vec2 m_searchPoint{};
+		bool m_typedGrowthAccepted{};
+		bool m_pasteGrowthAccepted{};
+		bool m_searchRestored{};
 		bool m_initialSelectionIssued{};
 		bool m_lastDrawSucceeded{};
 		std::string m_callbackError;

@@ -42,6 +42,8 @@ static_assert(std::is_standard_layout_v<DMUI_TextViewDescriptor>);
 static_assert(std::is_trivially_copyable_v<DMUI_TextViewDescriptor>);
 static_assert(std::is_standard_layout_v<DMUI_TextViewState>);
 static_assert(std::is_trivially_copyable_v<DMUI_TextViewState>);
+static_assert(std::is_standard_layout_v<DMUI_TextBuffer>);
+static_assert(std::is_trivially_copyable_v<DMUI_TextBuffer>);
 static_assert(std::is_standard_layout_v<DMUI_HostAPI>);
 static_assert(std::is_trivially_copyable_v<DMUI_HostAPI>);
 static_assert(sizeof(DMUI_StatusSeverity) == sizeof(uint32_t));
@@ -113,6 +115,13 @@ static_assert(std::is_nothrow_invocable_v<
 	const char*,
 	char*,
 	size_t,
+	uint32_t*>);
+static_assert(std::is_nothrow_invocable_v<
+	DMUI_DrawSearchInputBufferFn,
+	DMUI_ClientHandle,
+	const char*,
+	const char*,
+	DMUI_TextBuffer*,
 	uint32_t*>);
 static_assert(std::is_nothrow_invocable_v<
 	DMUI_DrawTextViewFn,

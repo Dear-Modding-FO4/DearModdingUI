@@ -14,6 +14,9 @@ namespace DmuiTestFixtures
 	{
 		constexpr const char* kViewerId{ "##TextViewFixtureReader" };
 
+		const std::string kTypedSuffix = std::string(300, 't') + "\xC3\xA9";
+		const std::string kPastedQuery = std::string(4096, 'p') + "\xC3\xA9";
+
 		[[nodiscard]] ImGuiWindow* FindTextViewWindow(ImGuiID a_id = 0)
 		{
 			auto* context = ImGui::GetCurrentContext();
@@ -45,7 +48,7 @@ namespace DmuiTestFixtures
 			std::string_view{},
 			dmui::ClientOrigin{},
 			dmui::ClientOptions{
-				.minimumHostAPISize = DMUI_HOST_API_DRAW_TEXT_VIEW_SIZE
+				.minimumHostAPISize = DMUI_HOST_API_DRAW_SEARCH_INPUT_BUFFER_SIZE
 			});
 		if (!m_client->Connect())
 		{
@@ -86,6 +89,11 @@ namespace DmuiTestFixtures
 		{
 			a_error =
 				"Text-view capture did not complete a successful public draw.";
+			return false;
+		}
+		if (!m_typedGrowthAccepted || !m_pasteGrowthAccepted || !m_searchRestored)
+		{
+			a_error = "Text-view capture did not complete growable search typing and paste.";
 			return false;
 		}
 		if (m_state.activeMatch >= m_matchOffsets.size())
@@ -278,6 +286,50 @@ namespace DmuiTestFixtures
 		++m_matchRevision;
 	}
 
+	void TextViewFixture::PrepareCaptureFrame(uint32_t a_frame)
+	{
+		m_captureFrame = a_frame;
+		auto& io = ImGui::GetIO();
+		switch (a_frame)
+		{
+		case 1:
+			io.AddMousePosEvent(m_searchPoint.x, m_searchPoint.y);
+			io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+			break;
+		case 2:
+			io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+			io.AddKeyEvent(ImGuiKey_End, true);
+			break;
+		case 3:
+			io.AddKeyEvent(ImGuiKey_End, false);
+			io.AddInputCharactersUTF8(kTypedSuffix.c_str());
+			break;
+		case 4:
+			io.AddKeyEvent(ImGuiMod_Ctrl, true);
+			io.AddKeyEvent(ImGuiKey_A, true);
+			break;
+		case 5:
+			io.AddKeyEvent(ImGuiKey_A, false);
+			io.AddKeyEvent(ImGuiKey_V, true);
+			break;
+		case 6:
+			io.AddKeyEvent(ImGuiKey_V, false);
+			io.AddKeyEvent(ImGuiKey_A, true);
+			break;
+		case 7:
+			io.AddKeyEvent(ImGuiKey_A, false);
+			io.AddKeyEvent(ImGuiKey_V, true);
+			break;
+		case 8:
+			io.AddKeyEvent(ImGuiKey_V, false);
+			io.AddKeyEvent(ImGuiMod_Ctrl, false);
+			io.AddMousePosEvent(-100.0f, -100.0f);
+			break;
+		default:
+			break;
+		}
+	}
+
 	void TextViewFixture::Draw()
 	{
 		m_lastDrawSucceeded = false;
@@ -289,18 +341,45 @@ namespace DmuiTestFixtures
 			return;
 		}
 
+		auto& platform = ImGui::GetPlatformIO();
+		const auto previousClipboard = platform.Platform_GetClipboardTextFn;
+		const auto previousClipboardData = platform.Platform_ClipboardUserData;
+		const char* pasteText = m_captureFrame == 5 ? kPastedQuery.c_str() : "aba";
+		if (m_captureFrame == 5 || m_captureFrame == 7)
+		{
+			platform.Platform_ClipboardUserData = &pasteText;
+			platform.Platform_GetClipboardTextFn = [](ImGuiContext* a_context) {
+				return *static_cast<const char**>(
+					a_context->PlatformIO.Platform_ClipboardUserData);
+			};
+		}
 		const auto search = m_client->DrawSearchInput(
 			"##TextViewFixtureSearch",
 			"Search reader text",
-			m_query,
-			512);
+			m_query);
+		platform.Platform_GetClipboardTextFn = previousClipboard;
+		platform.Platform_ClipboardUserData = previousClipboardData;
+		const auto searchBounds = ImGui::GetItemRectMin();
+		m_searchPoint = {
+			searchBounds.x + 60.0f,
+			searchBounds.y + ImGui::GetItemRectSize().y * 0.5f
+		};
 		if (!search)
 		{
 			RecordFailure("DrawSearchInput", m_client->LastResult());
 			return;
 		}
+		if (m_captureFrame == 3)
+			m_typedGrowthAccepted = *search && m_query == "aba" + kTypedSuffix;
+		if (m_captureFrame == 5)
+			m_pasteGrowthAccepted = *search && m_query == kPastedQuery;
+		if (m_captureFrame == 7)
+			m_searchRestored = *search && m_query == "aba";
 		if (*search)
+		{
 			RebuildMatches();
+			m_initialSelectionIssued = false;
+		}
 
 		const auto metrics = m_client->GetStyleMetrics();
 		if (!metrics)

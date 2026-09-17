@@ -9,6 +9,11 @@
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 
+namespace ImStb
+{
+#include <imgui/imstb_textedit.h>
+}
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -26,6 +31,8 @@ namespace vmm_tests
 
 	namespace
 	{
+		inline constexpr DMUI_ClientHandle kResizeTestClient{ 0x51u };
+
 		inline constexpr ImVec4 kRowHoverColor{
 			0.13f,
 			0.47f,
@@ -205,17 +212,32 @@ namespace vmm_tests
 				"row hover highlight did not cover the full row");
 		}
 
+		void SetTestClipboard(std::string& a_text)
+		{
+			auto& platform = ImGui::GetPlatformIO();
+			platform.Platform_ClipboardUserData = &a_text;
+			platform.Platform_GetClipboardTextFn =
+				[](ImGuiContext* a_context) {
+					return static_cast<const std::string*>(
+							   a_context->PlatformIO.
+								   Platform_ClipboardUserData)
+						->c_str();
+				};
+		}
+
 		[[nodiscard]] std::pair<std::string, bool> EditSearch(
 			std::string a_initial,
 			size_t a_maximumBytes,
 			const char* a_input)
 		{
+			std::string clipboard{ a_input };
 			support::ImGuiTestContext imgui{
 				{
 					.disableInputTrickle = true,
 					.disableErrorRecovery = true
 				}
 			};
+			SetTestClipboard(clipboard);
 			std::vector<char> buffer(a_maximumBytes + 1);
 			std::ranges::copy(a_initial, buffer.begin());
 			const auto beginFrame = [&] {
@@ -249,7 +271,19 @@ namespace vmm_tests
 
 			io.AddMousePosEvent(80.0f, 32.0f);
 			io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
-			io.AddInputCharactersUTF8(a_input);
+			beginFrame();
+			(void)DrawSearchInput(
+				"SearchCapacity",
+				"Search...",
+				buffer.data(),
+				buffer.size());
+			const auto active = ImGui::IsItemActive();
+			imgui.EndWindow(true);
+			require(active,
+				"fixed search did not retain focus after mouse release");
+
+			io.AddKeyEvent(ImGuiMod_Ctrl, true);
+			io.AddKeyEvent(ImGuiKey_V, true);
 			beginFrame();
 			const auto changed = DrawSearchInput(
 				"SearchCapacity",
@@ -257,8 +291,78 @@ namespace vmm_tests
 				buffer.data(),
 				buffer.size());
 			imgui.EndWindow(true);
+			io.AddKeyEvent(ImGuiKey_V, false);
+			io.AddKeyEvent(ImGuiMod_Ctrl, false);
 			return { std::string{ buffer.data() }, changed };
 		}
+
+		struct RejectingTextBuffer
+		{
+			explicit RejectingTextBuffer(std::string_view a_text)
+			{
+				storage.resize(16);
+				std::ranges::copy(a_text, storage.begin());
+			}
+
+			[[nodiscard]] DMUI_TextBuffer Descriptor() noexcept
+			{
+				return {
+					.structSize = sizeof(DMUI_TextBuffer),
+					.data = storage.data(),
+					.capacity = storage.size(),
+					.resize = Resize,
+					.userData = this
+				};
+			}
+
+			static DMUI_Result DMUI_CALL Resize(
+				void* a_userData,
+				size_t,
+				char**,
+				size_t*) noexcept
+			{
+				auto& self =
+					*static_cast<RejectingTextBuffer*>(a_userData);
+				++self.resizeCalls;
+				self.renderExecutionActive = RenderExecution::IsActive();
+				self.drawingClientVisible =
+					RenderExecution::IsActiveClient(
+						kResizeTestClient,
+						true);
+				return DMUI_RESULT_BUFFER_TOO_SMALL;
+			}
+
+			std::vector<char> storage;
+			size_t resizeCalls{};
+			bool renderExecutionActive{};
+			bool drawingClientVisible{};
+		};
+
+		[[nodiscard]] DMUI_Result DrawBufferSearchFrame(
+			support::ImGuiTestContext& a_imgui,
+			DMUI_TextBuffer& a_buffer,
+			bool& a_changed,
+			ImGuiID* a_inputId = nullptr)
+		{
+			a_imgui.BeginWindow(
+				"##GrowableSearch",
+				{ 0.0f, 0.0f },
+				{ 640.0f, 180.0f },
+				ImGuiWindowFlags_NoDecoration |
+					ImGuiWindowFlags_NoSavedSettings,
+				ImGuiCond_Always);
+			ImGui::SetCursorScreenPos({ 20.0f, 20.0f });
+			const auto result = DrawSearchInput(
+				"GrowableSearch",
+				"Search...",
+				a_buffer,
+				a_changed);
+			if (a_inputId)
+				*a_inputId = ImGui::GetItemID();
+			a_imgui.EndWindow(true);
+			return result;
+		}
+
 	}
 
 	void run_host_control_checks(Runner& runner)
@@ -330,6 +434,187 @@ namespace vmm_tests
 						DMUI_RESULT_INVALID_ARGUMENT &&
 					query == "query",
 				"unsafe ImGui buffer capacity was accepted");
+		});
+
+		runner.test("growable search accepts a large UTF8 paste across borrowed frames", [] {
+			std::string clipboard(4094, 'a');
+			clipboard += "\xC3\xA9";
+			support::ImGuiTestContext imgui{
+				{
+					.disableInputTrickle = true,
+					.disableErrorRecovery = true
+				}
+			};
+			RenderExecution::Guard execution{
+				RenderExecution::Phase::kFrameDraw
+			};
+			RenderExecution::ClientGuard client{
+				kResizeTestClient,
+				true
+			};
+			SetTestClipboard(clipboard);
+			std::string query;
+			const auto drawFrame = [&] {
+				imgui.BeginWindow(
+					"##GrowableStringSearch",
+					{ 0.0f, 0.0f },
+					{ 640.0f, 180.0f },
+					ImGuiWindowFlags_NoDecoration |
+						ImGuiWindowFlags_NoSavedSettings,
+					ImGuiCond_Always);
+				ImGui::SetCursorScreenPos({ 20.0f, 20.0f });
+				const auto result = DrawSearchInput(
+					"GrowableStringSearch",
+					"Search...",
+					query);
+				imgui.EndWindow(true);
+				return result;
+			};
+
+			require(drawFrame() == DMUI_RESULT_OK,
+				"growable search failed before activation");
+			auto& io = ImGui::GetIO();
+			io.AddMousePosEvent(80.0f, 32.0f);
+			io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+			require(drawFrame() == DMUI_RESULT_OK,
+				"growable search failed during activation");
+			io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+			require(
+				drawFrame() == DMUI_RESULT_OK && query.empty() &&
+					ImGui::GetCurrentContext()->ActiveId != 0 &&
+					ImGui::GetCurrentContext()->InputTextState.ID ==
+						ImGui::GetCurrentContext()->ActiveId,
+				"growable search did not retain focus after mouse release");
+			io.AddKeyEvent(ImGuiMod_Ctrl, true);
+			io.AddKeyEvent(ImGuiKey_V, true);
+			require(drawFrame() == DMUI_RESULT_OK && query == clipboard,
+				"single large UTF8 paste did not grow the search buffer");
+
+			io.AddKeyEvent(ImGuiKey_V, false);
+			io.AddKeyEvent(ImGuiMod_Ctrl, false);
+			require(drawFrame() == DMUI_RESULT_OK && query == clipboard,
+				"recreated borrowed search storage lost the active edit");
+
+			RejectingTextBuffer deactivatedOwner{ "safe" };
+			auto deactivatedBuffer = deactivatedOwner.Descriptor();
+			bool changed{};
+			imgui.BeginWindow(
+				"##GrowableStringSearch",
+				{ 0.0f, 0.0f },
+				{ 640.0f, 180.0f },
+				ImGuiWindowFlags_NoDecoration |
+					ImGuiWindowFlags_NoSavedSettings,
+				ImGuiCond_Always);
+			ImGui::SetCursorScreenPos({ 20.0f, 20.0f });
+			ImGui::SetActiveID(
+				ImGui::GetID("##OtherInput"),
+				ImGui::GetCurrentWindow());
+			const auto deactivatedResult = DrawSearchInput(
+				"GrowableStringSearch",
+				"Search...",
+				deactivatedBuffer,
+				changed);
+			imgui.EndWindow(true);
+			require(
+				deactivatedResult == DMUI_RESULT_BUFFER_TOO_SMALL &&
+					!changed &&
+					std::string_view{ deactivatedBuffer.data } == "safe" &&
+					deactivatedOwner.resizeCalls == 1 &&
+					deactivatedOwner.renderExecutionActive &&
+					!deactivatedOwner.drawingClientVisible,
+				"deactivated writeback hid failure or changed replacement storage");
+		});
+
+		runner.test("failed search growth preserves native edit state", [] {
+			std::string clipboard(128, 'x');
+			support::ImGuiTestContext imgui{
+				{
+					.disableInputTrickle = true,
+					.disableErrorRecovery = true
+				}
+			};
+			RenderExecution::Guard execution{
+				RenderExecution::Phase::kFrameDraw
+			};
+			RenderExecution::ClientGuard client{
+				kResizeTestClient,
+				true
+			};
+			SetTestClipboard(clipboard);
+			RejectingTextBuffer owner{ "abcdef" };
+			auto descriptor = owner.Descriptor();
+			bool changed{};
+			require(
+				DrawBufferSearchFrame(imgui, descriptor, changed) ==
+						DMUI_RESULT_OK &&
+					!changed,
+				"rejecting search failed before activation");
+
+			auto& io = ImGui::GetIO();
+			io.AddMousePosEvent(80.0f, 32.0f);
+			io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+			require(
+				DrawBufferSearchFrame(imgui, descriptor, changed) ==
+					DMUI_RESULT_OK,
+				"rejecting search failed during activation");
+			io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+			io.AddInputCharactersUTF8("g");
+			ImGuiID inputId{};
+			require(
+				DrawBufferSearchFrame(
+					imgui,
+					descriptor,
+					changed,
+					&inputId) ==
+						DMUI_RESULT_OK &&
+					changed,
+				"setup edit did not populate native undo state");
+
+			auto* state = ImGui::GetInputTextState(inputId);
+			require(state && state->Stb,
+				"active search did not retain native edit state");
+			state->SetSelection(1, 4);
+			const auto cursor = state->Stb->cursor;
+			const auto selectionStart = state->Stb->select_start;
+			const auto selectionEnd = state->Stb->select_end;
+			const auto undo = state->Stb->undostate;
+			const std::string original{ descriptor.data };
+			const auto* originalData = descriptor.data;
+			const auto originalCapacity = descriptor.capacity;
+
+			io.AddKeyEvent(ImGuiMod_Ctrl, true);
+			io.AddKeyEvent(ImGuiKey_V, true);
+			require(
+				DrawBufferSearchFrame(imgui, descriptor, changed) ==
+						DMUI_RESULT_BUFFER_TOO_SMALL &&
+					!changed,
+				"failed resize did not report its explicit result");
+			state = ImGui::GetInputTextState(inputId);
+			require(
+				owner.resizeCalls == 1 &&
+					owner.renderExecutionActive &&
+					!owner.drawingClientVisible &&
+					descriptor.data == originalData &&
+					descriptor.capacity == originalCapacity &&
+					std::string_view{ descriptor.data } == original &&
+					state && state->Stb->cursor == cursor &&
+					state->Stb->select_start == selectionStart &&
+					state->Stb->select_end == selectionEnd &&
+					std::memcmp(
+						&state->Stb->undostate,
+						&undo,
+						sizeof(undo)) == 0,
+				"failed resize truncated text or changed cursor, selection, or undo");
+
+			io.AddKeyEvent(ImGuiKey_V, false);
+			io.AddKeyEvent(ImGuiMod_Ctrl, false);
+			require(
+				DrawBufferSearchFrame(imgui, descriptor, changed) ==
+						DMUI_RESULT_OK &&
+					!changed &&
+					std::string_view{ descriptor.data } == original &&
+					owner.resizeCalls == 1,
+				"rejected paste was replayed on the following frame");
 		});
 
 		runner.test("search input honors caller UTF8 capacity", [] {

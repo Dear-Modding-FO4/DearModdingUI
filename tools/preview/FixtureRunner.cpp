@@ -152,4 +152,9 @@ namespace DearModdingUIPreview
 	{
 		return m_impl->textView.ValidateCapture(a_error);
 	}
+
+	void FixtureRunner::PrepareTextViewCapture(uint32_t a_frame)
+	{
+		m_impl->textView.PrepareCaptureFrame(a_frame);
+	}
 }

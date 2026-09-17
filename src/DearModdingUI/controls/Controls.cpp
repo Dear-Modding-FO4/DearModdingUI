@@ -1,5 +1,7 @@
 #include <DearModdingUI/controls/Controls.h>
 
+#include <DearModdingUI/TextInput.h>
+#include <DearModdingUI/controls/TextInput.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/controls/SettingsTable.h>
@@ -11,7 +13,6 @@
 #include <cstdio>
 #include <cstring>
 #include <limits>
-#include <new>
 #include <numbers>
 #include <vector>
 
@@ -762,6 +763,30 @@ namespace DearModdingUI
 		char* a_buffer,
 		size_t a_capacity) noexcept
 	{
+		DMUI_TextBuffer buffer{
+			.structSize = sizeof(DMUI_TextBuffer),
+			.data = a_buffer,
+			.capacity = a_capacity
+		};
+		bool changed{};
+		return DrawSearchInput(
+				   a_id,
+				   a_hint,
+				   buffer,
+				   changed) == DMUI_RESULT_OK &&
+			changed;
+	}
+
+	DMUI_Result DrawSearchInput(
+		const char* a_id,
+		const char* a_hint,
+		DMUI_TextBuffer& a_buffer,
+		bool& a_changed) noexcept
+	{
+		a_changed = false;
+		if (!a_id || !a_hint)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+
 		ImGui::PushID(a_id);
 		const auto scale = Theme::SearchScale();
 		const auto iconSize = Theme::kSearchIconSize * scale;
@@ -782,11 +807,8 @@ namespace DearModdingUI
 			ImGuiStyleVar_FramePadding,
 			ImVec2(iconSpace, Theme::kSearchInputFramePaddingY * scale));
 		ImGui::SetNextItemWidth(width);
-		const auto changed = ImGui::InputTextWithHint(
-				"##search",
-				a_hint,
-				a_buffer,
-				a_capacity);
+		const auto result =
+			DrawTextInput("##search", a_hint, a_buffer, a_changed);
 		const ImVec2 iconPosition{
 			cursor.x + Theme::kSearchIconOffsetX * scale,
 			cursor.y + ContentOffsetY(frameHeight, iconSize)
@@ -805,35 +827,28 @@ namespace DearModdingUI
 		ImGui::PopStyleVar(2);
 		ImGui::PopStyleColor(5);
 		ImGui::PopID();
-		return changed;
+		return result;
 	}
 
 	DMUI_Result DrawSearchInput(
 		const char* a_id,
 		const char* a_hint,
 		std::string& a_search,
-		size_t a_maximumBytes) noexcept
+		std::optional<size_t> a_maximumBytes) noexcept
 	{
-		if (!a_id || !a_hint || a_search.size() > a_maximumBytes ||
-			a_maximumBytes >= static_cast<size_t>((std::numeric_limits<int>::max)()) ||
-			a_search.find('\0') != std::string::npos)
+		if (!a_id || !a_hint)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		try
-		{
-			std::vector<char> buffer(a_maximumBytes + 1);
-			std::ranges::copy(a_search, buffer.begin());
-			if (DrawSearchInput(a_id, a_hint, buffer.data(), buffer.size()))
-				a_search.assign(buffer.data());
-			return DMUI_RESULT_OK;
-		}
-		catch (const std::bad_alloc&)
-		{
-			return DMUI_RESULT_RESOURCE_EXHAUSTED;
-		}
-		catch (...)
-		{
-			return DMUI_RESULT_CALLBACK_FAILED;
-		}
+
+		dmui::TextInputBuffer candidate{ a_search, a_maximumBytes };
+		if (candidate.Result() != DMUI_RESULT_OK)
+			return candidate.Result();
+
+		bool changed{};
+		const auto result =
+			DrawSearchInput(a_id, a_hint, *candidate.Get(), changed);
+		if (result != DMUI_RESULT_OK || !changed)
+			return result;
+		return candidate.CommitTo(a_search);
 	}
 
 	float SettingsActionButtonWidth(

@@ -129,6 +129,7 @@ local source_sets = {
         "src/DearModdingUI/controls/Controls.cpp",
         "src/DearModdingUI/controls/FieldFeedback.cpp",
         "src/DearModdingUI/controls/SettingsTable.cpp",
+        "src/DearModdingUI/controls/TextInput.cpp",
         "src/DearModdingUI/controls/TextViewer.cpp",
         "src/DearModdingUI/navigation/Navigation*.cpp",
         "src/DearModdingUI/navigation/SidebarView.cpp",

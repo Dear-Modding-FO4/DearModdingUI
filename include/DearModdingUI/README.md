@@ -191,9 +191,18 @@ disabled links remain hoverable so their note or target can explain the state. F
 and entry index. The sizing calls return live host font and style measurements through `float` output
 parameters. Search buffers must have a nonzero capacity and contain a NUL terminator within that
 capacity, which must fit in `INT_MAX`. A successful call leaves the buffer NUL-terminated and
-reports changes through the fixed-width output flag. New input is limited to the remaining
-capacity at UTF-8 boundaries. The C++ search wrapper takes an explicit maximum byte length, rejects
-an already oversized string, and returns the changed flag through `std::optional<bool>`.
+reports changes through the fixed-width output flag. Fixed-buffer input is limited to the remaining
+capacity at UTF-8 boundaries.
+
+`Client::DrawSearchInput(id, hint, query)` grows automatically while typing or pasting.
+An optional fourth argument, such as `512`, limits UTF-8 bytes excluding NUL and rejects an
+already oversized string. Both forms return `std::optional<bool>` and preserve the query on failure.
+They use `drawSearchInputBuffer`, negotiated with `DMUI_HOST_API_DRAW_SEARCH_INPUT_BUFFER_SIZE`.
+Its reusable `DMUI_TextBuffer` contract borrows client-owned storage and optionally requests growth
+through a client allocator callback; native ImGui callbacks never cross the ABI. The callback
+must preserve the old allocation on failure and must not reenter drawing. Storage and callbacks
+are used only during the draw call. Capacity includes NUL and cannot exceed the backend's `INT_MAX`
+representation limit; there is no smaller default application cap.
 
 `drawTextView` is an optional API 0.2 operation within host ABI 1. It draws borrowed,
 NUL-free UTF-8 text with a host-owned monospace font, independent scrolling, clipped

@@ -181,8 +181,13 @@ namespace DearModdingUI
 	[[nodiscard]] DMUI_Result DrawSearchInput(
 		const char* a_id,
 		const char* a_hint,
+		DMUI_TextBuffer& a_buffer,
+		bool& a_changed) noexcept;
+	[[nodiscard]] DMUI_Result DrawSearchInput(
+		const char* a_id,
+		const char* a_hint,
 		std::string& a_search,
-		size_t a_maximumBytes) noexcept;
+		std::optional<size_t> a_maximumBytes = std::nullopt) noexcept;
 	void DrawSectionHeader(const char* a_text, char32_t a_glyph) noexcept;
 	void DrawSectionHeader(const char* a_text);
 	void DrawBulletText(const char* a_text) noexcept;

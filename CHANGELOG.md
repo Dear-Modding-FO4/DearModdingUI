@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Shared read-only text viewer**: Added a host-owned, clipped text viewport with independent scrolling, monospace rendering, overlapping literal-match highlighting, wrap navigation helpers, and exact byte-offset reveal.
 
 ### Changed
+- **Growable search input**: Restored the three-argument C++ search helper with automatic growth during edits. An optional byte limit remains available; client-owned resize callbacks share the fixed-buffer input mechanism.
 - **Required host preflight**: Added `ClientOptions::minimumHostAPISize` so clients can validate required host operations through `Client::Connect` instead of probing the host table separately.
 - **Optional viewer API**: Appended the API 0.2 text-view operation without changing the host ABI or requiring existing clients to rebuild.
 

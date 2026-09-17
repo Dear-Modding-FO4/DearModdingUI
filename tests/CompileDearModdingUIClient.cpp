@@ -191,6 +191,7 @@ namespace
 		}
 		(void)client.DrawSectionHeader("Section");
 		std::string search;
+		(void)client.DrawSearchInput("growable-search", "Search...", search);
 		(void)client.DrawSearchInput("search", "Search...", search, 512);
 		const std::array<size_t, 1> lineOffsets{ 0 };
 		const dmui::TextViewRequest textView{

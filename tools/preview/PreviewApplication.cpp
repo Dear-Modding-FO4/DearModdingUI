@@ -471,7 +471,9 @@ namespace DearModdingUIPreview
 			return true;
 		}
 
-		[[nodiscard]] bool RenderFrame(std::wstring& a_error)
+		[[nodiscard]] bool RenderFrame(
+			std::wstring& a_error,
+			std::optional<uint32_t> a_captureFrame = std::nullopt)
 		{
 			if (options.screenshot && IsTextViewScenario() &&
 				!VerifyTextViewDrawAccess(a_error))
@@ -494,6 +496,8 @@ namespace DearModdingUIPreview
 				PresentationServices::BeginFrame();
 				ImGui_ImplDX11_NewFrame();
 				ImGui_ImplWin32_NewFrame();
+				if (a_captureFrame && IsTextViewScenario())
+					fixtures->PrepareTextViewCapture(*a_captureFrame);
 				ImGui::NewFrame();
 				if (options.screenshot && IsTextViewScenario() &&
 					!VerifyMonospaceFont(a_error))
@@ -540,7 +544,7 @@ namespace DearModdingUIPreview
 					a_error = L"Preview window closed before capture.";
 					break;
 				}
-				if (!RenderFrame(a_error))
+				if (!RenderFrame(a_error, frame))
 					break;
 			}
 			if (a_error.empty() && options.presentationScenario)
@@ -565,7 +569,8 @@ namespace DearModdingUIPreview
 			std::wcout << L"Wrote " << options.screenshot->wstring() << L'\n';
 			if (IsTextViewScenario())
 				std::wcout << L"Verified text-view public draw, later reveal, overlapping "
-					L"highlights, clipping, monospace role, and callback guards.\n";
+					L"highlights, clipping, monospace role, callback guards, and "
+					L"growable search typing/paste with same-frame changes.\n";
 			return 0;
 		}
 

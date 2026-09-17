@@ -131,8 +131,7 @@ namespace DearModdingUI
 		const auto searchResult = DrawSearchInput(
 			"NavigationPaletteSearch",
 			"Search mods, pages, and actions...",
-			a_state.query,
-			512);
+			a_state.query);
 		if (searchResult != DMUI_RESULT_OK)
 		{
 			REX::ERROR("DearModdingUI: command palette search failed ({})"sv,
