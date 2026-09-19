@@ -93,6 +93,7 @@ namespace vmm_tests
 			};
 			auto state = BeginHostSettingsDraft(changed);
 			state.draft.accentColor = { 0xE6, 0x9F, 0x00 };
+			state.draft.fallSoulsMode = true;
 			RevertHostSettingsDraft(state);
 			require(state.draft == changed &&
 					!HostSettingsDraftDiffers(state),
@@ -267,7 +268,8 @@ namespace vmm_tests
 					FieldFeedbackPlacement::kUnderControl,
 					{ 0x12, 0x34, 0x56 },
 					{ 0x65, 0x43, 0x21 },
-					{ 0xAA, 0xBB, 0xCC }
+					{ 0xAA, 0xBB, 0xCC },
+					true
 				}
 			};
 			for (const auto& runtime : settings)
@@ -355,6 +357,7 @@ namespace vmm_tests
 			auto loaded = LoadHostInterfaceSettings(path);
 			require(
 				loaded.disposition == HostSettingsLoadDisposition::kMissing &&
+					!loaded.settings.fallSoulsMode &&
 					loaded.detail.find("Using defaults") != std::string::npos,
 				"an absent optional host config was not healthy");
 
@@ -367,8 +370,9 @@ namespace vmm_tests
 			require(
 				loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
 					loaded.settings.menuToggleKey == "F11" &&
+					!loaded.settings.fallSoulsMode &&
 					toggleKey.recognized && toggleKey.virtualKey == 0x7A,
-				"a valid host config did not report loaded");
+				"an old valid host config did not retain the default FallSouls mode");
 			require(
 				DecideMenuToggle(0x7A, toggleKey.virtualKey, false, true).open &&
 					!DecideMenuToggle(0x23, toggleKey.virtualKey, false, true).matched,
@@ -460,6 +464,7 @@ namespace vmm_tests
 			settings.feedbackInfoColor = "#123456";
 			settings.feedbackWarningColor = "#654321";
 			settings.feedbackErrorColor = "#ABCDEF";
+			settings.fallSoulsMode = true;
 			settings.hotkeys.emplace("example.action", "Ctrl+H");
 			const auto saved = PersistHostInterfaceSettings(path, settings);
 			require(saved.saved && !saved.usedCrossVolumeFallback,
@@ -476,6 +481,7 @@ namespace vmm_tests
 				"persisted host settings were not loadable through production parsing");
 
 			settings.menuToggleKey = "Insert";
+			settings.fallSoulsMode = false;
 			SettingsMoveProbe probe;
 			probe.firstError = ERROR_NOT_SAME_DEVICE;
 			probe.performSecondMove = true;
@@ -513,7 +519,8 @@ namespace vmm_tests
 			const auto path = root / "DearModdingUI.toml";
 			std::ofstream(path)
 				<< "[Additional]\n"
-				<< "sMenuToggleKey = \"Home\"\n";
+				<< "sMenuToggleKey = \"Home\"\n"
+				<< "bMenuFallSoulsMode = true\n";
 			auto temporary = path;
 			temporary += L".tmp";
 
@@ -543,8 +550,9 @@ namespace vmm_tests
 				}
 				const auto loaded = LoadHostInterfaceSettings(path);
 				require(loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
-							loaded.settings.menuToggleKey == "Home",
-					"failed replacement changed the stored toggle key");
+							loaded.settings.menuToggleKey == "Home" &&
+							loaded.settings.fallSoulsMode,
+					"failed replacement changed the stored toggle key or FallSouls mode");
 			}
 
 			std::filesystem::create_directory(temporary);
@@ -559,7 +567,8 @@ namespace vmm_tests
 					explanation != "No system explanation is available" &&
 					saved.detail.find(explanation) != std::string::npos &&
 					loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
-					loaded.settings.menuToggleKey == "Home",
+					loaded.settings.menuToggleKey == "Home" &&
+					loaded.settings.fallSoulsMode,
 				"a real temporary open failure changed the current TOML or omitted its system explanation");
 			std::filesystem::remove_all(root, error);
 		});

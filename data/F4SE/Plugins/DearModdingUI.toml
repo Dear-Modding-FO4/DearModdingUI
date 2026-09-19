@@ -10,6 +10,7 @@ fMenuBackgroundBlurStrength = 0.50
 fMenuUiScale = 1.0
 sMenuBodyFontFamily = "Jost"
 sMenuToggleKey = "End"
+bMenuFallSoulsMode = false
 sFieldFeedbackLayout = "strip"
 sFieldFeedbackInfoColor = "#56B4E9"
 sFieldFeedbackWarningColor = "#E69F00"

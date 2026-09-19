@@ -96,6 +96,7 @@ namespace DearModdingUI
 		HostPaletteColor feedbackErrorColor{
 			kDefaultFeedbackErrorColor
 		};
+		bool fallSoulsMode{ false };
 
 		[[nodiscard]] bool operator==(
 			const HostInterfaceSettings&) const noexcept = default;
@@ -152,6 +153,7 @@ namespace DearModdingUI
 		std::string feedbackInfoColor{ EncodeHostAccentColor(kDefaultFeedbackInfoColor) };
 		std::string feedbackWarningColor{ EncodeHostAccentColor(kDefaultFeedbackWarningColor) };
 		std::string feedbackErrorColor{ EncodeHostAccentColor(kDefaultFeedbackErrorColor) };
+		bool fallSoulsMode{ false };
 
 		[[nodiscard]] bool operator==(
 			const PersistedHostInterfaceSettings&) const noexcept = default;
@@ -352,7 +354,8 @@ namespace DearModdingUI
 				kDefaultFeedbackWarningColor),
 			DecodeHostColor(
 				a_settings.feedbackErrorColor,
-				kDefaultFeedbackErrorColor)
+				kDefaultFeedbackErrorColor),
+			a_settings.fallSoulsMode
 		});
 	}
 
@@ -377,7 +380,8 @@ namespace DearModdingUI
 				a_settings.feedbackPlacement) },
 			EncodeHostAccentColor(a_settings.feedbackInfoColor),
 			EncodeHostAccentColor(a_settings.feedbackWarningColor),
-			EncodeHostAccentColor(a_settings.feedbackErrorColor)
+			EncodeHostAccentColor(a_settings.feedbackErrorColor),
+			a_settings.fallSoulsMode
 		};
 	}
 

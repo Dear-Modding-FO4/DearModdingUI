@@ -200,6 +200,7 @@ namespace DearModdingUI
 			section["fMenuUiScale"] = static_cast<double>(a_settings.uiScale);
 			section["sMenuBodyFontFamily"] = a_settings.bodyFontFamily;
 			section["sMenuToggleKey"] = a_settings.menuToggleKey;
+			section["bMenuFallSoulsMode"] = a_settings.fallSoulsMode;
 			section["sFieldFeedbackLayout"] = a_settings.feedbackPlacement;
 			section["sFieldFeedbackInfoColor"] =
 				a_settings.feedbackInfoColor;
@@ -559,6 +560,11 @@ namespace DearModdingUI
 				section,
 				"sMenuToggleKey",
 				settings.menuToggleKey,
+				result.corrections);
+			settings.fallSoulsMode = ReadSetting<bool>(
+				section,
+				"bMenuFallSoulsMode",
+				settings.fallSoulsMode,
 				result.corrections);
 			settings.feedbackPlacement = ReadSetting<std::string>(
 				section,

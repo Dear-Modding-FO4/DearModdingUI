@@ -1,5 +1,7 @@
 #include <Platform/input/CarrierMenu.h>
 
+#include <DearModdingUI/settings/HostSettings.h>
+
 #include <F4SE/API.h>
 #include <F4SE/Interfaces.h>
 #include <RE/B/BSScaleformManager.h>
@@ -22,6 +24,13 @@ namespace DearModdingUI::CarrierMenu
 		inline constexpr auto kMoviePath = "Interface/CursorMenu.swf"sv;
 		std::atomic<bool> s_onStack{ false };
 
+		void UpdatePauseSetting(RE::IMenu& a_menu) noexcept
+		{
+			a_menu.UpdateFlag(
+				RE::UI_MENU_FLAGS::kPausesGame,
+				!HostSettings::Current().fallSoulsMode);
+		}
+
 		class CursorCarrierMenu final :
 			public RE::IMenu
 		{
@@ -42,6 +51,7 @@ namespace DearModdingUI::CarrierMenu
 					RE::UI_MENU_FLAGS::kModal,
 					RE::UI_MENU_FLAGS::kAdvancesUnderPauseMenu,
 					RE::UI_MENU_FLAGS::kRendersUnderPauseMenu);
+				UpdatePauseSetting(*this);
 				inputContext = RE::UserEvents::INPUT_CONTEXT_ID::kCursor;
 			}
 
@@ -127,6 +137,14 @@ namespace DearModdingUI::CarrierMenu
 				RE::UI_MESSAGE_TYPE::kShow :
 				RE::UI_MESSAGE_TYPE::kHide;
 			tasks->AddUITask([message] {
+				const RE::BSFixedString name{ kMenuName };
+				if (message == RE::UI_MESSAGE_TYPE::kShow)
+				{
+					auto* ui = RE::UI::GetSingleton();
+					auto menu = ui ? ui->GetMenu(name) : nullptr;
+					if (menu && !menu->OnStack())
+						UpdatePauseSetting(*menu);
+				}
 				auto* queue = RE::UIMessageQueue::GetSingleton();
 				if (!queue)
 				{
@@ -134,7 +152,6 @@ namespace DearModdingUI::CarrierMenu
 						REX::ERROR("DearModdingUI: carrier menu message queue is unavailable"sv);
 					return;
 				}
-				const RE::BSFixedString name{ kMenuName };
 				queue->AddMessage(name, message);
 			});
 			return true;

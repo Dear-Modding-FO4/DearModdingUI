@@ -191,53 +191,57 @@ namespace DearModdingUI
 			return changed;
 		}
 
-		void DrawFeedbackExample(
-			const char* a_id,
-			const char* a_label,
-			DMUI_FieldFeedbackSeverity a_severity,
-			const char* a_message) noexcept
+		void DrawFeedbackExamples() noexcept
 		{
+			static size_t selected{};
+			constexpr std::array severities{
+				DMUI_FIELD_FEEDBACK_SEVERITY_INFO,
+				DMUI_FIELD_FEEDBACK_SEVERITY_WARNING,
+				DMUI_FIELD_FEEDBACK_SEVERITY_ERROR
+			};
+			constexpr std::array messages{
+				"Changes apply after the menu reopens.",
+				"This option may affect gameplay timing.",
+				"Minimum cannot exceed maximum."
+			};
 			const auto begun = SettingsTable::BeginField(
 				DMUI_INVALID_CLIENT_HANDLE,
-				a_id,
-				a_label,
-				"Live preview of the selected placement and semantic color.",
+				"FeedbackPreview",
+				"Field feedback preview",
+				nullptr,
 				SettingsTable::RowLayout::kLabelValue);
 			if (begun.result != DMUI_RESULT_OK || !begun.visible)
 				return;
-			ImGui::TextUnformatted("Client-owned value");
+
+			const auto available = (std::max)(ImGui::GetContentRegionAvail().x, 1.0f);
+			const auto right = ImGui::GetCursorScreenPos().x + available;
+			const auto& style = ImGui::GetStyle();
+			for (size_t index = 0; index < severities.size(); ++index)
+			{
+				const auto* label = FieldFeedback::SeverityLabel(severities[index]);
+				const auto width = (std::min)(
+					ImGui::CalcTextSize(label).x + style.FramePadding.x * 2.0f,
+					available);
+				if (index > 0 &&
+					ImGui::GetItemRectMax().x + style.ItemSpacing.x + width <= right)
+					ImGui::SameLine();
+				auto color = FieldFeedback::SeverityColor(severities[index]);
+				ImGui::PushStyleColor(ImGuiCol_Text, color);
+				if (selected == index)
+				{
+					color.w = 0.24f;
+					ImGui::PushStyleColor(ImGuiCol_Button, color);
+				}
+				const auto pressed = ImGui::Button(label, { width, 0.0f });
+				ImGui::PopStyleColor(selected == index ? 2 : 1);
+				if (pressed)
+					selected = index;
+			}
 			(void)SettingsTable::SetFieldFeedback(
-				DMUI_INVALID_CLIENT_HANDLE,
-				a_severity,
-				a_message);
+				DMUI_INVALID_CLIENT_HANDLE, severities[selected], messages[selected]);
 			bool ignored{};
 			(void)SettingsTable::EndField(
-				DMUI_INVALID_CLIENT_HANDLE,
-				{ false, false },
-				ignored);
-		}
-
-		void DrawFeedbackExamples() noexcept
-		{
-			ImGui::Spacing();
-			ImGui::TextUnformatted("Field feedback preview");
-			DrawHelp(
-				"Clients supply and clear these messages. The host only presents them.");
-			DrawFeedbackExample(
-				"FeedbackInfoPreview",
-				"Informational example",
-				DMUI_FIELD_FEEDBACK_SEVERITY_INFO,
-				"Restart the game for changes to take effect.");
-			DrawFeedbackExample(
-				"FeedbackWarningPreview",
-				"Warning example",
-				DMUI_FIELD_FEEDBACK_SEVERITY_WARNING,
-				"Long reach may allow pickpocketing through walls.");
-			DrawFeedbackExample(
-				"FeedbackErrorPreview",
-				"Error example",
-				DMUI_FIELD_FEEDBACK_SEVERITY_ERROR,
-				"Minimum cannot exceed maximum.");
+				DMUI_INVALID_CLIENT_HANDLE, { false, false }, ignored);
 		}
 
 		void DrawAppearance() noexcept
@@ -546,10 +550,10 @@ namespace DearModdingUI
 				defaults.feedbackErrorColor,
 				kAccentPresets);
 
-			(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
 			if (changed)
 				PreviewDraft();
 			DrawFeedbackExamples();
+			(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
 		}
 
 		void DrawReadability() noexcept
@@ -628,7 +632,7 @@ namespace DearModdingUI
 
 		void DrawInput() noexcept
 		{
-			DrawSectionHeader("Input");
+			DrawSectionHeader("Input and behavior");
 			auto& settings = g_settingsDraft.draft;
 			const auto& defaults = DefaultSettings();
 			if (BeginSettingsSection("##DearModdingUI.InputSettings"))
@@ -669,6 +673,23 @@ namespace DearModdingUI
 						}))
 				{
 					settings.menuToggleKey = defaults.menuToggleKey;
+				}
+				if (DrawSettingsRow(
+						"FallSoulsMode",
+						"FallSouls mode",
+						"Keep the game running while this menu is open. Applies the next time the menu opens.",
+						true,
+						[&]() noexcept {
+							(void)ImGui::Checkbox(
+								"##Value",
+								&settings.fallSoulsMode);
+						},
+						[&]() noexcept {
+							return settings.fallSoulsMode !=
+								defaults.fallSoulsMode;
+						}))
+				{
+					settings.fallSoulsMode = defaults.fallSoulsMode;
 				}
 				(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
 			}
