@@ -165,7 +165,6 @@ local source_sets = {
         "src/Platform/input/GameInput.cpp",
         "src/Platform/rendering/**.cpp",
         "src/Support/Detours.cpp",
-		"src/Support/Localization.cpp"
     },
     navigation_preview = {
         "tools/preview/navigation/NavigationPreview.cpp"

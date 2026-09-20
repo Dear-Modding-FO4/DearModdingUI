@@ -35,7 +35,6 @@ namespace Addictol
 
 		void SetDrawingEnabled(bool a_enabled) noexcept;
 		void HandleGameTransition() noexcept;
-		void HandleInitLocalization() noexcept;
 
 		[[nodiscard]] bool IsReady() noexcept;
 		[[nodiscard]] bool QueryVideoMemory(uint64_t& a_used, uint64_t& a_budget) noexcept;

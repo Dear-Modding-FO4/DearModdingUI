@@ -74,8 +74,6 @@ namespace Addictol
 			case F4SE::MessagingInterface::kNewGame:
 			case F4SE::MessagingInterface::kGameLoaded:
 				PlatformImgui::HandleGameTransition();
-				if (a_message->type == F4SE::MessagingInterface::kGameLoaded)
-					PlatformImgui::HandleInitLocalization();
 				break;
 			case F4SE::MessagingInterface::kGameDataReady:
 				PlatformImgui::HandleGameTransition();

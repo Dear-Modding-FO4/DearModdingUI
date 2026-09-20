@@ -2,7 +2,6 @@
 
 #include <DearModdingUI/host/Host.h>
 #include <Support/ProcessLifetime.h>
-#include <Support/Localization.h>
 #include <Support/Runtime.h>
 
 #include <REX/REX.h>
@@ -12,10 +11,6 @@
 namespace Addictol
 {
 	using namespace std::literals;
-
-#if 0
-	Support::LOC TEST("$Weather40", "<><>");
-#endif
 
 	namespace platformImguiDetail
 	{
@@ -136,27 +131,6 @@ namespace Addictol
 		CloseModalStateLocked(
 			DearModdingUI::CarrierMenu::Event::kGameTransition);
 		ClearConsumedToggleKeysLocked();
-	}
-
-	void PlatformImgui::HandleInitLocalization() noexcept
-	{
-		auto localizeFile = Addictol::Support::GetRuntimeDirectory() +
-			"Data/F4SE/Plugins/DearModdingUI/Translation/DearModdingUI.txt";
-		
-		auto localizationManager = DearModdingUI::Support::LocalizationManager::GetSingleton();
-		localizationManager->Init(localizeFile, true);
-		if (localizationManager->Exists())
-		{
-			localizationManager->Load();
-
-			
-//			REX::INFO("{}", localizationManager->GetFileName());
-//#if 0
-//			REX::INFO("TEST LOC: {}"sv, TEST.GetValue());
-//#endif
-		}
-
-		// TODO: load translation mcm mods or f4se ???
 	}
 
 	bool PlatformImgui::IsReady() noexcept
