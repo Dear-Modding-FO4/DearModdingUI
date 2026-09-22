@@ -770,6 +770,54 @@ namespace DearModdingUI::UI
 			return DMUI_RESULT_OK;
 		}
 
+		DMUI_Result DMUI_CALL PushStyleVarV1(
+			DMUI_ClientHandle a_client,
+			DMUI_UIVar a_var,
+			float a_value) noexcept
+		{
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			ImGuiStyleVar var{};
+			const auto translated = TranslateVar(a_var, var);
+			if (translated != DMUI_RESULT_OK)
+				return translated;
+			ImGui::PushStyleVar(var, a_value);
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL PushStyleVarV2(
+			DMUI_ClientHandle a_client,
+			DMUI_UIVar a_var,
+			DMUI_Vec2* a_value) noexcept
+		{
+			if (!a_value)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			ImGuiStyleVar var{};
+			const auto translated = TranslateVar(a_var, var);
+			if (translated != DMUI_RESULT_OK)
+				return translated;
+			ImGui::PushStyleVar(var, Native(*a_value));
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL PopStyleVar(
+			DMUI_ClientHandle a_client,
+			uint32_t a_count) noexcept
+		{
+			if (static_cast<size_t>(a_count) > static_cast<size_t>(std::numeric_limits<int>::max()))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			ImGui::PopStyleVar(static_cast<int>(a_count));
+			return DMUI_RESULT_OK;
+		}
+
 		DMUI_UI_END(NewLine, NewLine)
 
 #undef DMUI_UI_END
