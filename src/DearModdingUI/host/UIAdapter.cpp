@@ -4,6 +4,7 @@
 #include <DearModdingUI/UIBindings.generated.h>
 
 #include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
 
 #include <algorithm>
 #include <cmath>
@@ -189,6 +190,22 @@ namespace DearModdingUI::UI
 			if ((a_flags & DMUI_UI_INPUT_TEXT_FLAGS_REJECTED_CALLBACK_MASK) != 0)
 				return DMUI_RESULT_INVALID_ARGUMENT;
 			return Bindings::TranslateInputTextFlags(a_flags, a_native);
+		}
+
+		// ImGui asserts and ignores a push whose value shape differs from the style field.
+		[[nodiscard]] DMUI_Result TranslateStyleVarShape(
+			DMUI_UIStyleVar a_styleVar,
+			uint32_t a_components,
+			ImGuiStyleVar& a_native) noexcept
+		{
+			const auto translated = Bindings::TranslateStyleVar(a_styleVar, a_native);
+			if (translated != DMUI_RESULT_OK)
+				return translated;
+			const auto* info = ImGui::GetStyleVarInfo(a_native);
+			return info->DataType == ImGuiDataType_Float &&
+					info->Count == a_components ?
+				DMUI_RESULT_OK :
+				DMUI_RESULT_INVALID_ARGUMENT;
 		}
 	}
 
@@ -770,51 +787,48 @@ namespace DearModdingUI::UI
 			return DMUI_RESULT_OK;
 		}
 
-		DMUI_Result DMUI_CALL PushStyleVarV1(
+		DMUI_Result DMUI_CALL PushStyleVarFloat(
 			DMUI_ClientHandle a_client,
-			DMUI_UIVar a_var,
+			DMUI_UIStyleVar a_styleVar,
 			float a_value) noexcept
 		{
 			const auto validation = Validate(a_client);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
-			ImGuiStyleVar var{};
-			const auto translated = TranslateVar(a_var, var);
+			ImGuiStyleVar styleVar{};
+			const auto translated = TranslateStyleVarShape(a_styleVar, 1u, styleVar);
 			if (translated != DMUI_RESULT_OK)
 				return translated;
-			ImGui::PushStyleVar(var, a_value);
+			ImGui::PushStyleVar(styleVar, a_value);
 			return DMUI_RESULT_OK;
 		}
 
-		DMUI_Result DMUI_CALL PushStyleVarV2(
+		DMUI_Result DMUI_CALL PushStyleVarVec2(
 			DMUI_ClientHandle a_client,
-			DMUI_UIVar a_var,
-			DMUI_Vec2* a_value) noexcept
+			DMUI_UIStyleVar a_styleVar,
+			DMUI_Vec2 a_value) noexcept
 		{
-			if (!a_value)
-				return DMUI_RESULT_INVALID_ARGUMENT;
 			const auto validation = Validate(a_client);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
-			ImGuiStyleVar var{};
-			const auto translated = TranslateVar(a_var, var);
+			ImGuiStyleVar styleVar{};
+			const auto translated = TranslateStyleVarShape(a_styleVar, 2u, styleVar);
 			if (translated != DMUI_RESULT_OK)
 				return translated;
-			ImGui::PushStyleVar(var, Native(*a_value));
+			ImGui::PushStyleVar(styleVar, Native(a_value));
 			return DMUI_RESULT_OK;
 		}
 
 		DMUI_Result DMUI_CALL PopStyleVar(
 			DMUI_ClientHandle a_client,
-			uint32_t a_count) noexcept
+			int32_t a_count) noexcept
 		{
-			if (static_cast<size_t>(a_count) > static_cast<size_t>(std::numeric_limits<int>::max()))
+			if (a_count < 0)
 				return DMUI_RESULT_INVALID_ARGUMENT;
-
 			const auto validation = Validate(a_client);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
-			ImGui::PopStyleVar(static_cast<int>(a_count));
+			ImGui::PopStyleVar(a_count);
 			return DMUI_RESULT_OK;
 		}
 

@@ -5,7 +5,6 @@
 #include <DearModdingUI/CUIAPI.h>
 
 #include <imgui/imgui.h>
-#include <algorithm>
 
 namespace DearModdingUI::UI::Bindings
 {
@@ -203,152 +202,6 @@ namespace DearModdingUI::UI::Bindings
 			return DMUI_RESULT_OK;
 		case DMUI_UI_COLOR_MODAL_WINDOW_DIM_BG:
 			a_native = ImGuiCol_ModalWindowDimBg;
-			return DMUI_RESULT_OK;
-		default:
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		}
-	}
-
-	[[nodiscard]] inline DMUI_Result TranslateVar(
-		DMUI_UIVar a_value,
-		ImGuiStyleVar& a_native) noexcept
-	{
-		switch (a_value)
-		{
-		case DMUI_UI_VAR_ALPHA:
-			a_native = ImGuiStyleVar_Alpha;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_DISABLEDALPHA:
-			a_native = ImGuiStyleVar_DisabledAlpha;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_WINDOWPADDING:
-			a_native = ImGuiStyleVar_WindowPadding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_WINDOWROUNDING:
-			a_native = ImGuiStyleVar_WindowRounding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_WINDOWBORDERSIZE:
-			a_native = ImGuiStyleVar_WindowBorderSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_WINDOWMINSIZE:
-			a_native = ImGuiStyleVar_WindowMinSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_WINDOWTITLEALIGN:
-			a_native = ImGuiStyleVar_WindowTitleAlign;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_CHILDROUNDING:
-			a_native = ImGuiStyleVar_ChildRounding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_CHILDBORDERSIZE:
-			a_native = ImGuiStyleVar_ChildBorderSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_POPUPROUNDING:
-			a_native = ImGuiStyleVar_PopupRounding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_POPUPBORDERSIZE:
-			a_native = ImGuiStyleVar_PopupBorderSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_FRAMEPADDING:
-			a_native = ImGuiStyleVar_FramePadding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_FRAMEROUNDING:
-			a_native = ImGuiStyleVar_FrameRounding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_FRAMEBORDERSIZE:
-			a_native = ImGuiStyleVar_FrameBorderSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_ITEMSPACING:
-			a_native = ImGuiStyleVar_ItemSpacing;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_ITEMINNERSPACING:
-			a_native = ImGuiStyleVar_ItemInnerSpacing;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_INDENTSPACING:
-			a_native = ImGuiStyleVar_IndentSpacing;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_CELLPADDING:
-			a_native = ImGuiStyleVar_CellPadding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_SCROLLBARSIZE:
-			a_native = ImGuiStyleVar_ScrollbarSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_SCROLLBARROUNDING:
-			a_native = ImGuiStyleVar_ScrollbarRounding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_SCROLLBARPADDING:
-			a_native = ImGuiStyleVar_ScrollbarPadding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_GRABMINSIZE:
-			a_native = ImGuiStyleVar_GrabMinSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_GRABROUNDING:
-			a_native = ImGuiStyleVar_GrabRounding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_IMAGEROUNDING:
-			a_native = ImGuiStyleVar_ImageRounding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_IMAGEBORDERSIZE:
-			a_native = ImGuiStyleVar_ImageBorderSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_TABROUNDING:
-			a_native = ImGuiStyleVar_TabRounding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_TABBORDERSIZE:
-			a_native = ImGuiStyleVar_TabBorderSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_TABMINWIDTHBASE:
-			a_native = ImGuiStyleVar_TabMinWidthBase;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_TABMINWIDTHSHRINK:
-			a_native = ImGuiStyleVar_TabMinWidthShrink;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_TABBARBORDERSIZE:
-			a_native = ImGuiStyleVar_TabBarBorderSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_TABBAROVERLINESIZE:
-			a_native = ImGuiStyleVar_TabBarOverlineSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_TABLEANGLEDHEADERSANGLE:
-			a_native = ImGuiStyleVar_TableAngledHeadersAngle;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_TABLEANGLEDHEADERSTEXTALIGN:
-			a_native = ImGuiStyleVar_TableAngledHeadersTextAlign;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_TREELINESSIZE:
-			a_native = ImGuiStyleVar_TreeLinesSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_TREELINESROUNDING:
-			a_native = ImGuiStyleVar_TreeLinesRounding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_MENUITEMROUNDING:
-			a_native = ImGuiStyleVar_MenuItemRounding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_SELECTABLEROUNDING:
-			a_native = ImGuiStyleVar_SelectableRounding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_DRAGDROPTARGETROUNDING:
-			a_native = ImGuiStyleVar_DragDropTargetRounding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_BUTTONTEXTALIGN:
-			a_native = ImGuiStyleVar_ButtonTextAlign;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_SELECTABLETEXTALIGN:
-			a_native = ImGuiStyleVar_SelectableTextAlign;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_SEPARATORSIZE:
-			a_native = ImGuiStyleVar_SeparatorSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_SEPARATORTEXTBORDERSIZE:
-			a_native = ImGuiStyleVar_SeparatorTextBorderSize;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_SEPARATORTEXTALIGN:
-			a_native = ImGuiStyleVar_SeparatorTextAlign;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_SEPARATORTEXTPADDING:
-			a_native = ImGuiStyleVar_SeparatorTextPadding;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_VAR_DOCKINGSEPARATORSIZE:
-			a_native = ImGuiStyleVar_DockingSeparatorSize;
 			return DMUI_RESULT_OK;
 		default:
 			return DMUI_RESULT_INVALID_ARGUMENT;
@@ -777,6 +630,152 @@ namespace DearModdingUI::UI::Bindings
 		return DMUI_RESULT_OK;
 	}
 
+	[[nodiscard]] inline DMUI_Result TranslateStyleVar(
+		DMUI_UIStyleVar a_value,
+		ImGuiStyleVar& a_native) noexcept
+	{
+		switch (a_value)
+		{
+		case DMUI_UI_STYLE_VAR_ALPHA:
+			a_native = ImGuiStyleVar_Alpha;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_DISABLED_ALPHA:
+			a_native = ImGuiStyleVar_DisabledAlpha;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_WINDOW_PADDING:
+			a_native = ImGuiStyleVar_WindowPadding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_WINDOW_ROUNDING:
+			a_native = ImGuiStyleVar_WindowRounding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_WINDOW_BORDER_SIZE:
+			a_native = ImGuiStyleVar_WindowBorderSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_WINDOW_MIN_SIZE:
+			a_native = ImGuiStyleVar_WindowMinSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_WINDOW_TITLE_ALIGN:
+			a_native = ImGuiStyleVar_WindowTitleAlign;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_CHILD_ROUNDING:
+			a_native = ImGuiStyleVar_ChildRounding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_CHILD_BORDER_SIZE:
+			a_native = ImGuiStyleVar_ChildBorderSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_POPUP_ROUNDING:
+			a_native = ImGuiStyleVar_PopupRounding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_POPUP_BORDER_SIZE:
+			a_native = ImGuiStyleVar_PopupBorderSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_FRAME_PADDING:
+			a_native = ImGuiStyleVar_FramePadding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_FRAME_ROUNDING:
+			a_native = ImGuiStyleVar_FrameRounding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_FRAME_BORDER_SIZE:
+			a_native = ImGuiStyleVar_FrameBorderSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_ITEM_SPACING:
+			a_native = ImGuiStyleVar_ItemSpacing;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_ITEM_INNER_SPACING:
+			a_native = ImGuiStyleVar_ItemInnerSpacing;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_INDENT_SPACING:
+			a_native = ImGuiStyleVar_IndentSpacing;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_CELL_PADDING:
+			a_native = ImGuiStyleVar_CellPadding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_SCROLLBAR_SIZE:
+			a_native = ImGuiStyleVar_ScrollbarSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_SCROLLBAR_ROUNDING:
+			a_native = ImGuiStyleVar_ScrollbarRounding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_SCROLLBAR_PADDING:
+			a_native = ImGuiStyleVar_ScrollbarPadding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_GRAB_MIN_SIZE:
+			a_native = ImGuiStyleVar_GrabMinSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_GRAB_ROUNDING:
+			a_native = ImGuiStyleVar_GrabRounding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_IMAGE_ROUNDING:
+			a_native = ImGuiStyleVar_ImageRounding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_IMAGE_BORDER_SIZE:
+			a_native = ImGuiStyleVar_ImageBorderSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_TAB_ROUNDING:
+			a_native = ImGuiStyleVar_TabRounding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_TAB_BORDER_SIZE:
+			a_native = ImGuiStyleVar_TabBorderSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_TAB_MIN_WIDTH_BASE:
+			a_native = ImGuiStyleVar_TabMinWidthBase;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_TAB_MIN_WIDTH_SHRINK:
+			a_native = ImGuiStyleVar_TabMinWidthShrink;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_TAB_BAR_BORDER_SIZE:
+			a_native = ImGuiStyleVar_TabBarBorderSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_TAB_BAR_OVERLINE_SIZE:
+			a_native = ImGuiStyleVar_TabBarOverlineSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_TABLE_ANGLED_HEADERS_ANGLE:
+			a_native = ImGuiStyleVar_TableAngledHeadersAngle;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_TABLE_ANGLED_HEADERS_TEXT_ALIGN:
+			a_native = ImGuiStyleVar_TableAngledHeadersTextAlign;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_TREE_LINES_SIZE:
+			a_native = ImGuiStyleVar_TreeLinesSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_TREE_LINES_ROUNDING:
+			a_native = ImGuiStyleVar_TreeLinesRounding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_MENU_ITEM_ROUNDING:
+			a_native = ImGuiStyleVar_MenuItemRounding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_SELECTABLE_ROUNDING:
+			a_native = ImGuiStyleVar_SelectableRounding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_DRAG_DROP_TARGET_ROUNDING:
+			a_native = ImGuiStyleVar_DragDropTargetRounding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_BUTTON_TEXT_ALIGN:
+			a_native = ImGuiStyleVar_ButtonTextAlign;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_SELECTABLE_TEXT_ALIGN:
+			a_native = ImGuiStyleVar_SelectableTextAlign;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_SEPARATOR_SIZE:
+			a_native = ImGuiStyleVar_SeparatorSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_SEPARATOR_TEXT_BORDER_SIZE:
+			a_native = ImGuiStyleVar_SeparatorTextBorderSize;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_SEPARATOR_TEXT_ALIGN:
+			a_native = ImGuiStyleVar_SeparatorTextAlign;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_SEPARATOR_TEXT_PADDING:
+			a_native = ImGuiStyleVar_SeparatorTextPadding;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_STYLE_VAR_DOCKING_SEPARATOR_SIZE:
+			a_native = ImGuiStyleVar_DockingSeparatorSize;
+			return DMUI_RESULT_OK;
+		default:
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		}
+	}
+
 	[[nodiscard]] DMUI_Result DMUI_CALL GetStyleMetrics(
 		DMUI_ClientHandle a_client,
 		DMUI_StyleMetrics* a_metrics) noexcept;
@@ -1060,17 +1059,17 @@ namespace DearModdingUI::UI::Bindings
 		float a_scaleMaximum,
 		DMUI_Vec2 a_size,
 		uint32_t a_strideBytes) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL PushStyleVarV1(
+	[[nodiscard]] DMUI_Result DMUI_CALL PushStyleVarFloat(
 		DMUI_ClientHandle a_client,
-		DMUI_UIVar a_var,
+		DMUI_UIStyleVar a_styleVar,
 		float a_value) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL PushStyleVarV2(
+	[[nodiscard]] DMUI_Result DMUI_CALL PushStyleVarVec2(
 		DMUI_ClientHandle a_client,
-		DMUI_UIVar a_var,
-		DMUI_Vec2* a_value) noexcept;
+		DMUI_UIStyleVar a_styleVar,
+		DMUI_Vec2 a_value) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL PopStyleVar(
 		DMUI_ClientHandle a_client,
-		uint32_t a_count) noexcept;
+		int32_t a_count) noexcept;
 
 	[[nodiscard]] inline DMUI_UIAPI MakeAPI() noexcept
 	{
@@ -1079,72 +1078,72 @@ namespace DearModdingUI::UI::Bindings
 			DMUI_UI_ABI_CURRENT,
 			DMUI_UI_REVISION_CURRENT,
 			0u,
-			std::addressof(GetStyleMetrics),
-			std::addressof(BeginCombo),
-			std::addressof(EndCombo),
-			std::addressof(BeginDisabled),
-			std::addressof(EndDisabled),
-			std::addressof(BeginTable),
-			std::addressof(EndTable),
-			std::addressof(BeginTooltip),
-			std::addressof(EndTooltip),
-			std::addressof(Button),
-			std::addressof(CalcTextSize),
-			std::addressof(Checkbox),
-			std::addressof(CollapsingHeader),
-			std::addressof(CollapsingHeaderVisible),
-			std::addressof(DragScalar),
-			std::addressof(Dummy),
-			std::addressof(GetContentRegionAvail),
-			std::addressof(GetCursorScreenPos),
-			std::addressof(GetFontSize),
-			std::addressof(GetFrameHeight),
-			std::addressof(GetStyleColor),
-			std::addressof(GetTextLineHeightWithSpacing),
-			std::addressof(Indent),
-			std::addressof(InputScalar),
-			std::addressof(InputText),
-			std::addressof(InputTextMultiline),
-			std::addressof(InputTextWithHint),
-			std::addressof(IsItemDeactivatedAfterEdit),
-			std::addressof(IsItemHovered),
-			std::addressof(PopID),
-			std::addressof(PopStyleColor),
-			std::addressof(PopTextWrapPos),
-			std::addressof(ProgressBar),
-			std::addressof(PushIDString),
-			std::addressof(PushIDRange),
-			std::addressof(PushIDValue),
-			std::addressof(PushStyleColorU32),
-			std::addressof(PushStyleColor),
-			std::addressof(PushTextWrapPos),
-			std::addressof(SameLine),
-			std::addressof(Selectable),
-			std::addressof(SelectableToggle),
-			std::addressof(Separator),
-			std::addressof(SetClipboardText),
-			std::addressof(SetCursorScreenPos),
-			std::addressof(SetItemDefaultFocus),
-			std::addressof(SetNextItemWidth),
-			std::addressof(SetTooltipText),
-			std::addressof(SliderScalar),
-			std::addressof(Spacing),
-			std::addressof(TableHeadersRow),
-			std::addressof(TableNextColumn),
-			std::addressof(TableNextRow),
-			std::addressof(TableSetColumnIndex),
-			std::addressof(TableSetupColumn),
-			std::addressof(TableSetupScrollFreeze),
-			std::addressof(Text),
-			std::addressof(TextColored),
-			std::addressof(TextDisabled),
-			std::addressof(TextWrapped),
-			std::addressof(Unindent),
-			std::addressof(NewLine),
-			std::addressof(PlotLines),
-			std::addressof(PushStyleVarV1),
-			std::addressof(PushStyleVarV2),
-			std::addressof(PopStyleVar)
+			&GetStyleMetrics,
+			&BeginCombo,
+			&EndCombo,
+			&BeginDisabled,
+			&EndDisabled,
+			&BeginTable,
+			&EndTable,
+			&BeginTooltip,
+			&EndTooltip,
+			&Button,
+			&CalcTextSize,
+			&Checkbox,
+			&CollapsingHeader,
+			&CollapsingHeaderVisible,
+			&DragScalar,
+			&Dummy,
+			&GetContentRegionAvail,
+			&GetCursorScreenPos,
+			&GetFontSize,
+			&GetFrameHeight,
+			&GetStyleColor,
+			&GetTextLineHeightWithSpacing,
+			&Indent,
+			&InputScalar,
+			&InputText,
+			&InputTextMultiline,
+			&InputTextWithHint,
+			&IsItemDeactivatedAfterEdit,
+			&IsItemHovered,
+			&PopID,
+			&PopStyleColor,
+			&PopTextWrapPos,
+			&ProgressBar,
+			&PushIDString,
+			&PushIDRange,
+			&PushIDValue,
+			&PushStyleColorU32,
+			&PushStyleColor,
+			&PushTextWrapPos,
+			&SameLine,
+			&Selectable,
+			&SelectableToggle,
+			&Separator,
+			&SetClipboardText,
+			&SetCursorScreenPos,
+			&SetItemDefaultFocus,
+			&SetNextItemWidth,
+			&SetTooltipText,
+			&SliderScalar,
+			&Spacing,
+			&TableHeadersRow,
+			&TableNextColumn,
+			&TableNextRow,
+			&TableSetColumnIndex,
+			&TableSetupColumn,
+			&TableSetupScrollFreeze,
+			&Text,
+			&TextColored,
+			&TextDisabled,
+			&TextWrapped,
+			&Unindent,
+			&NewLine,
+			&PlotLines,
+			&PushStyleVarFloat,
+			&PushStyleVarVec2,
+			&PopStyleVar
 		};
 	}
 }

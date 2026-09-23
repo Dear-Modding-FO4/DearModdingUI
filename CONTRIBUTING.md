@@ -159,6 +159,10 @@ python "$api/Tools/generate-ui-contract.py" `
   --host-bindings include/DearModdingUI/UIBindings.generated.h
 ```
 
+Appended operations or enum values need a newer schema `revision`; add
+`--update-baseline` in the API repository commit that publishes it. Never edit
+the generated headers directly: CI regenerates and compares them.
+
 ## Guidelines
 
 - Use American English in code, comments, and documentation.

@@ -243,6 +243,34 @@ namespace vmm_tests
 				"null optional operation was confused with an empty result");
 		});
 
+		runner.test("style vars reject mismatched value shapes before ImGui", [] {
+			ImGuiFrame frame;
+			const DearModdingUI::UI::Testing::ValidationOverride validation{
+				&AcceptClient
+			};
+			const auto& api = DearModdingUI::UI::API();
+			const auto baseline = ImGui::GetCurrentContext()->StyleVarStack.Size;
+			require(
+				api.pushStyleVarVec2(1u, DMUI_UI_STYLE_VAR_ALPHA, { 0.5f, 0.5f }) ==
+						DMUI_RESULT_INVALID_ARGUMENT &&
+					api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_FRAME_PADDING, 2.0f) ==
+						DMUI_RESULT_INVALID_ARGUMENT &&
+					ImGui::GetCurrentContext()->StyleVarStack.Size == baseline,
+				"mismatched style-var shape reached native ImGui");
+
+			const auto alpha = ImGui::GetStyle().Alpha;
+			require(
+				api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_ALPHA, 0.25f) == DMUI_RESULT_OK &&
+					api.pushStyleVarVec2(1u, DMUI_UI_STYLE_VAR_FRAME_PADDING, { 3.0f, 1.0f }) ==
+						DMUI_RESULT_OK &&
+					ImGui::GetStyle().Alpha == 0.25f &&
+					ImGui::GetStyle().FramePadding.x == 3.0f &&
+					api.popStyleVar(1u, 2) == DMUI_RESULT_OK &&
+					ImGui::GetStyle().Alpha == alpha &&
+					ImGui::GetCurrentContext()->StyleVarStack.Size == baseline,
+				"matching style vars did not push and pop through the table");
+		});
+
 		runner.test("false widget results stay distinct from UI dispatch errors", [] {
 			ImGuiFrame frame;
 			const DearModdingUI::UI::Testing::ValidationOverride validation{
