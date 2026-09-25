@@ -38,8 +38,16 @@ namespace DearModdingUI
 		MenuKeyName{ "F12"sv, 0x7B },
 		MenuKeyName{ "Home"sv, 0x24 },
 		MenuKeyName{ "End"sv, 0x23 },
+		MenuKeyName{ "PageUp"sv, 0x21 },
+		MenuKeyName{ "PageDown"sv, 0x22 },
 		MenuKeyName{ "Insert"sv, 0x2D },
 		MenuKeyName{ "Delete"sv, 0x2E }
+	};
+
+	// Accepted when parsing only, so pickers list each key once.
+	inline constexpr std::array kMenuToggleKeyAliases{
+		MenuKeyName{ "PgUp"sv, 0x21 },
+		MenuKeyName{ "PgDn"sv, 0x22 }
 	};
 
 	[[nodiscard]] constexpr char AsciiUpper(char a_character) noexcept
@@ -67,6 +75,11 @@ namespace DearModdingUI
 		std::string_view a_name) noexcept
 	{
 		for (const auto& key : kMenuToggleKeys)
+		{
+			if (EqualsIgnoringCase(a_name, key.name))
+				return { key.virtualKey, true };
+		}
+		for (const auto& key : kMenuToggleKeyAliases)
 		{
 			if (EqualsIgnoringCase(a_name, key.name))
 				return { key.virtualKey, true };

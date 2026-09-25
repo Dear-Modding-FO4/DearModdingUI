@@ -296,7 +296,7 @@ namespace vmm_tests
 				std::numeric_limits<float>::infinity();
 			persisted.uiScale = 99.0f;
 			persisted.bodyFontFamily = "..\\escaped";
-			persisted.menuToggleKey = "PageUp";
+			persisted.menuToggleKey = "Pause";
 			persisted.feedbackPlacement = "beside";
 			persisted.feedbackInfoColor = "blue";
 			persisted.feedbackWarningColor = "#GG0000";
@@ -377,6 +377,12 @@ namespace vmm_tests
 				DecideMenuToggle(0x7A, toggleKey.virtualKey, false, true).open &&
 					!DecideMenuToggle(0x23, toggleKey.virtualKey, false, true).matched,
 				"the loaded F11 binding did not replace End for opening the menu");
+			const auto pageDown = ParseMenuToggleKey("Pgdn");
+			require(
+				pageDown.recognized && pageDown.virtualKey == 0x22 &&
+					MenuToggleKeyName(pageDown.virtualKey) == "PageDown" &&
+					ParseMenuToggleKey("pageup").virtualKey == 0x21,
+				"Page Up/Down names or aliases were not accepted");
 
 			std::ofstream(path, std::ios::trunc)
 				<< "[Additional\n";
@@ -406,7 +412,7 @@ namespace vmm_tests
 			const auto path = root / "DearModdingUI.toml";
 			std::ofstream(path)
 				<< "[Additional]\n"
-				<< "sMenuToggleKey = \"PageUp\"\n"
+				<< "sMenuToggleKey = \"Pause\"\n"
 				<< "sMenuSidebarLayout = \"columns\"\n"
 				<< "fMenuUiScale = 99.0\n"
 				<< "sMenuAccentColor = \"bad\"\n"
@@ -421,7 +427,7 @@ namespace vmm_tests
 					loaded.settings.menuToggleKey == "End" &&
 					observation.state == HealthState::kDegraded &&
 					observation.reason.find(
-						"sMenuToggleKey \"PageUp\" used \"End\"") !=
+						"sMenuToggleKey \"Pause\" used \"End\"") !=
 						std::string::npos,
 				"configuration health reported a stale toggle fallback");
 
