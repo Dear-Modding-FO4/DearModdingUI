@@ -436,14 +436,15 @@ namespace DearModdingUI
 				ImGui::GetStyle().FrameRounding);
 			const auto scale = Theme::SearchScale();
 			const auto iconSize = Theme::kSearchIconSize * scale;
+			const auto iconMinY = RowContentY(position.y, size.y, iconSize);
 			const ImRect iconBounds{
 				{
 					position.x + ImGui::GetStyle().FramePadding.x,
-					position.y + (size.y - iconSize) * 0.5f
+					iconMinY
 				},
 				{
 					position.x + ImGui::GetStyle().FramePadding.x + iconSize,
-					position.y + (size.y + iconSize) * 0.5f
+					iconMinY + iconSize
 				}
 			};
 			DrawCenteredIcon(
@@ -461,7 +462,7 @@ namespace DearModdingUI
 				{
 					iconBounds.Max.x +
 						ImGui::GetStyle().ItemInnerSpacing.x,
-					position.y + (size.y - textSize.y) * 0.5f
+					RowContentY(position.y, size.y, textSize.y)
 				},
 				{
 					position.x + size.x -

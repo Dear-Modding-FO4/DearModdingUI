@@ -25,13 +25,6 @@ namespace DearModdingUI
 			0.5f / std::numbers::sqrt2_v<float>
 		};
 
-		[[nodiscard]] float ContentOffsetY(
-			float a_height,
-			float a_contentHeight) noexcept
-		{
-			return (std::max)((a_height - a_contentHeight) * 0.5f, 0.0f);
-		}
-
 		[[nodiscard]] bool DrawRowInteraction(
 			const char* a_id,
 			const ImVec2& a_size,
@@ -219,6 +212,13 @@ namespace DearModdingUI
 		}
 	}
 
+	void PlaceRowContent(const ImVec2& a_position) noexcept
+	{
+		ImGui::SetCursorScreenPos(a_position);
+		// The caller's y already aligns this content; a sibling frame's baseline would shift it again.
+		ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset = 0.0f;
+	}
+
 	bool HasIconGlyph(char32_t a_glyph) noexcept
 	{
 		if (!IsRepresentableIconGlyph<ImWchar>(a_glyph))
@@ -294,9 +294,9 @@ namespace DearModdingUI
 			ImGui::GetFontSize(),
 			ImGui::GetStyle().ItemSpacing.x);
 		const auto contentY =
-			a_position.y + ContentOffsetY(a_height, layout.contentHeight);
+			RowContentY(a_position.y, a_height, layout.contentHeight);
 		const auto textY =
-			contentY + ContentOffsetY(layout.contentHeight, textSize.y);
+			RowContentY(contentY, layout.contentHeight, textSize.y);
 		if (layout.drawIcon)
 		{
 			DrawCenteredIcon(
@@ -484,7 +484,7 @@ namespace DearModdingUI
 					drawList,
 					{
 						cursorX + (fontSize - arrowSize) * 0.5f,
-						rect.Min.y + ContentOffsetY(rect.GetHeight(), arrowSize)
+						RowContentY(rect.Min.y, rect.GetHeight(), arrowSize)
 					},
 					subtle ?
 						ImGui::GetColorU32(ImGuiCol_TextDisabled) :
@@ -523,7 +523,8 @@ namespace DearModdingUI
 				fontSize,
 				{
 					cursorX,
-					rect.Min.y + ContentOffsetY(
+					RowContentY(
+						rect.Min.y,
 						rect.GetHeight(),
 						ImGui::CalcTextSize(a_options.label).y)
 				},
@@ -677,7 +678,7 @@ namespace DearModdingUI
 				a_options.buttons.empty() ? 0.0f : buttonExtent);
 			const ImVec2 titlePosition{
 				start.x + (std::max)(a_options.titleInsetX, 0.0f),
-				start.y + ContentOffsetY(rowHeight, titleSize.y)
+				RowContentY(start.y, rowHeight, titleSize.y)
 			};
 			ImGui::RenderTextEllipsis(
 				ImGui::GetWindowDrawList(),
@@ -703,7 +704,8 @@ namespace DearModdingUI
 							"##DearModdingUI.TitleRowButton",
 							{
 								positionX,
-								start.y + ContentOffsetY(
+								RowContentY(
+									start.y,
 									rowBottom - start.y,
 									buttonExtent)
 							},
@@ -724,7 +726,7 @@ namespace DearModdingUI
 		auto contentBottom = rowBottom;
 		if (a_options.summary && *a_options.summary)
 		{
-			ImGui::SetCursorScreenPos({
+			PlaceRowContent({
 				start.x,
 				contentBottom + ImGui::GetStyle().ItemInnerSpacing.y
 			});
@@ -811,7 +813,7 @@ namespace DearModdingUI
 			DrawTextInput("##search", a_hint, a_buffer, a_changed);
 		const ImVec2 iconPosition{
 			cursor.x + Theme::kSearchIconOffsetX * scale,
-			cursor.y + ContentOffsetY(frameHeight, iconSize)
+			RowContentY(cursor.y, frameHeight, iconSize)
 		};
 		DrawCenteredIcon(
 			ImGui::GetWindowDrawList(),

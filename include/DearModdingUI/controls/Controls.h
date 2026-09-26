@@ -116,6 +116,7 @@ namespace DearModdingUI
 		const char* summary{};
 	};
 
+	void PlaceRowContent(const ImVec2& a_position) noexcept;
 	[[nodiscard]] bool HasIconGlyph(char32_t a_glyph) noexcept;
 	[[nodiscard]] ImU32 IconColor(
 		ImU32 a_textColor,

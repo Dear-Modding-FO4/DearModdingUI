@@ -161,17 +161,6 @@ namespace DearModdingUI::SettingsTable
 			a_framePaddingX);
 	}
 
-	[[nodiscard]] constexpr float ResolveResetButtonOriginY(
-		float a_controlMinY,
-		float a_controlMaxY,
-		float a_buttonExtent) noexcept
-	{
-		return a_controlMinY + RowContentOffsetY(
-			a_controlMaxY - a_controlMinY,
-			{ a_buttonExtent },
-			RowContentMetric::kBox);
-	}
-
 	struct BeginResult
 	{
 		DMUI_Result result{ DMUI_RESULT_OK };

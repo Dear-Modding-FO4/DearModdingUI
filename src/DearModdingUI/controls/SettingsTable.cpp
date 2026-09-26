@@ -136,12 +136,12 @@ namespace DearModdingUI::SettingsTable
 				FieldFeedback::RequiredExtent(
 					a_feedback,
 					FieldFeedback::Region::kLabel);
-			ImGui::SetCursorScreenPos({
+			PlaceRowContent({
 				a_contentRect.Min.x,
-				a_contentRect.Min.y + RowContentOffsetY(
+				RowContentY(
+					a_contentRect.Min.y,
 					a_contentRect.GetHeight(),
-					{ totalHeight },
-					RowContentMetric::kBox)
+					totalHeight)
 			});
 			// Wrap positions are window-local, unlike the content rectangle.
 			ImGui::PushTextWrapPos(
@@ -445,6 +445,9 @@ namespace DearModdingUI::SettingsTable
 			s_state.buttonExtent + ImGui::GetStyle().CellPadding.y * 2.0f);
 		(void)ImGui::TableSetColumnIndex(0);
 		ImGui::SetNextItemWidth(-FLT_MIN);
+		// The value cell is a frame line, so client text centers beside frame controls.
+		if (a_layout == RowLayout::kLabelValue)
+			ImGui::AlignTextToFramePadding();
 		return { DMUI_RESULT_OK, true };
 	}
 
@@ -491,7 +494,7 @@ namespace DearModdingUI::SettingsTable
 				feedback,
 				FieldFeedback::Region::kControl) > 0.0f)
 		{
-			ImGui::SetCursorScreenPos(controlContentEnd);
+			PlaceRowContent(controlContentEnd);
 			FieldFeedback::Draw(
 				feedback,
 				FieldFeedback::Region::kControl);
@@ -503,9 +506,9 @@ namespace DearModdingUI::SettingsTable
 				"##DearModdingUI.SettingsRowReset",
 				{
 					resetContentRect.Min.x,
-					ResolveResetButtonOriginY(
+					RowContentY(
 						resetContentRect.Min.y,
-						resetContentRect.Max.y,
+						resetContentRect.GetHeight(),
 						s_state.buttonExtent)
 				},
 				{ s_state.resetWidth, s_state.buttonExtent },
@@ -538,7 +541,7 @@ namespace DearModdingUI::SettingsTable
 		if (containerExtent > 0.0f)
 		{
 			const auto first = TableRowContentRect(table, 0);
-			ImGui::SetCursorScreenPos({
+			PlaceRowContent({
 				first.Min.x,
 				contentMaxY
 			});

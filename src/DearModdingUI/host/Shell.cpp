@@ -449,9 +449,9 @@ namespace DearModdingUI
 				start,
 				{ controls.runMaxX, start.y + rowHeight },
 				true);
-			ImGui::SetCursorScreenPos({
+			PlaceRowContent({
 				start.x,
-				start.y + (rowHeight - ImGui::GetTextLineHeight()) * 0.5f
+				RowContentY(start.y, rowHeight, ImGui::GetTextLineHeight())
 			});
 			DrawBulletText("Host: Evil Modding");
 			if (const auto* client = a_model.FindClient(a_state.activeClient))
@@ -482,7 +482,7 @@ namespace DearModdingUI
 					"##DearModdingUI.StatusDismissButton",
 					{
 						controls.dismissMinX,
-						start.y + (rowHeight - dismissExtent) * 0.5f
+						RowContentY(start.y, rowHeight, dismissExtent)
 					},
 					{
 						controls.dismissMaxX - controls.dismissMinX,
@@ -501,7 +501,7 @@ namespace DearModdingUI
 					"##DearModdingUI.HostSettingsButton",
 					{
 						controls.settingsMinX,
-						start.y + (rowHeight - settingsExtent) * 0.5f
+						RowContentY(start.y, rowHeight, settingsExtent)
 					},
 					{ settingsWidth, settingsExtent },
 					hasGear ? PhosphorGlyph::kGear : char32_t{},
