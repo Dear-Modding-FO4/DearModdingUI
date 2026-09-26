@@ -10,11 +10,45 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <new>
 #include <string>
+#include <vector>
 
 namespace DearModdingUI::UI
 {
+	namespace
+	{
+		struct ListClipperEntry
+		{
+			uint64_t token;
+			DMUI_ClientHandle client;
+			ImGuiWindow* window;
+			ImGuiTable* table;
+			// ImGui retains back-pointers, so growing the stack must not move clippers.
+			std::unique_ptr<ImGuiListClipper> clipper;
+		};
+
+		thread_local std::vector<ListClipperEntry> s_listClippers;
+		thread_local uint64_t s_nextListClipperToken{ 1 };
+	}
+
+	ListClipperScope::ListClipperScope() noexcept :
+		m_depth(s_listClippers.size())
+	{}
+
+	ListClipperScope::~ListClipperScope() noexcept
+	{
+		while (s_listClippers.size() > m_depth)
+		{
+			auto& clipper = *s_listClippers.back().clipper;
+			// The client may have left another window/table current; do not seek there.
+			clipper.ItemsCount = -1;
+			clipper.End();
+			s_listClippers.pop_back();
+		}
+	}
+
 	namespace AdapterInternal
 	{
 #if defined(DMUI_UI_TESTING)
@@ -829,6 +863,108 @@ namespace DearModdingUI::UI
 			if (validation != DMUI_RESULT_OK)
 				return validation;
 			ImGui::PopStyleVar(a_count);
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL ListClipperBegin(
+			DMUI_ClientHandle a_client,
+			int32_t a_itemsCount,
+			float a_itemsHeight,
+			uint64_t* a_clipper) noexcept
+		{
+			if (!a_clipper)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_clipper = 0;
+			if (a_itemsCount < 0 ||
+				a_itemsCount == (std::numeric_limits<int32_t>::max)() ||
+				!std::isfinite(a_itemsHeight))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			if (!GImGui || !GImGui->CurrentWindow)
+				return DMUI_RESULT_HOST_NOT_READY;
+			if (!s_nextListClipperToken)
+				return DMUI_RESULT_RESOURCE_EXHAUSTED;
+			try
+			{
+				s_listClippers.push_back({
+					s_nextListClipperToken,
+					a_client,
+					GImGui->CurrentWindow,
+					GImGui->CurrentTable,
+					std::make_unique<ImGuiListClipper>()
+				});
+			}
+			catch (const std::bad_alloc&)
+			{
+				return DMUI_RESULT_RESOURCE_EXHAUSTED;
+			}
+			catch (...)
+			{
+				return DMUI_RESULT_CALLBACK_FAILED;
+			}
+			auto& entry = s_listClippers.back();
+			entry.clipper->Begin(
+				a_itemsCount, a_itemsHeight > 0.0f ? a_itemsHeight : -1.0f);
+			*a_clipper = s_nextListClipperToken++;
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL ListClipperStep(
+			DMUI_ClientHandle a_client,
+			uint64_t a_clipper,
+			uint32_t* a_stepping,
+			int32_t* a_displayStart,
+			int32_t* a_displayEnd) noexcept
+		{
+			if (!a_stepping || !a_displayStart || !a_displayEnd)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_stepping = 0;
+			*a_displayStart = *a_displayEnd = 0;
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			if (s_listClippers.empty())
+				return DMUI_RESULT_UNBALANCED_BRACKET;
+			auto& entry = s_listClippers.back();
+			if (entry.token != a_clipper || entry.client != a_client ||
+				!GImGui || entry.window != GImGui->CurrentWindow ||
+				entry.table != GImGui->CurrentTable)
+				return DMUI_RESULT_UNBALANCED_BRACKET;
+			if (entry.clipper->Step())
+			{
+				*a_stepping = 1;
+				*a_displayStart = entry.clipper->DisplayStart;
+				*a_displayEnd = entry.clipper->DisplayEnd;
+			}
+			else
+			{
+				s_listClippers.pop_back();
+			}
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL ListClipperEnd(
+			DMUI_ClientHandle a_client,
+			uint64_t a_clipper) noexcept
+		{
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			const auto entry = std::find_if(
+				s_listClippers.begin(), s_listClippers.end(),
+				[a_clipper](const ListClipperEntry& a_entry) {
+					return a_entry.token == a_clipper;
+				});
+			if (entry == s_listClippers.end())
+				return DMUI_RESULT_OK;
+			if (&*entry != &s_listClippers.back() || entry->client != a_client ||
+				!GImGui || entry->window != GImGui->CurrentWindow ||
+				entry->table != GImGui->CurrentTable)
+				return DMUI_RESULT_UNBALANCED_BRACKET;
+			entry->clipper->End();
+			s_listClippers.pop_back();
 			return DMUI_RESULT_OK;
 		}
 

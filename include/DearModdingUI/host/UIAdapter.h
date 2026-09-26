@@ -2,8 +2,25 @@
 
 #include <DearModdingUI/CUIAPI.h>
 
+#include <cstddef>
+
 namespace DearModdingUI::UI
 {
+	class ListClipperScope
+	{
+	public:
+		ListClipperScope() noexcept;
+		~ListClipperScope() noexcept;
+
+		ListClipperScope(const ListClipperScope&) = delete;
+		ListClipperScope(ListClipperScope&&) = delete;
+		ListClipperScope& operator=(const ListClipperScope&) = delete;
+		ListClipperScope& operator=(ListClipperScope&&) = delete;
+
+	private:
+		size_t m_depth;
+	};
+
 	[[nodiscard]] const DMUI_UIAPI& API() noexcept;
 	[[nodiscard]] DMUI_Result Query(
 		uint32_t a_requestedUIAbi,

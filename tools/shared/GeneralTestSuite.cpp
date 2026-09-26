@@ -423,8 +423,23 @@ namespace DmuiTests
 					break;
 				case DmuiTestFixtures::ExerciseKind::kPlot:
 					m_overlay.DrawOverlay();
+					DrawClippedList();
 					break;
 				}
+			}
+
+			void DrawClippedList() noexcept
+			{
+				(void)m_context.Client().DrawSectionHeader("Clipped list");
+				dmui::ui::TextUnformatted(
+					"10,000 uniform rows; scroll to inspect the submitted range.");
+				dmui::ui::ListClipper clipper;
+				clipper.Begin(10000);
+				while (clipper.Step())
+					for (int32_t i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i)
+						dmui::ui::Text(
+							"%d: clipped row (range %d..%d of 10000)",
+							i, clipper.DisplayStart, clipper.DisplayEnd);
 			}
 
 			void DrawResults() noexcept

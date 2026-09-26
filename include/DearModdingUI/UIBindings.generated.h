@@ -1070,6 +1070,20 @@ namespace DearModdingUI::UI::Bindings
 	[[nodiscard]] DMUI_Result DMUI_CALL PopStyleVar(
 		DMUI_ClientHandle a_client,
 		int32_t a_count) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL ListClipperBegin(
+		DMUI_ClientHandle a_client,
+		int32_t a_itemsCount,
+		float a_itemsHeight,
+		uint64_t* a_clipper) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL ListClipperStep(
+		DMUI_ClientHandle a_client,
+		uint64_t a_clipper,
+		uint32_t* a_stepping,
+		int32_t* a_displayStart,
+		int32_t* a_displayEnd) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL ListClipperEnd(
+		DMUI_ClientHandle a_client,
+		uint64_t a_clipper) noexcept;
 
 	[[nodiscard]] inline DMUI_UIAPI MakeAPI() noexcept
 	{
@@ -1143,7 +1157,10 @@ namespace DearModdingUI::UI::Bindings
 			&PlotLines,
 			&PushStyleVarFloat,
 			&PushStyleVarVec2,
-			&PopStyleVar
+			&PopStyleVar,
+			&ListClipperBegin,
+			&ListClipperStep,
+			&ListClipperEnd
 		};
 	}
 }

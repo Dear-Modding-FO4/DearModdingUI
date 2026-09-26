@@ -61,6 +61,80 @@ namespace vmm_tests
 
 	void run_ui_contract_checks(Runner& runner)
 	{
+		runner.test("stable list clippers clip rows and unwind callback-owned nesting", [] {
+			using namespace DearModdingUI;
+			const UI::Testing::ValidationOverride validation{ &AcceptClient };
+			support::ImGuiTestContext imgui{ { .disableErrorRecovery = true } };
+			int errors{};
+			imgui.Get()->ErrorCallback =
+				[](ImGuiContext*, void* a_data, const char*) {
+					++*static_cast<int*>(a_data);
+				};
+			imgui.Get()->ErrorCallbackUserData = &errors;
+			imgui.BeginWindow(
+				"##ListClipperTest", { 20.0f, 20.0f }, { 640.0f, 480.0f });
+			const auto baseline = GImGui->ClipperTempDataStacked;
+			const auto& api = UI::API();
+			{
+				const UI::ListClipperScope callbackScope;
+				uint64_t token{};
+				require(api.listClipperBegin(1u, 1000, -1.0f, &token) == DMUI_RESULT_OK,
+					"stable API could not begin a measured-height clipper");
+				int32_t submitted{};
+				for (;;)
+				{
+					uint32_t stepping{};
+					int32_t start{}, end{};
+					require(api.listClipperStep(1u, token, &stepping, &start, &end) ==
+							DMUI_RESULT_OK,
+						"stable clipper failed to step");
+					if (!stepping)
+						break;
+					require(start >= 0 && start < end && end <= 1000,
+						"stable clipper returned an invalid half-open range");
+					submitted += end - start;
+					for (auto i = start; i < end; ++i)
+						ImGui::Text("%d: row", i);
+				}
+				require(submitted > 1 && submitted < 1000,
+					"measured clipper did not cull offscreen rows");
+				require(GImGui->ClipperTempDataStacked == baseline &&
+						api.listClipperEnd(1u, token) == DMUI_RESULT_OK,
+					"completed Step did not release the clipper");
+			}
+
+			ImGui::SetCursorPosY(30.0f);
+			ImVec2 abandonedCursor{};
+			const auto callback = [&] {
+				const UI::ListClipperScope callbackScope;
+				uint64_t outer{}, inner{};
+				const auto height = ImGui::GetTextLineHeightWithSpacing();
+				require(api.listClipperBegin(1u, 1000, height, &outer) == DMUI_RESULT_OK &&
+						api.listClipperBegin(1u, 1000, height, &inner) == DMUI_RESULT_OK,
+					"nested stable clippers could not begin");
+				require(api.listClipperEnd(1u, outer) == DMUI_RESULT_UNBALANCED_BRACKET,
+					"out-of-order End accepted an outer clipper");
+				uint32_t stepping{};
+				int32_t start{}, end{};
+				require(api.listClipperStep(1u, inner, &stepping, &start, &end) ==
+							DMUI_RESULT_OK && stepping,
+					"out-of-order End corrupted the inner clipper");
+				ImGui::BeginChild("##AbandonedClipperWindow", { 300.0f, 150.0f });
+				abandonedCursor = ImGui::GetCursorScreenPos();
+				require(api.listClipperEnd(1u, inner) == DMUI_RESULT_UNBALANCED_BRACKET,
+					"End accepted a clipper in another window");
+			};
+			callback();
+			const auto cursor = ImGui::GetCursorScreenPos();
+			const bool cleaned = GImGui->ClipperTempDataStacked == baseline;
+			ImGui::EndChild();
+			imgui.EndWindow(true);
+			require(cleaned, "callback scope retained abandoned ImGui clipper data");
+			require(cursor.x == abandonedCursor.x && cursor.y == abandonedCursor.y,
+				"callback cleanup sought the cursor in the client's remaining window");
+			require(errors == 0, "clipper callback isolation left ImGui frame errors");
+		});
+
 		runner.test("stable UI values translate by name instead of reinterpretation", [] {
 			ImGuiCol color{};
 			require(

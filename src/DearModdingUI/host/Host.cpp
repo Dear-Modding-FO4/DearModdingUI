@@ -3,6 +3,7 @@
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/host/ImGuiRecovery.h>
+#include <DearModdingUI/host/UIAdapter.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/controls/SettingsTable.h>
 #include "HostAPIEntries.h"
@@ -109,7 +110,10 @@ namespace DearModdingUI
 					a_identity.clientDisplayName);
 				return false;
 			}
-			const auto result = a_invoke();
+			const auto result = [&]() {
+				const UI::ListClipperScope clippers;
+				return a_invoke();
+			}();
 			if (result != DMUI_RESULT_OK)
 			{
 				const auto recovered = recovery->RecoverFailure();
