@@ -6,11 +6,16 @@
 #include <d3dcompiler.h>
 #include <wrl/client.h>
 
+#include <DearModdingUI/shaders/BackgroundBlurCompositePS.h>
+#include <DearModdingUI/shaders/BackgroundBlurDownsamplePS.h>
+#include <DearModdingUI/shaders/BackgroundBlurDownsampleVS.h>
+#include <DearModdingUI/shaders/BackgroundBlurHorizontalPS.h>
+#include <DearModdingUI/shaders/BackgroundBlurVerticalPS.h>
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <filesystem>
 #include <string>
 #include <utility>
 
@@ -20,58 +25,6 @@ namespace vmm_tests
 	{
 		using Microsoft::WRL::ComPtr;
 		using DearModdingUI::BackgroundBlur::BlurPipelineState;
-
-		struct ShaderEntry
-		{
-			const wchar_t* file;
-			const char* entry;
-			const char* target;
-		};
-
-		[[nodiscard]] std::filesystem::path ShaderPath(
-			const wchar_t* a_file)
-		{
-			return std::filesystem::current_path() /
-				L"data/F4SE/Plugins/DearModdingUI/Shaders" /
-				a_file;
-		}
-
-		[[nodiscard]] ComPtr<ID3DBlob> CompileShader(
-			const ShaderEntry& a_shader)
-		{
-			ComPtr<ID3DBlob> bytecode;
-			ComPtr<ID3DBlob> diagnostics;
-			const auto path = ShaderPath(a_shader.file);
-			const auto result = D3DCompileFromFile(
-				path.c_str(),
-				nullptr,
-				D3D_COMPILE_STANDARD_FILE_INCLUDE,
-				a_shader.entry,
-				a_shader.target,
-				D3DCOMPILE_ENABLE_STRICTNESS,
-				0,
-				&bytecode,
-				&diagnostics);
-			if (FAILED(result))
-			{
-				std::string message{
-					"shader compilation failed for "
-				};
-				message += a_shader.entry;
-				if (diagnostics && diagnostics->GetBufferPointer())
-				{
-					message += ": ";
-					message.append(
-						static_cast<const char*>(
-							diagnostics->GetBufferPointer()),
-						diagnostics->GetBufferSize());
-				}
-				throw Failure(std::move(message));
-			}
-			require(bytecode && bytecode->GetBufferSize() != 0,
-				"shader compilation returned empty bytecode");
-			return bytecode;
-		}
 
 		[[nodiscard]] ComPtr<ID3DBlob> CompileShaderSource(
 			const char* a_source,
@@ -205,31 +158,26 @@ namespace vmm_tests
 
 	void run_presentation_blur_pipeline_checks(Runner& a_runner)
 	{
-		a_runner.test("background blur shader entries compile from shipped files", [] {
-			constexpr std::array entries{
-				ShaderEntry{
-					L"BackgroundBlurDownsample.hlsl",
-					"VS_Main",
-					"vs_5_0" },
-				ShaderEntry{
-					L"BackgroundBlurDownsample.hlsl",
-					"PS_Main",
-					"ps_5_0" },
-				ShaderEntry{
-					L"BackgroundBlurGaussian.hlsl",
-					"PS_Horizontal",
-					"ps_5_0" },
-				ShaderEntry{
-					L"BackgroundBlurGaussian.hlsl",
-					"PS_Vertical",
-					"ps_5_0" },
-				ShaderEntry{
-					L"BackgroundBlurComposite.hlsl",
-					"PS_Main",
-					"ps_5_0" }
-			};
-			for (const auto& entry : entries)
-				(void)CompileShader(entry);
+		a_runner.test("embedded background blur bytecode creates device shaders", [] {
+			auto device = support::CreateImageResources();
+			ComPtr<ID3D11VertexShader> vertex;
+			require(SUCCEEDED(device.device->CreateVertexShader(
+						g_BackgroundBlurDownsampleVS,
+						sizeof(g_BackgroundBlurDownsampleVS),
+						nullptr,
+						&vertex)),
+				"embedded blur vertex shader was rejected");
+			for (const auto& [bytecode, size] : std::array{
+					 std::pair{ g_BackgroundBlurDownsamplePS, sizeof(g_BackgroundBlurDownsamplePS) },
+					 std::pair{ g_BackgroundBlurHorizontalPS, sizeof(g_BackgroundBlurHorizontalPS) },
+					 std::pair{ g_BackgroundBlurVerticalPS, sizeof(g_BackgroundBlurVerticalPS) },
+					 std::pair{ g_BackgroundBlurCompositePS, sizeof(g_BackgroundBlurCompositePS) } })
+			{
+				ComPtr<ID3D11PixelShader> pixel;
+				require(SUCCEEDED(device.device->CreatePixelShader(
+							bytecode, size, nullptr, &pixel)),
+					"embedded blur pixel shader was rejected");
+			}
 		});
 
 		a_runner.test("blur pipeline state restores every touched native binding", [] {
@@ -311,26 +259,16 @@ namespace vmm_tests
 				D3D11_RECT{ 47, 7, 59, 25 }
 			};
 
-			const auto vertexBytecode = CompileShader({
-				L"BackgroundBlurDownsample.hlsl",
-				"VS_Main",
-				"vs_5_0"
-			});
-			const auto pixelBytecode = CompileShader({
-				L"BackgroundBlurGaussian.hlsl",
-				"PS_Horizontal",
-				"ps_5_0"
-			});
 			ComPtr<ID3D11VertexShader> vertexShader;
 			ComPtr<ID3D11PixelShader> pixelShader;
 			require(SUCCEEDED(device.device->CreateVertexShader(
-						vertexBytecode->GetBufferPointer(),
-						vertexBytecode->GetBufferSize(),
+						g_BackgroundBlurDownsampleVS,
+						sizeof(g_BackgroundBlurDownsampleVS),
 						nullptr,
 						&vertexShader)) &&
 					SUCCEEDED(device.device->CreatePixelShader(
-						pixelBytecode->GetBufferPointer(),
-						pixelBytecode->GetBufferSize(),
+						g_BackgroundBlurHorizontalPS,
+						sizeof(g_BackgroundBlurHorizontalPS),
 						nullptr,
 						&pixelShader)),
 				"test shader creation failed");

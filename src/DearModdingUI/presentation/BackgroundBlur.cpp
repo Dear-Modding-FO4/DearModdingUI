@@ -2,22 +2,25 @@
 
 #include <DearModdingUI/presentation/BackgroundBlur.h>
 #include <DearModdingUI/settings/HostSettings.h>
-#include <Support/Runtime.h>
 #include "BlurPipelineState.h"
 
 #include <REX/REX.h>
 
 #include <Windows.h>
 #include <d3d11.h>
-#include <d3dcompiler.h>
 #include <wrl/client.h>
+
+#include <DearModdingUI/shaders/BackgroundBlurCompositePS.h>
+#include <DearModdingUI/shaders/BackgroundBlurDownsamplePS.h>
+#include <DearModdingUI/shaders/BackgroundBlurDownsampleVS.h>
+#include <DearModdingUI/shaders/BackgroundBlurHorizontalPS.h>
+#include <DearModdingUI/shaders/BackgroundBlurVerticalPS.h>
 
 #include <imgui/imgui.h>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <filesystem>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -121,14 +124,6 @@ namespace DearModdingUI::BackgroundBlur
 			return &region;
 		}
 
-		[[nodiscard]] std::filesystem::path ShaderPath(std::wstring_view a_file)
-		{
-			auto path = std::filesystem::path{ Addictol::Support::GetRuntimeDirectory() };
-			path /= L"Data\\F4SE\\Plugins\\DearModdingUI\\Shaders";
-			path /= a_file;
-			return path;
-		}
-
 		[[nodiscard]] DXGI_FORMAT ResolveViewFormat(DXGI_FORMAT a_format) noexcept
 		{
 			switch (a_format)
@@ -146,53 +141,26 @@ namespace DearModdingUI::BackgroundBlur
 			}
 		}
 
-		template <class Shader>
-		[[nodiscard]] bool CompileShader(
+		template <class Shader, size_t Size>
+		[[nodiscard]] bool CreateShader(
 			ID3D11Device* a_device,
-			std::wstring_view a_file,
-			const char* a_entry,
-			const char* a_target,
+			const BYTE (&a_bytecode)[Size],
 			ComPtr<Shader>& a_shader) noexcept
 		{
-			const auto path = ShaderPath(a_file);
-			ComPtr<ID3DBlob> bytecode;
-			ComPtr<ID3DBlob> errors;
-			const auto result = D3DCompileFromFile(
-				path.c_str(),
-				nullptr,
-				D3D_COMPILE_STANDARD_FILE_INCLUDE,
-				a_entry,
-				a_target,
-				D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_OPTIMIZATION_LEVEL3,
-				0,
-				bytecode.GetAddressOf(),
-				errors.GetAddressOf());
-			if (FAILED(result) || !bytecode)
-			{
-				const auto detail = errors && errors->GetBufferPointer() ?
-					std::string_view{
-						static_cast<const char*>(errors->GetBufferPointer()),
-						errors->GetBufferSize()
-					} :
-					"shader file missing or unreadable"sv;
-				REX::WARN("DearModdingUI blur: {} ({})"sv, path.string(), detail);
-				return false;
-			}
-
 			HRESULT created = E_FAIL;
 			if constexpr (std::is_same_v<Shader, ID3D11VertexShader>)
 			{
 				created = a_device->CreateVertexShader(
-					bytecode->GetBufferPointer(),
-					bytecode->GetBufferSize(),
+					a_bytecode,
+					Size,
 					nullptr,
 					a_shader.ReleaseAndGetAddressOf());
 			}
 			else
 			{
 				created = a_device->CreatePixelShader(
-					bytecode->GetBufferPointer(),
-					bytecode->GetBufferSize(),
+					a_bytecode,
+					Size,
 					nullptr,
 					a_shader.ReleaseAndGetAddressOf());
 			}
@@ -202,37 +170,30 @@ namespace DearModdingUI::BackgroundBlur
 		[[nodiscard]] bool CreateFixedResources(ID3D11Device* a_device) noexcept
 		{
 			auto& resources = g_resources;
-			if (!CompileShader(
+			if (!CreateShader(
 					a_device,
-					L"BackgroundBlurDownsample.hlsl",
-					"VS_Main",
-					"vs_5_0",
+					g_BackgroundBlurDownsampleVS,
 					resources.vertexShader) ||
-				!CompileShader(
+				!CreateShader(
 					a_device,
-					L"BackgroundBlurDownsample.hlsl",
-					"PS_Main",
-					"ps_5_0",
+					g_BackgroundBlurDownsamplePS,
 					resources.downsampleShader) ||
-				!CompileShader(
+				!CreateShader(
 					a_device,
-					L"BackgroundBlurGaussian.hlsl",
-					"PS_Horizontal",
-					"ps_5_0",
+					g_BackgroundBlurHorizontalPS,
 					resources.horizontalShader) ||
-				!CompileShader(
+				!CreateShader(
 					a_device,
-					L"BackgroundBlurGaussian.hlsl",
-					"PS_Vertical",
-					"ps_5_0",
+					g_BackgroundBlurVerticalPS,
 					resources.verticalShader) ||
-				!CompileShader(
+				!CreateShader(
 					a_device,
-					L"BackgroundBlurComposite.hlsl",
-					"PS_Main",
-					"ps_5_0",
+					g_BackgroundBlurCompositePS,
 					resources.compositeShader))
+			{
+				REX::WARN("DearModdingUI blur: shader creation failed"sv);
 				return false;
+			}
 
 			D3D11_BUFFER_DESC bufferDescription{};
 			bufferDescription.Usage = D3D11_USAGE_DEFAULT;

@@ -98,7 +98,7 @@ jobs:
                     if ($required -notin $names) { throw "Test fixture is missing $required." }
                   }
                 }
-                if ($names | Where-Object { $_ -notmatch '^F4SE/Plugins/.+\.(dll|toml|ttf|hlsl)$' -and $_ -notin $fixtures }) {
+                if ($names | Where-Object { $_ -notmatch '^F4SE/Plugins/.+\.(dll|toml|ttf)$' -and $_ -notin $fixtures }) {
                   throw "$component contains non-runtime files."
                 }
                 if ($names | Where-Object { $_ -like 'MCM/Settings/*' }) {

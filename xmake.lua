@@ -181,6 +181,77 @@ local function add_source_sets(...)
     end
 end
 
+-- Each HLSL entry is compiled once at build time into an embedded bytecode header.
+local shader_entries = {
+    ["BackgroundBlurDownsample.hlsl"] = {
+        { entry = "VS_Main", profile = "vs_5_0", name = "BackgroundBlurDownsampleVS" },
+        { entry = "PS_Main", profile = "ps_5_0", name = "BackgroundBlurDownsamplePS" }
+    },
+    ["BackgroundBlurGaussian.hlsl"] = {
+        { entry = "PS_Horizontal", profile = "ps_5_0", name = "BackgroundBlurHorizontalPS" },
+        { entry = "PS_Vertical", profile = "ps_5_0", name = "BackgroundBlurVerticalPS" }
+    },
+    ["BackgroundBlurComposite.hlsl"] = {
+        { entry = "PS_Main", profile = "ps_5_0", name = "BackgroundBlurCompositePS" }
+    }
+}
+
+local function shader_header_root(target)
+    return path.join(target:autogendir(), "shaders")
+end
+
+rule("dmui.shaders", function()
+    set_extensions(".hlsl")
+
+    on_load(function(target)
+        target:add("includedirs", shader_header_root(target))
+    end)
+
+    before_buildcmd_file(function(target, batchcmds, sourcefile, opt)
+        local entries = shader_entries[path.filename(sourcefile)]
+        if not entries then
+            raise("shader %s has no declared entry points", sourcefile)
+        end
+        local msvc = target:toolchain("msvc")
+        local envs = msvc and msvc:runenvs() or {}
+        local sdk_bin = envs.WindowsSdkVerBinPath
+        local fxc = sdk_bin and path.join(sdk_bin, "x64", "fxc.exe")
+        if not fxc or not os.isfile(fxc) then
+            raise("fxc was not found in the Windows SDK")
+        end
+        local output_root = path.join(shader_header_root(target), "DearModdingUI", "shaders")
+        batchcmds:mkdir(output_root)
+        local outputs = {}
+        for _, shader in ipairs(entries) do
+            local header = path.join(output_root, shader.name .. ".h")
+            batchcmds:show_progress(opt.progress, "${color.build.object}compiling.shader %s:%s",
+                sourcefile, shader.entry)
+            batchcmds:vrunv(fxc, {
+                "/nologo", "/Ges", "/O3",
+                "/E", shader.entry,
+                "/T", shader.profile,
+                "/Vn", "g_" .. shader.name,
+                "/Fh", header,
+                path(sourcefile)
+            })
+            table.insert(outputs, header)
+        end
+        batchcmds:add_depfiles(sourcefile)
+        local oldest
+        for _, header in ipairs(outputs) do
+            local mtime = os.mtime(header)
+            oldest = oldest and math.min(oldest, mtime) or mtime
+        end
+        batchcmds:set_depmtime(oldest)
+        batchcmds:set_depcache(target:dependfile(outputs[1]))
+    end)
+end)
+
+local function add_shaders()
+    add_rules("dmui.shaders")
+    add_files("src/DearModdingUI/presentation/shaders/*.hlsl")
+end
+
 target("imgui", function()
     set_kind("static")
     set_arch("x64")
@@ -248,6 +319,7 @@ target("dmui-tests", function()
 
     add_deps("imgui", "dmui-mcm")
     add_source_sets("core", "navigation_preview")
+    add_shaders()
     add_files(
         "tests/**.cpp",
         "mcm/runtime/src/Win32FileListingAdapter.cpp",
@@ -293,6 +365,7 @@ target("dmui-preview", function()
 
     add_deps("imgui", "dmui-mcm")
     add_source_sets("core", "ui", "navigation_preview", "diagnostic_client")
+    add_shaders()
     add_files(
         "tools/preview/*.cpp",
         "tools/preview/fixtures/**.cpp",
@@ -317,7 +390,6 @@ target("dmui-preview", function()
     add_syslinks(
         "d3d11",
         "dxgi",
-        "d3dcompiler",
         "windowscodecs",
         "ole32",
         "shell32",
@@ -363,6 +435,7 @@ target(plugin_name, function()
 
     add_deps("imgui")
     add_source_sets("core", "ui", "runtime")
+    add_shaders()
     add_headerfiles("include/**.h", "src/**.h")
     add_extrafiles("data/**", "README.md", "THIRD_PARTY_NOTICES.md")
     add_includedirs(
@@ -371,7 +444,7 @@ target(plugin_name, function()
         "Depends/toml11/single_include"
     )
     add_defines("_CRT_SECURE_NO_WARNINGS")
-    add_syslinks("d3d11", "dxgi", "d3dcompiler", "shell32")
+    add_syslinks("d3d11", "dxgi", "shell32")
     set_pcxxheader("Depends/commonlibf4/include/F4SE/Impl/PCH.h")
 
 end)
@@ -587,7 +660,7 @@ task("package-release", function()
                 end
                 for _, source in ipairs(runtime_assets) do
                     local extension = path.extension(source):lower()
-                    if extension == ".toml" or extension == ".ttf" or extension == ".hlsl" then
+                    if extension == ".toml" or extension == ".ttf" then
                         local relative = path.relative(source, data_root)
                         local destination = path.join(folder, relative)
                         os.mkdir(path.directory(destination))
