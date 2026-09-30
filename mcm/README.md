@@ -134,10 +134,8 @@ not canonicalize paths, so in-process mod-manager filesystem virtualization rema
 Missing directories and no matches produce only the `None` choice; other I/O failures disable the
 row with a transient path-specific explanation and are retried on later page activations.
 
-The cached choice list is refreshed when its page is activated, including after reopening the
-overlay. Refreshes run on `TaskScheduler::ScheduleBackground`, coalesced per page, and a request
-made during a scan triggers one rescan. `prepareView` only applies a changed snapshot without
-performing I/O, so rows stay pending until the first scan completes. The first option
+The cached choice list is refreshed off the render thread when its page is activated, including
+after reopening the overlay; rows stay pending until the first scan completes. The first option
 has value `""` and label `None`; a real file named `None` remains a distinct option. Unknown stored
 filenames display as `None` through the choice control's unmatched label while the binding retains
 the exact stored value for ordinary modified-state and reset handling. User selection and actions
