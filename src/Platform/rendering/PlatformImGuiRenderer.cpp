@@ -38,6 +38,7 @@ namespace Addictol::platformImguiDetail
 			RE::BSGraphics::RendererData* rendererData{ nullptr };
 			RE::BSGraphics::RendererWindow* rendererWindow{ nullptr };
 			IDXGISwapChain* publishedSwapChain{ nullptr };
+			RendererProbe probe{};
 		};
 
 		class RendererHealthReporter final :
@@ -259,6 +260,36 @@ namespace Addictol::platformImguiDetail
 			return adapter3;
 		}
 
+		[[nodiscard]] RendererProbe ProbeRenderer(
+			const RE::BSGraphics::RendererData* a_rendererData,
+			const RE::BSGraphics::RendererWindow* a_rendererWindow) noexcept
+		{
+			if (!a_rendererData)
+				return {};
+			return {
+				true,
+				a_rendererData->initialized,
+				a_rendererWindow != nullptr,
+				{
+					a_rendererWindow ? reinterpret_cast<uintptr_t>(
+						a_rendererWindow->swapChain) : 0,
+					reinterpret_cast<uintptr_t>(a_rendererData->device),
+					reinterpret_cast<uintptr_t>(a_rendererData->context),
+					a_rendererWindow ? reinterpret_cast<uintptr_t>(
+						a_rendererWindow->hwnd) : 0
+				}
+			};
+		}
+
+		// The renderer data and its windows are static engine storage, so an unlocked read is
+		// memory-safe; a torn read only routes to the locked capture.
+		[[nodiscard]] RendererProbe PeekPublishedRenderer() noexcept
+		{
+			return ProbeRenderer(
+				RE::BSGraphics::GetRendererData(),
+				RE::BSGraphics::GetCurrentRendererWindow());
+		}
+
 		[[nodiscard]] bool CaptureRendererSnapshot(
 			RendererSnapshot& a_snapshot,
 			RendererObservation& a_observation) noexcept
@@ -279,23 +310,12 @@ namespace Addictol::platformImguiDetail
 				return false;
 			}
 			auto* rendererWindow = RE::BSGraphics::GetCurrentRendererWindow();
-			const RendererProbe probe{
-				true,
-				rendererData->initialized,
-				rendererWindow != nullptr,
-				{
-					rendererWindow ? reinterpret_cast<uintptr_t>(
-						rendererWindow->swapChain) : 0,
-					reinterpret_cast<uintptr_t>(rendererData->device),
-					reinterpret_cast<uintptr_t>(rendererData->context),
-					rendererWindow ? reinterpret_cast<uintptr_t>(
-						rendererWindow->hwnd) : 0
-				}
-			};
+			const auto probe = ProbeRenderer(rendererData, rendererWindow);
 			a_observation = ObserveRenderer(probe);
 			if (a_observation != RendererObservation::kReady)
 				return false;
 
+			a_snapshot.probe = probe;
 			a_snapshot.rendererData = rendererData;
 			a_snapshot.rendererWindow = rendererWindow;
 			a_snapshot.publishedSwapChain = reinterpret_cast<IDXGISwapChain*>(
@@ -394,7 +414,10 @@ namespace Addictol::platformImguiDetail
 				return false;
 			}
 			if (decision == AttachmentDecision::kKeepCurrent)
+			{
+				context.reconciledProbe = a_snapshot.probe;
 				return true;
+			}
 			a_snapshot.attachment.videoMemoryAdapter =
 				AcquireVideoMemoryAdapter(a_snapshot.attachment.device.Get());
 			if (!SwapChainHooks::Install(
@@ -412,6 +435,7 @@ namespace Addictol::platformImguiDetail
 				RetireActiveAttachmentLocked(nullptr, nullptr);
 
 			context.attachment = std::move(a_snapshot.attachment);
+			context.reconciledProbe = a_snapshot.probe;
 			AdvanceAttachmentGenerationLocked();
 			context.attachmentLifecycle =
 				AttachmentLifecycle::kActive;
@@ -463,6 +487,15 @@ namespace Addictol::platformImguiDetail
 			return committed ||
 				observation ==
 					RendererObservation::kBindingChanged;
+		}
+
+		[[nodiscard]] bool RendererBindingChanged() noexcept
+		{
+			const auto published = PeekPublishedRenderer();
+			const ContextLock lock;
+			return RequiresRendererReconciliation(
+				Context().reconciledProbe,
+				published);
 		}
 
 		void CheckReconciliationDeadline() noexcept
@@ -734,6 +767,7 @@ namespace Addictol::platformImguiDetail
 			false,
 			std::memory_order_release);
 		context.attachment = {};
+		context.reconciledProbe = {};
 		AdvanceAttachmentGenerationLocked();
 		context.attachmentLifecycle =
 			AttachmentLifecycle::kRetired;
@@ -749,7 +783,8 @@ namespace Addictol::platformImguiDetail
 		if (!Context().gameLoaded.load(
 				std::memory_order_acquire))
 			return;
-		(void)ReconcileRenderer();
+		if (RendererBindingChanged())
+			(void)ReconcileRenderer();
 		CheckReconciliationDeadline();
 	}
 

@@ -56,6 +56,7 @@ namespace Addictol::platformImguiDetail
 		ImguiPlatform::AttachmentSource attachmentSource{
 			ImguiPlatform::AttachmentSource::kRenderer
 		};
+		ImguiPlatform::RendererProbe reconciledProbe{};
 		PlatformImgui::Callbacks callbacks{};
 		std::atomic<ImguiPlatform::InstallState> installState{
 			ImguiPlatform::InstallState::kNotAttempted

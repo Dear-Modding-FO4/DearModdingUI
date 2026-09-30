@@ -20,6 +20,8 @@ namespace Addictol::ImguiPlatform
 		{
 			return swapChain && device && context && window;
 		}
+
+		[[nodiscard]] constexpr bool operator==(const AttachmentIdentity&) const noexcept = default;
 	};
 
 	enum class AttachmentSource : uint32_t
@@ -54,10 +56,7 @@ namespace Addictol::ImguiPlatform
 			return AttachmentDecision::kReject;
 		if (a_lifecycle != AttachmentLifecycle::kActive || !a_current.Valid())
 			return AttachmentDecision::kAttach;
-		if (a_current.swapChain == a_candidate.swapChain &&
-			a_current.device == a_candidate.device &&
-			a_current.context == a_candidate.context &&
-			a_current.window == a_candidate.window)
+		if (a_current == a_candidate)
 			return AttachmentDecision::kKeepCurrent;
 		if (a_currentSource == AttachmentSource::kExplicit &&
 			a_candidateSource == AttachmentSource::kRenderer &&
@@ -117,6 +116,8 @@ namespace Addictol::ImguiPlatform
 		bool initialized{ false };
 		bool hasRendererWindow{ false };
 		AttachmentIdentity binding{};
+
+		[[nodiscard]] constexpr bool operator==(const RendererProbe&) const noexcept = default;
 	};
 
 	[[nodiscard]] constexpr RendererObservation ObserveRenderer(
@@ -137,6 +138,15 @@ namespace Addictol::ImguiPlatform
 		if (!a_probe.binding.window)
 			return RendererObservation::kWindowMissing;
 		return RendererObservation::kReady;
+	}
+
+	// Retirement clears the committed probe, so only an unchanged live binding skips the engine lock.
+	[[nodiscard]] constexpr bool RequiresRendererReconciliation(
+		const RendererProbe& a_reconciled,
+		const RendererProbe& a_published) noexcept
+	{
+		return ObserveRenderer(a_published) != RendererObservation::kReady ||
+			a_published != a_reconciled;
 	}
 
 	inline constexpr uint32_t kDxgiErrorDeviceRemoved = 0x887A0005u;

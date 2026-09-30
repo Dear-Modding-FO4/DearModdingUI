@@ -170,6 +170,20 @@ namespace vmm_tests
 				"a renderer generation change must retire a stale override");
 		});
 
+		runner.test("renderer polling takes engine locks only for a changed binding", [] {
+			constexpr RendererProbe game{ true, true, true, { 1, 2, 3, 4 } };
+			constexpr RendererProbe recreated{ true, true, true, { 5, 2, 3, 4 } };
+			constexpr RendererProbe uninitialized{ false, false, false, {} };
+
+			require(!RequiresRendererReconciliation(game, game),
+				"an unchanged binding still entered the engine renderer lock");
+			require(RequiresRendererReconciliation(game, recreated) &&
+					RequiresRendererReconciliation({}, game),
+				"a republished or first binding was not reconciled");
+			require(RequiresRendererReconciliation(uninitialized, uninitialized),
+				"an unready renderer skipped the waiting-state capture");
+		});
+
 		runner.test("definitive DXGI failures retire the active attachment", [] {
 			require(IsDefinitiveSwapChainLoss(kDxgiErrorDeviceRemoved),
 				"device removal must retire the attachment");
