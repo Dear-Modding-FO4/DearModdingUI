@@ -72,9 +72,8 @@ Optional project generation, run from the repository root:
 | `tools\shared\` | One interactive diagnostic suite shared by preview and the in-game runner. |
 | `tools\test-client\` | Thin F4SE runner for the shared diagnostic suite. |
 
-`xmake.lua` declares shared source sets once and compiles them with each target's
-own defines and adapters. Only desktop preview and automated tests use
-`tools\shared\include` compatibility stubs; game plugins use the real dependencies.
+`xmake.lua` declares shared source sets once for every target. The `tools\shared\include`
+compatibility stubs are for the preview and tests only.
 
 ## Running tests
 
@@ -86,16 +85,9 @@ xmake build -P "$projectRoot" -y dmui-tests
 .\.Build\Tests\dmui-tests.exe
 ```
 
-Prefer behavior exercised through production code over snapshots of release
-versions, visual defaults, fixture data, or source text. Preserve ABI contracts,
-ownership, state transitions, failure paths, and real I/O boundaries. Consolidate
-overlapping setup without dropping distinct failure cases, and name tests for the
-path they actually exercise rather than implying host integration through a fake.
-
-The optional `python tests\RunMutations.py` command proves the named regression
-controls in `tests\Mutations.json`. It temporarily edits exact source locations,
-rebuilds, and restores their original contents. Run it only without concurrent
-editing or builds.
+The optional `python tests\RunMutations.py` command checks that tests catch the
+regressions listed in `tests\Mutations.json`. It temporarily edits and rebuilds
+sources, so run it only when nothing else is editing or building.
 
 ## Standalone preview
 
@@ -114,25 +106,13 @@ Useful arguments:
 - `--page <id>`: Navigates directly to a registered settings page.
 - `--sidebar <tree|twopane|drilldown|iconrail>`: Selects a sidebar presentation layout.
 - `--presentation <overlay|notification|image|plot|dialog>`: Tests specific presentation services.
+- `--frames <count>`: Renders more frames before capture if a scenario needs time to initialize.
 
-Presentation presets use the shared exercises in `tools\shared`; MCM and navigation
-scenarios live in `tools\preview\fixtures`. Preview binaries and fixtures are not packaged.
-Increase `--frames` if capture fails because a scenario has not finished initializing.
-
-Field feedback demos use `--page setting-feedback/label`,
-`--page setting-feedback/control`, or `--page setting-feedback/strip`.
-These preview-only overrides do not change saved preferences.
-
-The reader scenario uses the public client API and production monospace role:
+Scenarios live in `tools\shared` and `tools\preview\fixtures`, and are not packaged. For example:
 
 ```powershell
 .\.Build\Preview\dmui-preview.exe --page text-view/reader --frames 12 --screenshot .Build\Preview\TextViewReader.png
 ```
-
-Its capture checks growable search typing and a 4,098-byte UTF-8 paste through the public API,
-same-frame edits, later-content reveal, overlapping highlights, clipping, font advances,
-and draw-context rejection. It uses an in-memory clipboard without changing the OS clipboard.
-Section and search controls remain interactive without `--screenshot`.
 
 ## Stable UI contract
 
@@ -140,12 +120,8 @@ The API dependency owns `schema\ui-contract.json` and its baseline manifest,
 `schema\ui-contract.manifest.json`. They generate the stable C UI table and check
 that existing slots, IDs, and enums remain intact.
 
-An API update must not disconnect a mod that only uses unchanged operations.
-Preserve existing function signatures and table offsets, append new operations,
-and negotiate optional entries by table size and availability. Release-version
-metadata is not a compatibility gate. Internal refactors do not require an ABI
-version bump; incompatible operation revisions need distinct entries rather
-than repurposing an existing slot.
+API updates must keep existing mods working: append new operations instead of
+changing or reusing existing slots.
 
 To regenerate contract bindings after updating the schema:
 
@@ -171,6 +147,7 @@ the generated headers directly: CI regenerates and compares them.
 - Remove dead code and forwarding layers that add no behavior. Put reused logic in its owning component rather than copying it or adding a miscellaneous utility collection.
 - Treat a handwritten file exceeding 1,000 lines as an ownership warning, not a reason to split it arbitrarily. Extract cohesive responsibilities and keep their state with them.
 - Keep game-independent MCM logic separate from game adapters, and diagnostic-only implementations out of production source sets.
+- Test behavior through production code, including failure paths, rather than snapshots of defaults, fixtures, or source text.
 - Commits use `type(scope): summary` convention.
 - Avoid em-dashes in documentation and strings; use clean punctuation or parentheses instead.
 - Fail closed: Invalid or malformed client data must be skipped safely with diagnostic logging, never causing a crash.

@@ -25,8 +25,6 @@
 Install the core package from [Releases](https://github.com/Dear-Modding-FO4/DearModdingUI/releases/latest)
 with Mod Organizer 2 or Vortex, or extract it into Fallout 4's `Data` folder.
 Add the optional **DearModdingUI-MCM** companion package for legacy MCM menus.
-Use `release` packages for normal play. The [test bundle](tools/test-client/README.md)
-includes native and MCM fixtures for a disposable save.
 
 Press **End** to toggle the menu. **Escape** cancels an active edit, dismisses a
 dialog, or closes the menu. The built-in Settings page controls appearance and
@@ -43,32 +41,20 @@ Preserve both files when upgrading.
 
 | Component | Responsibility |
 |---|---|
-| **Host** | Shared navigation, controls, rendering, native cursor/input ownership, fonts, and icons. |
-| **Client API** | Versioned C ABI with a header-only C++ wrapper. Clients neither link the host DLL nor bundle Dear ImGui. |
-| **MCM bridge** | Optional legacy configuration and game adapters. The host links no MCM or JSON code. |
-| **Diagnostics** | One shared interactive suite used by the desktop preview and in-game test client. |
-
-See the [repository layout](CONTRIBUTING.md#repository-layout) and
-[MCM contracts](mcm/README.md) for component boundaries.
+| **Host** | Shared menu, navigation, controls, rendering, input, fonts, and icons. |
+| **Client API** | Versioned C ABI with a header-only C++ wrapper for mods. |
+| **MCM bridge** | Optional companion that shows legacy MCM menus in the host. |
+| **Diagnostics** | Desktop preview and in-game test client for development. |
 
 ## Mod integration
 
-Use the [public API headers](https://github.com/Dear-Modding-FO4/DearModdingUI-API),
-also included in the Dear Modding CommonLibF4 fork. Discover `DearModdingUI.dll`
-via `DMUI_GetAPI` at F4SE `kPostPostLoad`, register clients and pages through
-`<DearModdingUI/Client.h>`, and draw controls with `dmui::ui`.
-
-The [client guide](include/DearModdingUI/README.md) covers registration,
-optional API negotiation, settings, overlays, and callback lifetimes.
+Mods integrate through the [public API headers](https://github.com/Dear-Modding-FO4/DearModdingUI-API),
+also included in the Dear Modding CommonLibF4 fork. The [client guide](include/DearModdingUI/README.md)
+covers registration, settings, overlays, and compatibility.
 
 ## Development
 
-Building requires **Windows 10/11 x64**, **Visual Studio 2022 with v143 C++ tools**,
-**[xmake](https://xmake.io/)**, **Python 3**, and **Git with initialized submodules**.
-The project uses C++23.
-
-[CONTRIBUTING.md](CONTRIBUTING.md) covers setup, builds, packaging, editor
-integration, tests, the standalone preview, and contract generation.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for prerequisites, building, testing, and packaging.
 
 ## License
 
