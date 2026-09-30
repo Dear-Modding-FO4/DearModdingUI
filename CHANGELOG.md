@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Optional viewer API**: Appended the API 0.2 text-view operation without changing the host ABI or requiring existing clients to rebuild.
 
 ### Fixed
+- **Periodic frame-time spikes**: Renderer monitoring no longer takes the engine renderer lock while the renderer binding is unchanged. It previously waited up to about 11 ms on the game thread four times per second during gameplay.
+- **Menu hitches**: Blur shaders are compiled at build time instead of on first menu open. MCM file-list scans run off the render thread, and closing the menu no longer rewrites an unchanged window layout. Packages no longer ship `Shaders` HLSL files.
 - **Search input capacity**: Removed the host's fixed 256-byte temporary buffer. Search controls now honor the caller's explicit UTF-8 byte capacity without partial-sequence truncation.
 
 ## [0.1.3] - 2026-09-14
