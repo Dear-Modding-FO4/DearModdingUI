@@ -12,6 +12,7 @@
 namespace DearModdingUI::MCM
 {
 	class DiagnosticReporter;
+	class TaskScheduler;
 
 	using FileListingResult =
 		std::expected<std::vector<std::string>, std::string>;
@@ -81,13 +82,16 @@ namespace DearModdingUI::MCM
 		friend FileChoiceController AttachFileChoices(
 			MappedPage&,
 			FileListingAdapter&,
+			TaskScheduler&,
 			DiagnosticReporter&,
 			std::string);
 	};
 
+	// Refresh lists files through the scheduler's background executor.
 	[[nodiscard]] FileChoiceController AttachFileChoices(
 		MappedPage& a_page,
 		FileListingAdapter& a_files,
+		TaskScheduler& a_scheduler,
 		DiagnosticReporter& a_diagnostics,
 		std::string a_source);
 }

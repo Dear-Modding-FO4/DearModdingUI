@@ -17,5 +17,7 @@ namespace DearModdingUI::MCM
 
 		virtual void Schedule(std::function<void()> a_work) = 0;
 		virtual void ScheduleUi(std::function<void()> a_work) = 0;
+		// Off both game threads, for blocking work such as filesystem scans.
+		virtual void ScheduleBackground(std::function<void()> a_work) = 0;
 	};
 }

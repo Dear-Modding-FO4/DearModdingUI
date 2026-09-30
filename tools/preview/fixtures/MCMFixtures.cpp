@@ -6,6 +6,7 @@
 #include <DearModdingUI/MCM/FileChoices.h>
 #include <DearModdingUI/MCM/Keybinds.h>
 #include <DearModdingUI/MCM/SettingsIni.h>
+#include <DearModdingUI/MCM/TaskScheduler.h>
 #include <DearModdingUI/MCM/TextRendering.h>
 #include <DearModdingUI/MCM/ValueSource.h>
 #include <DearModdingUI/MCM/Win32FileListingAdapter.h>
@@ -241,6 +242,27 @@ namespace DmuiTestFixtures
 			dmui::Client* client{};
 			DMUI_Result publishResult{ DMUI_RESULT_OK };
 		};
+
+		// Preview captures must be deterministic, so fixture work runs inline.
+		class ImmediateTaskScheduler final :
+			public DearModdingUI::MCM::TaskScheduler
+		{
+		public:
+			void Schedule(std::function<void()> a_work) override
+			{
+				a_work();
+			}
+
+			void ScheduleUi(std::function<void()> a_work) override
+			{
+				a_work();
+			}
+
+			void ScheduleBackground(std::function<void()> a_work) override
+			{
+				a_work();
+			}
+		};
 	}
 
 	struct McmFixture::Impl
@@ -254,6 +276,7 @@ namespace DmuiTestFixtures
 		FixtureValueSource values;
 		FixtureActionExecutor actions;
 		FixtureDiagnosticReporter diagnostics;
+		ImmediateTaskScheduler scheduler;
 		std::unique_ptr<FixtureFileListingAdapter> files;
 		std::vector<PageRuntime> pages;
 		std::unique_ptr<dmui::Client> client;
@@ -381,6 +404,7 @@ namespace DmuiTestFixtures
 				auto fileChoices = DearModdingUI::MCM::AttachFileChoices(
 					page,
 					*m_impl->files,
+					m_impl->scheduler,
 					m_impl->diagnostics,
 					source);
 				DearModdingUI::MCM::BindPage(

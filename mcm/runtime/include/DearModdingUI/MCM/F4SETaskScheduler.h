@@ -9,5 +9,6 @@ namespace DearModdingUI::MCM
 	public:
 		void Schedule(std::function<void()> a_work) override;
 		void ScheduleUi(std::function<void()> a_work) override;
+		void ScheduleBackground(std::function<void()> a_work) override;
 	};
 }

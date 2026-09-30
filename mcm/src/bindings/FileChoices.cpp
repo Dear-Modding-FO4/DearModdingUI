@@ -2,8 +2,10 @@
 
 #include <DearModdingUI/MCM/DiagnosticReporter.h>
 #include <DearModdingUI/MCM/PageLookup.h>
+#include <DearModdingUI/MCM/TaskScheduler.h>
 
 #include <algorithm>
+#include <atomic>
 #include <exception>
 #include <limits>
 #include <mutex>
@@ -151,10 +153,16 @@ namespace DearModdingUI::MCM
 			};
 		};
 
+		void Scan() noexcept;
+		void Drain() noexcept;
+
 		FileListingAdapter* files{};
+		TaskScheduler* scheduler{};
 		DiagnosticReporter* diagnostics{};
 		std::string source;
 		std::vector<Entry> entries;
+		std::atomic<bool> running{ false };
+		std::atomic<bool> rerun{ false };
 	};
 
 	FileChoiceController::FileChoiceController(std::shared_ptr<Impl> a_impl) :
@@ -166,11 +174,9 @@ namespace DearModdingUI::MCM
 		return impl_ && !impl_->entries.empty();
 	}
 
-	void FileChoiceController::Refresh() noexcept
+	void FileChoiceController::Impl::Scan() noexcept
 	{
-		if (!impl_)
-			return;
-		for (auto& entry : impl_->entries)
+		for (auto& entry : entries)
 		{
 			FileListingResult listing = std::unexpected(
 				"the configured path is missing or empty");
@@ -178,7 +184,7 @@ namespace DearModdingUI::MCM
 			{
 				try
 				{
-					listing = impl_->files->List(
+					listing = files->List(
 						*entry.metadata.path,
 						entry.metadata.mask);
 				}
@@ -196,9 +202,9 @@ namespace DearModdingUI::MCM
 					entry.metadata.mask) &&
 				failed)
 			{
-				impl_->diagnostics->ReportTransient({
+				diagnostics->ReportTransient({
 					DiagnosticSeverity::kWarning,
-					impl_->source,
+					source,
 					entry.metadata.location,
 					FailureDescription(
 						entry.metadata.path.value_or(std::string{}),
@@ -209,14 +215,53 @@ namespace DearModdingUI::MCM
 		}
 	}
 
+	void FileChoiceController::Impl::Drain() noexcept
+	{
+		// A request that arrives mid-scan must observe the filesystem after it.
+		do
+		{
+			rerun.store(false, std::memory_order_release);
+			Scan();
+			running.store(false, std::memory_order_release);
+		} while (rerun.load(std::memory_order_acquire) &&
+			!running.exchange(true, std::memory_order_acq_rel));
+	}
+
+	void FileChoiceController::Refresh() noexcept
+	{
+		if (!impl_ || impl_->entries.empty())
+			return;
+		impl_->rerun.store(true, std::memory_order_release);
+		if (impl_->running.exchange(true, std::memory_order_acq_rel))
+			return;
+		try
+		{
+			impl_->scheduler->ScheduleBackground(
+				[impl = impl_] { impl->Drain(); });
+		}
+		catch (const std::exception& a_error)
+		{
+			impl_->running.store(false, std::memory_order_release);
+			impl_->diagnostics->ReportTransient({
+				DiagnosticSeverity::kWarning,
+				impl_->source,
+				{},
+				"File choices could not be refreshed: " +
+					std::string{ a_error.what() }
+			});
+		}
+	}
+
 	FileChoiceController AttachFileChoices(
 		MappedPage& a_page,
 		FileListingAdapter& a_files,
+		TaskScheduler& a_scheduler,
 		DiagnosticReporter& a_diagnostics,
 		std::string a_source)
 	{
 		auto impl = std::make_shared<FileChoiceController::Impl>();
 		impl->files = &a_files;
+		impl->scheduler = &a_scheduler;
 		impl->diagnostics = &a_diagnostics;
 		impl->source = std::move(a_source);
 		for (auto& row : a_page.rows)

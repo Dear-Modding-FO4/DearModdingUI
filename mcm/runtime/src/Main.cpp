@@ -344,6 +344,7 @@ namespace DearModdingUI::MCM
 					auto fileChoices = AttachFileChoices(
 						*page,
 						s_files,
+						s_scheduler,
 						*mod->diagnostics,
 						PathText(a_config));
 					BindPage(*page, *mod->values, CurrentMcmState);

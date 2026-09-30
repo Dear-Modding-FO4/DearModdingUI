@@ -58,6 +58,11 @@ namespace vmm_tests
 			{
 				a_work();
 			}
+
+			void ScheduleBackground(std::function<void()> a_work) override
+			{
+				a_work();
+			}
 		};
 
 		class FakeDispatcher final : public PapyrusDispatcher

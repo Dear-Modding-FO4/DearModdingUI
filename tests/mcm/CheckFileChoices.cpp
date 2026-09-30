@@ -1,5 +1,6 @@
 #include <DearModdingUI/MCM/ActionExecutor.h>
 #include <DearModdingUI/MCM/FileChoices.h>
+#include <DearModdingUI/MCM/TaskScheduler.h>
 #include <DearModdingUI/MCM/ValueSource.h>
 #include <DearModdingUI/MCM/Win32FileListingAdapter.h>
 
@@ -10,6 +11,7 @@
 #include <deque>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <stdexcept>
@@ -71,6 +73,8 @@ namespace vmm_tests
 				++calls;
 				lastPath = a_path;
 				lastMask = a_mask;
+				if (onList)
+					std::exchange(onList, {})();
 				if (results.empty())
 					return std::unexpected("unexpected listing request");
 				auto result = std::move(results.front());
@@ -79,9 +83,41 @@ namespace vmm_tests
 			}
 
 			std::deque<FileListingResult> results;
+			std::function<void()> onList;
 			size_t calls{};
 			std::string lastPath;
 			std::string lastMask;
+		};
+
+		class QueuedScheduler final : public TaskScheduler
+		{
+		public:
+			void Schedule(std::function<void()> a_work) override
+			{
+				a_work();
+			}
+
+			void ScheduleUi(std::function<void()> a_work) override
+			{
+				a_work();
+			}
+
+			void ScheduleBackground(std::function<void()> a_work) override
+			{
+				background.push_back(std::move(a_work));
+			}
+
+			void RunBackground()
+			{
+				while (!background.empty())
+				{
+					auto work = std::move(background.front());
+					background.pop_front();
+					work();
+				}
+			}
+
+			std::deque<std::function<void()>> background;
 		};
 
 		class FakeDiagnostics final : public DiagnosticReporter
@@ -290,6 +326,7 @@ namespace vmm_tests
 					"Gamma.xml"
 				});
 				FakeDiagnostics diagnostics;
+				QueuedScheduler scheduler;
 				StringSource source;
 				source.values.emplace(
 					"sPreset:Files",
@@ -297,6 +334,7 @@ namespace vmm_tests
 				auto controller = AttachFileChoices(
 					page,
 					files,
+					scheduler,
 					diagnostics,
 					"file-config.json");
 				BindPage(page, source);
@@ -307,6 +345,9 @@ namespace vmm_tests
 					"prepareView performed filesystem IO");
 
 				controller.Refresh();
+				require(files.calls == 0 && scheduler.background.size() == 1,
+					"lifecycle refresh listed files on the calling thread");
+				scheduler.RunBackground();
 				page.settings.prepareView(page.settings);
 				const auto& options = Choices(page).options;
 				require(files.calls == 1 &&
@@ -329,6 +370,7 @@ namespace vmm_tests
 					"unknown storage was not retained as an ordinary dirty value");
 
 				controller.Refresh();
+				scheduler.RunBackground();
 				page.settings.prepareView(page.settings);
 				require(!setting.isEnabled() &&
 						setting.resolveDescription().find(
@@ -338,15 +380,55 @@ namespace vmm_tests
 						diagnostics.transient.size() == 1,
 					"listing failure did not disable and explain the row");
 				controller.Refresh();
+				scheduler.RunBackground();
 				page.settings.prepareView(page.settings);
 				require(diagnostics.transient.size() == 1,
 					"identical listing failures spammed diagnostics");
 				controller.Refresh();
+				scheduler.RunBackground();
 				page.settings.prepareView(page.settings);
 				require(setting.isEnabled() &&
 						Choices(page).options.size() == 2 &&
 						Choices(page).options[1].value == "Gamma.xml",
 					"a later lifecycle refresh did not recover the file row");
+			});
+
+		runner.test(
+			"MCM dropdownFiles coalesces refreshes and rescans after a mid-scan request",
+			[] {
+				auto result = ParseConfig(kFileConfig, "file-config.json");
+				auto page = std::move(result.pages.front());
+				FakeFiles files;
+				files.results.push_back(std::vector<std::string>{ "Old.xml" });
+				files.results.push_back(std::vector<std::string>{ "New.xml" });
+				FakeDiagnostics diagnostics;
+				QueuedScheduler scheduler;
+				StringSource source;
+				source.values.emplace("sPreset:Files", std::string{});
+				auto controller = AttachFileChoices(
+					page,
+					files,
+					scheduler,
+					diagnostics,
+					"file-config.json");
+				BindPage(page, source);
+
+				controller.Refresh();
+				controller.Refresh();
+				require(scheduler.background.size() == 1,
+					"queued refreshes were not coalesced");
+				files.onList = [&controller] { controller.Refresh(); };
+				scheduler.RunBackground();
+				page.settings.prepareView(page.settings);
+				require(files.calls == 2 &&
+						scheduler.background.empty() &&
+						Choices(page).options.size() == 2 &&
+						Choices(page).options[1].value == "New.xml",
+					"a refresh requested during a scan was lost or duplicated");
+
+				controller.Refresh();
+				require(scheduler.background.size() == 1,
+					"a completed scan did not accept a new refresh");
 			});
 
 		runner.test(
@@ -356,6 +438,7 @@ namespace vmm_tests
 				auto page = std::move(result.pages.front());
 				ThrowingFiles files;
 				FakeDiagnostics diagnostics;
+				QueuedScheduler scheduler;
 				StringSource source;
 				source.values.emplace(
 					"sPreset:Files",
@@ -363,11 +446,13 @@ namespace vmm_tests
 				auto controller = AttachFileChoices(
 					page,
 					files,
+					scheduler,
 					diagnostics,
 					"file-config.json");
 				BindPage(page, source);
 
 				controller.Refresh();
+				scheduler.RunBackground();
 				page.settings.prepareView(page.settings);
 				auto& setting = Descriptor(page);
 				require(setting.isEnabled && !setting.isEnabled() &&
@@ -390,6 +475,7 @@ namespace vmm_tests
 					"None"
 				});
 				FakeDiagnostics diagnostics;
+				QueuedScheduler scheduler;
 				StringSource source;
 				source.values.emplace(
 					"sPreset:Files",
@@ -398,11 +484,13 @@ namespace vmm_tests
 				auto controller = AttachFileChoices(
 					page,
 					files,
+					scheduler,
 					diagnostics,
 					"file-config.json");
 				BindPage(page, source);
 				BindActions(page, actions, source, diagnostics);
 				controller.Refresh();
+				scheduler.RunBackground();
 				page.settings.prepareView(page.settings);
 				auto& setting = Descriptor(page);
 				size_t edits{};
