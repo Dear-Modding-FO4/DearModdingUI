@@ -87,7 +87,7 @@ the sidebar/header, change the host style or fonts directly, or retain pointers 
 data. Client pages inherit the active theme and may use their own balanced child regions and popups.
 
 The host owns the palette, font roles, icons, and background blur. Layout is saved to
-`Data\F4SE\Plugins\DearModdingUI\imgui.ini`; fonts, icons, and shaders load from that directory.
+`Data\F4SE\Plugins\DearModdingUI\imgui.ini`; fonts and icons load from that directory.
 The Settings page previews appearance changes. Apply saves them to the `[Additional]` table in
 `Data\F4SE\Plugins\DearModdingUI.toml`; Revert or leaving the page discards the draft.
 UI scale and font changes take effect after Apply. A failed save leaves the active settings
