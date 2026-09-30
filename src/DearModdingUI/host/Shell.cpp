@@ -523,7 +523,8 @@ namespace DearModdingUI
 		void SaveLayout() noexcept
 		{
 			const auto& io = ImGui::GetIO();
-			if (io.IniFilename)
+			// Clean layouts skip a Present-thread file write on every close.
+			if (io.IniFilename && GImGui->SettingsDirtyTimer > 0.0f)
 				ImGui::SaveIniSettingsToDisk(io.IniFilename);
 		}
 
