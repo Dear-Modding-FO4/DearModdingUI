@@ -36,6 +36,7 @@ namespace DmuiTests::Detail
 
 		RefreshImportedImage();
 		RefreshCpuImage();
+		RefreshFileImages();
 		if (m_presentationImageUpdatePending && m_cpuImage)
 		{
 			UpdateCpuImage();
@@ -421,10 +422,77 @@ namespace DmuiTests::Detail
 		m_recreateImage.store(true, std::memory_order_release);
 	}
 
+	void PresentationResources::RefreshFileImages() noexcept
+	{
+		auto& client = m_context.Client();
+		if (!m_fileLoadsStarted)
+		{
+			m_fileLoadsStarted = true;
+			constexpr std::array names{ "Tiles.png", "Tiles.dds", "Missing.png" };
+			for (size_t index = 0; index < names.size(); ++index)
+			{
+				m_fileImages[index] = client.LoadImageFile(
+					m_context.HostEnvironment().ImageFixturePath(names[index]).c_str());
+				m_fileInfo[index].status = DMUI_IMAGE_STATUS_LOADING;
+				m_fileInfo[index].failure = client.LastResult();
+			}
+			auto released = client.LoadImageFile(
+				m_context.HostEnvironment().ImageFixturePath("Tiles.png").c_str());
+			if (released)
+			{
+				const auto info = client.QueryImage(released->Handle());
+				m_releasedWhileLoading = info && info->status == DMUI_IMAGE_STATUS_LOADING &&
+					released->Release() == DMUI_RESULT_OK;
+				m_context.Info("dmui-test-client: file release-while-loading={}"sv, m_releasedWhileLoading);
+			}
+		}
+		for (size_t index = 0; index < m_fileImages.size(); ++index)
+		{
+			if (!m_fileImages[index])
+				continue;
+			const auto info = client.QueryImage(m_fileImages[index]->Handle());
+			if (!info)
+				continue;
+			if (m_fileInfo[index].status != info->status)
+			{
+				++m_fileTransitions[index];
+				m_context.Info("dmui-test-client: file image={} status={}->{} failure={}"sv,
+					index, m_fileInfo[index].status, info->status, DMUI_ResultToString(info->failure));
+			}
+			m_fileInfo[index] = *info;
+		}
+	}
+
+	void PresentationResources::DrawFileImages() noexcept
+	{
+		dmui::ui::TextUnformatted("File images: PNG / BC1 DDS (sRGB tag ignored)");
+		for (size_t index = 0; index < 2; ++index)
+		{
+			if (index)
+				dmui::ui::SameLine();
+			if (m_fileImages[index])
+				m_fileDrawn[index] = dmui::ui::Image(m_fileImages[index]->Handle(), { 128, 128 });
+		}
+		constexpr std::array labels{ "PNG", "DDS, 4 mips" };
+		for (size_t index = 0; index < 2; ++index)
+		{
+			const auto& info = m_fileInfo[index];
+			dmui::ui::Text("%s: LOADING -> %s (%u transitions)", labels[index],
+				info.status == DMUI_IMAGE_STATUS_READY ? "READY" :
+					info.status == DMUI_IMAGE_STATUS_FAILED ? "FAILED" : "LOADING",
+				m_fileTransitions[index]);
+		}
+		dmui::ui::Text("Missing file: %s; release while LOADING: %s",
+			DMUI_ResultToString(m_fileInfo[2].failure),
+			m_releasedWhileLoading ? "OK" : "not exercised");
+		dmui::ui::TextDisabled("Expected: identical stored colors; file images reload after a device change.");
+	}
+
 	void PresentationResources::DrawImages() noexcept
 	{
 		auto& client = m_context.Client();
 		(void)client.DrawSectionHeader("Shared image resources");
+		DrawFileImages();
 		dmui::ui::TextUnformatted("Host-owned CPU-pixel image");
 		QueueCpuImage();
 		dmui::ui::Text(
@@ -524,6 +592,9 @@ namespace DmuiTests::Detail
 	bool PresentationResources::ImageCaptureComplete() const noexcept
 	{
 		return
+			m_fileDrawn[0] && m_fileDrawn[1] && m_releasedWhileLoading &&
+			m_fileInfo[2].status == DMUI_IMAGE_STATUS_FAILED &&
+			m_fileInfo[2].failure == DMUI_RESULT_FILE_NOT_FOUND &&
 			m_imageFailureCount == 0 &&
 			m_imageImportCount > 0 &&
 			m_imageDrawCount > 0 &&

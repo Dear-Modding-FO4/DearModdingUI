@@ -271,6 +271,8 @@ namespace DmuiTests::Detail
 			uint32_t a_width,
 			uint32_t a_height) noexcept;
 		void RefreshCpuImage() noexcept;
+		void RefreshFileImages() noexcept;
+		void DrawFileImages() noexcept;
 		void UpdateCpuImage() noexcept;
 		void QueueCpuImage() noexcept;
 		void ReleaseAfterQueuedDraw() noexcept;
@@ -306,6 +308,12 @@ namespace DmuiTests::Detail
 		DMUI_ImageStatus m_imageStatus{ DMUI_IMAGE_STATUS_RELEASED };
 		DMUI_Result m_imageResult{ DMUI_RESULT_OK };
 		std::optional<dmui::ImageResource> m_cpuImage;
+		std::array<std::optional<dmui::ImageResource>, 3> m_fileImages;
+		std::array<DMUI_ImageInfo, 3> m_fileInfo{};
+		std::array<uint32_t, 3> m_fileTransitions{};
+		std::array<bool, 2> m_fileDrawn{};
+		bool m_fileLoadsStarted{};
+		bool m_releasedWhileLoading{};
 		uint32_t m_cpuImageStep{};
 		uint32_t m_cpuImageWidth{};
 		uint32_t m_cpuImageHeight{};

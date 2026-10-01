@@ -21,4 +21,6 @@ Builds never install anything, and packages never include generated user MCM
 settings or keybinds.
 
 Fixture data: `tools\shared\fixtures\mcm\data`.
+The Images page also uses `tests\fixtures\images\Tiles.png` and `Tiles.dds`,
+packaged only in the test bundle under `F4SE\Plugins\dmui-test-client\images`.
 Papyrus sources: `tools\shared\fixtures\mcm\scripts`.

@@ -532,9 +532,37 @@ Draw images with `dmui::ui::Image(handle, size)` or `Image(handle, options)`;
 the bool result means drawn. Invalidated/device-lost images return false without
 recording an error. Stale, foreign, and malformed handles or invalid options are
 errors. Invalidated handles remain owned until released. `QueryImage` reports
-status and a `failure` result; `LOADING` and `FAILED` are reserved for file loading.
+status and a `failure` result.
 Use `dmui::ui::PlotAnnotated(id, descriptor)` for annotated plots.
-The host table owns create/update/import/release/query, not image or plot drawing.
+The host table owns create/update/import/load/release/query, not image or plot drawing.
+
+### File images
+
+`Client::LoadImageFile(utf8Path)` (`loadImageFile` in C) is any-thread and returns
+an `ImageResource` immediately in `LOADING`. `QueryImage` reports `READY` or
+`FAILED` after a render-frame boundary. `failure` distinguishes `FILE_NOT_FOUND`,
+`ACCESS_DENIED`, `UNSUPPORTED_RESOURCE`, `IMAGE_TOO_LARGE`, `IMAGE_DECODE_FAILED`,
+and `IMAGE_DEVICE_FAILED`; allocation failure is `RESOURCE_EXHAUSTED`.
+`ui::Image` returns false without error while loading or failed.
+
+Relative UTF-8 paths resolve under the runtime's `Data` directory. Normalized
+paths cannot escape `Data`. Absolute local drive paths are allowed; network,
+UNC, device, drive-relative, and root-relative paths are rejected. Files are
+opened through the game's Win32 virtual view, preserving MO2/USVFS redirection.
+
+PNG, JPEG, BMP, GIF (first frame), and TIFF decode to straight-alpha RGBA8.
+DDS supports single 2D textures with mip chains in BC1-BC7 and common typed
+uncompressed formats; arrays, cubemaps, volumes, and premultiplied DDS are
+unsupported. DDS sRGB tags are ignored: stored color values are sampled through
+UNORM views, matching PNG rather than applying an sRGB-to-linear conversion.
+Encoded data and decoded pixels are limited to 64 MiB; dimensions to 8192.
+
+The queue accepts at most 32 jobs globally and four per client, including
+completions awaiting publication; excess submissions return `BUSY` without a
+handle. Releasing a loading image cancels publication. File images reload from
+their original path after device changes; no source bytes are retained.
+Failed handles remain owned until release. Registrations are process-lifetime;
+there is currently no client-unregister operation.
 
 `GetCursorPos` and `SetCursorPos` use window-local coordinates; X/Y conveniences
 have no separate table slots. `BeginItemTooltip` combines the `ForTooltip` hover
@@ -560,7 +588,7 @@ pointers, enum values, or internal layouts. `DMUI_GetAPI(DMUI_ABI_VERSION)`
 exposes the host table only for an exact ABI match.
 
 `onHostReady`, `onHostUnavailable`, page draw, action, hotkey, and frame callbacks run on the render thread.
-`setStatus`, `postNotification`, image release, hotkey enablement, and dialog
+`setStatus`, `postNotification`, image file loading/release/query, hotkey enablement, and dialog
 submission resolution are the any-thread exceptions. `DMUI_HostReadyInfo` contains
 `abiVersion`; the callback is a lifecycle notification, not a context handoff:
 

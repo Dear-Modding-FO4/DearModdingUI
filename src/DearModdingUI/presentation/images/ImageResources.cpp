@@ -1,7 +1,9 @@
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/RenderExecution.h>
 #include <Support/ProcessLifetime.h>
-#include "PresentationServiceOwners.h"
+#include <Support/BoundedString.h>
+#include "../PresentationServiceOwners.h"
+#include "ImageFileQueue.h"
 
 #include <d3d11.h>
 #include <wrl/client.h>
@@ -29,7 +31,8 @@ namespace DearModdingUI::PresentationServices
 		{
 			kNone,
 			kImportedD3D11,
-			kCpuPixels
+			kCpuPixels,
+			kFile
 		};
 
 		struct ImageEntry
@@ -44,6 +47,10 @@ namespace DearModdingUI::PresentationServices
 			DMUI_ImageStatus status{ DMUI_IMAGE_STATUS_READY };
 			ImageProvenance provenance{ ImageProvenance::kNone };
 			bool reusable{};
+			DMUI_Result failure{ DMUI_RESULT_OK };
+			uint64_t loadGeneration{};
+			std::string path;
+			bool queued{};
 		};
 
 		struct ImageService
@@ -55,6 +62,7 @@ namespace DearModdingUI::PresentationServices
 			uint32_t firstFreeImage{ kNoImageSlot };
 			std::vector<Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>>
 				frameLeases;
+			ImageFiles::FileQueue files;
 		};
 
 		[[nodiscard]] ImageService& GetImageService() noexcept
@@ -123,6 +131,10 @@ namespace DearModdingUI::PresentationServices
 			DMUI_ImageStatus a_status) noexcept
 		{
 			auto& image = a_service.images[a_slot];
+			a_service.files.Cancel(image.owner, MakeImageHandle(a_slot, image.handleGeneration));
+			++image.loadGeneration;
+			image.queued = false;
+			image.path.clear();
 			image.view.Reset();
 			image.status = a_status;
 			image.provenance = ImageProvenance::kNone;
@@ -198,6 +210,7 @@ namespace DearModdingUI::PresentationServices
 				image.deviceGeneration = a_service.deviceGeneration;
 				image.status = DMUI_IMAGE_STATUS_READY;
 				image.provenance = a_provenance;
+				image.failure = DMUI_RESULT_OK;
 			}
 			*a_image = MakeImageHandle(
 				slot, a_service.images[slot].handleGeneration);
@@ -250,6 +263,25 @@ namespace DearModdingUI::PresentationServices
 			return D3D_FL9_1_REQ_TEXTURE2D_U_OR_V_DIMENSION;
 		}
 
+		[[nodiscard]] DMUI_Result CreateTextureView(
+			ID3D11Device* a_device, uint32_t a_width, uint32_t a_height,
+			DXGI_FORMAT a_format, const D3D11_SUBRESOURCE_DATA* a_mips, uint32_t a_mipCount,
+			Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>& a_view) noexcept
+		{
+			if (a_width > MaximumTextureDimension(a_device->GetFeatureLevel()) ||
+				a_height > MaximumTextureDimension(a_device->GetFeatureLevel()))
+				return DMUI_RESULT_IMAGE_TOO_LARGE;
+			const D3D11_TEXTURE2D_DESC description{
+				a_width, a_height, a_mipCount, 1, a_format, { 1, 0 },
+				D3D11_USAGE_IMMUTABLE, D3D11_BIND_SHADER_RESOURCE, 0, 0
+			};
+			Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
+			if (FAILED(a_device->CreateTexture2D(&description, a_mips, &texture)) ||
+				FAILED(a_device->CreateShaderResourceView(texture.Get(), nullptr, &a_view)))
+				return DMUI_RESULT_IMAGE_DEVICE_FAILED;
+			return DMUI_RESULT_OK;
+		}
+
 		[[nodiscard]] DMUI_Result CreatePixelView(
 			ID3D11Device* a_device,
 			const DMUI_ImageDescriptor& a_descriptor,
@@ -284,36 +316,64 @@ namespace DearModdingUI::PresentationServices
 					static_cast<size_t>(a_tightRowPitch));
 			}
 
-			const D3D11_TEXTURE2D_DESC textureDescription{
-				a_descriptor.width,
-				a_descriptor.height,
-				1,
-				1,
-				DXGI_FORMAT_R8G8B8A8_UNORM,
-				{ 1, 0 },
-				D3D11_USAGE_IMMUTABLE,
-				D3D11_BIND_SHADER_RESOURCE,
-				0,
-				0
-			};
 			const D3D11_SUBRESOURCE_DATA initialData{
 				pixels.data(),
 				static_cast<uint32_t>(a_tightRowPitch),
 				0
 			};
-			Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
-			if (FAILED(a_device->CreateTexture2D(
-					&textureDescription,
-					&initialData,
-					&texture)))
-				return DMUI_RESULT_RESOURCE_EXHAUSTED;
-			if (FAILED(a_device->CreateShaderResourceView(
-					texture.Get(),
-					nullptr,
-					&a_view)))
-				return DMUI_RESULT_RESOURCE_EXHAUSTED;
+			const auto result = CreateTextureView(a_device, a_descriptor.width, a_descriptor.height,
+				DXGI_FORMAT_R8G8B8A8_UNORM, &initialData, 1, a_view);
+			return result == DMUI_RESULT_IMAGE_DEVICE_FAILED ? DMUI_RESULT_RESOURCE_EXHAUSTED : result;
+		}
+	}
+
+	DMUI_Result LoadImageFile(
+		DMUI_ClientHandle a_client, const char* a_utf8Path, DMUI_ImageHandle* a_image) noexcept
+	{
+		if (!a_image || !a_client)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		*a_image = DMUI_INVALID_IMAGE_HANDLE;
+		const auto path = Internal::ReadBoundedString(a_utf8Path, 32767, false);
+		if (!path)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		try
+		{
+			std::string source{ *path };
+			auto& service = GetImageService();
+			const std::scoped_lock lock{ service.mutex };
+			DMUI_ImageHandle handle{};
+			const auto allocated = PublishImage(service, a_client, {}, 0, 0, ImageProvenance::kFile, &handle);
+			if (allocated != DMUI_RESULT_OK)
+				return allocated;
+			auto& image = *FindImage(service, handle);
+			image.path = std::move(source);
+			image.status = DMUI_IMAGE_STATUS_LOADING;
+			++image.loadGeneration;
+			const auto submitted = service.files.Submit(
+				{ a_client, handle, image.loadGeneration, image.deviceGeneration }, image.path);
+			if (submitted != DMUI_RESULT_OK)
+			{
+				RecycleImage(service, static_cast<uint32_t>(handle) - 1, DMUI_IMAGE_STATUS_RELEASED);
+				return submitted;
+			}
+			image.queued = true;
+			*a_image = handle;
 			return DMUI_RESULT_OK;
 		}
+		catch (...)
+		{
+			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		}
+	}
+
+	void CancelClientImages(DMUI_ClientHandle a_client) noexcept
+	{
+		auto& service = GetImageService();
+		const std::scoped_lock lock{ service.mutex };
+		for (uint32_t slot = 0; slot < service.images.size(); ++slot)
+			if (service.images[slot].owner == a_client &&
+				service.images[slot].status != DMUI_IMAGE_STATUS_RELEASED)
+				RecycleImage(service, slot, DMUI_IMAGE_STATUS_RELEASED);
 	}
 
 	DMUI_Result ImportD3D11Image(
@@ -629,7 +689,7 @@ namespace DearModdingUI::PresentationServices
 		if (!image || image->owner != a_client)
 			return DMUI_RESULT_STALE_HANDLE;
 		a_info->status = image->status;
-		a_info->failure = DMUI_RESULT_OK;
+		a_info->failure = image->failure;
 		a_info->contentWidth = image->width;
 		a_info->contentHeight = image->height;
 		a_info->deviceGeneration = image->deviceGeneration;
@@ -702,13 +762,97 @@ namespace DearModdingUI::PresentationServices
 			for (uint32_t slot = 0; slot < service.images.size(); ++slot)
 			{
 				auto& image = service.images[slot];
-				if (image.status == DMUI_IMAGE_STATUS_READY)
+				if (image.provenance == ImageProvenance::kFile)
+				{
+					service.files.Cancel(image.owner, MakeImageHandle(slot, image.handleGeneration));
+					++image.loadGeneration;
+					image.deviceGeneration = service.deviceGeneration;
+					image.view.Reset();
+					image.width = image.height = 0;
+					image.status = DMUI_IMAGE_STATUS_LOADING;
+					image.failure = DMUI_RESULT_OK;
+					image.queued = false;
+				}
+				else if (image.status == DMUI_IMAGE_STATUS_READY)
 				{
 					// Invalidated handles remain owned until release, even after device recreation.
 					image.view.Reset();
 					image.status = DMUI_IMAGE_STATUS_INVALIDATED;
 				}
 			}
+		}
+
+		void PublishCompletions() noexcept
+		{
+			if (!RenderExecution::IsActive())
+				return;
+			auto& service = GetImageService();
+			const std::scoped_lock lock{ service.mutex };
+			if (!service.device)
+				return;
+			if (auto job = service.files.TakeCompletion())
+			{
+				const auto& identity = job->identity;
+				auto* image = FindImage(service, identity.handle);
+				if (image && image->owner == identity.owner &&
+					image->loadGeneration == identity.loadGeneration &&
+					image->deviceGeneration == identity.deviceGeneration &&
+					service.deviceGeneration == identity.deviceGeneration &&
+					image->status == DMUI_IMAGE_STATUS_LOADING)
+				{
+					auto result = job->result;
+					auto& decoded = job->decoded;
+					if (result == DMUI_RESULT_OK)
+					{
+						D3D11_SUBRESOURCE_DATA mips[D3D11_REQ_MIP_LEVELS]{};
+						for (size_t index = 0; index < decoded.mips.size(); ++index)
+						{
+							const auto& mip = decoded.mips[index];
+							mips[index] = { decoded.bytes.data() + mip.offset, mip.rowPitch, mip.slicePitch };
+						}
+						result = CreateTextureView(service.device, decoded.width, decoded.height,
+							decoded.format, mips, static_cast<uint32_t>(decoded.mips.size()), image->view);
+					}
+					image->status = result == DMUI_RESULT_OK ? DMUI_IMAGE_STATUS_READY : DMUI_IMAGE_STATUS_FAILED;
+					image->failure = result;
+					image->queued = false;
+					if (result == DMUI_RESULT_OK)
+					{
+						image->width = decoded.width;
+						image->height = decoded.height;
+					}
+				}
+			}
+			for (uint32_t slot = 0; slot < service.images.size(); ++slot)
+			{
+				auto& image = service.images[slot];
+				if (image.provenance != ImageProvenance::kFile ||
+					image.status != DMUI_IMAGE_STATUS_LOADING || image.queued)
+					continue;
+				const auto result = service.files.Submit(
+					{ image.owner, MakeImageHandle(slot, image.handleGeneration),
+						image.loadGeneration, image.deviceGeneration }, image.path);
+				if (result == DMUI_RESULT_OK)
+					image.queued = true;
+				else if (result != DMUI_RESULT_BUSY)
+				{
+					image.status = DMUI_IMAGE_STATUS_FAILED;
+					image.failure = result;
+				}
+			}
+		}
+
+		bool HasFrameDemand() noexcept
+		{
+			auto& service = GetImageService();
+			const std::scoped_lock lock{ service.mutex };
+			if (!service.device)
+				return false;
+			if (service.files.HasCompletion())
+				return true;
+			return std::any_of(service.images.begin(), service.images.end(), [](const auto& image) {
+				return image.status == DMUI_IMAGE_STATUS_LOADING && !image.queued;
+			});
 		}
 
 		void ReleaseFrameLeases() noexcept

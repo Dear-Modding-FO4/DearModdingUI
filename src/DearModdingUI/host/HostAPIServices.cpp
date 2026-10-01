@@ -8,6 +8,15 @@ namespace DearModdingUI::HostAPIInternal
 {
 	using namespace HostInternal;
 
+	DMUI_Result DMUI_CALL ApiLoadImageFile(
+		DMUI_ClientHandle a_client, const char* a_path, DMUI_ImageHandle* a_image) noexcept
+	{
+		const auto validation = GetService().registry.ValidateClient(a_client);
+		if (validation != DMUI_RESULT_OK)
+			return validation;
+		return PresentationServices::LoadImageFile(a_client, a_path, a_image);
+	}
+
 	[[nodiscard]] DMUI_Result DMUI_CALL
 	ApiImportD3D11Image(DMUI_ClientHandle a_client, const DMUI_D3D11ImageDescriptor *a_descriptor,
 						DMUI_ImageHandle *a_image) noexcept

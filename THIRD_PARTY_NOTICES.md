@@ -8,6 +8,15 @@ Dear ImGui is copyright 2014-2026 Omar Cornut and is distributed under the MIT L
 
 cimgui is copyright 2015-2026 Stefano D'Ambro and is distributed under the MIT License. Its complete license is retained at `Depends/cimgui/LICENSE`.
 
+## Microsoft DDS texture loader
+
+`Depends/directx-dds/DDSTextureLoader11.h/.cpp` is Microsoft's standalone DDS
+loader, copyright Microsoft Corporation, MIT licensed. The unmodified files
+come from [DirectXTex](https://github.com/microsoft/DirectXTex/tree/4c5123d8db27be9625403908eba06a81d7b82a5e/DDSTextureLoader)
+at `4c5123d8db27be9625403908eba06a81d7b82a5e`. This is the two-file variant of the
+loader also distributed in DirectXTK. Its complete license is retained at
+`Depends/directx-dds/LICENSE`.
+
 ## CommonLibF4 and toml11
 
 The Dear Modding FO4 CommonLibF4 fork is distributed under GPL-3.0-or-later with the Modding Exception and GPL-3.0 Linking Exception (with Corresponding Source). See `Depends/commonlibf4/LICENSE` and `Depends/commonlibf4/EXCEPTIONS`.

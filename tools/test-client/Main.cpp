@@ -69,6 +69,11 @@ namespace DmuiTests
 				return true;
 			}
 
+			std::string ImageFixturePath(std::string_view a_name) const override
+			{
+				return std::string{ "F4SE/Plugins/dmui-test-client/images/" } + std::string{ a_name };
+			}
+
 			void Log(LogLevel a_level, std::string_view a_message) noexcept override
 			{
 				switch (a_level)

@@ -39,6 +39,11 @@ namespace DearModdingUIPreview
 				return false;
 			}
 
+			std::string ImageFixturePath(std::string_view a_name) const override
+			{
+				return std::string{ DMUI_IMAGE_FIXTURES "/" } + std::string{ a_name };
+			}
+
 			void Log(
 				DmuiTests::LogLevel a_level,
 				std::string_view a_message) noexcept override

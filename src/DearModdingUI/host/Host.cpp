@@ -227,7 +227,8 @@ namespace DearModdingUI
 			&ApiSetFieldFeedback,
 			&ApiEndField,
 			&ApiDrawTextView,
-			&ApiDrawSearchInputBuffer
+			&ApiDrawSearchInputBuffer,
+			&ApiLoadImageFile
 		};
 		return api;
 	}

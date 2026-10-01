@@ -20,6 +20,8 @@ namespace DearModdingUI::PresentationServices
 		[[nodiscard]] DMUI_Result Acquire(
 			DMUI_ClientHandle a_client, DMUI_ImageHandle a_image, AcquiredImage& a_acquired) noexcept;
 		void SetDevice(ID3D11Device* a_device) noexcept;
+		void PublishCompletions() noexcept;
+		[[nodiscard]] bool HasFrameDemand() noexcept;
 		void ReleaseFrameLeases() noexcept;
 		[[nodiscard]] bool HasDevice() noexcept;
 		[[nodiscard]] uint64_t DeviceGeneration() noexcept;

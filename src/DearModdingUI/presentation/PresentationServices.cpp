@@ -29,6 +29,7 @@ namespace DearModdingUI::PresentationServices
 	void BeginFrame() noexcept
 	{
 		DiscardFrame();
+		ImageResources::PublishCompletions();
 	}
 
 	void CompleteRenderSubmission() noexcept
@@ -134,7 +135,7 @@ namespace DearModdingUI::PresentationServices
 	{
 		if (!ImageResources::HasDevice())
 			return false;
-		return Notifications::HasFrameDemand() ||
+		return ImageResources::HasFrameDemand() || Notifications::HasFrameDemand() ||
 			Dialogs::HasFrameDemand();
 	}
 

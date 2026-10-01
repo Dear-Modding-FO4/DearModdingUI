@@ -5,6 +5,7 @@ namespace vmm_tests
 	void run_presentation_render_execution_checks(Runner&);
 	void run_presentation_blur_pipeline_checks(Runner&);
 	void run_presentation_image_resource_checks(Runner&);
+	void run_presentation_image_file_checks(Runner&);
 	void run_presentation_overlay_notification_plot_checks(Runner&);
 	void run_presentation_dialog_interaction_checks(Runner&);
 	void run_popup_checks(Runner&);
@@ -14,6 +15,7 @@ namespace vmm_tests
 		run_presentation_render_execution_checks(runner);
 		run_presentation_blur_pipeline_checks(runner);
 		run_presentation_image_resource_checks(runner);
+		run_presentation_image_file_checks(runner);
 		run_presentation_overlay_notification_plot_checks(runner);
 		run_presentation_dialog_interaction_checks(runner);
 		run_popup_checks(runner);

@@ -91,6 +91,8 @@ jobs:
                   $fixtures = @(Get-ChildItem $fixtureRoot -Recurse -File | ForEach-Object {
                     [IO.Path]::GetRelativePath($fixtureRoot, $_.FullName).Replace('\','/')
                   })
+                  $fixtures += 'F4SE/Plugins/dmui-test-client/images/Tiles.png',
+                    'F4SE/Plugins/dmui-test-client/images/Tiles.dds'
                   foreach ($fixture in $fixtures) {
                     if ($fixture -notin $names) { throw "Test bundle is missing $fixture." }
                   }

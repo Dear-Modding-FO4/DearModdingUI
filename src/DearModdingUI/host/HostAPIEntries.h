@@ -54,6 +54,7 @@ namespace DearModdingUI::HostAPIInternal
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::setHotkeyActionEnabled)> ApiSetHotkeyActionEnabled;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::importD3D11Image)> ApiImportD3D11Image;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::createImage)> ApiCreateImage;
+	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::loadImageFile)> ApiLoadImageFile;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::updateImage)> ApiUpdateImage;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::releaseImage)> ApiReleaseImage;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryImage)> ApiQueryImage;

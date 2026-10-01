@@ -144,6 +144,8 @@ local source_sets = {
         "src/DearModdingUI/presentation/FontCatalog.cpp",
         "src/DearModdingUI/presentation/Logo.cpp",
         "src/DearModdingUI/presentation/Presentation*.cpp",
+        "src/DearModdingUI/presentation/images/*.cpp",
+        "src/Support/Runtime.cpp",
         "src/DearModdingUI/presentation/ThemeColors.cpp",
         "src/Platform/files/ExternalOpen.cpp",
         "src/Platform/input/CursorLoader.cpp",
@@ -159,8 +161,7 @@ local source_sets = {
         "src/DearModdingUI/settings/HostSettings.cpp",
         "src/DearModdingUI/settings/HostSettingsView.cpp",
         "src/DearModdingUI/presentation/BackgroundBlur.cpp",
-        "src/DearModdingUI/presentation/Theme.cpp",
-        "src/Support/Runtime.cpp"
+        "src/DearModdingUI/presentation/Theme.cpp"
     },
     runtime = {
         "src/Main.cpp",
@@ -372,7 +373,7 @@ target("dmui-tests", function()
         "Depends/commonlibf4/lib/dearmoddingui-api/include"
     )
     add_defines("DMUI_UI_TESTING", "DMUI_PREVIEW")
-    add_syslinks("bcrypt", "d3d11", "dxgi", "d3dcompiler", "shell32")
+    add_syslinks("bcrypt", "d3d11", "dxgi", "d3dcompiler", "shell32", "windowscodecs", "ole32")
     add_ldflags(
         "/EXPORT:DMUI_GetAPI",
         { force = true }
@@ -386,6 +387,7 @@ target("dmui-preview", function()
     set_exceptions("cxx")
     set_targetdir(project_dir(".Build/Preview"))
     add_defines('DMUI_VERSION="' .. plugin_version .. '"')
+    add_defines('DMUI_IMAGE_FIXTURES="' .. project_dir("tests/fixtures/images"):gsub("\\", "/") .. '"')
     set_objectdir(".LinkConf/xmake/dmui-preview")
     set_dependir(".LinkConf/xmake/dmui-preview/deps")
 
@@ -470,7 +472,7 @@ target(plugin_name, function()
         "Depends/toml11/single_include"
     )
     add_defines("_CRT_SECURE_NO_WARNINGS")
-    add_syslinks("d3d11", "dxgi", "shell32")
+    add_syslinks("d3d11", "dxgi", "shell32", "windowscodecs", "ole32")
     set_pcxxheader("Depends/commonlibf4/include/F4SE/Impl/PCH.h")
 
 end)
@@ -683,6 +685,11 @@ task("package-release", function()
             if component == plugin_name then
                 if variant == "test" then
                     copy_mcm_fixture_data(folder, os)
+                    local image_data = path.join(plugins, "dmui-test-client/images")
+                    os.mkdir(image_data)
+                    for _, name in ipairs({ "Tiles.png", "Tiles.dds" }) do
+                        os.cp(project_dir(path.join("tests/fixtures/images", name)), image_data)
+                    end
                 end
                 for _, source in ipairs(runtime_assets) do
                     local extension = path.extension(source):lower()

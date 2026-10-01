@@ -127,6 +127,7 @@ namespace DmuiTests
 		[[nodiscard]] virtual Microsoft::WRL::ComPtr<ID3D11Device>
 			AcquireRendererDevice() noexcept = 0;
 		[[nodiscard]] virtual bool SupportsGameInputContexts() const noexcept = 0;
+		[[nodiscard]] virtual std::string ImageFixturePath(std::string_view a_name) const = 0;
 		virtual void Log(LogLevel a_level, std::string_view a_message) noexcept = 0;
 	};
 
