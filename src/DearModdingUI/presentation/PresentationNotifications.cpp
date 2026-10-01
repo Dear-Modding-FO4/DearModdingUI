@@ -52,8 +52,6 @@ namespace DearModdingUI::PresentationServices
 	{
 		if (!a_descriptor || a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_descriptor->structSize < DMUI_NOTIFICATION_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!ValidSeverity(a_descriptor->severity))
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		try

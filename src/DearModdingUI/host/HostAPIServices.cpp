@@ -38,16 +38,6 @@ namespace DearModdingUI::HostAPIInternal
 		return PresentationServices::UpdateImage(a_client, a_image, a_descriptor);
 	}
 
-	[[nodiscard]] DMUI_Result DMUI_CALL
-	ApiDrawImage(DMUI_ClientHandle a_client, DMUI_ImageHandle a_image,
-				 const DMUI_ImageDrawOptions *a_options) noexcept
-	{
-		const auto validation = ValidateDrawingClient(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-		return PresentationServices::DrawImage(a_client, a_image, a_options);
-	}
-
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiReleaseImage(DMUI_ClientHandle a_client,
 														DMUI_ImageHandle a_image) noexcept
 	{
@@ -96,16 +86,6 @@ namespace DearModdingUI::HostAPIInternal
 		if (clientResult != DMUI_RESULT_OK)
 			return clientResult;
 		return PresentationServices::PostNotification(a_client, a_descriptor);
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL
-	ApiDrawAnnotatedPlot(DMUI_ClientHandle a_client, const char *a_id,
-						 const DMUI_AnnotatedPlotDescriptor *a_descriptor) noexcept
-	{
-		const auto validation = ValidateDrawingClient(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-		return PresentationServices::DrawAnnotatedPlot(a_client, a_id, a_descriptor);
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiRequestDialog(DMUI_ClientHandle a_client,

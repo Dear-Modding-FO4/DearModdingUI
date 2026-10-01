@@ -44,12 +44,7 @@ namespace DmuiTestFixtures
 		m_client = std::make_unique<dmui::Client>(
 			"text-view",
 			"Text viewer",
-			dmui::Version{ 0, 1 },
-			std::string_view{},
-			dmui::ClientOrigin{},
-			dmui::ClientOptions{
-				.minimumHostAPISize = DMUI_HOST_API_DRAW_SEARCH_INPUT_BUFFER_SIZE
-			});
+			dmui::Version{ 0, 1 });
 		if (!m_client->Connect())
 		{
 			a_error = "Could not connect text-view fixture: ";

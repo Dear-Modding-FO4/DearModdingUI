@@ -200,7 +200,6 @@ namespace DmuiTests::Detail
 			return;
 		}
 		const DMUI_DialogDescriptor descriptor{
-			sizeof(DMUI_DialogDescriptor),
 			DMUI_DIALOG_KIND_CONFIRM,
 			"DMUI Tests confirmation",
 			"Accepting performs one harmless in-memory operation after "
@@ -253,7 +252,6 @@ namespace DmuiTests::Detail
 			return false;
 		}
 		const DMUI_DialogDescriptor descriptor{
-			sizeof(DMUI_DialogDescriptor),
 			DMUI_DIALOG_KIND_TEXT_ENTRY,
 			"DMUI Tests name",
 			"Enter a unique in-memory name.",

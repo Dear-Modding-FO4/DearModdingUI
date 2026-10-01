@@ -253,9 +253,6 @@ namespace DearModdingUI::UI
 		{
 			if (!a_metrics)
 				return DMUI_RESULT_INVALID_ARGUMENT;
-			const auto requestedSize = a_metrics->structSize;
-			if (requestedSize < DMUI_STYLE_METRICS_0_1_SIZE)
-				return DMUI_RESULT_STRUCT_TOO_SMALL;
 			const auto validation = Validate(a_client);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
@@ -268,8 +265,7 @@ namespace DearModdingUI::UI
 			a_metrics->windowPadding = Stable(style.WindowPadding);
 			a_metrics->indentSpacing = style.IndentSpacing;
 			a_metrics->scrollbarSize = style.ScrollbarSize;
-			if (requestedSize >= DMUI_STYLE_METRICS_FONT_SIZE_BASE_SIZE)
-				a_metrics->fontSizeBase = style.FontSizeBase;
+			a_metrics->fontSizeBase = style.FontSizeBase;
 			return DMUI_RESULT_OK;
 		}
 
@@ -979,35 +975,6 @@ namespace DearModdingUI::UI
 	{
 		static const auto api = Bindings::MakeAPI();
 		return api;
-	}
-
-	DMUI_Result Query(
-		uint32_t a_requestedUIAbi,
-		uint32_t a_minimumRevision,
-		uint32_t a_minimumTableSize,
-		DMUI_UIAPIInfo* a_info) noexcept
-	{
-		if (!a_info)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		const auto requestedInfoSize = a_info->structSize;
-		if (requestedInfoSize < DMUI_UI_API_INFO_PREFIX_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
-
-		const auto& api = API();
-		a_info->abiVersion = api.abiVersion;
-		a_info->revision = api.revision;
-		a_info->tableSize = api.structSize;
-		if (requestedInfoSize >= DMUI_UI_API_INFO_1_SIZE)
-			a_info->api = nullptr;
-
-		if (a_requestedUIAbi != api.abiVersion ||
-			a_minimumRevision > api.revision ||
-			a_minimumTableSize > api.structSize)
-			return DMUI_RESULT_UNSUPPORTED_ABI;
-		if (requestedInfoSize < DMUI_UI_API_INFO_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
-		a_info->api = &api;
-		return DMUI_RESULT_OK;
 	}
 
 #if defined(DMUI_UI_TESTING)

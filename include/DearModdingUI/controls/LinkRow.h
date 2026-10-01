@@ -35,8 +35,7 @@ namespace DearModdingUI
 		for (size_t index = 0; index < a_count; ++index)
 		{
 			const auto& link = a_links[index];
-			if (link.structSize < DMUI_LINK_DESCRIPTOR_0_1_SIZE ||
-				!link.label || !link.label[0] || link.reserved != 0 ||
+			if (!link.label || !link.label[0] || link.reserved != 0 ||
 				(link.action != DMUI_LINK_ACTION_COPY_TARGET &&
 					link.action != DMUI_LINK_ACTION_OPEN_EXTERNAL))
 				return DMUI_RESULT_INVALID_ARGUMENT;

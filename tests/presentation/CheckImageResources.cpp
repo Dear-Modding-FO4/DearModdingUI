@@ -2,6 +2,8 @@
 #include "../support/PresentationTestSupport.h"
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/RenderExecution.h>
+#include <DearModdingUI/host/UIAdapter.h>
+#include <DearModdingUI/UI.h>
 #include <imgui/imgui.h>
 #include <d3d11.h>
 #include <wrl/client.h>
@@ -40,7 +42,6 @@ namespace vmm_tests
 				9, 10, 11, 12, 13, 14, 15, 16
 			};
 			DMUI_ImageDescriptor descriptor{
-				sizeof(DMUI_ImageDescriptor),
 				2,
 				2,
 				DMUI_PIXEL_FORMAT_RGBA8_UNORM,
@@ -56,7 +57,6 @@ namespace vmm_tests
 			padded.fill(0);
 
 			const DMUI_ImageDrawOptions options{
-				sizeof(DMUI_ImageDrawOptions),
 				{ 32.0f, 32.0f },
 				{ 0.0f, 0.0f },
 				{ 1.0f, 1.0f },
@@ -67,8 +67,9 @@ namespace vmm_tests
 			ID3D11ShaderResourceView* oldView{};
 			{
 				const RenderExecution::ClientGuard callback{ 21, true };
+				uint32_t drawn{};
 				require(PresentationServices::DrawImage(
-							21, image, &options) == DMUI_RESULT_OK,
+							21, image, &options, &drawn) == DMUI_RESULT_OK && drawn,
 					"created CPU image could not be drawn");
 			}
 			oldView = PresentationServices::RetainImageViewForTests(21, image);
@@ -82,7 +83,6 @@ namespace vmm_tests
 						21, image, &rejected) == DMUI_RESULT_INVALID_ARGUMENT,
 				"short final-row extent was accepted");
 			DMUI_ImageInfo info{};
-			info.structSize = sizeof(info);
 			require(PresentationServices::QueryImage(21, image, &info) ==
 						DMUI_RESULT_OK &&
 					info.contentWidth == 2 &&
@@ -110,8 +110,9 @@ namespace vmm_tests
 			ID3D11ShaderResourceView* newView{};
 			{
 				const RenderExecution::ClientGuard callback{ 21, true };
+				uint32_t drawn{};
 				require(PresentationServices::DrawImage(
-							21, image, &options) == DMUI_RESULT_OK,
+							21, image, &options, &drawn) == DMUI_RESULT_OK && drawn,
 					"updated CPU image could not be drawn");
 			}
 			newView = PresentationServices::RetainImageViewForTests(21, image);
@@ -156,7 +157,6 @@ namespace vmm_tests
 				10, 20, 30, 40, 50, 60, 70, 80
 			};
 			DMUI_ImageDescriptor descriptor{
-				sizeof(DMUI_ImageDescriptor),
 				2,
 				1,
 				DMUI_PIXEL_FORMAT_RGBA8_UNORM,
@@ -167,10 +167,6 @@ namespace vmm_tests
 			};
 			DMUI_ImageHandle image{};
 			auto invalid = descriptor;
-			invalid.structSize = DMUI_IMAGE_DESCRIPTOR_0_1_SIZE - 1u;
-			require(PresentationServices::CreateImage(
-						22, &invalid, &image) == DMUI_RESULT_STRUCT_TOO_SMALL,
-				"small CPU descriptor was accepted");
 			invalid = descriptor;
 			invalid.pixelFormat = 99;
 			require(PresentationServices::CreateImage(
@@ -241,7 +237,6 @@ namespace vmm_tests
 				"released CPU image accepted an update");
 
 			const DMUI_D3D11ImageDescriptor importedDescriptor{
-				sizeof(DMUI_D3D11ImageDescriptor),
 				resources.view.Get(),
 				0,
 				0
@@ -251,7 +246,6 @@ namespace vmm_tests
 						22, &importedDescriptor, &imported) == DMUI_RESULT_OK,
 				"import after CPU slot release failed");
 			DMUI_ImageInfo staleInfo{};
-			staleInfo.structSize = sizeof(staleInfo);
 			require(PresentationServices::QueryImage(
 						22, image, &staleInfo) == DMUI_RESULT_STALE_HANDLE,
 				"CPU handle aliased an imported slot reuse");
@@ -269,7 +263,6 @@ namespace vmm_tests
 						22, reusedCpu, &descriptor) == DMUI_RESULT_OK,
 				"import-to-CPU slot reuse retained imported provenance");
 			DMUI_ImageInfo info{};
-			info.structSize = sizeof(info);
 			PresentationServices::SetDevice(resources.device.Get());
 			require(PresentationServices::QueryImage(
 						22, reusedCpu, &info) == DMUI_RESULT_OK &&
@@ -279,7 +272,6 @@ namespace vmm_tests
 			auto replacement = CreateImageResources();
 			PresentationServices::SetDevice(replacement.device.Get());
 			info = {};
-			info.structSize = sizeof(info);
 			require(PresentationServices::QueryImage(
 						22, reusedCpu, &info) == DMUI_RESULT_OK &&
 					info.status == DMUI_IMAGE_STATUS_INVALIDATED &&
@@ -339,7 +331,7 @@ namespace vmm_tests
 				auto* queuedView = view.Get();
 				const auto references = ReferenceCount(queuedView);
 				const DMUI_D3D11ImageDescriptor descriptor{
-					sizeof(DMUI_D3D11ImageDescriptor), view.Get(), 0, 0
+					view.Get(), 0, 0
 				};
 				DMUI_ImageHandle image{};
 				require(PresentationServices::ImportD3D11Image(
@@ -355,7 +347,6 @@ namespace vmm_tests
 				retained.Reset();
 
 				const DMUI_ImageDrawOptions options{
-					sizeof(DMUI_ImageDrawOptions),
 					{ 64.0f, 36.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f },
 					{ 1.0f, 1.0f, 1.0f, 1.0f }, 1, 0
 				};
@@ -363,8 +354,9 @@ namespace vmm_tests
 					const RenderExecution::ClientGuard callback{
 						32, true
 					};
+					uint32_t drawn{};
 					require(PresentationServices::DrawImage(
-								32, image, &options) == DMUI_RESULT_OK,
+								32, image, &options, &drawn) == DMUI_RESULT_OK && drawn,
 						"packed HDR image draw failed");
 				}
 				require(ReferenceCount(queuedView) == references + 2,
@@ -430,14 +422,13 @@ namespace vmm_tests
 							texture.Get(), &shaderDescription, &view)),
 					"depth shader-resource view creation failed");
 				const DMUI_D3D11ImageDescriptor descriptor{
-					sizeof(DMUI_D3D11ImageDescriptor), view.Get(), 0, 0
+					view.Get(), 0, 0
 				};
 				DMUI_ImageHandle image{};
 				require(PresentationServices::ImportD3D11Image(
 							31, &descriptor, &image) == DMUI_RESULT_OK,
 					"sampleable depth SRV was rejected");
 				const DMUI_ImageDrawOptions options{
-					sizeof(DMUI_ImageDrawOptions),
 					{ 32.0f, 16.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f },
 					{ 1.0f, 1.0f, 1.0f, 1.0f }, 1, 0
 				};
@@ -445,8 +436,9 @@ namespace vmm_tests
 					const RenderExecution::ClientGuard callback{
 						31, true
 					};
+					uint32_t drawn{};
 					require(PresentationServices::DrawImage(
-								31, image, &options) == DMUI_RESULT_OK,
+								31, image, &options, &drawn) == DMUI_RESULT_OK && drawn,
 						"depth image draw failed");
 				}
 				auto* queuedView = view.Get();
@@ -512,7 +504,7 @@ namespace vmm_tests
 					"unsupported-format SRV creation failed");
 				const auto references = ReferenceCount(view.Get());
 				const DMUI_D3D11ImageDescriptor descriptor{
-					sizeof(DMUI_D3D11ImageDescriptor), view.Get(), 0, 0
+					view.Get(), 0, 0
 				};
 				DMUI_ImageHandle image{ 1 };
 				require(PresentationServices::ImportD3D11Image(
@@ -538,7 +530,6 @@ namespace vmm_tests
 			PresentationServices::SetDevice(resources.device.Get());
 			PresentationServices::BeginFrame();
 			const DMUI_D3D11ImageDescriptor descriptor{
-				sizeof(DMUI_D3D11ImageDescriptor),
 				resources.view.Get(),
 				0,
 				0
@@ -552,14 +543,12 @@ namespace vmm_tests
 			require(ReferenceCount(queuedView) == consumerReferenceCount + 1,
 				"image import did not retain the SRV");
 			DMUI_ImageInfo info{};
-			info.structSize = sizeof(info);
 			require(PresentationServices::QueryImage(7, image, &info) ==
 						DMUI_RESULT_OK &&
 					info.contentWidth == 64 &&
 					info.contentHeight == 32,
 				"derived image dimensions were not reported");
 			const DMUI_ImageDrawOptions options{
-				sizeof(DMUI_ImageDrawOptions),
 				{ 128.0f, 128.0f },
 				{ 0.0f, 0.0f },
 				{ 1.0f, 1.0f },
@@ -569,8 +558,9 @@ namespace vmm_tests
 			};
 			{
 				const RenderExecution::ClientGuard callback{ 7, true };
-				require(PresentationServices::DrawImage(7, image, &options) ==
-						DMUI_RESULT_OK,
+				uint32_t drawn{};
+				require(PresentationServices::DrawImage(7, image, &options, &drawn) ==
+						DMUI_RESULT_OK && drawn,
 					"queued image draw failed");
 			}
 			require(ReferenceCount(queuedView) == consumerReferenceCount + 2,
@@ -596,7 +586,6 @@ namespace vmm_tests
 			auto replacementResources = CreateImageResources();
 			PresentationServices::SetDevice(replacementResources.device.Get());
 			const DMUI_D3D11ImageDescriptor replacementDescriptor{
-				sizeof(DMUI_D3D11ImageDescriptor),
 				replacementResources.view.Get(),
 				0,
 				0
@@ -607,13 +596,24 @@ namespace vmm_tests
 					DMUI_RESULT_OK,
 				"replacement image import failed");
 			PresentationServices::InvalidateDevice();
-			info.structSize = sizeof(info);
 			require(PresentationServices::QueryImage(7, replacement, &info) ==
 						DMUI_RESULT_OK &&
 					info.status == DMUI_IMAGE_STATUS_INVALIDATED,
 				"device loss did not invalidate the image handle");
 
 			PresentationServices::SetDevice(replacementResources.device.Get());
+			{
+				const RenderExecution::ClientGuard callback{ 7, true };
+				dmui::ui::detail::ScopedContext context{ &UI::API(), 7 };
+				require(!dmui::ui::Image({ replacement }, options) &&
+						context.Result() == DMUI_RESULT_OK,
+					"device-lost image poisoned the page's sticky UI result");
+				require(PresentationServices::ReleaseImage(7, replacement) == DMUI_RESULT_OK,
+					"device-lost handle could not be released");
+				require(!dmui::ui::Image({ replacement }, options) &&
+						context.Result() == DMUI_RESULT_STALE_HANDLE,
+					"released image failed to report a stale handle");
+			}
 			const auto stableSlotCount =
 				PresentationServices::ImageSlotCount();
 			const auto originalStale = replacement;
@@ -637,7 +637,6 @@ namespace vmm_tests
 						DMUI_RESULT_OK,
 				"second recycled image import failed");
 			info = {};
-			info.structSize = sizeof(info);
 			require(
 				PresentationServices::QueryImage(
 					7, originalStale, &info) == DMUI_RESULT_STALE_HANDLE &&

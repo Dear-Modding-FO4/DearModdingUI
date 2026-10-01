@@ -197,26 +197,11 @@ namespace
 		return api;
 	}
 
-	DMUI_Result DMUI_CALL QueryUIAPI(
-		uint32_t a_abi,
-		uint32_t a_revision,
-		uint32_t a_size,
-		DMUI_UIAPIInfo* a_info) noexcept
-	{
-		const auto result =
-			DearModdingUI::UI::Query(a_abi, a_revision, a_size, a_info);
-		if (result == DMUI_RESULT_OK)
-			a_info->api = &FixtureUIAPI();
-		return result;
-	}
-
 	[[nodiscard]] DMUI_HostAPI& FixtureAPI() noexcept
 	{
 		static auto api = [] {
 			DMUI_HostAPI result{};
-			result.structSize = sizeof(result);
-			result.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
-			result.apiVersion = DMUI_API_VERSION_CURRENT;
+			result.abiVersion = DMUI_ABI_VERSION;
 			result.registerClient = &RegisterClient;
 			result.registerPage = &RegisterPage;
 			result.registerCategory = &RegisterCategory;
@@ -232,7 +217,7 @@ namespace
 			result.endSettingsTable = &EndSettingsTable;
 			result.beginSettingsRowEx =
 				&DearModdingUI::HostAPIInternal::ApiBeginSettingsRowEx;
-			result.queryUIAPI = &QueryUIAPI;
+			result.ui = &FixtureUIAPI();
 			result.resolveIconGlyph = &ResolveIconGlyph;
 			result.setFieldFeedback = &SetFieldFeedback;
 			return result;
@@ -244,7 +229,6 @@ namespace
 	{
 		s_fixtureHost = {};
 		auto& api = FixtureAPI();
-		api.structSize = sizeof(api);
 		api.resolveIconGlyph = &ResolveIconGlyph;
 		api.setFieldFeedback = &SetFieldFeedback;
 	}
@@ -253,7 +237,7 @@ namespace
 const DMUI_HostAPI* DMUI_CALL DMUI_GetAPI(
 	uint32_t a_requestedHostAbi) noexcept
 {
-	return a_requestedHostAbi == DMUI_HOST_ABI_CURRENT ?
+	return a_requestedHostAbi == DMUI_ABI_VERSION ?
 		&FixtureAPI() :
 		nullptr;
 }
@@ -262,6 +246,21 @@ namespace vmm_tests
 {
 	void run_general_test_fixture_checks(Runner& runner)
 	{
+		runner.test("Connect rejects mismatched ABI before registration", [] {
+			ResetFixture();
+			auto& api = FixtureAPI();
+			api.abiVersion = DMUI_ABI_VERSION + 1;
+			dmui::Client client{ "abi-mismatch", "ABI mismatch", { 1, 0 } };
+			const auto connected = client.Connect();
+			const auto result = client.LastResult();
+			api.abiVersion = DMUI_ABI_VERSION;
+			require(!connected && result == DMUI_RESULT_UNSUPPORTED_ABI &&
+					s_fixtureHost.clientCount == 0,
+				"Connect accepted a host with a different ABI");
+			require(DMUI_GetAPI(DMUI_ABI_VERSION - 1) == nullptr,
+				"discovery returned a table for a different ABI");
+		});
+
 		runner.test("fixture page registration retains partial callbacks", [] {
 			ResetFixture();
 			s_fixtureHost.failPageRegistrationAt = 2;
@@ -324,49 +323,9 @@ namespace vmm_tests
 				"client did not preserve host-selected glyph or request fields");
 		});
 
-		runner.test("field scope wrappers reject missing host operations", [] {
-			ResetFixture();
-			FixtureAPI().structSize =
-				DMUI_HOST_API_RESOLVE_ICON_GLYPH_SIZE;
-			dmui::Client client{
-				"field-feedback-missing-host",
-				"Field Feedback Missing Host",
-				{ 1, 0 }
-			};
-			require(client.Connect(), "fixture client did not connect");
-			dmui::SettingsRowScope oldScope{
-				client, "scope", "Scope", nullptr
-			};
-			require(
-				oldScope.Result() == DMUI_RESULT_WRONG_THREAD,
-				"old-prefix row scope required appended field operations");
-			const auto oldRow =
-				client.BeginSettingsRow("row", "Row", nullptr);
-			require(
-				!oldRow &&
-					client.LastResult() == DMUI_RESULT_WRONG_THREAD,
-				"old-prefix row operation was treated as an unavailable field");
-			require(
-				!client.BeginField("field", "Field") &&
-					client.LastResult() == DMUI_RESULT_UNSUPPORTED_ABI,
-				"missing field begin was not reported as unsupported");
-			require(
-				!client.SetFieldFeedback(
-					dmui::FieldFeedbackSeverity::kInfo,
-					"Message") &&
-					client.LastResult() == DMUI_RESULT_UNSUPPORTED_ABI,
-				"missing feedback operation was not reported as unsupported");
-			require(
-				!client.EndField() &&
-					client.LastResult() == DMUI_RESULT_UNSUPPORTED_ABI,
-				"missing field end was not reported as unsupported");
-			ResetFixture();
-		});
-
-		runner.test("declarative hidden rows use the ABI 1 row path", [] {
+		runner.test("declarative hidden rows use the settings row path", [] {
 			ResetFixture();
 			auto& api = FixtureAPI();
-			api.structSize = DMUI_HOST_API_RESOLVE_ICON_GLYPH_SIZE;
 			s_fixtureHost.renderSettingsTables = true;
 
 			dmui::Client client{
@@ -760,15 +719,6 @@ namespace vmm_tests
 				"declarative fixture page did not register");
 			auto& callback = s_fixtureHost.pages.front();
 
-			FixtureAPI().structSize = DMUI_HOST_API_QUERY_UI_API_SIZE;
-			require(
-				callback.draw(callback.userData) == DMUI_RESULT_UNSUPPORTED_ABI &&
-					client.LastResult() == DMUI_RESULT_UNSUPPORTED_ABI &&
-					s_fixtureHost.resolveCalls == 0 &&
-					s_fixtureHost.collapsingHeaderCalls == 0,
-				"short host table read or drew after negotiation failure");
-
-			FixtureAPI().structSize = sizeof(DMUI_HostAPI);
 			FixtureAPI().resolveIconGlyph = nullptr;
 			require(
 				callback.draw(callback.userData) == DMUI_RESULT_UNSUPPORTED_ABI &&

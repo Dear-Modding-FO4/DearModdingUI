@@ -33,47 +33,15 @@ namespace DmuiTests
 				const auto connected = client.Connect();
 				m_initializationResult = client.LastResult();
 				m_context.Info(
-					"dmui-test-client: preflight connect={} result={} "
-					"host-present={} unavailable-reason={} required-services=0x{:X} "
-					"ui-abi={} minimum-ui-revision={} minimum-ui-size={}"sv,
-					connected,
-					DMUI_ResultToString(m_initializationResult),
-					client.HostPresent(),
-					static_cast<uint32_t>(client.UnavailableReason()),
-					static_cast<uint64_t>(Detail::kRequiredServices),
-					DMUI_UI_ABI_CURRENT,
-					DMUI_UI_REVISION_CURRENT,
-					DMUI_UI_API_REQUIRED_SIZE);
+					"dmui-test-client: connect={} result={} host-present={} ABI={}"sv,
+					connected, DMUI_ResultToString(m_initializationResult),
+					client.HostPresent(), DMUI_ABI_VERSION);
 				if (!connected)
 				{
 					m_initializationStatus = InitializationStatus::kUnavailable;
 					m_initializationStage = "host preflight";
 					LogUnavailableOnce();
 					return false;
-				}
-
-				if (const auto services = client.QueryServices())
-				{
-					m_services = *services;
-					m_servicesResult = client.LastResult();
-					m_context.Info(
-						"dmui-test-client: service preflight result={} "
-						"ui-abi={} ui-revision={} ui-size={} "
-						"supported=0x{:X} required=0x{:X}"sv,
-						DMUI_ResultToString(m_servicesResult),
-						m_services.uiABI,
-						m_services.uiRevision,
-						m_services.uiTableSize,
-						static_cast<uint64_t>(m_services.supported),
-						static_cast<uint64_t>(Detail::kRequiredServices));
-				}
-				else
-				{
-					m_servicesResult = client.LastResult();
-					m_context.Error(
-						"dmui-test-client: service preflight result={}"sv,
-						DMUI_ResultToString(m_servicesResult));
-					return RegistrationFailure("service preflight");
 				}
 
 				if (!client.AddFrameObserver([this] { ObserveFrame(); }))
@@ -145,9 +113,8 @@ namespace DmuiTests
 				m_initializationResult = DMUI_RESULT_OK;
 				m_context.Info(
 					"dmui-test-client: initialization complete; "
-					"registered stable-UI client (API {}.{})"sv,
-					DMUI_VERSION_MAJOR(DMUI_API_VERSION_CURRENT),
-					DMUI_VERSION_MINOR(DMUI_API_VERSION_CURRENT));
+					"registered stable-UI client (ABI {})"sv,
+					DMUI_ABI_VERSION);
 				return true;
 			}
 
@@ -447,18 +414,12 @@ namespace DmuiTests
 				++m_settingsDraws;
 				dmui::ui::TextWrapped(
 					"This page uses only the official stable DMUI UI API. "
-					"Expected: host ready, all service bits present, and "
-					"UI ABI %u revision %u.",
-					DMUI_UI_ABI_CURRENT,
-					DMUI_UI_REVISION_CURRENT);
+					"Expected: host ready, ABI %u.",
+					DMUI_ABI_VERSION);
 				dmui::ui::Text(
-					"Host: %s | API %u.%u | UI ABI %u rev %u | services 0x%llX",
+					"Host: %s | ABI %u",
 					Detail::HostStateName(m_hostState.state),
-					DMUI_VERSION_MAJOR(DMUI_API_VERSION_CURRENT),
-					DMUI_VERSION_MINOR(DMUI_API_VERSION_CURRENT),
-					m_services.uiABI,
-					m_services.uiRevision,
-					m_services.supported);
+					DMUI_ABI_VERSION);
 				dmui::ui::Text(
 					"Observer %llu | hidden-menu samples %llu | settings draws %llu",
 					m_frameCount,
@@ -471,15 +432,14 @@ namespace DmuiTests
 					DMUI_ResultToString(m_initializationResult));
 				dmui::ui::Text(
 					"Last results: state=%s image=%s overlay=%s plot=%s "
-					"notification=%s dialog=%s hotkey=%s services=%s",
+					"notification=%s dialog=%s hotkey=%s",
 					DMUI_ResultToString(m_stateResult),
 					DMUI_ResultToString(m_resources.ImageResult()),
 					DMUI_ResultToString(m_overlay.Result()),
 					DMUI_ResultToString(m_resources.PlotResult()),
 					DMUI_ResultToString(m_dialogs.NotificationResult()),
 					DMUI_ResultToString(m_dialogs.DialogResult()),
-					DMUI_ResultToString(m_hotkeys.Result()),
-					DMUI_ResultToString(m_servicesResult));
+					DMUI_ResultToString(m_hotkeys.Result()));
 				if (dmui::ui::Button("Log current results"))
 					LogSnapshot("manual-button");
 				(void)m_context.Client().DrawSectionHeader("Expected outcomes");
@@ -644,8 +604,6 @@ namespace DmuiTests
 			};
 			std::string m_initializationStage{ "pending" };
 			DMUI_Result m_initializationResult{ DMUI_RESULT_OK };
-			dmui::HostServices m_services{};
-			DMUI_Result m_servicesResult{ DMUI_RESULT_OK };
 			DMUI_HostStateInfo m_hostState{};
 			DMUI_Result m_stateResult{ DMUI_RESULT_OK };
 			std::array<

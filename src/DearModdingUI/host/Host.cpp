@@ -165,9 +165,8 @@ namespace DearModdingUI
 	{
 		// /EHsc SEH would bypass registry lock destructors, so entry points stay direct.
 		static const DMUI_HostAPI api{
-			sizeof(DMUI_HostAPI),
-			DMUI_HOST_ABI_CURRENT,
-			DMUI_API_VERSION_CURRENT,
+			DMUI_ABI_VERSION,
+			&UI::API(),
 			&ApiRegisterClient,
 			&ApiRegisterPage,
 			&ApiQueryState,
@@ -202,16 +201,16 @@ namespace DearModdingUI
 			&ApiDrawLinkRow,
 			&ApiDrawFaq,
 			&ApiReportDiagnostic,
-			&ApiQueryServices,
+
 			&ApiSetHotkeyActionEnabled,
 			&ApiImportD3D11Image,
-			&ApiDrawImage,
+
 			&ApiReleaseImage,
 			&ApiQueryImage,
 			&ApiConfigureOverlay,
 			&ApiQueryOverlay,
 			&ApiPostNotification,
-			&ApiDrawAnnotatedPlot,
+
 			&ApiRequestDialog,
 			&ApiPollDialogEvent,
 			&ApiResolveDialogSubmission,
@@ -220,7 +219,7 @@ namespace DearModdingUI
 			&ApiUpdateImage,
 			&ApiRegisterCategory,
 			&ApiOpenExternal,
-			&ApiQueryUIAPI,
+
 			&ApiResolveIconGlyph,
 			&ApiBeginField,
 			&ApiSetFieldFeedback,
@@ -295,8 +294,7 @@ namespace DearModdingUI
 			return;
 
 		const DMUI_HostReadyInfo info{
-			sizeof(DMUI_HostReadyInfo),
-			DMUI_API_VERSION_CURRENT
+			DMUI_ABI_VERSION
 		};
 		service.registry.NotifyReady(info);
 	}
@@ -577,7 +575,10 @@ namespace DearModdingUI
 DMUI_EXPORT const DMUI_HostAPI* DMUI_CALL DMUI_GetAPI(
 	uint32_t a_requestedHostAbi) noexcept
 {
-	return a_requestedHostAbi == DMUI_HOST_ABI_CURRENT ?
-		&DearModdingUI::HostAPI() :
-		nullptr;
+	if (a_requestedHostAbi != DMUI_ABI_VERSION)
+	{
+		REX::WARN("DearModdingUI ABI mismatch: client={}, host={}", a_requestedHostAbi, DMUI_ABI_VERSION);
+		return nullptr;
+	}
+	return &DearModdingUI::HostAPI();
 }

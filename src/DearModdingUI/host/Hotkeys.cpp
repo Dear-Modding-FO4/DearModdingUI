@@ -261,14 +261,10 @@ namespace DearModdingUI
 			a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_action = DMUI_INVALID_HOTKEY_ACTION_HANDLE;
-		if (a_descriptor->structSize < DMUI_HOTKEY_ACTION_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->callback)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
 		const auto contextPolicy =
-			a_descriptor->structSize >= DMUI_HOTKEY_ACTION_DESCRIPTOR_CONTEXT_SIZE ?
-				a_descriptor->contextPolicy :
-				DMUI_HOTKEY_CONTEXT_ALWAYS;
+			a_descriptor->contextPolicy;
 		if (contextPolicy > DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
 
@@ -423,8 +419,6 @@ namespace DearModdingUI
 		if (!a_binding || a_client == DMUI_INVALID_CLIENT_HANDLE ||
 			a_action == DMUI_INVALID_HOTKEY_ACTION_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_binding->structSize < sizeof(DMUI_HotkeyBindingInfo))
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 
 		const std::scoped_lock lock{ m_mutex };
 		const auto* action = FindActionLocked(a_action);

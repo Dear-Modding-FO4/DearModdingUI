@@ -8,7 +8,6 @@ namespace DmuiTests::Detail
 		m_context(a_context),
 		m_resources(a_resources)
 	{
-		m_options.structSize = sizeof(m_options);
 		m_options.anchor = DMUI_OVERLAY_ANCHOR_TOP_RIGHT;
 		m_options.offset = { 28.0f, 28.0f };
 		m_options.minimumSize = { 360.0f, 220.0f };

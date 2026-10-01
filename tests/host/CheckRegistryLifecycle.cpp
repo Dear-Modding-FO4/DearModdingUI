@@ -40,8 +40,7 @@ namespace vmm_tests
 			(void)AddClient(readyRegistry, "ready.mod", "Ready", readyState);
 			require(readyRegistry.Freeze(), "ready registry did not freeze");
 			const DMUI_HostReadyInfo info{
-				sizeof(DMUI_HostReadyInfo),
-				DMUI_API_VERSION_CURRENT
+				DMUI_ABI_VERSION
 			};
 			readyRegistry.NotifyReady(info);
 			readyRegistry.NotifyReady(info);
@@ -65,8 +64,7 @@ namespace vmm_tests
 
 		runner.test("throwing client callbacks are isolated by host guards", [] {
 			const DMUI_HostReadyInfo info{
-				sizeof(DMUI_HostReadyInfo),
-				DMUI_API_VERSION_CURRENT
+				DMUI_ABI_VERSION
 			};
 
 			CallbackState readyState;

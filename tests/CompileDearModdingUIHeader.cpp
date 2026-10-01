@@ -50,8 +50,6 @@ static_assert(sizeof(DMUI_StatusSeverity) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_FontRole) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_SettingsAction) == sizeof(uint32_t));
 static_assert(sizeof(DMUI_HotkeyBindingState) == sizeof(uint32_t));
-static_assert(DMUI_HOST_ABI_CURRENT == DMUI_HOST_ABI_1);
-static_assert(DMUI_API_VERSION_CURRENT == DMUI_API_VERSION_0_2);
 static_assert(std::is_same_v<
 	decltype(&DMUI_GetAPI),
 	const DMUI_HostAPI* (DMUI_CALL*)(uint32_t) noexcept>);
@@ -244,131 +242,8 @@ static_assert(DMUI_HOTKEY_BINDING_UNBOUND_OVERRIDE_CONFLICT == 4u);
 static_assert(DMUI_HOTKEY_BINDING_UNBOUND_INVALID_OVERRIDE == 5u);
 static_assert(DMUI_CLIENT_ORIGIN_NATIVE == 0u);
 static_assert(DMUI_CLIENT_ORIGIN_BRIDGED == 1u);
-static_assert(DMUI_HOST_SERVICE_NAVIGATION_ICONS == (UINT64_C(1) << 11u));
 
 #if UINTPTR_MAX == UINT64_MAX
-static_assert(sizeof(DMUI_HostReadyInfo) == 8);
-static_assert(sizeof(DMUI_ClientDescriptor) == 96);
-static_assert(sizeof(DMUI_PageDescriptor) == 72);
-static_assert(sizeof(DMUI_CategoryDescriptor) == 40);
-static_assert(sizeof(DMUI_ActionDescriptor) == 64);
-static_assert(sizeof(DMUI_FrameObserverDescriptor) == 24);
-static_assert(sizeof(DMUI_HotkeyActionDescriptor) == 56);
-static_assert(sizeof(DMUI_LinkDescriptor) == 48);
-static_assert(sizeof(DMUI_ExternalOpenDescriptor) == 48);
-static_assert(sizeof(DMUI_FaqEntry) == 24);
-static_assert(sizeof(DMUI_DiagnosticDescriptor) == 32);
-static_assert(sizeof(DMUI_HotkeyBindingInfo) == 40);
-static_assert(sizeof(DMUI_HostStateInfo) == 28);
 static_assert(sizeof(DMUI_Vec2) == 8);
 static_assert(sizeof(DMUI_Vec4) == 16);
-static_assert(sizeof(DMUI_FieldBeginOptions) == 8);
-static_assert(sizeof(DMUI_FieldEndOptions) == 12);
-static_assert(sizeof(DMUI_FieldFeedback) == 16);
-static_assert(sizeof(DMUI_ThemeColors) == 228);
-static_assert(offsetof(DMUI_Vec2, x) == 0);
-static_assert(offsetof(DMUI_Vec2, y) == 4);
-static_assert(offsetof(DMUI_Vec4, x) == 0);
-static_assert(offsetof(DMUI_Vec4, y) == 4);
-static_assert(offsetof(DMUI_Vec4, z) == 8);
-static_assert(offsetof(DMUI_Vec4, w) == 12);
-static_assert(offsetof(DMUI_ClientDescriptor, structSize) == 0);
-static_assert(offsetof(DMUI_HostReadyInfo, structSize) == 0);
-static_assert(offsetof(DMUI_HostReadyInfo, apiVersion) == 4);
-static_assert(offsetof(DMUI_ClientDescriptor, capabilities) == 56);
-static_assert(offsetof(DMUI_ClientDescriptor, iconName) == 64);
-static_assert(offsetof(DMUI_ClientDescriptor, origin) == 72);
-static_assert(offsetof(DMUI_ClientDescriptor, bridgeSourceLabel) == 80);
-static_assert(DMUI_CLIENT_DESCRIPTOR_0_1_SIZE == 88);
-static_assert(offsetof(DMUI_ClientDescriptor, requiredServices) == 88);
-static_assert(DMUI_CLIENT_DESCRIPTOR_SERVICES_SIZE ==
-	sizeof(DMUI_ClientDescriptor));
-static_assert(DMUI_PAGE_DESCRIPTOR_0_1_SIZE == 64);
-static_assert(offsetof(DMUI_PageDescriptor, iconName) == 64);
-static_assert(DMUI_PAGE_DESCRIPTOR_ICON_SIZE ==
-	sizeof(DMUI_PageDescriptor));
-static_assert(DMUI_CATEGORY_DESCRIPTOR_0_1_SIZE == 32);
-static_assert(offsetof(DMUI_CategoryDescriptor, iconName) == 32);
-static_assert(DMUI_CATEGORY_DESCRIPTOR_ICON_SIZE ==
-	sizeof(DMUI_CategoryDescriptor));
-static_assert(DMUI_ACTION_DESCRIPTOR_0_1_SIZE ==
-	sizeof(DMUI_ActionDescriptor));
-static_assert(DMUI_FRAME_OBSERVER_DESCRIPTOR_0_1_SIZE ==
-	sizeof(DMUI_FrameObserverDescriptor));
-static_assert(DMUI_HOTKEY_ACTION_DESCRIPTOR_0_1_SIZE == 48);
-static_assert(offsetof(DMUI_HotkeyActionDescriptor, contextPolicy) == 48);
-static_assert(DMUI_HOTKEY_ACTION_DESCRIPTOR_CONTEXT_SIZE ==
-	sizeof(DMUI_HotkeyActionDescriptor));
-static_assert(offsetof(DMUI_LinkDescriptor, structSize) == 0);
-static_assert(offsetof(DMUI_LinkDescriptor, label) == 8);
-static_assert(offsetof(DMUI_LinkDescriptor, note) == 16);
-static_assert(offsetof(DMUI_LinkDescriptor, glyph) == 24);
-static_assert(offsetof(DMUI_LinkDescriptor, enabled) == 28);
-static_assert(offsetof(DMUI_LinkDescriptor, action) == 32);
-static_assert(offsetof(DMUI_LinkDescriptor, external) == 40);
-static_assert(DMUI_LINK_DESCRIPTOR_0_1_SIZE ==
-	sizeof(DMUI_LinkDescriptor));
-static_assert(offsetof(DMUI_ExternalOpenDescriptor, targetKind) == 4);
-static_assert(offsetof(DMUI_ExternalOpenDescriptor, target) == 8);
-static_assert(offsetof(DMUI_ExternalOpenDescriptor, application) == 16);
-static_assert(offsetof(DMUI_ExternalOpenDescriptor, arguments) == 24);
-static_assert(offsetof(DMUI_ExternalOpenDescriptor, argumentCount) == 32);
-static_assert(offsetof(DMUI_ExternalOpenDescriptor, workingDirectory) == 40);
-static_assert(DMUI_EXTERNAL_OPEN_DESCRIPTOR_0_1_SIZE ==
-	sizeof(DMUI_ExternalOpenDescriptor));
-static_assert(offsetof(DMUI_FaqEntry, structSize) == 0);
-static_assert(offsetof(DMUI_FaqEntry, question) == 8);
-static_assert(offsetof(DMUI_FaqEntry, answer) == 16);
-static_assert(DMUI_FAQ_ENTRY_0_1_SIZE == sizeof(DMUI_FaqEntry));
-static_assert(offsetof(DMUI_DiagnosticDescriptor, structSize) == 0);
-static_assert(offsetof(DMUI_DiagnosticDescriptor, severity) == 4);
-static_assert(offsetof(DMUI_DiagnosticDescriptor, scope) == 8);
-static_assert(offsetof(DMUI_DiagnosticDescriptor, summary) == 16);
-static_assert(offsetof(DMUI_DiagnosticDescriptor, detail) == 24);
-static_assert(DMUI_DIAGNOSTIC_DESCRIPTOR_0_1_SIZE ==
-	sizeof(DMUI_DiagnosticDescriptor));
-static_assert(offsetof(DMUI_ThemeColors, structSize) == 0);
-static_assert(offsetof(DMUI_ThemeColors, success) == 4);
-static_assert(offsetof(DMUI_ThemeColors, warning) == 20);
-static_assert(offsetof(DMUI_ThemeColors, error) == 36);
-static_assert(offsetof(DMUI_ThemeColors, info) == 52);
-static_assert(offsetof(DMUI_ThemeColors, muted) == 68);
-static_assert(offsetof(DMUI_ThemeColors, accent) == 84);
-static_assert(offsetof(DMUI_ThemeColors, accentMuted) == 100);
-static_assert(offsetof(DMUI_ThemeColors, statusDisable) == 116);
-static_assert(offsetof(DMUI_ThemeColors, statusError) == 132);
-static_assert(offsetof(DMUI_ThemeColors, statusWarning) == 148);
-static_assert(offsetof(DMUI_ThemeColors, statusRestartNeeded) == 164);
-static_assert(offsetof(DMUI_ThemeColors, statusCurrentHotkey) == 180);
-static_assert(offsetof(DMUI_ThemeColors, statusSuccess) == 196);
-static_assert(offsetof(DMUI_ThemeColors, statusInfo) == 212);
-static_assert(DMUI_THEME_COLORS_0_1_SIZE == sizeof(DMUI_ThemeColors));
-static_assert(offsetof(DMUI_FieldBeginOptions, structSize) == 0);
-static_assert(offsetof(DMUI_FieldBeginOptions, layout) == 4);
-static_assert(DMUI_FIELD_BEGIN_OPTIONS_0_1_SIZE ==
-	sizeof(DMUI_FieldBeginOptions));
-static_assert(offsetof(DMUI_FieldEndOptions, structSize) == 0);
-static_assert(offsetof(DMUI_FieldEndOptions, resetVisible) == 4);
-static_assert(offsetof(DMUI_FieldEndOptions, resetEnabled) == 8);
-static_assert(DMUI_FIELD_END_OPTIONS_0_1_SIZE ==
-	sizeof(DMUI_FieldEndOptions));
-static_assert(offsetof(DMUI_FieldFeedback, structSize) == 0);
-static_assert(offsetof(DMUI_FieldFeedback, severity) == 4);
-static_assert(offsetof(DMUI_FieldFeedback, message) == 8);
-static_assert(DMUI_FIELD_FEEDBACK_0_1_SIZE ==
-	sizeof(DMUI_FieldFeedback));
-static_assert(offsetof(DMUI_PageActivityInfo, structSize) == 0);
-static_assert(offsetof(DMUI_PageActivityInfo, kind) == 4);
-static_assert(offsetof(DMUI_PageActivityInfo, previousPage) == 8);
-static_assert(offsetof(DMUI_PageActivityInfo, activePage) == 16);
-static_assert(DMUI_PAGE_ACTIVITY_INFO_0_1_SIZE ==
-	sizeof(DMUI_PageActivityInfo));
-static_assert(offsetof(DMUI_PageActivityObserverDescriptor, structSize) == 0);
-static_assert(offsetof(DMUI_PageActivityObserverDescriptor, callback) == 8);
-static_assert(offsetof(DMUI_PageActivityObserverDescriptor, userData) == 16);
-static_assert(DMUI_PAGE_ACTIVITY_OBSERVER_DESCRIPTOR_0_1_SIZE ==
-	sizeof(DMUI_PageActivityObserverDescriptor));
-static_assert(offsetof(DMUI_FrameObserverDescriptor, structSize) == 0);
-static_assert(offsetof(DMUI_FrameObserverDescriptor, callback) == 8);
-static_assert(offsetof(DMUI_FrameObserverDescriptor, userData) == 16);
 #endif

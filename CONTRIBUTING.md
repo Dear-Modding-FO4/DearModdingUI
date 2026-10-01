@@ -118,10 +118,8 @@ Scenarios live in `tools\shared` and `tools\preview\fixtures`, and are not packa
 
 The API dependency owns `schema\ui-contract.json` and its baseline manifest,
 `schema\ui-contract.manifest.json`. They generate the stable C UI table and check
-that existing slots, IDs, and enums remain intact.
-
-API updates must keep existing mods working: append new operations instead of
-changing or reusing existing slots.
+that UI layout and enum changes have a matching `DMUI_ABI_VERSION` change.
+All public tables and structs use one exact-match ABI; clients rebuild on ABI changes.
 
 To regenerate contract bindings after updating the schema:
 
@@ -135,8 +133,8 @@ python "$api/Tools/generate-ui-contract.py" `
   --host-bindings include/DearModdingUI/UIBindings.generated.h
 ```
 
-Appended operations or enum values need a newer schema `revision`; add
-`--update-baseline` in the API repository commit that publishes it. Never edit
+Use `--update-baseline` to refresh the manifest deliberately (including each
+unreleased ABI 2 development slice). Never edit
 the generated headers directly: CI regenerates and compares them.
 
 ## Guidelines

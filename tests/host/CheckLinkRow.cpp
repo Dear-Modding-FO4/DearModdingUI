@@ -20,12 +20,10 @@ namespace vmm_tests
 			const DMUI_DrawLinkRowFn drawLinkRow =
 				&ValidateLinkRowArguments;
 			DMUI_ExternalOpenDescriptor external{
-				DMUI_EXTERNAL_OPEN_DESCRIPTOR_0_1_SIZE,
 				DMUI_EXTERNAL_TARGET_URI,
 				"https://github.com/Dear-Modding-FO4/DearModdingUI"
 			};
 			DMUI_LinkDescriptor link{
-				DMUI_LINK_DESCRIPTOR_0_1_SIZE,
 				"GitHub",
 				nullptr,
 				0,
@@ -70,16 +68,6 @@ namespace vmm_tests
 					DMUI_RESULT_INVALID_DESCRIPTOR,
 				"an enabled link without a target was accepted");
 			external.target = "https://github.com/Dear-Modding-FO4/DearModdingUI";
-			link.structSize = DMUI_LINK_DESCRIPTOR_0_1_SIZE - 1;
-			require(
-				drawLinkRow(
-					DMUI_INVALID_CLIENT_HANDLE,
-					"links",
-					&link,
-					1) ==
-					DMUI_RESULT_INVALID_ARGUMENT,
-				"a short link descriptor was accepted");
-			link.structSize = DMUI_LINK_DESCRIPTOR_0_1_SIZE;
 			require(
 				drawLinkRow(
 					DMUI_INVALID_CLIENT_HANDLE,

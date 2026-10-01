@@ -22,11 +22,6 @@ namespace DearModdingUI::UI
 	};
 
 	[[nodiscard]] const DMUI_UIAPI& API() noexcept;
-	[[nodiscard]] DMUI_Result Query(
-		uint32_t a_requestedUIAbi,
-		uint32_t a_minimumRevision,
-		uint32_t a_minimumTableSize,
-		DMUI_UIAPIInfo* a_info) noexcept;
 
 #if defined(DMUI_UI_TESTING)
 	namespace Testing

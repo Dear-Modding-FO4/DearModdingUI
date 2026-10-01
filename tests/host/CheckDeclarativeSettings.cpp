@@ -52,30 +52,16 @@ namespace vmm_tests
 				"forced reset retained bracket state");
 		});
 
-		runner.test("field options enforce their versioned prefixes", [] {
+		runner.test("field options reject invalid layout and feedback", [] {
 			require(SettingsTable::ValidateFieldEndOptions(nullptr) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"null field end options were accepted");
 			DMUI_FieldEndOptions endOptions{};
-			endOptions.structSize = DMUI_FIELD_END_OPTIONS_0_1_SIZE - 1;
-			require(SettingsTable::ValidateFieldEndOptions(&endOptions) ==
-					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"short field end options were accepted");
-			endOptions.structSize = DMUI_FIELD_END_OPTIONS_0_1_SIZE;
 			require(SettingsTable::ValidateFieldEndOptions(&endOptions) ==
 					DMUI_RESULT_OK,
 				"exact field end options were rejected");
-			endOptions.structSize += sizeof(uint32_t);
-			require(SettingsTable::ValidateFieldEndOptions(&endOptions) ==
-					DMUI_RESULT_OK,
-				"extended field end options were rejected");
 
 			DMUI_FieldBeginOptions fieldOptions{};
-			fieldOptions.structSize = DMUI_FIELD_BEGIN_OPTIONS_0_1_SIZE - 1;
-			require(SettingsTable::ValidateFieldBeginOptions(&fieldOptions) ==
-					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"short field options were accepted");
-			fieldOptions.structSize = DMUI_FIELD_BEGIN_OPTIONS_0_1_SIZE;
 			fieldOptions.layout = DMUI_FIELD_LAYOUT_FULL_SPAN;
 			require(SettingsTable::ValidateFieldBeginOptions(&fieldOptions) ==
 					DMUI_RESULT_OK,
@@ -89,11 +75,6 @@ namespace vmm_tests
 			require(SettingsTable::ValidateFieldFeedback(nullptr) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"null field feedback was accepted");
-			feedback.structSize = DMUI_FIELD_FEEDBACK_0_1_SIZE - 1;
-			require(SettingsTable::ValidateFieldFeedback(&feedback) ==
-					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"short field feedback was accepted");
-			feedback.structSize = DMUI_FIELD_FEEDBACK_0_1_SIZE;
 			feedback.severity = 3;
 			require(SettingsTable::ValidateFieldFeedback(&feedback) ==
 					DMUI_RESULT_INVALID_ARGUMENT,

@@ -43,7 +43,6 @@ namespace vmm_tests
 					condition.wait(lock, [&] { return attemptPastThread; });
 				}
 				const DMUI_D3D11ImageDescriptor descriptor{
-					sizeof(DMUI_D3D11ImageDescriptor),
 					resources.view.Get(),
 					0,
 					0
@@ -121,7 +120,6 @@ namespace vmm_tests
 								texture.Get(), &viewDescription, &view)),
 						"cross-thread depth SRV creation failed");
 					const DMUI_D3D11ImageDescriptor descriptor{
-						sizeof(DMUI_D3D11ImageDescriptor),
 						view.Get(),
 						0,
 						0
@@ -143,7 +141,6 @@ namespace vmm_tests
 			startup.join();
 
 			const DMUI_D3D11ImageDescriptor descriptor{
-				sizeof(DMUI_D3D11ImageDescriptor),
 				resources.view.Get(),
 				0,
 				0

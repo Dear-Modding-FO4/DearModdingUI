@@ -47,8 +47,6 @@ namespace DearModdingUI::HostAPIInternal
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::endSettingsTable)> ApiEndSettingsTable;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::beginSettingsRowEx)> ApiBeginSettingsRowEx;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryVideoMemory)> ApiQueryVideoMemory;
-	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryServices)> ApiQueryServices;
-	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryUIAPI)> ApiQueryUIAPI;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::resolveIconGlyph)> ApiResolveIconGlyph;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::beginField)> ApiBeginField;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::setFieldFeedback)> ApiSetFieldFeedback;
@@ -57,13 +55,11 @@ namespace DearModdingUI::HostAPIInternal
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::importD3D11Image)> ApiImportD3D11Image;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::createImage)> ApiCreateImage;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::updateImage)> ApiUpdateImage;
-	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::drawImage)> ApiDrawImage;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::releaseImage)> ApiReleaseImage;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryImage)> ApiQueryImage;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::configureOverlay)> ApiConfigureOverlay;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryOverlay)> ApiQueryOverlay;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::postNotification)> ApiPostNotification;
-	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::drawAnnotatedPlot)> ApiDrawAnnotatedPlot;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::requestDialog)> ApiRequestDialog;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::pollDialogEvent)> ApiPollDialogEvent;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::resolveDialogSubmission)> ApiResolveDialogSubmission;

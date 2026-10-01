@@ -133,8 +133,6 @@ namespace DearModdingUI::HostAPIInternal
 	{
 		if (!a_state)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_state->structSize < sizeof(DMUI_HostStateInfo))
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 
 		auto &service = GetService();
 		const auto state = service.state.load(std::memory_order_acquire);
@@ -267,24 +265,6 @@ namespace DearModdingUI::HostAPIInternal
 		return Addictol::PlatformImgui::QueryVideoMemory(*a_used, *a_budget)
 				   ? DMUI_RESULT_OK
 				   : DMUI_RESULT_BACKEND_FAILED;
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryServices(DMUI_HostServicesInfo *a_services) noexcept
-	{
-		if (!a_services)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_services->structSize < DMUI_HOST_SERVICES_INFO_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
-		a_services->supportedServices = PresentationServices::kSupportedServices;
-		return DMUI_RESULT_OK;
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryUIAPI(uint32_t a_requestedUIAbi,
-													  uint32_t a_minimumRevision,
-													  uint32_t a_minimumTableSize,
-													  DMUI_UIAPIInfo *a_info) noexcept
-	{
-		return UI::Query(a_requestedUIAbi, a_minimumRevision, a_minimumTableSize, a_info);
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiSetHotkeyActionEnabled(DMUI_ClientHandle a_client,

@@ -70,7 +70,6 @@ namespace DearModdingUI
 				else
 				{
 					DMUI_ExternalOpenDescriptor descriptor{
-						sizeof(DMUI_ExternalOpenDescriptor),
 						link.external.targetKind,
 						link.external.target.empty() ?
 							nullptr :

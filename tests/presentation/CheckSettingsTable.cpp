@@ -156,14 +156,6 @@ namespace vmm_tests
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"snapshot-only styled text accepted a client font role");
 			auto truncatedTheme = Theme::ColorSnapshot();
-			truncatedTheme.structSize = DMUI_THEME_COLORS_0_1_SIZE - 1u;
-			require(
-				dmui::DrawStyledText(
-					"text",
-					truncatedTheme,
-					{ .tone = dmui::TextTone::kAccent }) ==
-					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"styled text accepted a truncated theme snapshot");
 			require(
 				dmui::DrawStyledText(
 					"text",

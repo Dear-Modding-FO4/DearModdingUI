@@ -10,7 +10,6 @@ namespace DearModdingUI::Theme
 		auto mutedAccent = a_accent;
 		mutedAccent.w = colors::kMutedAccentOpacity;
 		return {
-			sizeof(DMUI_ThemeColors),
 			convert(colors::kSuccess),
 			convert(colors::kWarning),
 			convert(colors::kError),

@@ -11,20 +11,6 @@ struct ID3D11ShaderResourceView;
 
 namespace DearModdingUI::PresentationServices
 {
-	inline constexpr DMUI_HostServices kSupportedServices{
-		DMUI_HOST_SERVICE_FRAME_CONTROL |
-		DMUI_HOST_SERVICE_EDIT_LIFECYCLE |
-		DMUI_HOST_SERVICE_CONTEXTUAL_HOTKEYS |
-		DMUI_HOST_SERVICE_IMAGE_RESOURCES |
-		DMUI_HOST_SERVICE_MANAGED_OVERLAYS |
-		DMUI_HOST_SERVICE_NOTIFICATIONS |
-		DMUI_HOST_SERVICE_ANNOTATED_PLOTS |
-		DMUI_HOST_SERVICE_DIALOGS |
-		DMUI_HOST_SERVICE_PIXEL_IMAGES |
-		DMUI_HOST_SERVICE_EXTERNAL_OPEN |
-		DMUI_HOST_SERVICE_VIRTUAL_FILE_TARGETS |
-		DMUI_HOST_SERVICE_NAVIGATION_ICONS
-	};
 
 	void SetDevice(ID3D11Device* a_device) noexcept;
 	void InvalidateDevice() noexcept;
@@ -49,7 +35,8 @@ namespace DearModdingUI::PresentationServices
 	[[nodiscard]] DMUI_Result DrawImage(
 		DMUI_ClientHandle a_client,
 		DMUI_ImageHandle a_image,
-		const DMUI_ImageDrawOptions* a_options) noexcept;
+		const DMUI_ImageDrawOptions* a_options,
+		uint32_t* a_drawn) noexcept;
 	[[nodiscard]] DMUI_Result ReleaseImage(
 		DMUI_ClientHandle a_client,
 		DMUI_ImageHandle a_image) noexcept;

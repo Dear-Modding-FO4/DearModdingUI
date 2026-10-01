@@ -36,7 +36,6 @@ namespace DearModdingUI
 		const DMUI_DiagnosticDescriptor* a_diagnostic) noexcept
 	{
 		if (!a_diagnostic ||
-			a_diagnostic->structSize < DMUI_DIAGNOSTIC_DESCRIPTOR_0_1_SIZE ||
 			!IsValidStatusSeverity(a_diagnostic->severity) ||
 			!a_diagnostic->summary || !a_diagnostic->summary[0])
 			return DMUI_RESULT_INVALID_ARGUMENT;

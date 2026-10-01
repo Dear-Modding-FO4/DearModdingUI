@@ -19,7 +19,6 @@ namespace vmm_tests
 		runner.test("FAQ API arguments reject malformed entries", [] {
 			const DMUI_DrawFaqFn drawFaq = &ValidateFaqArguments;
 			DMUI_FaqEntry entry{
-				DMUI_FAQ_ENTRY_0_1_SIZE,
 				"How do I open the menu?",
 				"Press End."
 			};
@@ -55,14 +54,6 @@ namespace vmm_tests
 					1) == DMUI_RESULT_INVALID_ARGUMENT,
 				"an empty FAQ answer was accepted");
 			entry.answer = "Press End.";
-			entry.structSize = DMUI_FAQ_ENTRY_0_1_SIZE - 1;
-			require(
-				drawFaq(
-					DMUI_INVALID_CLIENT_HANDLE,
-					"faq",
-					&entry,
-					1) == DMUI_RESULT_INVALID_ARGUMENT,
-				"a short FAQ entry was accepted");
 			require(
 				drawFaq(
 					DMUI_INVALID_CLIENT_HANDLE,

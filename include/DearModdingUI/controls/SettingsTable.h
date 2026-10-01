@@ -82,9 +82,7 @@ namespace DearModdingUI::SettingsTable
 	{
 		if (!a_options)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		return a_options->structSize < DMUI_FIELD_END_OPTIONS_0_1_SIZE ?
-			DMUI_RESULT_STRUCT_TOO_SMALL :
-			DMUI_RESULT_OK;
+		return DMUI_RESULT_OK;
 	}
 
 	[[nodiscard]] constexpr DMUI_Result ValidateRowOptions(
@@ -92,9 +90,7 @@ namespace DearModdingUI::SettingsTable
 	{
 		if (!a_options)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		return a_options->structSize < DMUI_SETTINGS_ROW_OPTIONS_0_1_SIZE ?
-			DMUI_RESULT_STRUCT_TOO_SMALL :
-			DMUI_RESULT_OK;
+		return DMUI_RESULT_OK;
 	}
 
 	[[nodiscard]] constexpr DMUI_Result ValidateRowBeginOptions(
@@ -102,8 +98,6 @@ namespace DearModdingUI::SettingsTable
 	{
 		if (!a_options)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_options->structSize < DMUI_SETTINGS_ROW_BEGIN_OPTIONS_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		return a_options->layout == DMUI_SETTINGS_ROW_LAYOUT_LABEL_VALUE ||
 				a_options->layout == DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN ?
 			DMUI_RESULT_OK :
@@ -115,8 +109,6 @@ namespace DearModdingUI::SettingsTable
 	{
 		if (!a_options)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_options->structSize < DMUI_FIELD_BEGIN_OPTIONS_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		return a_options->layout == DMUI_FIELD_LAYOUT_LABEL_VALUE ||
 				a_options->layout == DMUI_FIELD_LAYOUT_FULL_SPAN ?
 			DMUI_RESULT_OK :
@@ -131,8 +123,6 @@ namespace DearModdingUI::SettingsTable
 			*a_messageLength = 0;
 		if (!a_feedback)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_feedback->structSize < DMUI_FIELD_FEEDBACK_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!FieldFeedback::IsValidSeverity(a_feedback->severity))
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		if (!a_feedback->message)

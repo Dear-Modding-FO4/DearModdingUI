@@ -25,7 +25,6 @@ namespace vmm_tests
 			const ExternalOpener opener{ &FakeExternalOpen };
 
 			DMUI_ExternalOpenDescriptor descriptor{
-				sizeof(DMUI_ExternalOpenDescriptor),
 				DMUI_EXTERNAL_TARGET_URI,
 				"https://example.invalid/docs"
 			};
@@ -86,7 +85,6 @@ namespace vmm_tests
 		runner.test("external opening rejects ambiguous or unsafe descriptors", [] {
 			ExternalOpenRequest request;
 			DMUI_ExternalOpenDescriptor descriptor{
-				sizeof(DMUI_ExternalOpenDescriptor),
 				DMUI_EXTERNAL_TARGET_FILE,
 				"relative.txt"
 			};
@@ -134,31 +132,6 @@ namespace vmm_tests
 				"malformed UTF-8 was accepted");
 		});
 
-		runner.test("virtual-file preflight requires advertised targets and opening entry", [] {
-			auto api = PreflightHostAPI();
-			api.queryServices = &MockQueryServices;
-			api.openExternal = &MockOpenExternal;
-			const dmui::ClientOptions options{
-				.requiredServices = DMUI_HOST_SERVICE_VIRTUAL_FILE_TARGETS
-			};
-			s_mockServices = DMUI_HOST_SERVICE_EXTERNAL_OPEN;
-			require(dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_SERVICE_UNAVAILABLE,
-				"ordinary external opening promised virtual-file resolution");
-			s_mockServices |= DMUI_HOST_SERVICE_VIRTUAL_FILE_TARGETS;
-			require(dmui::PreflightHostAPI(&api, options) == DMUI_RESULT_OK,
-				"virtual-file service was not recognized");
-			api.openExternal = nullptr;
-			require(dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_SERVICE_UNAVAILABLE,
-				"virtual-file preflight omitted its dispatch entry");
-			api.openExternal = &MockOpenExternal;
-			api.structSize = DMUI_HOST_API_OPEN_EXTERNAL_SIZE - 1;
-			require(dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_UNSUPPORTED_ABI,
-				"truncated host table exposed the appended UI query");
-		});
-
 		runner.test("virtual targets resolve the file before dispatching either action", [] {
 			s_externalOpenCalls = 0;
 			s_externalResolveCalls = 0;
@@ -170,7 +143,6 @@ namespace vmm_tests
 			const ExternalOpener opener{ &FakeExternalOpen, &FakeExternalFileResolver };
 			const char* arguments[]{ "--reuse-window" };
 			DMUI_ExternalOpenDescriptor descriptor{
-				sizeof(DMUI_ExternalOpenDescriptor),
 				DMUI_EXTERNAL_TARGET_VIRTUAL_FILE,
 				"C:\\game\\Data\\settings.ini",
 				"C:\\Tools\\viewer.exe",
@@ -226,7 +198,6 @@ namespace vmm_tests
 			s_externalResolveError = ERROR_ACCESS_DENIED;
 			const ExternalOpener opener{ &FakeExternalOpen, &FakeExternalFileResolver };
 			DMUI_ExternalOpenDescriptor descriptor{
-				sizeof(DMUI_ExternalOpenDescriptor),
 				DMUI_EXTERNAL_TARGET_VIRTUAL_FILE,
 				"C:\\game\\Data\\settings.ini"
 			};
@@ -309,7 +280,6 @@ namespace vmm_tests
 			s_externalNativeError = 0;
 			const ExternalOpener opener{ &FakeExternalOpen };
 			const DMUI_ExternalOpenDescriptor descriptor{
-				sizeof(DMUI_ExternalOpenDescriptor),
 				DMUI_EXTERNAL_TARGET_VIRTUAL_FILE_PARENT,
 				unicodeRequested.c_str()
 			};
@@ -365,7 +335,6 @@ namespace vmm_tests
 			s_externalOpenCalls = 0;
 			const ExternalOpener opener{ &FakeExternalOpen };
 			DMUI_ExternalOpenDescriptor descriptor{
-				sizeof(DMUI_ExternalOpenDescriptor),
 				DMUI_EXTERNAL_TARGET_VIRTUAL_FILE,
 				unreadablePath.c_str()
 			};

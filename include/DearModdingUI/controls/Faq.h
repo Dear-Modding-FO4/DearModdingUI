@@ -40,8 +40,7 @@ namespace DearModdingUI
 		for (size_t index = 0; index < a_count; ++index)
 		{
 			const auto& entry = a_entries[index];
-			if (entry.structSize < DMUI_FAQ_ENTRY_0_1_SIZE ||
-				!entry.question || !entry.question[0] ||
+			if (!entry.question || !entry.question[0] ||
 				!entry.answer || !entry.answer[0])
 				return DMUI_RESULT_INVALID_ARGUMENT;
 		}

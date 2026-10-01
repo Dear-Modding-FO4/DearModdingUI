@@ -54,8 +54,6 @@ namespace DearModdingUI::PresentationServices
 		if (!a_id || !*a_id || !a_descriptor ||
 			a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_descriptor->structSize < DMUI_ANNOTATED_PLOT_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!RenderExecution::IsActiveClient(a_client, true))
 			return DMUI_RESULT_WRONG_THREAD;
 		if (a_descriptor->sampleCount > kPlotSampleLimit ||

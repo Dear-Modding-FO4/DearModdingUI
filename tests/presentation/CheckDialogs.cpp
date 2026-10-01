@@ -162,7 +162,6 @@ namespace vmm_tests
 			(void)execution.NoteBinding(1);
 			const RenderExecution::ClientGuard callback{ 15, false };
 			const DMUI_DialogDescriptor descriptor{
-				sizeof(DMUI_DialogDescriptor),
 				DMUI_DIALOG_KIND_TEXT_ENTRY,
 				"Save preset",
 				"Choose a preset name.",
@@ -182,7 +181,6 @@ namespace vmm_tests
 					DMUI_RESULT_OK,
 				"visible menu rejected a dialog request");
 			DMUI_DialogEvent event{};
-			event.structSize = sizeof(event);
 			char smallBuffer[2]{};
 			require(PresentationServices::PollDialogEvent(
 						15,
@@ -197,14 +195,12 @@ namespace vmm_tests
 					DMUI_RESULT_OK,
 				"pending dialog cancellation failed");
 			char text[65]{};
-			event.structSize = sizeof(event);
 			require(PresentationServices::PollDialogEvent(
 						15, dialog, &event, text, sizeof(text)) ==
 						DMUI_RESULT_OK &&
 					event.kind == DMUI_DIALOG_EVENT_CANCELLED &&
 					std::string_view{ text } == "Commonwealth",
 				"cancelled dialog did not preserve entered text");
-			event.structSize = sizeof(event);
 			require(PresentationServices::PollDialogEvent(
 						15, dialog, &event, text, sizeof(text)) ==
 					DMUI_RESULT_STALE_HANDLE,
@@ -343,7 +339,6 @@ namespace vmm_tests
 			(void)execution.NoteBinding(1);
 			const RenderExecution::ClientGuard callback{ 16, false };
 			const DMUI_DialogDescriptor descriptor{
-				sizeof(DMUI_DialogDescriptor),
 				DMUI_DIALOG_KIND_TEXT_ENTRY,
 				"Save preset",
 				"Choose a preset name.",
@@ -363,7 +358,6 @@ namespace vmm_tests
 				"duplicate pending submission was accepted");
 
 			DMUI_DialogEvent event{};
-			event.structSize = sizeof(event);
 			char text[65]{};
 			require(PresentationServices::PollDialogEvent(
 						16, dialog, &event, text, sizeof(text)) ==
@@ -399,7 +393,6 @@ namespace vmm_tests
 					DMUI_RESULT_OK,
 				"dialog rejection failed");
 
-			event.structSize = sizeof(event);
 			require(PresentationServices::PollDialogEvent(
 						16, dialog, &event, text, sizeof(text)) ==
 						DMUI_RESULT_OK &&
@@ -408,7 +401,6 @@ namespace vmm_tests
 				"rejected dialog did not preserve text and pending state");
 			require(PresentationServices::SubmitDialog(dialog) == DMUI_RESULT_OK,
 				"dialog resubmission after explicit error failed");
-			event.structSize = sizeof(event);
 			require(PresentationServices::PollDialogEvent(
 						16, dialog, &event, text, sizeof(text)) ==
 						DMUI_RESULT_OK &&
@@ -424,13 +416,11 @@ namespace vmm_tests
 						16, dialog, secondSubmission, 1, nullptr) ==
 					DMUI_RESULT_OK,
 				"accepted dialog resolution failed");
-			event.structSize = sizeof(event);
 			require(PresentationServices::PollDialogEvent(
 						16, dialog, &event, text, sizeof(text)) ==
 						DMUI_RESULT_OK &&
 					event.kind == DMUI_DIALOG_EVENT_COMPLETED,
 				"completed dialog event was not delivered");
-			event.structSize = sizeof(event);
 			require(PresentationServices::PollDialogEvent(
 						16, dialog, &event, text, sizeof(text)) ==
 					DMUI_RESULT_STALE_HANDLE,
@@ -446,7 +436,6 @@ namespace vmm_tests
 			(void)execution.NoteBinding(1);
 			const RenderExecution::ClientGuard callback{ 17, false };
 			const DMUI_DialogDescriptor descriptor{
-				sizeof(DMUI_DialogDescriptor),
 				DMUI_DIALOG_KIND_CONFIRM,
 				"Confirm sample",
 				"Confirm a harmless operation.",
@@ -473,7 +462,6 @@ namespace vmm_tests
 			frame.End();
 
 			DMUI_DialogEvent event{};
-			event.structSize = sizeof(event);
 			char text[2]{};
 			require(PresentationServices::PollDialogEvent(
 						17, pending, &event, text, sizeof(text)) ==
@@ -506,7 +494,6 @@ namespace vmm_tests
 			frame.End();
 
 			event = {};
-			event.structSize = sizeof(event);
 			require(PresentationServices::PollDialogEvent(
 						17, submitted, &event, text, sizeof(text)) ==
 						DMUI_RESULT_OK &&
@@ -538,7 +525,6 @@ namespace vmm_tests
 					DMUI_RESULT_OK,
 				"dismissed submitted work could not complete");
 			event = {};
-			event.structSize = sizeof(event);
 			require(PresentationServices::PollDialogEvent(
 						17, submitted, &event, text, sizeof(text)) ==
 						DMUI_RESULT_OK &&
@@ -564,7 +550,6 @@ namespace vmm_tests
 				PresentationServices::HasActiveDialog(),
 				completionPopupId);
 			event = {};
-			event.structSize = sizeof(event);
 			require(PresentationServices::PollDialogEvent(
 						17,
 						completedBetweenFrames,
@@ -589,7 +574,6 @@ namespace vmm_tests
 				"completion between capture and draw closed the parent");
 			frame.End();
 			event = {};
-			event.structSize = sizeof(event);
 			require(PresentationServices::PollDialogEvent(
 						17,
 						completedBetweenFrames,

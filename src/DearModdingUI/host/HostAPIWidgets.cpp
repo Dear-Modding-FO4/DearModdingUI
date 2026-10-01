@@ -29,8 +29,6 @@ namespace DearModdingUI::HostAPIInternal
 	{
 		if (!a_colors)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_colors->structSize < DMUI_THEME_COLORS_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		const auto validation = ValidateDrawingClient(a_client);
 		if (validation != DMUI_RESULT_OK)
 			return validation;
@@ -118,7 +116,6 @@ namespace DearModdingUI::HostAPIInternal
 														   uint32_t *a_changed) noexcept
 	{
 		DMUI_TextBuffer buffer{
-			.structSize = sizeof(DMUI_TextBuffer),
 			.data = a_buffer,
 			.capacity = a_capacity
 		};
@@ -137,8 +134,6 @@ namespace DearModdingUI::HostAPIInternal
 		*a_changed = 0u;
 		if (!a_id || !a_hint || !a_buffer)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_buffer->structSize < DMUI_TEXT_BUFFER_0_2_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		const auto validation = ValidateDrawingClient(a_client);
 		if (validation != DMUI_RESULT_OK)
 			return validation;
@@ -160,9 +155,6 @@ namespace DearModdingUI::HostAPIInternal
 	{
 		if (!a_descriptor || !a_state)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_descriptor->structSize < DMUI_TEXT_VIEW_DESCRIPTOR_0_2_SIZE ||
-			a_state->structSize < DMUI_TEXT_VIEW_STATE_0_2_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		const auto validation = ValidateDrawingClient(a_client);
 		if (validation != DMUI_RESULT_OK)
 			return validation;

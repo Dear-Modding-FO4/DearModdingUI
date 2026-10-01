@@ -40,8 +40,6 @@ namespace DearModdingUI
 		if (!a_descriptor || !a_client)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_client = DMUI_INVALID_CLIENT_HANDLE;
-		if (a_descriptor->structSize < DMUI_CLIENT_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->onHostReady || !a_descriptor->onHostUnavailable)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
 		if ((a_descriptor->capabilities &
@@ -50,21 +48,11 @@ namespace DearModdingUI
 		if (a_descriptor->origin != DMUI_CLIENT_ORIGIN_NATIVE &&
 			a_descriptor->origin != DMUI_CLIENT_ORIGIN_BRIDGED)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
-		const auto hasServiceRequirements =
-			a_descriptor->structSize >= DMUI_CLIENT_DESCRIPTOR_SERVICES_SIZE;
-		if (hasServiceRequirements &&
-			(a_descriptor->requiredServices &
-				~PresentationServices::kSupportedServices) != 0)
-			return DMUI_RESULT_SERVICE_UNAVAILABLE;
-
 		try
 		{
 			RegisteredClient client{};
 			client.version = a_descriptor->version;
 			client.capabilities = a_descriptor->capabilities;
-			client.requiredServices = hasServiceRequirements ?
-				a_descriptor->requiredServices :
-				DMUI_HOST_SERVICE_NONE;
 			client.origin = a_descriptor->origin;
 			client.onHostReady = a_descriptor->onHostReady;
 			client.onHostUnavailable = a_descriptor->onHostUnavailable;
@@ -123,8 +111,6 @@ namespace DearModdingUI
 		if (!a_descriptor || !a_page || a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_page = DMUI_INVALID_PAGE_HANDLE;
-		if (a_descriptor->structSize < DMUI_PAGE_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->draw)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
 		if (a_descriptor->kind != DMUI_PAGE_KIND_SETTINGS &&
@@ -140,9 +126,7 @@ namespace DearModdingUI
 			page.draw = a_descriptor->draw;
 			page.userData = a_descriptor->userData;
 			const auto* iconName =
-				a_descriptor->structSize >= DMUI_PAGE_DESCRIPTOR_ICON_SIZE ?
-					a_descriptor->iconName :
-					nullptr;
+				a_descriptor->iconName;
 			if (!Internal::CopyBoundedString(
 					a_descriptor->id, kIdCapacity, false, page.id) ||
 				!Internal::CopyBoundedString(
@@ -205,8 +189,6 @@ namespace DearModdingUI
 	{
 		if (!a_descriptor || a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_descriptor->structSize < DMUI_CATEGORY_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (a_descriptor->reserved != 0)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
 
@@ -216,9 +198,7 @@ namespace DearModdingUI
 			category.client = a_client;
 			category.sortKey = a_descriptor->sortKey;
 			const auto* iconName =
-				a_descriptor->structSize >= DMUI_CATEGORY_DESCRIPTOR_ICON_SIZE ?
-					a_descriptor->iconName :
-					nullptr;
+				a_descriptor->iconName;
 			if (!Internal::CopyBoundedString(
 					a_descriptor->id,
 					kCategoryIdCapacity,
@@ -266,8 +246,6 @@ namespace DearModdingUI
 		if (!a_descriptor || !a_action || a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_action = DMUI_INVALID_ACTION_HANDLE;
-		if (a_descriptor->structSize < DMUI_ACTION_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->callback)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
 
@@ -339,8 +317,6 @@ namespace DearModdingUI
 		if (!a_descriptor || !a_observer || a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_observer = DMUI_INVALID_FRAME_OBSERVER_HANDLE;
-		if (a_descriptor->structSize < DMUI_FRAME_OBSERVER_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->callback)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
 
@@ -381,9 +357,6 @@ namespace DearModdingUI
 			a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_observer = DMUI_INVALID_PAGE_ACTIVITY_OBSERVER_HANDLE;
-		if (a_descriptor->structSize <
-			DMUI_PAGE_ACTIVITY_OBSERVER_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->callback)
 			return DMUI_RESULT_INVALID_DESCRIPTOR;
 

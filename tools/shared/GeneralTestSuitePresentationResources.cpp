@@ -242,7 +242,6 @@ namespace DmuiTests::Detail
 		}
 		const auto extent = a_large ? 112.0f : 64.0f;
 		const DMUI_ImageDrawOptions options{
-			sizeof(DMUI_ImageDrawOptions),
 			{ extent, extent },
 			{ 0.0f, 0.0f },
 			{ 1.0f, 1.0f },
@@ -250,10 +249,9 @@ namespace DmuiTests::Detail
 			1,
 			0
 		};
-		auto& client = m_context.Client();
-		if (client.DrawImage(m_image->Handle(), options))
+		if (dmui::ui::Image(m_image->Handle(), options))
 			++m_imageDrawCount;
-		m_imageResult = client.LastResult();
+		m_imageResult = dmui::ui::LastResult();
 	}
 
 	void PresentationResources::FillCpuPixels(
@@ -284,7 +282,6 @@ namespace DmuiTests::Detail
 		uint32_t a_height) noexcept
 	{
 		return {
-			sizeof(DMUI_ImageDescriptor),
 			a_width,
 			a_height,
 			DMUI_PIXEL_FORMAT_RGBA8_UNORM,
@@ -383,7 +380,6 @@ namespace DmuiTests::Detail
 		if (!m_cpuImage)
 			return;
 		const DMUI_ImageDrawOptions options{
-			sizeof(DMUI_ImageDrawOptions),
 			{ 112.0f, 80.0f },
 			{ 0.0f, 0.0f },
 			{ 1.0f, 1.0f },
@@ -391,10 +387,9 @@ namespace DmuiTests::Detail
 			1,
 			0
 		};
-		auto& client = m_context.Client();
-		if (client.DrawImage(m_cpuImage->Handle(), options))
+		if (dmui::ui::Image(m_cpuImage->Handle(), options))
 			++m_cpuImageDrawCount;
-		m_cpuImageResult = client.LastResult();
+		m_cpuImageResult = dmui::ui::LastResult();
 	}
 
 	void PresentationResources::ReleaseAfterQueuedDraw() noexcept
@@ -470,7 +465,6 @@ namespace DmuiTests::Detail
 			{ 33.33f, { 0.95f, 0.55f, 0.20f, 0.90f } }
 		};
 		const DMUI_AnnotatedPlotDescriptor plot{
-			sizeof(DMUI_AnnotatedPlotDescriptor),
 			m_samples.data(),
 			static_cast<uint32_t>(m_samples.size()),
 			static_cast<uint32_t>(m_sampleOffset),
@@ -481,10 +475,10 @@ namespace DmuiTests::Detail
 			references,
 			static_cast<uint32_t>(std::size(references))
 		};
-		auto& client = m_context.Client();
-		if (client.DrawAnnotatedPlot(a_id, plot))
+		dmui::ui::PlotAnnotated(a_id, plot);
+		if (dmui::ui::LastResult() == DMUI_RESULT_OK)
 			++m_plotDraws;
-		m_plotResult = client.LastResult();
+		m_plotResult = dmui::ui::LastResult();
 	}
 
 	void PresentationResources::SeedPlot() noexcept

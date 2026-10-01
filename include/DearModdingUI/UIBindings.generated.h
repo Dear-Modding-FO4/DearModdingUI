@@ -1084,14 +1084,31 @@ namespace DearModdingUI::UI::Bindings
 	[[nodiscard]] DMUI_Result DMUI_CALL ListClipperEnd(
 		DMUI_ClientHandle a_client,
 		uint64_t a_clipper) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL Image(
+		DMUI_ClientHandle a_client,
+		DMUI_ImageHandle a_image,
+		const DMUI_ImageDrawOptions* a_options,
+		uint32_t* a_drawn) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL PlotAnnotated(
+		DMUI_ClientHandle a_client,
+		const char* a_id,
+		const DMUI_AnnotatedPlotDescriptor* a_descriptor) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL GetCursorPos(
+		DMUI_ClientHandle a_client,
+		DMUI_Vec2* a_position) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL SetCursorPos(
+		DMUI_ClientHandle a_client,
+		DMUI_Vec2 a_position) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL TextAligned(
+		DMUI_ClientHandle a_client,
+		float a_alignX,
+		float a_width,
+		const char* a_text,
+		size_t a_length) noexcept;
 
 	[[nodiscard]] inline DMUI_UIAPI MakeAPI() noexcept
 	{
 		return {
-			DMUI_UI_API_CURRENT_SIZE,
-			DMUI_UI_ABI_CURRENT,
-			DMUI_UI_REVISION_CURRENT,
-			0u,
 			&GetStyleMetrics,
 			&BeginCombo,
 			&EndCombo,
@@ -1160,7 +1177,12 @@ namespace DearModdingUI::UI::Bindings
 			&PopStyleVar,
 			&ListClipperBegin,
 			&ListClipperStep,
-			&ListClipperEnd
+			&ListClipperEnd,
+			&Image,
+			&PlotAnnotated,
+			&GetCursorPos,
+			&SetCursorPos,
+			&TextAligned
 		};
 	}
 }

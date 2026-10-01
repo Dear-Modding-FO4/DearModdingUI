@@ -40,7 +40,6 @@ namespace vmm_tests
 			CallbackState& a_state) noexcept
 		{
 			return {
-				sizeof(DMUI_HotkeyActionDescriptor),
 				a_id,
 				a_id,
 				a_chord,
@@ -69,7 +68,6 @@ namespace vmm_tests
 			DMUI_HotkeyActionHandle a_action)
 		{
 			DMUI_HotkeyBindingInfo binding{};
-			binding.structSize = sizeof(binding);
 			require(a_registry.Query(a_client, a_action, &binding) == DMUI_RESULT_OK,
 				"hotkey query failed");
 			return binding;
@@ -629,7 +627,6 @@ namespace vmm_tests
 			registry.DispatchQueued();
 			require(state.edgeCount == 0, "a dead action release was dispatched");
 			DMUI_HotkeyBindingInfo stale{};
-			stale.structSize = sizeof(stale);
 			require(registry.Query(1, action, &stale) ==
 					DMUI_RESULT_ACTION_NOT_FOUND,
 				"a stale handle resolved after unregister");

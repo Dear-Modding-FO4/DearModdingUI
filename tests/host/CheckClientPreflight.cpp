@@ -17,7 +17,7 @@ namespace vmm_tests
 
 	void run_client_preflight_checks(Runner& runner)
 	{
-		runner.test("client descriptors reject null size and callback failures", [] {
+		runner.test("client descriptors reject null arguments and callbacks", [] {
 			Registry registry;
 			CallbackState state;
 			DMUI_ClientHandle handle{};
@@ -29,11 +29,6 @@ namespace vmm_tests
 			require(registry.RegisterClient(&client, nullptr) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"null output was accepted");
-			client.structSize = DMUI_CLIENT_DESCRIPTOR_0_1_SIZE - 1;
-			require(registry.RegisterClient(&client, &handle) ==
-					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"short client descriptor was accepted");
-			client.structSize = sizeof(client);
 			client.onHostReady = nullptr;
 			require(registry.RegisterClient(&client, &handle) ==
 					DMUI_RESULT_INVALID_DESCRIPTOR,
@@ -53,11 +48,6 @@ namespace vmm_tests
 			require(registry.RegisterPage(handle, &page, nullptr) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"null page output was accepted");
-			page.structSize = DMUI_PAGE_DESCRIPTOR_0_1_SIZE - 1;
-			require(registry.RegisterPage(handle, &page, &pageHandle) ==
-					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"short page descriptor was accepted");
-			page.structSize = sizeof(page);
 			page.kind = 3;
 			require(registry.RegisterPage(handle, &page, &pageHandle) ==
 					DMUI_RESULT_INVALID_PAGE_KIND,
@@ -69,19 +59,11 @@ namespace vmm_tests
 				"null page callback was accepted");
 		});
 
-		runner.test("client descriptors require and copy the complete 0.1 shape", [] {
+		runner.test("client registration copies icon metadata", [] {
 			CallbackState state;
 
 			Registry registry;
-			auto shortDescriptor = Client("short.mod", "Short", state);
-			shortDescriptor.structSize =
-				static_cast<uint32_t>(
-					offsetof(DMUI_ClientDescriptor, bridgeSourceLabel));
 			DMUI_ClientHandle handle{};
-			require(
-				registry.RegisterClient(&shortDescriptor, &handle) ==
-					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"a partial 0.1 client descriptor was accepted");
 
 			char iconName[]{ "gauge" };
 			auto client = Client("owned.mod", "Owned", state);
@@ -106,7 +88,7 @@ namespace vmm_tests
 				"the client icon name was not deep-copied");
 		});
 
-		runner.test("navigation icon descriptor extensions preserve old prefixes", [] {
+		runner.test("navigation icons validate and copy descriptor metadata", [] {
 			Registry registry;
 			CallbackState state;
 			auto clientDescriptor =
@@ -118,21 +100,19 @@ namespace vmm_tests
 					DMUI_RESULT_OK,
 				"navigation icon client registration failed");
 
-			DMUI_CategoryDescriptor oldCategory{
-				DMUI_CATEGORY_DESCRIPTOR_0_1_SIZE,
+			DMUI_CategoryDescriptor noIconCategory{
 				"old",
 				"Lighting",
 				0,
 				0,
-				"sun-horizon"
+				nullptr
 			};
 			require(
-				registry.RegisterCategory(client, &oldCategory) ==
+				registry.RegisterCategory(client, &noIconCategory) ==
 					DMUI_RESULT_OK,
-				"old category prefix was rejected");
+				"category without an explicit icon was rejected");
 			char categoryIcon[]{ "sun-horizon" };
-			auto currentCategory = oldCategory;
-			currentCategory.structSize = DMUI_CATEGORY_DESCRIPTOR_ICON_SIZE;
+			auto currentCategory = noIconCategory;
 			currentCategory.id = "current";
 			currentCategory.iconName = categoryIcon;
 			require(
@@ -141,20 +121,19 @@ namespace vmm_tests
 				"current category icon was rejected");
 			categoryIcon[0] = 'x';
 
-			auto oldPage = Page(
+			auto noIconPage = Page(
 				"old",
 				"Lighting",
 				"old",
 				0,
 				DMUI_PAGE_KIND_SETTINGS,
 				state,
-				"sun");
-			oldPage.structSize = DMUI_PAGE_DESCRIPTOR_0_1_SIZE;
+				nullptr);
 			DMUI_PageHandle oldPageHandle{};
 			require(
-				registry.RegisterPage(client, &oldPage, &oldPageHandle) ==
+				registry.RegisterPage(client, &noIconPage, &oldPageHandle) ==
 					DMUI_RESULT_OK,
-				"old page prefix was rejected");
+				"page without an explicit icon was rejected");
 			char pageIcon[]{ "sliders-horizontal" };
 			auto currentPage = Page(
 				"current",
@@ -203,7 +182,7 @@ namespace vmm_tests
 				categories.size() == 2 &&
 					categories[0].iconName.empty() &&
 					categories[1].iconName == "sun-horizon",
-				"category icon prefix guards or copy lifetime changed");
+				"category icon default or copy lifetime changed");
 			const auto& pages = registry.OrderedPages();
 			const auto oldRegisteredPage = std::ranges::find(
 				pages,
@@ -220,7 +199,7 @@ namespace vmm_tests
 					currentRegisteredPage != pages.end() &&
 					currentRegisteredPage->iconName ==
 						"sliders-horizontal",
-				"page icon prefix guards or copy lifetime changed");
+				"page icon default or copy lifetime changed");
 			const auto& navigation = registry.Navigation().clients.front();
 			const auto navigationCategory = std::ranges::find(
 				navigation.categories,
@@ -237,271 +216,17 @@ namespace vmm_tests
 				"navigation model dropped copied icon metadata");
 		});
 
-		runner.test("client service requirements fail before registration", [] {
-			CallbackState state;
-			Registry registry;
-			auto descriptor =
-				Client("required.mod", "Required", state);
-			descriptor.requiredServices =
-				DMUI_HOST_SERVICE_IMAGE_RESOURCES |
-				DMUI_HOST_SERVICE_DIALOGS |
-				DMUI_HOST_SERVICE_PIXEL_IMAGES;
-			descriptor.apiVersion = DMUI_MAKE_VERSION(99u, 0u);
-			DMUI_ClientHandle handle{};
-			require(registry.RegisterClient(&descriptor, &handle) ==
-						DMUI_RESULT_OK &&
-					handle != DMUI_INVALID_CLIENT_HANDLE,
-				"release metadata incorrectly gated client registration");
 
-			Registry unavailable;
-			auto unsupported =
-				Client("unsupported.mod", "Unsupported", state);
-			unsupported.requiredServices = UINT64_C(1) << 63u;
-			handle = DMUI_INVALID_CLIENT_HANDLE;
-			require(unavailable.RegisterClient(&unsupported, &handle) ==
-						DMUI_RESULT_SERVICE_UNAVAILABLE &&
-					handle == DMUI_INVALID_CLIENT_HANDLE &&
-					unavailable.ClientCount() == 0,
-				"unsupported service registered a partial client");
 
-		});
 
-		runner.test("official client preflight rejects incomplete host tables", [] {
-			s_mockRegistrations = 0;
-			s_mockServices = DMUI_HOST_SERVICE_IMAGE_RESOURCES;
-			s_mockUIResult = DMUI_RESULT_OK;
-			s_mockUIRevision = DMUI_UI_REVISION_CURRENT;
-			s_mockUITableSize = DMUI_UI_API_CURRENT_SIZE;
-			auto api = PreflightHostAPI();
-			api.queryUIAPI = nullptr;
-			const dmui::ClientOptions options{
-				.requiredServices = DMUI_HOST_SERVICE_IMAGE_RESOURCES
-			};
 
-			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT + 1;
-			require(dmui::PreflightHostAPI(&api, options) ==
-						DMUI_RESULT_UNSUPPORTED_ABI &&
-					s_mockRegistrations == 0,
-				"unknown host ABI generation reached client registration");
-			api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
-			api.apiVersion = DMUI_MAKE_VERSION(99u, 0u);
-			require(dmui::PreflightHostAPI(&api, options) ==
-						DMUI_RESULT_SERVICE_UNAVAILABLE &&
-					s_mockRegistrations == 0,
-				"missing queryServices reached client registration");
-			api.queryServices = &MockQueryServices;
-			api.queryUIAPI = &MockQueryUIAPI;
-			s_mockServices = DMUI_HOST_SERVICE_NONE;
-			require(dmui::PreflightHostAPI(&api, options) ==
-						DMUI_RESULT_SERVICE_UNAVAILABLE &&
-					s_mockRegistrations == 0,
-				"missing semantic service reached client registration");
-			s_mockServices = DMUI_HOST_SERVICE_IMAGE_RESOURCES;
-			require(dmui::PreflightHostAPI(&api, options) ==
-						DMUI_RESULT_SERVICE_UNAVAILABLE &&
-					s_mockRegistrations == 0,
-				"advertised service with missing functions reached registration");
-			api.importD3D11Image = [](DMUI_ClientHandle,
-									 const DMUI_D3D11ImageDescriptor*,
-									 DMUI_ImageHandle*) noexcept {
-				return DMUI_RESULT_OK;
-			};
-			api.drawImage = &MockDrawImage;
-			api.releaseImage = &MockReleaseImage;
-			api.queryImage = &MockQueryImage;
-			api.queryUIAPI = nullptr;
-			require(dmui::PreflightHostAPI(&api, options) ==
-						DMUI_RESULT_UNSUPPORTED_ABI &&
-					s_mockRegistrations == 0,
-				"missing stable UI query reached client registration");
-			api.queryUIAPI = &MockQueryUIAPI;
-			require(dmui::PreflightHostAPI(&api, options) == DMUI_RESULT_OK,
-				"compatible host ABI failed with different release metadata");
-			s_mockUIRevision = 0u;
-			require(dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_UNSUPPORTED_ABI,
-				"old stable UI revision reached client registration");
-			s_mockUIRevision = DMUI_UI_REVISION_CURRENT;
-			s_mockUITableSize = DMUI_UI_API_REQUIRED_SIZE - 1u;
-			require(dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_UNSUPPORTED_ABI,
-				"short required stable UI table reached client registration");
-			s_mockUITableSize = DMUI_UI_API_REQUIRED_SIZE;
-			require(dmui::PreflightHostAPI(&api, options) == DMUI_RESULT_OK,
-				"missing optional UI tail incorrectly blocked connection");
-			s_mockMissingRequiredUIOperation = true;
-			require(dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_UNSUPPORTED_ABI,
-				"missing mandatory Begin/End pair operation reached registration");
-			s_mockMissingRequiredUIOperation = false;
-		});
 
-		runner.test("official client preflight enforces requested UI tail operations", [] {
-			s_mockUIResult = DMUI_RESULT_OK;
-			s_mockUIRevision = DMUI_UI_REVISION_CURRENT;
-			s_mockUITableSize = DMUI_UI_API_CURRENT_SIZE;
-			s_mockMissingRequiredUIOperation = false;
-			s_mockMissingPlotLines = true;
-			auto api = PreflightHostAPI();
 
-			const dmui::ClientOptions baseline{};
-			require(
-				dmui::PreflightHostAPI(&api, baseline) == DMUI_RESULT_OK,
-				"missing optional UI tail blocked a baseline client");
 
-			const dmui::ClientOptions plotLines{
-				.minimumUIAPISize = DMUI_UI_API_PLOT_LINES_SIZE
-			};
-			require(
-				dmui::PreflightHostAPI(&api, plotLines) ==
-					DMUI_RESULT_UNSUPPORTED_ABI,
-				"requested PlotLines tail accepted a null operation");
 
-			s_mockMissingPlotLines = false;
-			require(
-				dmui::PreflightHostAPI(&api, plotLines) == DMUI_RESULT_OK,
-				"available requested PlotLines tail failed preflight");
-		});
 
-		runner.test("official client preflight validates requested host prefix", [] {
-			auto api = PreflightHostAPI();
-			api.registerPage = &MockRegisterPage;
-			api.queryState = [](DMUI_HostStateInfo*) noexcept {
-				return DMUI_RESULT_OK;
-			};
-			api.requestFrame = [](DMUI_ClientHandle, DMUI_PageHandle) noexcept {
-				return DMUI_RESULT_OK;
-			};
-			api.releaseFrame = api.requestFrame;
-			api.isMenuVisible = [](uint32_t*) noexcept {
-				return DMUI_RESULT_OK;
-			};
-			api.selectPage = api.requestFrame;
-			api.attachSwapChain = [](DMUI_ClientHandle, void*) noexcept {
-				return DMUI_RESULT_OK;
-			};
-			api.registerAction = [](
-									 DMUI_ClientHandle,
-									 const DMUI_ActionDescriptor*,
-									 DMUI_ActionHandle*) noexcept {
-				return DMUI_RESULT_OK;
-			};
-			api.setStatus = [](
-							 DMUI_ClientHandle,
-							 DMUI_StatusSeverity,
-							 const char*) noexcept {
-				return DMUI_RESULT_OK;
-			};
-			api.getThemeColors = [](
-								 DMUI_ClientHandle,
-								 DMUI_ThemeColors*) noexcept {
-				return DMUI_RESULT_OK;
-			};
-			api.pushFont = [](DMUI_ClientHandle, DMUI_FontRole) noexcept {
-				return DMUI_RESULT_OK;
-			};
-			api.popFont = [](DMUI_ClientHandle) noexcept {
-				return DMUI_RESULT_OK;
-			};
-			api.drawSectionHeader = [](
-									 DMUI_ClientHandle,
-									 const char*,
-									 uint32_t) noexcept {
-				return DMUI_RESULT_OK;
-			};
-			api.drawSearchInput = [](
-								 DMUI_ClientHandle,
-								 const char*,
-								 const char*,
-								 char*,
-								 size_t,
-								 uint32_t*) noexcept {
-				return DMUI_RESULT_OK;
-			};
-			const dmui::ClientOptions options{
-				.minimumHostAPISize = DMUI_HOST_API_DRAW_SEARCH_INPUT_SIZE
-			};
-			require(
-				dmui::PreflightHostAPI(&api, options) == DMUI_RESULT_OK,
-				"complete requested host prefix failed preflight");
 
-			api.getThemeColors = nullptr;
-			require(
-				dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_UNSUPPORTED_ABI,
-				"missing required host widget operation reached registration");
-			api.getThemeColors = [](
-								 DMUI_ClientHandle,
-								 DMUI_ThemeColors*) noexcept {
-				return DMUI_RESULT_OK;
-			};
-			api.structSize = DMUI_HOST_API_DRAW_SEARCH_INPUT_SIZE - 1;
-			require(
-				dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"short requested host prefix reached registration");
-		});
 
-		runner.test("navigation icon preflight requires page and category entries", [] {
-			s_mockServices = DMUI_HOST_SERVICE_NAVIGATION_ICONS;
-			auto api = PreflightHostAPI();
-			api.queryServices = &MockQueryServices;
-			const dmui::ClientOptions options{
-				.requiredServices = DMUI_HOST_SERVICE_NAVIGATION_ICONS
-			};
-			require(
-				dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_SERVICE_UNAVAILABLE,
-				"navigation icon preflight accepted missing registration entries");
-			api.registerPage = &MockRegisterPage;
-			require(
-				dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_SERVICE_UNAVAILABLE,
-				"navigation icon preflight omitted category registration");
-			api.registerCategory = &MockRegisterCategory;
-			require(
-				dmui::PreflightHostAPI(&api, options) == DMUI_RESULT_OK,
-				"complete navigation icon surface failed preflight");
-			api.structSize = DMUI_HOST_API_REGISTER_CATEGORY_SIZE - 1;
-			require(
-				dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_UNSUPPORTED_ABI,
-				"truncated host table exposed the appended UI query");
-		});
-
-		runner.test("pixel-image preflight requires create update and shared entries", [] {
-			s_mockServices = DMUI_HOST_SERVICE_PIXEL_IMAGES;
-			auto api = PreflightHostAPI();
-			api.queryServices = &MockQueryServices;
-			const dmui::ClientOptions options{
-				.requiredServices = DMUI_HOST_SERVICE_PIXEL_IMAGES
-			};
-
-			require(dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_SERVICE_UNAVAILABLE,
-				"advertised pixel images omitted all required entries");
-			api.createImage = &MockCreateImage;
-			api.updateImage = &MockUpdateImage;
-			require(dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_SERVICE_UNAVAILABLE,
-				"pixel image preflight omitted shared handle entries");
-			api.drawImage = &MockDrawImage;
-			api.releaseImage = &MockReleaseImage;
-			api.queryImage = &MockQueryImage;
-			require(dmui::PreflightHostAPI(&api, options) == DMUI_RESULT_OK,
-				"complete pixel image surface failed preflight");
-			api.updateImage = nullptr;
-			require(dmui::PreflightHostAPI(&api, options) ==
-					DMUI_RESULT_SERVICE_UNAVAILABLE,
-				"pixel image preflight accepted a missing update entry");
-
-			const dmui::ClientOptions unknown{
-				.requiredServices = UINT64_C(1) << 63u
-			};
-			require(dmui::PreflightHostAPI(&api, unknown) ==
-					DMUI_RESULT_SERVICE_UNAVAILABLE,
-				"unknown service bit passed official preflight");
-		});
 
 		runner.test("bridged clients carry copied source labels", [] {
 			Registry registry;

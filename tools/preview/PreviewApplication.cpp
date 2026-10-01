@@ -71,12 +71,11 @@ namespace DearModdingUIPreview
 			const auto owner = pages.front().client;
 			const size_t lineOffsets[]{ 0 };
 			const DMUI_TextViewDescriptor descriptor{
-				.structSize = sizeof(DMUI_TextViewDescriptor),
 				.id = "preview-access-check",
 				.lineOffsets = lineOffsets,
 				.lineCount = 1
 			};
-			DMUI_TextViewState state{ .structSize = sizeof(DMUI_TextViewState) };
+			DMUI_TextViewState state{  };
 			if (HostAPI().drawTextView(owner, &descriptor, &state) !=
 				DMUI_RESULT_WRONG_THREAD)
 			{

@@ -62,12 +62,10 @@ namespace vmm_tests
 			PageActivityState firstActivity;
 			PageActivityState secondActivity;
 			const DMUI_PageActivityObserverDescriptor firstObserver{
-				sizeof(DMUI_PageActivityObserverDescriptor),
 				&ObservePageActivity,
 				&firstActivity
 			};
 			const DMUI_PageActivityObserverDescriptor secondObserver{
-				sizeof(DMUI_PageActivityObserverDescriptor),
 				&ObservePageActivity,
 				&secondActivity
 			};

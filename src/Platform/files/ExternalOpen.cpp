@@ -408,8 +408,6 @@ namespace DearModdingUI
 	{
 		if (!a_descriptor)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_descriptor->structSize < DMUI_EXTERNAL_OPEN_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (a_descriptor->reserved != 0 ||
 			a_descriptor->argumentCount > kExternalArgumentCapacity ||
 			(a_descriptor->argumentCount != 0 && !a_descriptor->arguments))

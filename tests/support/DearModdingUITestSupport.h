@@ -38,13 +38,6 @@ namespace vmm_tests::support::host
 		std::vector<DMUI_PageActivityInfo> events;
 	};
 
-	extern uint32_t s_mockRegistrations;
-	extern DMUI_HostServices s_mockServices;
-	extern DMUI_Result s_mockUIResult;
-	extern uint32_t s_mockUIRevision;
-	extern uint32_t s_mockUITableSize;
-	extern bool s_mockMissingRequiredUIOperation;
-	extern bool s_mockMissingPlotLines;
 	extern uint32_t s_externalOpenCalls;
 	extern uint32_t s_externalNativeError;
 	extern DMUI_Result s_externalResult;
@@ -89,50 +82,6 @@ namespace vmm_tests::support::host
 	DMUI_Result FakeExternalOpen(
 		const ExternalOpenRequest& a_request,
 		uint32_t* a_nativeError) noexcept;
-
-	DMUI_Result DMUI_CALL MockRegisterClient(
-		const DMUI_ClientDescriptor* a_descriptor,
-		DMUI_ClientHandle* a_handle) noexcept;
-	DMUI_Result DMUI_CALL MockRegisterPage(
-		DMUI_ClientHandle a_client,
-		const DMUI_PageDescriptor* a_descriptor,
-		DMUI_PageHandle* a_handle) noexcept;
-	DMUI_Result DMUI_CALL MockRegisterCategory(
-		DMUI_ClientHandle a_client,
-		const DMUI_CategoryDescriptor* a_descriptor) noexcept;
-	DMUI_Result DMUI_CALL MockQueryServices(
-		DMUI_HostServicesInfo* a_services) noexcept;
-	DMUI_Result DMUI_CALL MockQueryUIAPI(
-		uint32_t a_requestedUIAbi,
-		uint32_t a_minimumRevision,
-		uint32_t a_minimumTableSize,
-		DMUI_UIAPIInfo* a_info) noexcept;
-
-	[[nodiscard]] DMUI_HostAPI PreflightHostAPI() noexcept;
-
-	DMUI_Result DMUI_CALL MockOpenExternal(
-		DMUI_ClientHandle a_client,
-		const DMUI_ExternalOpenDescriptor* a_descriptor,
-		uint32_t* a_nativeError) noexcept;
-	DMUI_Result DMUI_CALL MockCreateImage(
-		DMUI_ClientHandle a_client,
-		const DMUI_ImageDescriptor* a_descriptor,
-		DMUI_ImageHandle* a_handle) noexcept;
-	DMUI_Result DMUI_CALL MockUpdateImage(
-		DMUI_ClientHandle a_client,
-		DMUI_ImageHandle a_image,
-		const DMUI_ImageDescriptor* a_descriptor) noexcept;
-	DMUI_Result DMUI_CALL MockDrawImage(
-		DMUI_ClientHandle a_client,
-		DMUI_ImageHandle a_image,
-		const DMUI_ImageDrawOptions* a_options) noexcept;
-	DMUI_Result DMUI_CALL MockReleaseImage(
-		DMUI_ClientHandle a_client,
-		DMUI_ImageHandle a_image) noexcept;
-	DMUI_Result DMUI_CALL MockQueryImage(
-		DMUI_ClientHandle a_client,
-		DMUI_ImageHandle a_image,
-		DMUI_ImageInfo* a_info) noexcept;
 
 	class SilentHealthReporter final : public HealthReporter
 	{

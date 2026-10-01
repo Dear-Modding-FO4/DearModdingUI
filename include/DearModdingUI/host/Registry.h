@@ -22,7 +22,7 @@ namespace DearModdingUI
 		std::string bridgeSourceLabel;
 		uint32_t version{ 0 };
 		DMUI_ClientCapabilities capabilities{ DMUI_CLIENT_CAPABILITY_NONE };
-		DMUI_HostServices requiredServices{ DMUI_HOST_SERVICE_NONE };
+
 		DMUI_HostReadyCallback onHostReady{ nullptr };
 		DMUI_HostUnavailableCallback onHostUnavailable{ nullptr };
 		void* userData{ nullptr };

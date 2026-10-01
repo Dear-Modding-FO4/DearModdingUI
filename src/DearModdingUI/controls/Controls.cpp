@@ -854,7 +854,6 @@ namespace DearModdingUI
 		size_t a_capacity) noexcept
 	{
 		DMUI_TextBuffer buffer{
-			.structSize = sizeof(DMUI_TextBuffer),
 			.data = a_buffer,
 			.capacity = a_capacity
 		};

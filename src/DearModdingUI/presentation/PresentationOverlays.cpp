@@ -94,8 +94,6 @@ namespace DearModdingUI::PresentationServices
 		if (!a_options || a_client == DMUI_INVALID_CLIENT_HANDLE ||
 			a_page == DMUI_INVALID_PAGE_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_options->structSize < DMUI_MANAGED_OVERLAY_OPTIONS_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (a_options->anchor > DMUI_OVERLAY_ANCHOR_FREE ||
 			!std::isfinite(a_options->offset.x) ||
 			!std::isfinite(a_options->offset.y) ||
@@ -134,8 +132,7 @@ namespace DearModdingUI::PresentationServices
 				overlay = &service.overlays.back();
 				overlay->owner = a_client;
 				overlay->page = a_page;
-				overlay->placement.structSize =
-					sizeof(DMUI_ManagedOverlayPlacement);
+
 			}
 			overlay->options = *a_options;
 			overlay->configured = true;
@@ -157,8 +154,6 @@ namespace DearModdingUI::PresentationServices
 		if (!a_placement || a_client == DMUI_INVALID_CLIENT_HANDLE ||
 			a_page == DMUI_INVALID_PAGE_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_placement->structSize < DMUI_MANAGED_OVERLAY_PLACEMENT_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		auto& service = GetOverlayService();
 		const std::scoped_lock lock{ service.mutex };
 		const auto* overlay = FindOverlay(service, a_page);

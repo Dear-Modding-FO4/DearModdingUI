@@ -90,11 +90,6 @@ namespace vmm_tests
 						DMUI_INVALID_CLIENT_HANDLE, &action, &handle) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"invalid action client handle was accepted");
-			action.structSize = sizeof(action) - 1;
-			require(registry.RegisterAction(first, &action, &handle) ==
-					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"short action descriptor was accepted");
-			action.structSize = sizeof(action);
 			action.callback = nullptr;
 			require(registry.RegisterAction(first, &action, &handle) ==
 					DMUI_RESULT_INVALID_DESCRIPTOR,
@@ -150,11 +145,6 @@ namespace vmm_tests
 						DMUI_INVALID_CLIENT_HANDLE, &observer, &handle) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"invalid frame observer client handle was accepted");
-			observer.structSize = sizeof(observer) - 1;
-			require(registry.RegisterFrameObserver(client, &observer, &handle) ==
-					DMUI_RESULT_STRUCT_TOO_SMALL,
-				"short frame observer descriptor was accepted");
-			observer.structSize = sizeof(observer);
 			observer.callback = nullptr;
 			require(registry.RegisterFrameObserver(client, &observer, &handle) ==
 					DMUI_RESULT_INVALID_DESCRIPTOR,
@@ -208,7 +198,6 @@ namespace vmm_tests
 			AddCategory(registry, second, "second-only", "Second Only");
 
 			const DMUI_CategoryDescriptor duplicate{
-				sizeof(DMUI_CategoryDescriptor),
 				"general",
 				"Renamed",
 				99,

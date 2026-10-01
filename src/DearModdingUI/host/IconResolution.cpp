@@ -16,8 +16,6 @@ namespace DearModdingUI::HostAPIInternal
 		*a_glyph = 0;
 		if (!a_request)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_request->structSize < DMUI_ICON_RESOLUTION_REQUEST_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 
 		const auto explicitName =
 			Internal::ReadBoundedString(a_request->explicitName, 128, true);

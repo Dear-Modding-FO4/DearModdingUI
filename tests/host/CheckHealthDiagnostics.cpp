@@ -140,7 +140,6 @@ namespace vmm_tests
 		runner.test("client diagnostics aggregate by severity scope and summary", [] {
 			DiagnosticStore store;
 			DMUI_DiagnosticDescriptor diagnostic{
-				DMUI_DIAGNOSTIC_DESCRIPTOR_0_1_SIZE,
 				DMUI_STATUS_SEVERITY_WARNING,
 				"General",
 				"Expected a boolean value.",
@@ -181,7 +180,6 @@ namespace vmm_tests
 				summaries.push_back(
 					"Diagnostic " + std::to_string(index));
 				const DMUI_DiagnosticDescriptor diagnostic{
-					DMUI_DIAGNOSTIC_DESCRIPTOR_0_1_SIZE,
 					DMUI_STATUS_SEVERITY_WARNING,
 					"General",
 					summaries.back().c_str(),
@@ -192,7 +190,6 @@ namespace vmm_tests
 					"a bounded diagnostic report was rejected");
 			}
 			const DMUI_DiagnosticDescriptor repeated{
-				DMUI_DIAGNOSTIC_DESCRIPTOR_0_1_SIZE,
 				DMUI_STATUS_SEVERITY_WARNING,
 				"General",
 				summaries.front().c_str(),
@@ -202,7 +199,6 @@ namespace vmm_tests
 				store.Report(9, repeated) == DMUI_RESULT_OK,
 				"an existing diagnostic stopped incrementing at the cap");
 			const DMUI_DiagnosticDescriptor repeatedDropped{
-				DMUI_DIAGNOSTIC_DESCRIPTOR_0_1_SIZE,
 				DMUI_STATUS_SEVERITY_WARNING,
 				"General",
 				summaries[kDiagnosticRecordLimitPerClient].c_str(),

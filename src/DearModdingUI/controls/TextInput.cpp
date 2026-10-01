@@ -250,8 +250,6 @@ namespace DearModdingUI
 			a_changed = false;
 			if (!a_label || !a_hint)
 				return DMUI_RESULT_INVALID_ARGUMENT;
-			if (a_buffer.structSize < DMUI_TEXT_BUFFER_0_2_SIZE)
-				return DMUI_RESULT_STRUCT_TOO_SMALL;
 			if (!a_buffer.data || a_buffer.capacity == 0 ||
 				a_buffer.capacity > static_cast<size_t>(INT_MAX))
 				return DMUI_RESULT_INVALID_ARGUMENT;

@@ -18,7 +18,6 @@ namespace vmm_tests
 			const char* a_secondary = nullptr)
 		{
 			const DMUI_IconResolutionRequest request{
-				sizeof(request),
 				a_explicit,
 				a_primary,
 				a_secondary
@@ -87,9 +86,8 @@ namespace vmm_tests
 				"canonical metadata did not outrank a generic fragment");
 		});
 
-		runner.test("host icon query validates its versioned bounded request", [] {
+		runner.test("host icon query validates bounded request strings", [] {
 			DMUI_IconResolutionRequest request{
-				DMUI_ICON_RESOLUTION_REQUEST_0_1_SIZE,
 				nullptr,
 				"wrench\tsettings",
 				nullptr
@@ -99,24 +97,8 @@ namespace vmm_tests
 				ApiResolveIconGlyph(&request, &glyph) == DMUI_RESULT_OK &&
 					glyph == static_cast<uint32_t>(
 						DearModdingUI::FindPhosphorIconGlyphOrZero("wrench")),
-				"exact request size or permitted tab was rejected");
+				"permitted tab was rejected");
 
-			request.structSize += sizeof(uint64_t);
-			glyph = 0xFFFFFFFFu;
-			require(
-				ApiResolveIconGlyph(&request, &glyph) == DMUI_RESULT_OK &&
-					glyph == static_cast<uint32_t>(
-						DearModdingUI::FindPhosphorIconGlyphOrZero("wrench")),
-				"extended request was rejected");
-
-			request.structSize =
-				DMUI_ICON_RESOLUTION_REQUEST_0_1_SIZE - 1;
-			glyph = 0xFFFFFFFFu;
-			require(
-				ApiResolveIconGlyph(&request, &glyph) ==
-						DMUI_RESULT_STRUCT_TOO_SMALL &&
-					glyph == 0,
-				"short request did not fail with zeroed output");
 			glyph = 0xFFFFFFFFu;
 			require(
 				ApiResolveIconGlyph(nullptr, &glyph) ==
@@ -130,7 +112,6 @@ namespace vmm_tests
 			overlongName.fill('a');
 			std::array<char, 257> overlongMetadata{};
 			overlongMetadata.fill('b');
-			request.structSize = DMUI_ICON_RESOLUTION_REQUEST_0_1_SIZE;
 			request.explicitName = overlongName.data();
 			request.primaryMetadata = nullptr;
 			glyph = 0xFFFFFFFFu;

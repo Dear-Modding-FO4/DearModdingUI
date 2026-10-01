@@ -102,13 +102,7 @@ namespace DmuiTests::Detail
 			DmuiTestFixtures::kClientId,
 			DmuiTestFixtures::kClientDisplayName,
 			dmui::Version{ 0, 1 },
-			"test-tube",
-			{},
-			{
-				.requiredServices = kRequiredServices,
-				.minimumUIRevision = DMUI_UI_REVISION_CURRENT,
-				.minimumUIAPISize = DMUI_UI_API_REQUIRED_SIZE
-			})
+			"test-tube")
 	{}
 
 	dmui::Client& DiagnosticContext::Client() noexcept

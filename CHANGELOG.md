@@ -14,9 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Shared read-only text viewer**: Added a host-owned, clipped text viewport with independent scrolling, monospace rendering, overlapping literal-match highlighting, wrap navigation helpers, and exact byte-offset reveal.
 
 ### Changed
+- **BREAKING: ABI 2**: One exact-match ABI covers all tables and descriptors; clients must rebuild. Replace `Client::DrawImage` with `ui::Image` and `Client::DrawAnnotatedPlot` with `ui::PlotAnnotated`. Removed descriptor sizes, table-prefix/revision negotiation, service bits, and minimum-version client options. The host table exposes its UI table directly.
 - **Growable search input**: Restored the three-argument C++ search helper with automatic growth during edits. An optional byte limit remains available; client-owned resize callbacks share the fixed-buffer input mechanism.
-- **Required host preflight**: Added `ClientOptions::minimumHostAPISize` so clients can validate required host operations through `Client::Connect` instead of probing the host table separately.
-- **Optional viewer API**: Appended the API 0.2 text-view operation without changing the host ABI or requiring existing clients to rebuild.
 
 ### Fixed
 - **Periodic frame-time spikes**: Renderer monitoring no longer takes the engine renderer lock while the renderer binding is unchanged. It previously waited up to about 11 ms on the game thread four times per second during gameplay.

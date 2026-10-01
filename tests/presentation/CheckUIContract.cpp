@@ -28,7 +28,7 @@ namespace vmm_tests
 		public:
 			ImGuiFrame()
 			{
-				m_imgui.BeginWindow("##StableUIContractTest");
+				m_imgui.BeginWindow("##StableUIContractTest", { 20.0f, 20.0f }, { 640.0f, 480.0f });
 			}
 
 			~ImGuiFrame()
@@ -61,6 +61,50 @@ namespace vmm_tests
 
 	void run_ui_contract_checks(Runner& runner)
 	{
+		runner.test("cursor position round trips in window-local coordinates", [] {
+			ImGuiFrame frame;
+			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };
+			dmui::ui::detail::ScopedContext context{ &DearModdingUI::UI::API(), 1u };
+			dmui::ui::SetCursorPos({ 35.0f, 45.0f });
+			const auto position = dmui::ui::GetCursorPos();
+			dmui::ui::SetCursorPosX(55.0f);
+			dmui::ui::SetCursorPosY(65.0f);
+			const auto updated = dmui::ui::GetCursorPos();
+			dmui::ui::Dummy({ 1.0f, 1.0f });
+			require(position.x == 35.0f && position.y == 45.0f &&
+					updated.x == 55.0f && updated.y == 65.0f &&
+					context.Result() == DMUI_RESULT_OK,
+				"cursor operations changed coordinate space or the other axis");
+		});
+
+		runner.test("aligned text clamps alignment and ellipsizes within its item width", [] {
+			ImGuiFrame frame;
+			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };
+			dmui::ui::detail::ScopedContext context{ &DearModdingUI::UI::API(), 1u };
+			auto* drawList = ImGui::GetWindowDrawList();
+			const auto start = drawList->VtxBuffer.Size;
+			const auto position = ImGui::GetCursorScreenPos();
+			dmui::ui::TextAligned(-1.0f, 200.0f, "Align");
+			const auto left = drawList->VtxBuffer[start].pos.x - position.x;
+			const auto next = drawList->VtxBuffer.Size;
+			dmui::ui::TextAligned(2.0f, 200.0f, "Align");
+			const auto right = drawList->VtxBuffer[next].pos.x - position.x;
+			const auto expected = 200.0f - ImGui::CalcTextSize("Align").x;
+			require(std::abs((right - left) - expected) < 1.1f,
+				"text alignment did not clamp to the item edges");
+			const auto clippedStart = drawList->VtxBuffer.Size;
+			dmui::ui::TextAligned(0.5f, 60.0f, "This text must be ellipsized, not overflow the item");
+			const auto bounds = ImGui::GetItemRectMax();
+			require(ImGui::GetItemRectSize().x == 60.0f &&
+					drawList->VtxBuffer.Size > clippedStart &&
+					drawList->VtxBuffer.Size - clippedStart < 48 * 4,
+				"overflowing text was not shortened inside the requested width");
+			for (auto i = clippedStart; i < drawList->VtxBuffer.Size; ++i)
+				require(drawList->VtxBuffer[i].pos.x <= bounds.x + 1.0f,
+					"ellipsized text escaped its item bounds");
+			require(context.Result() == DMUI_RESULT_OK, "aligned text failed UI dispatch");
+		});
+
 		runner.test("stable list clippers clip rows and unwind callback-owned nesting", [] {
 			using namespace DearModdingUI;
 			const UI::Testing::ValidationOverride validation{ &AcceptClient };
@@ -166,78 +210,9 @@ namespace vmm_tests
 				"mutually exclusive stable flags reached native ImGui");
 		});
 
-		runner.test("UI query writes only complete caller prefixes", [] {
-			struct FullInfo
-			{
-				DMUI_UIAPIInfo info{};
-				uint64_t canary{ UINT64_C(0xD00DFEEDCAFEBABE) };
-			} full;
-			full.info.structSize = sizeof(full.info);
-			require(
-				DearModdingUI::UI::Query(
-					DMUI_UI_ABI_CURRENT,
-					DMUI_UI_REVISION_CURRENT,
-					DMUI_UI_API_REQUIRED_SIZE,
-					&full.info) == DMUI_RESULT_OK &&
-					full.info.api == &DearModdingUI::UI::API() &&
-					full.canary == UINT64_C(0xD00DFEEDCAFEBABE),
-				"full UI query corrupted caller-owned storage");
 
-			struct alignas(DMUI_UIAPIInfo) PrefixInfo
-			{
-				std::array<std::byte, DMUI_UI_API_INFO_PREFIX_SIZE> bytes{};
-				uint64_t canary{ UINT64_C(0x123456789ABCDEF0) };
-			} prefix;
-			auto* info = reinterpret_cast<DMUI_UIAPIInfo*>(prefix.bytes.data());
-			info->structSize = DMUI_UI_API_INFO_PREFIX_SIZE;
-			require(
-				DearModdingUI::UI::Query(
-					DMUI_UI_ABI_CURRENT,
-					DMUI_UI_REVISION_CURRENT,
-					DMUI_UI_API_REQUIRED_SIZE,
-					info) == DMUI_RESULT_STRUCT_TOO_SMALL &&
-					info->structSize == DMUI_UI_API_INFO_PREFIX_SIZE &&
-					info->abiVersion == DMUI_UI_ABI_CURRENT &&
-					info->revision == DMUI_UI_REVISION_CURRENT &&
-					info->tableSize == DMUI_UI_API_CURRENT_SIZE &&
-					prefix.canary == UINT64_C(0x123456789ABCDEF0),
-				"UI query overwrote an incomplete caller prefix");
-		});
 
-		runner.test("style metrics preserve legacy and appended prefixes", [] {
-			ImGuiFrame frame;
-			const DearModdingUI::UI::Testing::ValidationOverride validation{
-				&AcceptClient
-			};
-			const auto& api = DearModdingUI::UI::API();
 
-			struct alignas(DMUI_StyleMetrics) LegacyMetrics
-			{
-				std::array<std::byte, DMUI_STYLE_METRICS_0_1_SIZE> bytes{};
-				uint32_t canary{ UINT32_C(0xA1B2C3D4) };
-			} legacy;
-			auto* legacyMetrics =
-				reinterpret_cast<DMUI_StyleMetrics*>(legacy.bytes.data());
-			legacyMetrics->structSize = DMUI_STYLE_METRICS_0_1_SIZE;
-			require(
-				api.getStyleMetrics(1u, legacyMetrics) == DMUI_RESULT_OK &&
-					legacyMetrics->structSize == DMUI_STYLE_METRICS_0_1_SIZE &&
-					legacy.canary == UINT32_C(0xA1B2C3D4),
-				"legacy style-metrics prefix overwrote the appended field");
-
-			struct FullMetrics
-			{
-				DMUI_StyleMetrics metrics{};
-				uint32_t canary{ UINT32_C(0xC4D3E2F1) };
-			} full;
-			full.metrics.structSize = sizeof(full.metrics);
-			require(
-				api.getStyleMetrics(1u, &full.metrics) == DMUI_RESULT_OK &&
-					full.metrics.structSize == sizeof(full.metrics) &&
-					full.metrics.fontSizeBase > 0.0f &&
-					full.canary == UINT32_C(0xC4D3E2F1),
-				"appended style metric was not written prefix-safely");
-		});
 
 		runner.test("input callbacks and unsafe scalar storage are rejected", [] {
 			ImGuiFrame frame;
@@ -290,32 +265,7 @@ namespace vmm_tests
 				"misaligned scalar storage reached native ImGui");
 		});
 
-		runner.test("missing optional UI tail does not hide available operations", [] {
-			ImGuiFrame frame;
-			const DearModdingUI::UI::Testing::ValidationOverride validation{
-				&AcceptClient
-			};
-			auto api = DearModdingUI::UI::API();
-			api.structSize = DMUI_UI_API_REQUIRED_SIZE;
-			dmui::ui::detail::ScopedContext context{ &api, 1u };
-			dmui::ui::TextUnformatted("required operation remains available");
-			require(context.Result() == DMUI_RESULT_OK,
-				"available required operation failed on an older table prefix");
-			const float samples[]{ 1.0f, 2.0f };
-			dmui::ui::PlotLines("optional", samples, 2);
-			require(context.Result() == DMUI_RESULT_UNSUPPORTED_ABI,
-				"missing optional operation was confused with an empty result");
 
-			auto missingOptional = DearModdingUI::UI::API();
-			missingOptional.plotLines = nullptr;
-			dmui::ui::detail::ScopedContext missingContext{
-				&missingOptional,
-				1u
-			};
-			dmui::ui::PlotLines("optional-null", samples, 2);
-			require(missingContext.Result() == DMUI_RESULT_UNSUPPORTED_ABI,
-				"null optional operation was confused with an empty result");
-		});
 
 		runner.test("style vars reject mismatched value shapes before ImGui", [] {
 			ImGuiFrame frame;

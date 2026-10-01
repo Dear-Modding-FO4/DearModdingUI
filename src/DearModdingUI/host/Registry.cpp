@@ -379,7 +379,6 @@ namespace DearModdingUI
 			DMUI_PageHandle a_previous,
 			DMUI_PageHandle a_active) {
 			const DMUI_PageActivityInfo info{
-				sizeof(DMUI_PageActivityInfo),
 				a_kind,
 				a_previous,
 				a_active

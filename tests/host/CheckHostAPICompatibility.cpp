@@ -23,29 +23,10 @@ namespace vmm_tests
 
 	void run_host_api_compatibility_checks(Runner& runner)
 	{
-		runner.test("published row layout uses production adapters", [] {
-			require(
-				DMUI_GetAPI(DMUI_HOST_ABI_1) != nullptr,
-				"optional viewer disconnected clients using the unchanged ABI");
-			const auto* api = DMUI_GetAPI(DMUI_HOST_ABI_CURRENT);
+		runner.test("settings rows use production adapters", [] {
+			const auto* api = DMUI_GetAPI(DMUI_ABI_VERSION);
 			require(api, "fixture host API was unavailable");
-			require(
-				offsetof(DMUI_HostAPI, beginSettingsRow) == 224 &&
-					offsetof(DMUI_HostAPI, endSettingsRow) == 232 &&
-					offsetof(DMUI_HostAPI, endSettingsTable) == 240 &&
-					offsetof(DMUI_HostAPI, beginSettingsRowEx) == 248 &&
-					offsetof(DMUI_HostAPI, registerPageActivityObserver) == 256 &&
-					offsetof(DMUI_HostAPI, resolveIconGlyph) == 440 &&
-					offsetof(DMUI_HostAPI, beginField) == 448 &&
-					offsetof(DMUI_HostAPI, endField) == 464 &&
-					offsetof(DMUI_HostAPI, drawTextView) == 472,
-				"append-only host table layout changed");
-
 			constexpr DMUI_ClientHandle owner{ 7 };
-			DMUI_SettingsRowBeginOptions shortBeginOptions{
-				sizeof(uint32_t),
-				DMUI_SETTINGS_ROW_LAYOUT_LABEL_VALUE
-			};
 			uint32_t visible{ 1u };
 			require(
 				api->beginSettingsRowEx(
@@ -58,16 +39,6 @@ namespace vmm_tests
 					visible == 0u,
 				"legacy begin accepted null options");
 			visible = 1u;
-			require(
-				api->beginSettingsRowEx(
-					owner,
-					"short-options",
-					"",
-					nullptr,
-					&shortBeginOptions,
-					&visible) == DMUI_RESULT_STRUCT_TOO_SMALL &&
-					visible == 0u,
-				"legacy begin options did not enforce their published prefix");
 
 			support::ImGuiTestContext imgui{
 				{ .disableErrorRecovery = true }
@@ -91,7 +62,6 @@ namespace vmm_tests
 					"legacy row rejected its published empty-label contract");
 				ImGui::TextUnformatted("Legacy value");
 				DMUI_SettingsRowOptions endOptions{
-					sizeof(DMUI_SettingsRowOptions),
 					0u,
 					0u
 				};
@@ -102,17 +72,6 @@ namespace vmm_tests
 						resetPressed == 0u,
 					"legacy end accepted null options");
 				resetPressed = 1u;
-				const DMUI_SettingsRowOptions shortEndOptions{
-					sizeof(uint32_t) * 2u,
-					0u,
-					0u
-				};
-				require(
-					api->endSettingsRow(
-						owner, &shortEndOptions, &resetPressed) ==
-							DMUI_RESULT_STRUCT_TOO_SMALL &&
-						resetPressed == 0u,
-					"legacy end options did not enforce their published prefix");
 				require(
 					api->endSettingsRow(
 						owner, &endOptions, &resetPressed) == DMUI_RESULT_OK &&
@@ -120,7 +79,6 @@ namespace vmm_tests
 					"legacy row did not end through the shared renderer");
 
 				DMUI_SettingsRowBeginOptions beginOptions{
-					sizeof(DMUI_SettingsRowBeginOptions),
 					DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN
 				};
 				visible = 0u;

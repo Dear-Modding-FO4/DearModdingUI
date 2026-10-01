@@ -5,7 +5,7 @@
 DearModdingUI API repository, which CommonLibF4 re-exports through its public
 `lib/dearmoddingui-api` dependency. Linking that fork is enough to consume
 them. `Client.h` is a header-only C++ wrapper that handles discovery,
-registration, stable UI negotiation, and callback error propagation; prefer it
+registration, exact ABI matching, and callback error propagation; prefer it
 over the raw ABI. Clients compile no Dear ImGui sources and do not link against
 the host DLL. Client drawing uses the separate `dmui::ui` namespace and
 DMUI-owned types. The C contract exposes no Addictol, CommonLibF4, F4SE,
@@ -14,18 +14,17 @@ Windows, D3D, TOML, Dear ImGui, or C++ library types.
 ## Discovery and registration
 
 At F4SE `kPostPostLoad`, after every plugin `Load` has returned, locate the host DLL and resolve the
-single `DMUI_GetAPI` export. Call it with `DMUI_HOST_ABI_CURRENT`, then validate the returned
-`hostAbiVersion`. A null result means that host ABI generation is unsupported.
-The product/API release identifier remains `DMUI_API_VERSION_CURRENT`; the
-returned `apiVersion` and client descriptor `apiVersion` are metadata, not
-compatibility gates. Discovery may succeed before the host plugin initializes; `queryState` and
+single `DMUI_GetAPI` export. Call it with `DMUI_ABI_VERSION` (2), then validate the returned
+`abiVersion`. A mismatch returns null and logs the client and host ABI versions.
+One exact-match ABI covers the host table, its `ui` table pointer, and every public
+struct. There are no descriptor sizes, table-prefix gates, UI revisions, service
+bits, or minimum-version client options. External clients must rebuild for ABI 2.
+Discovery may succeed before the host plugin initializes; `queryState` and
 registration then return `DMUI_RESULT_HOST_NOT_INITIALIZED`. Export presence does not mean the
 renderer is ready: register at `kPostPostLoad` and wait for exactly one lifecycle callback.
 
-Within one host ABI generation, updates preserve unchanged table offsets and append
-new operations. Clients negotiate optional entries independently. Field operations extend
-the original host ABI; existing binaries remain supported, including settings-row calls.
-Internal implementation and file-layout changes do not change either ABI.
+All table operations are part of the ABI. Runtime availability is reported by
+operation results and lifecycle callbacks, not by table negotiation.
 
 Client, category, page, action, hotkey-action, frame-observer, and page-activity-observer registration closes when the first valid
 active-swapchain `Present` begins host initialization. Register them immediately after the client. All descriptor strings are copied;
@@ -111,16 +110,13 @@ Direct vocabulary matches are never replaced, and primary word forms are tried
 before secondary metadata. Surface defaults such as Question are reserved for
 genuine misses.
 
-Automatic client drawing uses the appended host-owned `resolveIconGlyph`
+Automatic client drawing uses the host-owned `resolveIconGlyph`
 operation. A mod must rebuild once against the API that calls this entry; after
 that, host vocabulary updates change its inferred setting-group icons without
 another mod rebuild. The C query is stateless and thread-safe, needs no ready
 renderer or active page callback, and performs no drawing. The wrapper requires
 a connected client and serialized access to that instance's mutable state.
-Gate raw C calls with
-`DMUI_HOST_API_RESOLVE_ICON_GLYPH_SIZE` and a non-null function pointer.
-`DMUI_IconResolutionRequest` accepts an exact or extended
-`DMUI_ICON_RESOLUTION_REQUEST_0_1_SIZE` prefix, optional null/empty strings,
+`DMUI_IconResolutionRequest` accepts optional null/empty strings,
 an explicit-name maximum of 128 bytes, and primary/secondary metadata maxima
 of 256 bytes. Disallowed control characters reject the request; tab remains
 valid. A successful zero is a genuine no-match, while `std::nullopt` from
@@ -132,7 +128,7 @@ is zero, using the current label or the group key when the label is empty.
 A successful no-match uses the existing Question surface fallback. A nonzero
 glyph, including an explicit Question or raw invalid scalar, bypasses automatic
 resolution and is forwarded unchanged; dividers bypass it as well. Resolver
-failure, a short old host table, or a null entry fails the page callback instead
+failure fails the page callback instead
 of using stale local inference. The existing callback isolation then
 permanently disables that page after the failed draw.
 
@@ -145,12 +141,11 @@ unchanged; zero still means no icon and they do not infer automatically.
 
 ## Shared theme and widgets
 
-The optional appended theme and widget entries expose the host's visual vocabulary without publishing
-ImGui or C++ types in `API.h`. Gate every call with its matching
-`DMUI_HOST_API_<ENTRY>_SIZE` constant and a non-null function pointer. These calls accept only a
+The theme and widget entries expose the host's visual vocabulary without publishing
+ImGui or C++ types in `API.h`. These calls accept only a
 registered client and are available while the host is ready on the render thread.
 
-`getThemeColors` fills a caller-sized `DMUI_ThemeColors` with the current accent, muted accent, success,
+`getThemeColors` fills `DMUI_ThemeColors` with the current accent, muted accent, success,
 warning, error, info, and muted colors plus every status color. `pushFont` accepts the Body, Title,
 Heading, Subheading, or Subtext role; balance every successful push with `popFont`. The C++ wrapper
 provides `dmui::FontGuard`, `dmui::DrawStyledText`, `dmui::DrawLabeledValue`, and converts `DMUI_Vec4` to
@@ -197,14 +192,14 @@ capacity at UTF-8 boundaries.
 `Client::DrawSearchInput(id, hint, query)` grows automatically while typing or pasting.
 An optional fourth argument, such as `512`, limits UTF-8 bytes excluding NUL and rejects an
 already oversized string. Both forms return `std::optional<bool>` and preserve the query on failure.
-They use `drawSearchInputBuffer`, negotiated with `DMUI_HOST_API_DRAW_SEARCH_INPUT_BUFFER_SIZE`.
+They use `drawSearchInputBuffer`.
 Its reusable `DMUI_TextBuffer` contract borrows client-owned storage and optionally requests growth
 through a client allocator callback; native ImGui callbacks never cross the ABI. The callback
 must preserve the old allocation on failure and must not reenter drawing. Storage and callbacks
 are used only during the draw call. Capacity includes NUL and cannot exceed the backend's `INT_MAX`
 representation limit; there is no smaller default application cap.
 
-`drawTextView` is an optional API 0.2 operation within host ABI 1. It draws borrowed,
+`drawTextView` draws borrowed,
 NUL-free UTF-8 text with a host-owned monospace font, independent scrolling, clipped
 lines, literal-match highlighting, and byte-offset reveal. Call it only from the owning
 client's drawing callback. `TextView.h` supplies request/state and navigation helpers;
@@ -241,26 +236,18 @@ Fields require that client's active settings-page or overlay-page drawing callba
 settings tables require a settings-page callback. Field brackets cannot nest or reenter.
 Balanced ordinary ImGui tables may surround them or appear inside a value cell.
 Mismatched calls return `DMUI_RESULT_UNBALANCED_BRACKET`; callback recovery unwinds
-abandoned field, table, and ID state. The C++ wrapper handles versioned options and
-entry availability checks.
+abandoned field, table, and ID state.
 
 The C++ wrapper accepts category metadata through `dmui::CategoryDescriptor` and
 `Client::AddCategory`. Page metadata uses `dmui::PageDescriptor`, where `categoryId` and summary are
 optional, and `AddPage` returns the accepted page handle as `std::optional<DMUI_PageHandle>`.
 Pass that handle to `SelectPage` to select the registered settings page and open the shared menu.
 Both methods preserve `LastResult()` for failure details.
-Both descriptors append an optional `iconName`. The raw C ABI keeps
-`DMUI_CATEGORY_DESCRIPTOR_0_1_SIZE == 32` and
-`DMUI_PAGE_DESCRIPTOR_0_1_SIZE == 64`; set `structSize` to
-`DMUI_CATEGORY_DESCRIPTOR_ICON_SIZE` (40) or
-`DMUI_PAGE_DESCRIPTOR_ICON_SIZE` (72) before supplying the appended pointer.
-Older prefixes retain inferred defaults, and partial appended pointers are
-never read. Require `DMUI_HOST_SERVICE_NAVIGATION_ICONS` when honoring these
-fields is mandatory.
+Both descriptors accept an optional `iconName`; null uses inferred defaults.
 
 ## External opening and links
 
-The pre-release API exposes the `DMUI_HOST_SERVICE_EXTERNAL_OPEN` service and the generic `openExternal` entry.
+The `openExternal` entry accepts typed external targets.
 Without an explicit application, a URI, absolute file, or absolute directory is passed to the
 operating system's registered handler. With an application override, `application` must be an
 absolute executable path. The process argv is the executable path, followed by the supplied argument
@@ -276,8 +263,7 @@ links do not execute either action, and an open failure is returned instead of f
 clipboard. The operation is synchronous only through launch acceptance and never waits for the
 external process to exit.
 
-`DMUI_HOST_SERVICE_VIRTUAL_FILE_TARGETS` adds two explicit target kinds to the
-same descriptor. `VIRTUAL_FILE` resolves the existing file visible at `target`
+Two explicit target kinds support virtual files. `VIRTUAL_FILE` resolves the existing file visible at `target`
 and opens its physical backing file. `VIRTUAL_FILE_PARENT` resolves that file
 first, then opens its physical containing folder; it never resolves a merged
 virtual directory. Both require an absolute file path and retain the same
@@ -313,9 +299,7 @@ the client's diagnostics.
 
 ## Client actions
 
-Clients may register actions through the optional appended `registerAction` entry. Check
-`DMUI_HostAPI::structSize >= DMUI_HOST_API_REGISTER_ACTION_SIZE` and that the pointer is non-null before
-using it. Actions belong to their client, appear on every one of that client's page-title rows, and
+Clients register actions through `registerAction`. Actions belong to their client, appear on every one of that client's page-title rows, and
 order by `sortKey` then stable ID. The host copies the ID, display label, optional Phosphor icon name,
 and optional tooltip. A missing or unknown icon uses a compact text button without reserving unused
 space for clients that register no actions.
@@ -328,7 +312,7 @@ action. Clients must not draw their own header, footer, or action chrome.
 
 ## Client hotkeys
 
-The optional appended `registerHotkeyAction` entry registers a stable, process-wide namespaced action
+The `registerHotkeyAction` entry registers a stable, process-wide namespaced action
 ID, display name, suggested default chord, callback, and user data. The action ID must contain at least
 two nonempty ASCII segments separated by `.`; each segment starts with a letter and continues with
 letters, digits, `_`, or `-`. Registration rejects malformed IDs, duplicate IDs across all clients, and
@@ -354,7 +338,7 @@ overrides by stable action ID in the `[Hotkeys]` TOML table. `suggestedDefaultCh
 persist in `[GamepadHotkeys]`, and fire the same callback. Overrides for uninstalled clients remain
 visible as not-registered rows in the host hotkey manager until the user removes them.
 
-The appended `unregisterHotkeyAction` entry is render-execution-only and returns `WRONG_THREAD`
+The `unregisterHotkeyAction` entry is render-execution-only and returns `WRONG_THREAD`
 otherwise. Authorization belongs to the serialized host render-execution scope, not to a particular
 OS thread. Client guards and direct service calls do not grant authorization to arbitrary workers.
 Successful removal tombstones the action; queued events resolve dead and are discarded during dispatch.
@@ -370,11 +354,11 @@ post-`Present` observer scope, so they cannot overlap page, action, or frame-obs
 when the game migrates `Present` between OS threads. Repeats are coalesced, events survive stalled presentation,
 and the 512-event queue reserves release capacity for every accepted press. Overflow drops and logs a
 whole press/release pair rather than leaving a client in a held state. The C++ wrapper exposes
-`AddHotkeyAction`, `QueryHotkeyBinding`, and `UnregisterHotkeyAction` with appended-table guards.
+`AddHotkeyAction`, `QueryHotkeyBinding`, and `UnregisterHotkeyAction`.
 
 ## Frame observation and video memory
 
-The optional `registerFrameObserver` entry accepts a descriptor with a callback and user data. The host
+The `registerFrameObserver` entry accepts a descriptor with a callback and user data. The host
 calls each observer in a non-drawing execution scope after every successful non-test active-swapchain
 `Present`, regardless of menu visibility. The active attachment is revalidated after `Present`, so a
 retired or rebound swapchain does not dispatch stale observers. The scope permits render services such
@@ -384,7 +368,7 @@ contains C++ and Windows structured exceptions, recovers shared ImGui state, and
 faulting observer. The C++ wrapper stores capturing callables in stable storage and returns the observer
 handle from `AddFrameObserver`.
 
-The appended `registerPageActivityObserver` entry reports client-scoped settings-page activity.
+The `registerPageActivityObserver` entry reports client-scoped settings-page activity.
 Entering the first page owned by a client produces `DMUI_PAGE_ACTIVITY_ACTIVATED`, switching between
 that client's pages produces `DMUI_PAGE_ACTIVITY_CHANGED`, and leaving the client or closing the menu
 produces `DMUI_PAGE_ACTIVITY_DEACTIVATED`. The event carries previous and active page handles, using
@@ -394,16 +378,13 @@ the render thread inside the shell draw. Registration lasts for the process life
 has no unregister counterpart. The C++ wrapper stores callbacks in stable storage and exposes
 `AddPageActivityObserver`.
 
-The optional `queryVideoMemory` entry returns current local-segment usage and budget in bytes from the
+The `queryVideoMemory` entry returns current local-segment usage and budget in bytes from the
 adapter retained from the active swapchain. A non-OK result means no authoritative information is
-available. The C++ wrapper returns `std::optional<dmui::VideoMemoryInfo>`. Gate both entries with their
-published size constants and non-null function pointers when using the C ABI directly.
+available. The C++ wrapper returns `std::optional<dmui::VideoMemoryInfo>`.
 
 ## Shared status
 
-Clients may report status through the optional appended `setStatus` entry. Check
-`DMUI_HostAPI::structSize >= DMUI_HOST_API_SET_STATUS_SIZE` and that the pointer is non-null before
-using it. Pass the accepted client handle, one of `DMUI_STATUS_SEVERITY_INFO`,
+Clients report status through `setStatus`. Pass the accepted client handle, one of `DMUI_STATUS_SEVERITY_INFO`,
 `DMUI_STATUS_SEVERITY_SUCCESS`, `DMUI_STATUS_SEVERITY_WARNING`, or
 `DMUI_STATUS_SEVERITY_ERROR`, and a non-empty null-terminated UTF-8 message. The host copies the
 message before `setStatus` returns; the client retains ownership and may release or reuse its buffer
@@ -419,9 +400,7 @@ messages are truncated with an ellipsis, and hovering shows the full attributed 
 
 ## Client diagnostics
 
-Clients may retain actionable problems through the optional appended `reportDiagnostic` entry. Check
-`DMUI_HostAPI::structSize >= DMUI_HOST_API_REPORT_DIAGNOSTIC_SIZE` and that the pointer is non-null
-before using it. Reports accept the shared status severity values, an optional scope, a required
+Clients retain actionable problems through `reportDiagnostic`. Reports accept the shared status severity values, an optional scope, a required
 one-line summary, and optional detail. The host copies all strings before returning.
 
 `reportDiagnostic` may be called from any thread. Matching client, severity, scope, and summary values
@@ -430,13 +409,7 @@ is bounded per client, and the Health page and copied diagnostics report disclos
 reports could not be retained.
 
 ```cpp
-if (api->structSize >= DMUI_HOST_API_SET_STATUS_SIZE && api->setStatus)
-{
-	api->setStatus(
-		clientHandle,
-		DMUI_STATUS_SEVERITY_SUCCESS,
-		"Settings saved.");
-}
+api->setStatus(clientHandle, DMUI_STATUS_SEVERITY_SUCCESS, "Settings saved.");
 ```
 
 Focused modal drawing runs before Fallout 4's native cursor on the attached backbuffer.
@@ -463,9 +436,8 @@ Capture ignores buttons held before it opens; release a fresh chord to bind it, 
 
 A client that replaces the renderer's swapchain declares
 `DMUI_CLIENT_CAPABILITY_RENDERER_REPLACEMENT` when registering. After it publishes the final native
-swapchain, it may call the optional `attachSwapChain(clientHandle, nativeSwapChain)` entry. Check
-`DMUI_HostAPI::structSize >= DMUI_HOST_API_ATTACH_SWAP_CHAIN_SIZE` and that the pointer is non-null
-before calling it. On Windows/D3D11, `nativeSwapChain` is an `IDXGISwapChain*`; the public ABI keeps it
+swapchain, it calls `attachSwapChain(clientHandle, nativeSwapChain)`.
+On Windows/D3D11, `nativeSwapChain` is an `IDXGISwapChain*`; the public ABI keeps it
 opaque and exposes no D3D types.
 
 The host validates the client handle and capability, combines the override with the engine renderer's
@@ -488,25 +460,15 @@ retires the attachment, releases host-owned COM/resources, and requests immediat
 
 ## Stable UI and presentation services
 
-`queryServices` reports semantic host-service flags. The appended
-`queryUIAPI` entry separately negotiates DMUI UI ABI family 1, a minimum
-revision, and an additive function-table prefix. This identity is independent
-of the API release label, the product version declared in
-[xmake.lua](../../xmake.lua), and the host's internal Dear ImGui version.
-Clients set `requiredServices`, `minimumHostAPISize`, `minimumUIRevision`, and
-`minimumUIAPISize` in `ClientOptions`; the wrapper validates the requested host
-prefix, services, and all required stable UI operations before `registerClient`.
-Clients that require the shared text viewer use
-`DMUI_HOST_API_DRAW_TEXT_VIEW_SIZE`.
+`DMUI_HostAPI::ui` points to the complete `DMUI_UIAPI`. `Client::Connect`
+checks the exact ABI before registration and binds this table during page callbacks.
+Product versions and the host's internal Dear ImGui version are not compatibility gates.
 
 The API provides frame-demand and swapchain wrappers,
 contextual hotkey enablement, owner/generation-scoped D3D11 image resources,
 host-owned generic CPU-pixel images, opt-in managed overlay windows, copied
 latest-message notifications, annotated plots, and single-active
-submission-aware dialogs. CPU producers require
-`DMUI_HOST_SERVICE_PIXEL_IMAGES`; imported SRVs retain the distinct
-`DMUI_HOST_SERVICE_IMAGE_RESOURCES` promise. Existing host-table prefixes and
-offsets remain unchanged. See the [public API reference](https://github.com/Dear-Modding-FO4/DearModdingUI-API)
+submission-aware dialogs. See the [public API reference](https://github.com/Dear-Modding-FO4/DearModdingUI-API)
 for the stable UI schema, image formats, row extent, transactional updates, overlay coordinates, notification
 duration, dialog state, and per-call thread contracts.
 
@@ -523,6 +485,20 @@ draws keep old pixels and later draws use the replacement. Image queries
 require no draw phase. Notifications and image release are any-thread. Queued
 image COM references remain leased through the actual `RenderDrawData` call.
 
+Draw images with `dmui::ui::Image(handle, size)` or `Image(handle, options)`;
+the bool result means drawn. Invalidated/device-lost images return false without
+recording an error. Stale, foreign, and malformed handles or invalid options are
+errors. Invalidated handles remain owned until released. `QueryImage` reports
+status and a `failure` result; `LOADING` and `FAILED` are reserved for file loading.
+Use `dmui::ui::PlotAnnotated(id, descriptor)` for annotated plots.
+The host table owns create/update/import/release/query, not image or plot drawing.
+
+`GetCursorPos` and `SetCursorPos` use window-local coordinates; X/Y conveniences
+have no separate table slots. `BeginItemTooltip` combines the `ForTooltip` hover
+policy with `BeginTooltip`. `TextAligned(alignX, width, text, length)` draws
+unformatted UTF-8, clamps alignment to [0,1], and uses available width when
+width is nonpositive. Overflow is ellipsized with full text on hover/nav focus.
+
 Packed HDR color previews can import `R11G11B10_FLOAT` SRVs directly. The host
 retains the original view and performs no HDR tone mapping or color conversion;
 display mapping remains the producer's responsibility.
@@ -537,21 +513,18 @@ copying, normalizing, or converting depth into another texture.
 ## Stable UI compatibility and callbacks
 
 Public clients never receive the host's Dear ImGui context, allocators, font
-pointers, enum values, or internal layouts. `DMUI_GetAPI(HOST_ABI_1)` exposes
-the host table, whose appended `queryUIAPI` entry negotiates stable UI ABI
-family 1. Compatibility depends on the requested revision, required table
-prefix, and non-null required operations, not on the host's internal Dear
-ImGui version.
+pointers, enum values, or internal layouts. `DMUI_GetAPI(DMUI_ABI_VERSION)`
+exposes the host table only for an exact ABI match.
 
 `onHostReady`, `onHostUnavailable`, page draw, action, hotkey, and frame callbacks run on the render thread.
 `setStatus`, `postNotification`, image release, hotkey enablement, and dialog
-submission resolution are the any-thread exceptions. `DMUI_HostReadyInfo` contains only its
-size-prefixed release metadata; the callback is a lifecycle notification, not a context handoff:
+submission resolution are the any-thread exceptions. `DMUI_HostReadyInfo` contains
+`abiVersion`; the callback is a lifecycle notification, not a context handoff:
 
 ```cpp
 void DMUI_CALL Ready(const DMUI_HostReadyInfo* info, void*)
 {
-	if (!info || info->structSize < sizeof(DMUI_HostReadyInfo))
+	if (!info)
 		return;
 	// Registered page callbacks may now use dmui::ui.
 }
@@ -578,18 +551,14 @@ process lifetime; hotkey actions may be unregistered, but clients cannot unload 
 ```cpp
 const auto getAPI = reinterpret_cast<decltype(&DMUI_GetAPI)>(
 	GetProcAddress(hostModule, "DMUI_GetAPI"));
-const auto* api = getAPI ? getAPI(DMUI_HOST_ABI_CURRENT) : nullptr;
-if (!api ||
-	api->structSize < DMUI_HOST_API_REGISTER_CLIENT_SIZE ||
-	api->hostAbiVersion != DMUI_HOST_ABI_CURRENT)
+const auto* api = getAPI ? getAPI(DMUI_ABI_VERSION) : nullptr;
+if (!api || api->abiVersion != DMUI_ABI_VERSION)
 {
 	StartStandalone();
 	return;
 }
 
 DMUI_ClientDescriptor client{
-	sizeof(client),
-	DMUI_API_VERSION_CURRENT,
 	"example.author.mod",
 	"Example Mod",
 	DMUI_MAKE_VERSION(1, 0),
@@ -609,7 +578,6 @@ if (api->registerClient(&client, &clientHandle) != DMUI_RESULT_OK)
 }
 
 DMUI_CategoryDescriptor category{
-	sizeof(category),
 	"lighting",
 	"Lighting",
 	0,
@@ -623,7 +591,6 @@ if (api->registerCategory(clientHandle, &category) != DMUI_RESULT_OK)
 }
 
 DMUI_PageDescriptor page{
-	sizeof(page),
 	"settings",
 	"Settings",
 	"lighting",
@@ -641,10 +608,8 @@ if (api->registerPage(clientHandle, &page, &pageHandle) != DMUI_RESULT_OK)
 	return;
 }
 
-if (api->structSize >= DMUI_HOST_API_REGISTER_ACTION_SIZE && api->registerAction)
 {
 	DMUI_ActionDescriptor action{
-		sizeof(action),
 		"refresh",
 		"Refresh",
 		"arrow-counter-clockwise",
@@ -664,9 +629,7 @@ A renderer-replacing client sets `client.capabilities` to
 hands off its final published proxy:
 
 ```cpp
-if (api->structSize < DMUI_HOST_API_ATTACH_SWAP_CHAIN_SIZE ||
-	!api->attachSwapChain ||
-	api->attachSwapChain(clientHandle, finalSwapChain) != DMUI_RESULT_OK)
+if (api->attachSwapChain(clientHandle, finalSwapChain) != DMUI_RESULT_OK)
 {
 	ReportHandoffFailure();
 }

@@ -307,7 +307,6 @@ namespace vmm_tests
 			[[nodiscard]] DMUI_TextBuffer Descriptor() noexcept
 			{
 				return {
-					.structSize = sizeof(DMUI_TextBuffer),
 					.data = storage.data(),
 					.capacity = storage.size(),
 					.resize = Resize,
@@ -375,7 +374,6 @@ namespace vmm_tests
 			dmui::ui::detail::ScopedContext context{ &UI::API(), 1 };
 			const auto& style = ImGui::GetStyle();
 			const DMUI_StyleMetrics metrics{
-				.structSize = sizeof(DMUI_StyleMetrics),
 				.itemSpacing = { style.ItemSpacing.x, style.ItemSpacing.y },
 				.framePadding = { style.FramePadding.x, style.FramePadding.y }
 			};

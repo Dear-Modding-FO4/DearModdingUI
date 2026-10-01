@@ -85,8 +85,6 @@ namespace DearModdingUI::PresentationServices
 			a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_dialog = DMUI_INVALID_DIALOG_HANDLE;
-		if (a_descriptor->structSize < DMUI_DIALOG_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_menuVisible)
 			return DMUI_RESULT_NOT_VISIBLE;
 		if (!RenderExecution::IsActiveClient(a_client, false))
@@ -167,8 +165,6 @@ namespace DearModdingUI::PresentationServices
 		if (!a_event || a_client == DMUI_INVALID_CLIENT_HANDLE ||
 			a_dialog == DMUI_INVALID_DIALOG_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_event->structSize < DMUI_DIALOG_EVENT_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!RenderExecution::IsActiveClient(a_client, false))
 			return DMUI_RESULT_WRONG_THREAD;
 		auto& service = GetDialogService();

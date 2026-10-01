@@ -20,7 +20,6 @@ namespace vmm_tests
 		runner.test("managed overlays validate and report consumer-owned placement", [] {
 			ImGuiFrame frame;
 			const DMUI_ManagedOverlayOptions options{
-				sizeof(DMUI_ManagedOverlayOptions),
 				DMUI_OVERLAY_ANCHOR_TOP_RIGHT,
 				{ 10.0f, 10.0f },
 				{ 440.0f, 40.0f },
@@ -36,7 +35,6 @@ namespace vmm_tests
 					DMUI_RESULT_OK,
 				"valid managed overlay configuration failed");
 			DMUI_ManagedOverlayPlacement placement{};
-			placement.structSize = sizeof(placement);
 			require(PresentationServices::QueryOverlay(10, 11, &placement) ==
 					DMUI_RESULT_PAGE_NOT_FOUND,
 				"another owner queried managed placement");
@@ -52,7 +50,6 @@ namespace vmm_tests
 			require(std::abs(window->FontWindowScale - 1.25f) < 0.001f,
 				"managed overlay content scale was not applied exactly once");
 			PresentationServices::EndManagedOverlay();
-			placement.structSize = sizeof(placement);
 			require(PresentationServices::QueryOverlay(9, 11, &placement) ==
 						DMUI_RESULT_OK &&
 					std::abs(placement.size.x - 550.0f) < 1.0f &&
@@ -66,13 +63,11 @@ namespace vmm_tests
 			auto resources = CreateImageResources();
 			PresentationServices::SetDevice(resources.device.Get());
 			const DMUI_NotificationDescriptor first{
-				sizeof(DMUI_NotificationDescriptor),
 				DMUI_STATUS_SEVERITY_INFO,
 				"first",
 				250
 			};
 			const DMUI_NotificationDescriptor second{
-				sizeof(DMUI_NotificationDescriptor),
 				DMUI_STATUS_SEVERITY_WARNING,
 				"second",
 				1000
@@ -93,7 +88,6 @@ namespace vmm_tests
 			require(PresentationServices::HasFrameDemand(),
 				"older expiry erased the newer notification");
 			const DMUI_NotificationDescriptor expiring{
-				sizeof(DMUI_NotificationDescriptor),
 				DMUI_STATUS_SEVERITY_INFO,
 				"expires",
 				250
@@ -106,7 +100,6 @@ namespace vmm_tests
 				"expired passive notification retained frame demand");
 
 			const DMUI_NotificationDescriptor teardownNotification{
-				sizeof(DMUI_NotificationDescriptor),
 				DMUI_STATUS_SEVERITY_INFO,
 				"teardown",
 				5000
@@ -136,7 +129,6 @@ namespace vmm_tests
 				{ 8.0f, { 0.123f, 0.456f, 0.789f, 0.654f } }
 			};
 			DMUI_AnnotatedPlotDescriptor descriptor{
-				sizeof(DMUI_AnnotatedPlotDescriptor),
 				values,
 				3,
 				0,

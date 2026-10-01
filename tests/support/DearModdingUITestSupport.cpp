@@ -12,13 +12,6 @@ namespace vmm_tests::support::host
 {
 	using namespace DearModdingUI;
 
-uint32_t s_mockRegistrations{};
-DMUI_HostServices s_mockServices{};
-DMUI_Result s_mockUIResult{ DMUI_RESULT_OK };
-uint32_t s_mockUIRevision{ DMUI_UI_REVISION_CURRENT };
-uint32_t s_mockUITableSize{ DMUI_UI_API_CURRENT_SIZE };
-bool s_mockMissingRequiredUIOperation{};
-bool s_mockMissingPlotLines{};
 uint32_t s_externalOpenCalls{};
 uint32_t s_externalNativeError{};
 DMUI_Result s_externalResult{ DMUI_RESULT_OK };
@@ -115,126 +108,6 @@ DMUI_Result FakeExternalOpen(
 	if (a_nativeError)
 		*a_nativeError = s_externalNativeError;
 	return s_externalResult;
-}
-
-DMUI_Result DMUI_CALL MockRegisterClient(
-	const DMUI_ClientDescriptor*,
-	DMUI_ClientHandle*) noexcept
-{
-	++s_mockRegistrations;
-	return DMUI_RESULT_OK;
-}
-
-DMUI_Result DMUI_CALL MockRegisterPage(
-	DMUI_ClientHandle,
-	const DMUI_PageDescriptor*,
-	DMUI_PageHandle*) noexcept
-{
-	return DMUI_RESULT_OK;
-}
-
-DMUI_Result DMUI_CALL MockRegisterCategory(
-	DMUI_ClientHandle,
-	const DMUI_CategoryDescriptor*) noexcept
-{
-	return DMUI_RESULT_OK;
-}
-
-DMUI_Result DMUI_CALL MockQueryServices(
-	DMUI_HostServicesInfo* a_services) noexcept
-{
-	a_services->supportedServices = s_mockServices;
-	return DMUI_RESULT_OK;
-}
-
-DMUI_Result DMUI_CALL MockQueryUIAPI(
-	uint32_t a_requestedUIAbi,
-	uint32_t a_minimumRevision,
-	uint32_t a_minimumTableSize,
-	DMUI_UIAPIInfo* a_info) noexcept
-{
-	static DMUI_UIAPI ui = DearModdingUI::UI::API();
-	ui = DearModdingUI::UI::API();
-	ui.structSize = s_mockUITableSize;
-	ui.abiVersion = DMUI_UI_ABI_CURRENT;
-	ui.revision = s_mockUIRevision;
-	if (s_mockMissingRequiredUIOperation)
-		ui.endCombo = nullptr;
-	if (s_mockMissingPlotLines)
-		ui.plotLines = nullptr;
-	if (!a_info ||
-		a_info->structSize < DMUI_UI_API_INFO_1_SIZE)
-		return DMUI_RESULT_STRUCT_TOO_SMALL;
-	a_info->abiVersion = ui.abiVersion;
-	a_info->revision = ui.revision;
-	a_info->tableSize = ui.structSize;
-	a_info->api = nullptr;
-	if (s_mockUIResult != DMUI_RESULT_OK)
-		return s_mockUIResult;
-	if (a_requestedUIAbi != ui.abiVersion ||
-		a_minimumRevision > ui.revision ||
-		a_minimumTableSize > ui.structSize)
-		return DMUI_RESULT_UNSUPPORTED_ABI;
-	a_info->api = &ui;
-	return DMUI_RESULT_OK;
-}
-
-DMUI_HostAPI PreflightHostAPI() noexcept
-{
-	DMUI_HostAPI api{};
-	api.structSize = sizeof(api);
-	api.hostAbiVersion = DMUI_HOST_ABI_CURRENT;
-	api.apiVersion = DMUI_API_VERSION_CURRENT;
-	api.registerClient = &MockRegisterClient;
-	api.queryUIAPI = &MockQueryUIAPI;
-	return api;
-}
-
-DMUI_Result DMUI_CALL MockOpenExternal(
-	DMUI_ClientHandle,
-	const DMUI_ExternalOpenDescriptor*,
-	uint32_t*) noexcept
-{
-	return DMUI_RESULT_OK;
-}
-
-DMUI_Result DMUI_CALL MockCreateImage(
-	DMUI_ClientHandle,
-	const DMUI_ImageDescriptor*,
-	DMUI_ImageHandle*) noexcept
-{
-	return DMUI_RESULT_OK;
-}
-
-DMUI_Result DMUI_CALL MockUpdateImage(
-	DMUI_ClientHandle,
-	DMUI_ImageHandle,
-	const DMUI_ImageDescriptor*) noexcept
-{
-	return DMUI_RESULT_OK;
-}
-
-DMUI_Result DMUI_CALL MockDrawImage(
-	DMUI_ClientHandle,
-	DMUI_ImageHandle,
-	const DMUI_ImageDrawOptions*) noexcept
-{
-	return DMUI_RESULT_OK;
-}
-
-DMUI_Result DMUI_CALL MockReleaseImage(
-	DMUI_ClientHandle,
-	DMUI_ImageHandle) noexcept
-{
-	return DMUI_RESULT_OK;
-}
-
-DMUI_Result DMUI_CALL MockQueryImage(
-	DMUI_ClientHandle,
-	DMUI_ImageHandle,
-	DMUI_ImageInfo*) noexcept
-{
-	return DMUI_RESULT_OK;
 }
 
 	void SilentHealthReporter::Report(
@@ -390,8 +263,6 @@ DMUI_Result DMUI_CALL UnsupportedDrawPage(void*) noexcept
 	CallbackState& a_state) noexcept
 {
 	return {
-		sizeof(DMUI_ClientDescriptor),
-		DMUI_API_VERSION_CURRENT,
 		a_id,
 		a_name,
 		DMUI_MAKE_VERSION(1, 0),
@@ -413,7 +284,6 @@ DMUI_Result DMUI_CALL UnsupportedDrawPage(void*) noexcept
 	const char* a_iconName) noexcept
 {
 	return {
-		sizeof(DMUI_PageDescriptor),
 		a_id,
 		a_name,
 		a_category,
@@ -434,7 +304,6 @@ DMUI_Result DMUI_CALL UnsupportedDrawPage(void*) noexcept
 	CallbackState& a_state) noexcept
 {
 	return {
-		sizeof(DMUI_ActionDescriptor),
 		a_id,
 		a_label,
 		a_icon,
@@ -449,7 +318,6 @@ DMUI_Result DMUI_CALL UnsupportedDrawPage(void*) noexcept
 	CallbackState& a_state) noexcept
 {
 	return {
-		sizeof(DMUI_FrameObserverDescriptor),
 		&Draw,
 		&a_state
 	};
@@ -506,7 +374,6 @@ void AddCategory(
 	const char* a_iconName)
 {
 	const DMUI_CategoryDescriptor descriptor{
-		sizeof(DMUI_CategoryDescriptor),
 		a_id,
 		a_displayName,
 		a_sortKey,

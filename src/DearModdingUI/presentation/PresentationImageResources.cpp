@@ -325,8 +325,6 @@ namespace DearModdingUI::PresentationServices
 			a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_image = DMUI_INVALID_IMAGE_HANDLE;
-		if (a_descriptor->structSize < DMUI_D3D11_IMAGE_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!a_descriptor->shaderResourceView)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		{
@@ -412,8 +410,6 @@ namespace DearModdingUI::PresentationServices
 			a_client == DMUI_INVALID_CLIENT_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_image = DMUI_INVALID_IMAGE_HANDLE;
-		if (a_descriptor->structSize < DMUI_IMAGE_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		uint64_t tightRowPitch{};
 		uint64_t requiredBytes{};
 		const auto descriptorResult = ValidatePixelDescriptor(
@@ -467,8 +463,6 @@ namespace DearModdingUI::PresentationServices
 			a_client == DMUI_INVALID_CLIENT_HANDLE ||
 			a_image == DMUI_INVALID_IMAGE_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_descriptor->structSize < DMUI_IMAGE_DESCRIPTOR_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		uint64_t tightRowPitch{};
 		uint64_t requiredBytes{};
 		const auto descriptorResult = ValidatePixelDescriptor(
@@ -530,13 +524,15 @@ namespace DearModdingUI::PresentationServices
 	DMUI_Result DrawImage(
 		DMUI_ClientHandle a_client,
 		DMUI_ImageHandle a_image,
-		const DMUI_ImageDrawOptions* a_options) noexcept
+		const DMUI_ImageDrawOptions* a_options,
+		uint32_t* a_drawn) noexcept
 	{
+		if (!a_drawn)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		*a_drawn = 0;
 		if (!a_options || a_client == DMUI_INVALID_CLIENT_HANDLE ||
 			a_image == DMUI_INVALID_IMAGE_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_options->structSize < DMUI_IMAGE_DRAW_OPTIONS_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		if (!RenderExecution::IsActiveClient(a_client, true))
 			return DMUI_RESULT_WRONG_THREAD;
 		if (!std::isfinite(a_options->size.x) ||
@@ -544,34 +540,21 @@ namespace DearModdingUI::PresentationServices
 			!std::isfinite(a_options->uv0.x) ||
 			!std::isfinite(a_options->uv0.y) ||
 			!std::isfinite(a_options->uv1.x) ||
-			!std::isfinite(a_options->uv1.y))
+			!std::isfinite(a_options->uv1.y) ||
+			!std::isfinite(a_options->tint.x) ||
+			!std::isfinite(a_options->tint.y) ||
+			!std::isfinite(a_options->tint.z) ||
+			!std::isfinite(a_options->tint.w) ||
+			a_options->reserved != 0 || a_options->preserveAspect > 1 ||
+			(!a_options->preserveAspect &&
+				((a_options->size.x > 0.0f) != (a_options->size.y > 0.0f))))
 			return DMUI_RESULT_INVALID_ARGUMENT;
 
-		ID3D11ShaderResourceView* view{};
-		uint32_t width{};
-		uint32_t height{};
-		{
-			auto& service = GetImageService();
-			const std::scoped_lock lock{ service.mutex };
-			auto* image = FindImage(service, a_image);
-			if (!image || image->owner != a_client)
-				return DMUI_RESULT_STALE_HANDLE;
-			if (image->status != DMUI_IMAGE_STATUS_READY ||
-				image->deviceGeneration != service.deviceGeneration ||
-				!image->view)
-				return DMUI_RESULT_STALE_HANDLE;
-			view = image->view.Get();
-			width = image->width;
-			height = image->height;
-			try
-			{
-				service.frameLeases.push_back(image->view);
-			}
-			catch (const std::bad_alloc&)
-			{
-				return DMUI_RESULT_RESOURCE_EXHAUSTED;
-			}
-		}
+		ImageResources::AcquiredImage acquired;
+		const auto result = ImageResources::Acquire(a_client, a_image, acquired);
+		if (result != DMUI_RESULT_OK || !acquired.view)
+			return result;
+		const auto [view, width, height] = acquired;
 
 		auto size = ImVec2{ a_options->size.x, a_options->size.y };
 		if (size.x <= 0.0f && size.y <= 0.0f)
@@ -610,6 +593,7 @@ namespace DearModdingUI::PresentationServices
 				a_options->tint.z,
 				a_options->tint.w
 			});
+		*a_drawn = 1;
 		return DMUI_RESULT_OK;
 	}
 
@@ -639,14 +623,13 @@ namespace DearModdingUI::PresentationServices
 		if (!a_info || a_client == DMUI_INVALID_CLIENT_HANDLE ||
 			a_image == DMUI_INVALID_IMAGE_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (a_info->structSize < DMUI_IMAGE_INFO_0_1_SIZE)
-			return DMUI_RESULT_STRUCT_TOO_SMALL;
 		auto& service = GetImageService();
 		const std::scoped_lock lock{ service.mutex };
 		auto* image = FindImage(service, a_image);
 		if (!image || image->owner != a_client)
 			return DMUI_RESULT_STALE_HANDLE;
 		a_info->status = image->status;
+		a_info->failure = DMUI_RESULT_OK;
 		a_info->contentWidth = image->width;
 		a_info->contentHeight = image->height;
 		a_info->deviceGeneration = image->deviceGeneration;
@@ -679,6 +662,34 @@ namespace DearModdingUI::PresentationServices
 
 	namespace ImageResources
 	{
+		DMUI_Result Acquire(
+			DMUI_ClientHandle a_client, DMUI_ImageHandle a_image, AcquiredImage& a_acquired) noexcept
+		{
+			a_acquired = {};
+			if (!a_client || !a_image)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			if (!RenderExecution::IsActiveClient(a_client, true))
+				return DMUI_RESULT_WRONG_THREAD;
+			auto& service = GetImageService();
+			const std::scoped_lock lock{ service.mutex };
+			const auto* image = FindImage(service, a_image);
+			if (!image || image->owner != a_client || image->status == DMUI_IMAGE_STATUS_RELEASED)
+				return DMUI_RESULT_STALE_HANDLE;
+			if (image->status != DMUI_IMAGE_STATUS_READY ||
+				image->deviceGeneration != service.deviceGeneration || !image->view)
+				return DMUI_RESULT_OK;
+			try
+			{
+				service.frameLeases.push_back(image->view);
+			}
+			catch (const std::bad_alloc&)
+			{
+				return DMUI_RESULT_RESOURCE_EXHAUSTED;
+			}
+			a_acquired = { image->view.Get(), image->width, image->height };
+			return DMUI_RESULT_OK;
+		}
+
 		void SetDevice(ID3D11Device* a_device) noexcept
 		{
 			auto& service = GetImageService();
@@ -692,8 +703,11 @@ namespace DearModdingUI::PresentationServices
 			{
 				auto& image = service.images[slot];
 				if (image.status == DMUI_IMAGE_STATUS_READY)
-					RecycleImage(
-						service, slot, DMUI_IMAGE_STATUS_INVALIDATED);
+				{
+					// Invalidated handles remain owned until release, even after device recreation.
+					image.view.Reset();
+					image.status = DMUI_IMAGE_STATUS_INVALIDATED;
+				}
 			}
 		}
 

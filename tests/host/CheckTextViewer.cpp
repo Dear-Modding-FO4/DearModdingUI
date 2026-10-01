@@ -43,7 +43,6 @@ namespace vmm_tests
 			uint64_t a_matchRevision = 1)
 		{
 			return {
-				sizeof(DMUI_TextViewDescriptor),
 				a_id,
 				a_text.data(),
 				a_text.size(),
@@ -63,7 +62,6 @@ namespace vmm_tests
 			uint64_t a_matchRevision = 1)
 		{
 			return {
-				sizeof(DMUI_TextViewState),
 				a_contentRevision,
 				a_matchRevision,
 				DMUI_TEXT_VIEW_NO_OFFSET,
