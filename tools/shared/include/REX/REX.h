@@ -5,6 +5,10 @@
 namespace REX
 {
 	template <class... Args>
+	void DEBUG(Args&&...) noexcept
+	{}
+
+	template <class... Args>
 	void INFO(Args&&...) noexcept
 	{}
 

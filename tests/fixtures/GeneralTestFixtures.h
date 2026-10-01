@@ -119,7 +119,7 @@ namespace DmuiTestFixtures
 			"notifications-dialogs",
 			"Notifications and dialogs",
 			"Page and worker notifications plus confirm and validated text dialogs.",
-			"Post both notifications; accept, cancel, reject, and duplicate-submit the dialogs.",
+			"Post severities, a burst, duplicates, and a worker toast; accept, cancel, reject, and duplicate-submit dialogs.",
 			"Only one worker job runs; operations count on COMPLETED and rejected text is preserved."
 		},
 		ExercisePage{

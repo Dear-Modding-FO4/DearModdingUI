@@ -411,7 +411,9 @@ namespace DmuiTests::Detail
 		[[nodiscard]] bool PostPageNotification(
 			DMUI_StatusSeverity a_severity,
 			const char* a_message,
-			uint32_t a_durationMilliseconds) noexcept;
+			uint32_t a_durationMilliseconds,
+			const char* a_title = nullptr) noexcept;
+		[[nodiscard]] bool PostNotificationShowcase() noexcept;
 		void ScheduleDelayedNotification() noexcept;
 		void Draw() noexcept;
 		void Observe(uint64_t a_frameCount) noexcept;

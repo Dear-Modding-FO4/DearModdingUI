@@ -82,10 +82,7 @@ namespace DearModdingUI::HostAPIInternal
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiPostNotification(
 		DMUI_ClientHandle a_client, const DMUI_NotificationDescriptor *a_descriptor) noexcept
 	{
-		const auto clientResult = GetService().registry.ValidateClient(a_client);
-		if (clientResult != DMUI_RESULT_OK)
-			return clientResult;
-		return PresentationServices::PostNotification(a_client, a_descriptor);
+		return PresentationServices::PostNotification(GetService().registry, a_client, a_descriptor);
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiRequestDialog(DMUI_ClientHandle a_client,

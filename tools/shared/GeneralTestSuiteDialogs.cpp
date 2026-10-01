@@ -43,13 +43,15 @@ namespace DmuiTests::Detail
 	bool NotificationDialogExercise::PostPageNotification(
 		DMUI_StatusSeverity a_severity,
 		const char* a_message,
-		uint32_t a_durationMilliseconds) noexcept
+		uint32_t a_durationMilliseconds,
+		const char* a_title) noexcept
 	{
 		auto& client = m_context.Client();
 		const auto posted = client.PostNotification(
 			a_severity,
 			a_message,
-			a_durationMilliseconds);
+			a_durationMilliseconds,
+			a_title);
 		if (posted)
 			++m_pageNotifications;
 		m_notificationResult.store(
@@ -60,6 +62,24 @@ namespace DmuiTests::Detail
 			posted,
 			DMUI_ResultToString(m_notificationResult.load()),
 			m_pageNotifications);
+		return posted;
+	}
+
+	bool NotificationDialogExercise::PostNotificationShowcase() noexcept
+	{
+		bool posted = true;
+		posted &= PostPageNotification(DMUI_STATUS_SEVERITY_SUCCESS,
+			"Your graphics settings have been saved.", 30000, "Preset saved");
+		posted &= PostPageNotification(DMUI_STATUS_SEVERITY_INFO,
+			"The shader cache is ready. New effects will appear the next time you enter the Commonwealth.",
+			30000);
+		posted &= PostPageNotification(DMUI_STATUS_SEVERITY_WARNING,
+			"One preset uses a missing texture. Review its file path before applying.",
+			30000, "Preset needs review");
+		for (int index = 0; index < 3; ++index)
+			posted &= PostPageNotification(DMUI_STATUS_SEVERITY_ERROR,
+				"Could not write the configuration file. Check that the destination is writable.",
+				30000, "Settings not saved");
 		return posted;
 	}
 
@@ -145,11 +165,29 @@ namespace DmuiTests::Detail
 		}
 		auto& client = m_context.Client();
 		(void)client.DrawSectionHeader("Notifications and dialogs");
-		if (dmui::ui::Button("Post page notification"))
-			(void)PostPageNotification(
-				DMUI_STATUS_SEVERITY_SUCCESS,
-				"DMUI Tests: page notification posted successfully.",
-				3500);
+		for (const auto& [severity, label] : std::array{
+				 std::pair{ DMUI_STATUS_SEVERITY_SUCCESS, "Success" },
+				 std::pair{ DMUI_STATUS_SEVERITY_INFO, "Info" },
+				 std::pair{ DMUI_STATUS_SEVERITY_WARNING, "Warning" },
+				 std::pair{ DMUI_STATUS_SEVERITY_ERROR, "Error" } })
+		{
+			if (dmui::ui::Button(label))
+				(void)PostPageNotification(severity,
+					"This toast uses the host severity color and registered mod name.", 0, label);
+			dmui::ui::SameLine();
+		}
+		if (dmui::ui::Button("Duplicates (x3)"))
+			for (int index = 0; index < 3; ++index)
+				(void)PostPageNotification(DMUI_STATUS_SEVERITY_INFO,
+					"Three identical consecutive posts share one toast.", 0, "Repeated event");
+		if (dmui::ui::Button("Burst (40)"))
+			for (int index = 0; index < 40; ++index)
+			{
+				const auto title = std::format("Queued event {}", index + 1);
+				(void)PostPageNotification(DMUI_STATUS_SEVERITY_INFO,
+					"Four visible toasts; at most 32 waiting. Oldest waiting events are dropped.",
+					1500, title.c_str());
+			}
 		dmui::ui::SameLine();
 		if (dmui::ui::Button("Schedule delayed any-thread notification"))
 			ScheduleDelayedNotification();

@@ -49,7 +49,7 @@ namespace DmuiTests
 			PresentationScenario::kNotification,
 			"notification",
 			"notifications-dialogs",
-			false
+			true
 		},
 		PresentationScenarioDescriptor{
 			PresentationScenario::kImage,

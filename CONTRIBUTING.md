@@ -106,6 +106,7 @@ Useful arguments:
 - `--page <id>`: Navigates directly to a registered settings page.
 - `--sidebar <tree|twopane|drilldown|iconrail>`: Selects a sidebar presentation layout.
 - `--presentation <overlay|notification|image|plot|dialog|modal|popup>`: Tests presentation services and client popups.
+- `--menu-closed`: Hides the shell for overlay-only notification captures.
 - `--frames <count>`: Renders more frames before capture if a scenario needs time to initialize.
 
 Scenarios live in `tools\shared` and `tools\preview\fixtures`, and are not packaged. For example:

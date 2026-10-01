@@ -9,6 +9,8 @@
 struct ID3D11Device;
 struct ID3D11ShaderResourceView;
 
+namespace DearModdingUI { class Registry; }
+
 namespace DearModdingUI::PresentationServices
 {
 
@@ -74,9 +76,10 @@ namespace DearModdingUI::PresentationServices
 	void EndManagedOverlay() noexcept;
 
 	[[nodiscard]] DMUI_Result PostNotification(
+		const Registry& a_registry,
 		DMUI_ClientHandle a_client,
 		const DMUI_NotificationDescriptor* a_descriptor) noexcept;
-	void DrawNotification() noexcept;
+	void DrawNotifications(bool a_cursorActive) noexcept;
 
 	[[nodiscard]] DMUI_Result DrawAnnotatedPlot(
 		DMUI_ClientHandle a_client,

@@ -29,6 +29,7 @@ namespace DearModdingUIPreview
 		std::optional<DMUI_ClientOrigin> navigationOrigin;
 		std::optional<DmuiTests::PresentationScenario> presentationScenario;
 		bool syntheticHealth{};
+		bool menuClosed{};
 		bool controllerNavigation{};
 		std::optional<std::string> hotkeyState;
 		bool help{};

@@ -492,10 +492,28 @@ Product versions and the host's internal Dear ImGui version are not compatibilit
 The API provides frame-demand and swapchain wrappers,
 contextual hotkey enablement, owner/generation-scoped D3D11 image resources,
 host-owned generic CPU-pixel images, opt-in managed overlay windows, copied
-latest-message notifications, annotated plots, and single-active
+toast notifications, annotated plots, and single-active
 submission-aware dialogs. See the [public API reference](https://github.com/Dear-Modding-FO4/DearModdingUI-API)
 for the stable UI schema, image formats, row extent, transactional updates, overlay coordinates, notification
 duration, dialog state, and per-call thread contracts.
+
+### Notifications
+
+`postNotification` copies the required message (up to 1024 UTF-8 bytes) and optional
+title (up to 256 bytes). The host always attributes the toast to the registered mod
+display name. `Client::PostNotification(severity, message, duration, title)` keeps
+the title optional; existing calls remain valid. ABI 2 clients must rebuild for
+the appended descriptor field.
+
+Toasts appear above menus and dialogs at bottom-right, newest at the bottom,
+without capturing input. Four can be visible; up to 32 wait FIFO, dropping the
+oldest waiting entry on overflow. Identical consecutive posts from one client
+(including severity, title, message, and duration) coalesce with a count and renew
+their display lifetime. Duration zero selects five seconds; nonzero durations
+clamp to 250-30000 ms. Expiry begins on first presentation, pauses under the cursor
+while the menu is in cursor mode, and works independently of game pause or menu
+visibility. Backend teardown discards notifications.
+Text that exceeds the viewport's available height is ellipsized.
 
 Stable `InputTextMultiline` and `IsItemDeactivatedAfterEdit` operations are
 declared by the checked-in UI schema. Declarative setting writes remain live through

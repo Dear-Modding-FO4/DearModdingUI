@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Shared read-only text viewer**: Added a host-owned, clipped text viewport with independent scrolling, monospace rendering, overlapping literal-match highlighting, wrap navigation helpers, and exact byte-offset reveal.
 
 ### Changed
+- **Notifications**: Replaced the single banner with attributed, severity-colored toast stacks, bounded queuing, duplicate counts, and hover-paused expiry. The notification descriptor now accepts an optional title.
 - **BREAKING: ABI 2**: One exact-match ABI covers all tables and descriptors; clients must rebuild. Replace `Client::DrawImage` with `ui::Image` and `Client::DrawAnnotatedPlot` with `ui::PlotAnnotated`. Removed descriptor sizes, table-prefix/revision negotiation, service bits, and minimum-version client options. The host table exposes its UI table directly.
 - **Growable search input**: Restored the three-argument C++ search helper with automatic growth during edits. An optional byte limit remains available; client-owned resize callbacks share the fixed-buffer input mechanism.
 

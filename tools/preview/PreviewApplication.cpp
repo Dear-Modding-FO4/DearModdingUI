@@ -307,6 +307,8 @@ namespace DearModdingUIPreview
 			}
 			if (!SelectInitialPage(a_error))
 				return false;
+			if (options.menuClosed)
+				(void)SetMenuVisible(false);
 			if (options.contentScrollY)
 				ConfigurePreviewContentScroll(
 					static_cast<float>(*options.contentScrollY));
@@ -551,12 +553,13 @@ namespace DearModdingUIPreview
 				}
 				ModalCoordinator::BeginFrame();
 				DrawDemandedOverlays();
-				PresentationServices::DrawNotification();
 				if (IsMenuVisible())
 				{
 					DrawShell();
 				}
 				PresentationServices::DrawDialog(IsMenuVisible());
+				PresentationServices::DrawNotifications(
+					IsMenuVisible() && !ControllerNavigation::IsNavigating());
 				if (IsMenuVisible())
 					ApplyMenuEscapeDismissal();
 				ModalCoordinator::FinishFrame();

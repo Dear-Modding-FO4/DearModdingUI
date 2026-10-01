@@ -157,10 +157,7 @@ namespace DmuiTests
 						m_overlay.SetEnabled(true);
 					break;
 				case PresentationScenario::kNotification:
-					activated = m_dialogs.PostPageNotification(
-						DMUI_STATUS_SEVERITY_WARNING,
-						"Shader cache rebuilt; one preset needs review.",
-						30000);
+					activated = m_dialogs.PostNotificationShowcase();
 					break;
 				case PresentationScenario::kImage:
 					m_resources.RequestPresentationImageUpdate();

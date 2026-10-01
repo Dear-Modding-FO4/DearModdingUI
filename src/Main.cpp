@@ -1,5 +1,6 @@
 #include <Platform/input/CarrierMenu.h>
 #include <DearModdingUI/host/Host.h>
+#include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/host/ModalCoordinator.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/host/MenuToggleChord.h>
@@ -33,12 +34,14 @@ namespace Addictol
 		{
 			DearModdingUI::ModalCoordinator::BeginFrame();
 			DearModdingUI::DrawDemandedOverlays();
-			DearModdingUI::PresentationServices::DrawNotification();
 			if (DearModdingUI::IsMenuVisible())
 			{
 				DearModdingUI::DrawShell();
 			}
 			DearModdingUI::PresentationServices::DrawDialog(DearModdingUI::IsMenuVisible());
+			DearModdingUI::PresentationServices::DrawNotifications(
+				DearModdingUI::IsMenuVisible() &&
+				!DearModdingUI::ControllerNavigation::IsNavigating());
 			if (DearModdingUI::IsMenuVisible())
 				DearModdingUI::ApplyMenuEscapeDismissal();
 			DearModdingUI::ModalCoordinator::FinishFrame();

@@ -1,5 +1,7 @@
 #include "../support/D3DTestResources.h"
 #include "../support/PresentationTestSupport.h"
+#include "../support/DearModdingUITestSupport.h"
+#include "../../src/DearModdingUI/presentation/notifications/Queue.h"
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/RenderExecution.h>
 #include <imgui/imgui.h>
@@ -59,55 +61,119 @@ namespace vmm_tests
 				"managed overlay scaled dimensions or host-scale offset twice");
 		});
 
-		runner.test("latest notification survives an older expiry", [] {
+		runner.test("toast expiry starts at presentation and hover pauses it", [] {
+			using namespace PresentationServices::Notifications;
+			using namespace std::chrono_literals;
+			Queue queue;
+			const Clock::time_point start{};
+			(void)queue.Post({ .owner = 1, .message = "Waiting", .duration = 250ms });
+			queue.Advance(start + 10s);
+			const auto id = queue.Visible().front().id;
+			queue.Advance(start + 20s);
+			require(queue.Visible().size() == 1, "undrawn toast expired");
+			queue.Presented(id, start + 20s);
+			queue.Advance(start + 20100ms);
+			queue.Advance(start + 30s, id);
+			require(queue.Visible().size() == 1, "hover did not pause expiry");
+			queue.Advance(start + 30149ms);
+			require(!queue.Empty(), "toast expired before its remaining lifetime");
+			queue.Advance(start + 30150ms);
+			require(queue.Empty(), "toast did not expire after presentation and hover");
+		});
+
+		runner.test("toast queue caps visible entries and drops oldest waiting entries", [] {
+			using namespace PresentationServices::Notifications;
+			using namespace std::chrono_literals;
+			Queue queue;
+			const Clock::time_point start{};
+			for (int index = 0; index < 4; ++index)
+				(void)queue.Post({ .owner = 1, .message = std::to_string(index), .duration = 250ms });
+			queue.Advance(start);
+			for (const auto& toast : queue.Visible())
+				queue.Presented(toast.id, start);
+			size_t dropped{};
+			for (int index = 4; index < 40; ++index)
+				dropped += queue.Post({ .owner = 1, .message = std::to_string(index), .duration = 250ms });
+			require(queue.Visible().size() == 4 && queue.Pending().size() == 32 &&
+					dropped == 4 && queue.Pending().front().message == "8" &&
+					queue.Visible().front().message == "0",
+				"overflow dropped a visible toast or retained the wrong queued toast");
+			queue.Advance(start + 1s);
+			require(queue.Visible().size() == 4 && queue.Visible().front().message == "8",
+				"queued toasts expired or did not promote FIFO");
+		});
+
+		runner.test("consecutive identical toasts coalesce and renew presentation lifetime", [] {
+			using namespace PresentationServices::Notifications;
+			using namespace std::chrono_literals;
+			Queue queue;
+			const Clock::time_point start{};
+			Toast toast{ .owner = 1, .title = "Title", .message = "Duplicate", .duration = 250ms };
+			(void)queue.Post(toast);
+			(void)queue.Post(toast);
+			queue.Advance(start);
+			queue.Presented(queue.Visible().front().id, start);
+			queue.Advance(start + 200ms);
+			(void)queue.Post(toast);
+			queue.Advance(start + 10s);
+			require(queue.Visible().size() == 1 && queue.Visible().front().count == 3,
+				"duplicates did not coalesce across promotion or renew lifetime");
+			toast.owner = 2;
+			(void)queue.Post(toast);
+			toast.owner = 1;
+			(void)queue.Post(toast);
+			toast.title = "Other title";
+			(void)queue.Post(toast);
+			queue.Advance(start + 10s);
+			require(queue.Visible().size() == 4 && queue.Visible().back().count == 1,
+				"nonconsecutive, foreign, or differently titled posts coalesced");
+		});
+
+		runner.test("worker toasts copy registered attribution and retain demand until drawn", [] {
+			using namespace support::host;
+			Registry registry;
+			CallbackState state;
+			const auto client = AddClient(registry, "toast.mod", "Registered Mod", state);
 			auto resources = CreateImageResources();
 			PresentationServices::SetDevice(resources.device.Get());
-			const DMUI_NotificationDescriptor first{
+			const std::string message = std::string(1000, '\n') + "Worker message";
+			const DMUI_NotificationDescriptor descriptor{
 				DMUI_STATUS_SEVERITY_INFO,
-				"first",
-				250
+				message.c_str(),
+				250,
+				"Optional title"
 			};
-			const DMUI_NotificationDescriptor second{
-				DMUI_STATUS_SEVERITY_WARNING,
-				"second",
-				1000
-			};
-			require(PresentationServices::PostNotification(1, &first) ==
-					DMUI_RESULT_OK,
-				"first notification failed");
-			std::this_thread::sleep_for(std::chrono::milliseconds{ 100 });
-			DMUI_Result postResult{};
-			std::thread poster{ [&] {
-				postResult =
-					PresentationServices::PostNotification(2, &second);
-			} };
-			poster.join();
-			require(postResult == DMUI_RESULT_OK,
-				"worker notification failed");
-			std::this_thread::sleep_for(std::chrono::milliseconds{ 175 });
-			require(PresentationServices::HasFrameDemand(),
-				"older expiry erased the newer notification");
-			const DMUI_NotificationDescriptor expiring{
-				DMUI_STATUS_SEVERITY_INFO,
-				"expires",
-				250
-			};
-			require(PresentationServices::PostNotification(1, &expiring) ==
-					DMUI_RESULT_OK,
-				"expiring notification failed");
-			std::this_thread::sleep_for(std::chrono::milliseconds{ 275 });
-			require(!PresentationServices::HasFrameDemand(),
-				"expired passive notification retained frame demand");
-
-			const DMUI_NotificationDescriptor teardownNotification{
-				DMUI_STATUS_SEVERITY_INFO,
-				"teardown",
-				5000
-			};
-			require(PresentationServices::PostNotification(
-						9, &teardownNotification) == DMUI_RESULT_OK &&
-					PresentationServices::HasFrameDemand(),
-				"active notification did not demand a frame");
+			std::atomic<size_t> failures{};
+			std::vector<std::jthread> workers;
+			for (int index = 0; index < 4; ++index)
+				workers.emplace_back([&] {
+					for (int post = 0; post < 25; ++post)
+					{
+						if (PresentationServices::PostNotification(registry, client, &descriptor) != DMUI_RESULT_OK)
+							++failures;
+						(void)PresentationServices::HasFrameDemand();
+					}
+				});
+			workers.clear();
+			auto snapshot = PresentationServices::Notifications::Snapshot();
+			require(failures == 0 && snapshot.Pending().size() == 1 &&
+					snapshot.Pending().front().count == 100 &&
+					snapshot.Pending().front().clientName == "Registered Mod" &&
+					snapshot.Pending().front().title == "Optional title" &&
+					snapshot.Pending().front().message == message,
+				"concurrent posting lost entries or registered attribution");
+			require(PresentationServices::PostNotification(registry, 9999, &descriptor) ==
+					DMUI_RESULT_CLIENT_NOT_FOUND,
+				"unregistered client posted a toast");
+			{
+				ImGuiFrame frame;
+				const auto* focused = ImGui::GetCurrentContext()->NavWindow;
+				PresentationServices::DrawNotifications(false);
+				require(ImGui::GetCurrentContext()->NavWindow == focused &&
+						ImGui::GetForegroundDrawList()->VtxBuffer.Size > 0 &&
+						PresentationServices::Notifications::Snapshot().Visible().front().lastUpdate.has_value(),
+					"viewport-height overflow prevented passive foreground presentation");
+			}
 			PresentationServices::InvalidateDevice();
 			require(!PresentationServices::HasFrameDemand(),
 				"backend teardown retained presentation demand");

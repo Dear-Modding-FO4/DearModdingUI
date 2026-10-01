@@ -109,6 +109,7 @@ namespace DearModdingUIPreview
 			<< L"  --origin <native|bridged>  Select the destinations comparison tab\n"
 			<< L"  --presentation <overlay|notification|image|plot|dialog|modal|popup>\n"
 			<< L"                            Activate a shared exercise capture state\n"
+			<< L"  --menu-closed            Show only overlays and notifications\n"
 			<< L"  --health-scenario <synthetic>  Add labeled synthetic Health states\n"
 			<< L"  --expand <client-id>      Expand a tree mod or enter a drill-down mod\n"
 			<< L"  --collapse-all            Collapse the tree or show the drill-down root\n"
@@ -134,6 +135,11 @@ namespace DearModdingUIPreview
 			if (argument == L"--controller-navigation")
 			{
 				a_options.controllerNavigation = true;
+				continue;
+			}
+			if (argument == L"--menu-closed")
+			{
+				a_options.menuClosed = true;
 				continue;
 			}
 			if (argument == L"--collapse-all")
