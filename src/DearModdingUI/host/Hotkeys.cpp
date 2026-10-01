@@ -13,7 +13,24 @@ namespace DearModdingUI
 	{
 		inline constexpr size_t kActionIdCapacity{ 128 };
 		inline constexpr size_t kDisplayNameCapacity{ 256 };
-		inline constexpr size_t kChordCapacity{ 31 };
+		inline constexpr size_t kChordCapacity{ sizeof(DMUI_HotkeyBindingInfo::chord) - 1 };
+
+		[[nodiscard]] size_t ChordLength(HotkeyChord a_chord) noexcept
+		{
+			size_t length = 0;
+			if (a_chord.modifiers & kHotkeyModifierControl)
+				length += 5;
+			if (a_chord.modifiers & kHotkeyModifierAlt)
+				length += 4;
+			if (a_chord.modifiers & kHotkeyModifierShift)
+				length += 6;
+			for (const auto key : a_chord.keys)
+			{
+				if (key)
+					length += KeyCatalog::Token(key).size() + 1;
+			}
+			return length ? length - 1 : 4;
+		}
 
 		[[nodiscard]] bool ValidDisplayName(std::string_view a_value) noexcept
 		{
@@ -110,6 +127,7 @@ namespace DearModdingUI
 			return { {}, true };
 
 		HotkeyChord chord;
+		size_t keyCount = 0;
 		size_t start = 0;
 		while (start < a_value.size())
 		{
@@ -121,30 +139,33 @@ namespace DearModdingUI
 				return {};
 			if (EqualsIgnoringCase(token, "Shift"))
 			{
-				if (chord.keyCode || (chord.modifiers & kHotkeyModifierShift))
+				if (keyCount || (chord.modifiers & kHotkeyModifierShift))
 					return {};
 				chord.modifiers |= kHotkeyModifierShift;
 			}
 			else if (EqualsIgnoringCase(token, "Ctrl"))
 			{
-				if (chord.keyCode || (chord.modifiers & kHotkeyModifierControl))
+				if (keyCount || (chord.modifiers & kHotkeyModifierControl))
 					return {};
 				chord.modifiers |= kHotkeyModifierControl;
 			}
 			else if (EqualsIgnoringCase(token, "Alt"))
 			{
-				if (chord.keyCode || (chord.modifiers & kHotkeyModifierAlt))
+				if (keyCount || (chord.modifiers & kHotkeyModifierAlt))
 					return {};
 				chord.modifiers |= kHotkeyModifierAlt;
 			}
 			else
 			{
-				if (chord.keyCode)
+				if (keyCount == chord.keys.size())
 					return {};
 				const auto code = KeyCatalog::Parse(token);
 				if (!code || !IsHostBindableKey(*code))
 					return {};
-				chord.keyCode = *code;
+				if (std::ranges::find(chord.keys, *code) != chord.keys.end() ||
+					(keyCount && HotkeySlotForKey(*code) != HotkeySlotForKey(chord.keys[0])))
+					return {};
+				chord.keys[keyCount++] = *code;
 			}
 			if (end == std::string_view::npos)
 				break;
@@ -152,7 +173,10 @@ namespace DearModdingUI
 			if (start == a_value.size())
 				return {};
 		}
-		return { chord, chord.keyCode != 0 };
+		if (!keyCount || (chord.modifiers && chord.FitsSlot(HotkeySlot::kGamepad)))
+			return {};
+		std::sort(chord.keys.begin(), chord.keys.begin() + keyCount);
+		return { chord, ChordLength(chord) <= kChordCapacity };
 	}
 
 	std::string SerializeHotkeyChord(HotkeyChord a_chord)
@@ -166,22 +190,65 @@ namespace DearModdingUI
 			value += "Alt+";
 		if (a_chord.modifiers & kHotkeyModifierShift)
 			value += "Shift+";
-		value += KeyCatalog::Token(a_chord.keyCode);
+		for (const auto key : a_chord.keys)
+		{
+			if (!key)
+				break;
+			value += KeyCatalog::Token(key);
+			value += '+';
+		}
+		value.pop_back();
+		return value;
+	}
+
+	std::string FormatHotkeyChord(std::string_view a_chord)
+	{
+		if (a_chord.empty())
+			return "Not set";
+		auto parsed = ParseHotkeyChord(a_chord);
+		if (!parsed.recognized)
+			return "Invalid binding";
+		if (parsed.chord.IsNone())
+			return "Not set";
+		std::string value;
+		const auto append = [&](std::string_view a_label) {
+			if (!value.empty())
+				value += " + ";
+			value += a_label;
+		};
+		if (parsed.chord.modifiers & kHotkeyModifierControl)
+			append("Ctrl");
+		if (parsed.chord.modifiers & kHotkeyModifierAlt)
+			append("Alt");
+		if (parsed.chord.modifiers & kHotkeyModifierShift)
+			append("Shift");
+		const auto end = std::find(parsed.chord.keys.begin(), parsed.chord.keys.end(), 0u);
+		std::sort(parsed.chord.keys.begin(), end, [](uint32_t a_left, uint32_t a_right) {
+			const auto* left = KeyCatalog::Find(a_left);
+			const auto* right = KeyCatalog::Find(a_right);
+			return (left->displayOrder ? left->displayOrder : left->code) <
+				(right->displayOrder ? right->displayOrder : right->code);
+		});
+		for (auto key = parsed.chord.keys.begin(); key != end; ++key)
+		{
+			const auto* entry = KeyCatalog::Find(*key);
+			append(entry->shortLabel.empty() ? entry->label : entry->shortLabel);
+		}
 		return value;
 	}
 
 	void HotkeyRegistry::InitializeOverrides(
-		std::map<std::string, std::string> a_overrides) noexcept
+		std::map<std::string, std::string> a_overrides, HotkeySlot a_slot) noexcept
 	{
 		const std::scoped_lock lock{ m_mutex };
-		m_overrides = std::move(a_overrides);
+		m_overrides[static_cast<size_t>(a_slot)] = std::move(a_overrides);
 		RecomputeBindingsLocked();
 	}
 
-	void HotkeyRegistry::SetReservedChord(HotkeyChord a_chord) noexcept
+	void HotkeyRegistry::SetReservedChord(HotkeyChord a_chord, HotkeySlot a_slot) noexcept
 	{
 		const std::scoped_lock lock{ m_mutex };
-		m_reservedChord = a_chord;
+		m_reservedChords[static_cast<size_t>(a_slot)] = a_chord;
 		RecomputeBindingsLocked();
 	}
 
@@ -233,7 +300,7 @@ namespace DearModdingUI
 					action.suggestedDefaultChord))
 				return DMUI_RESULT_UNKNOWN_CHORD;
 			const auto parsed = ParseHotkeyChord(action.suggestedDefaultChord);
-			if (!parsed.recognized)
+			if (!parsed.recognized || !parsed.chord.FitsSlot(HotkeySlot::kKeyboardMouse))
 				return DMUI_RESULT_UNKNOWN_CHORD;
 			action.suggestedDefault = parsed.chord;
 			action.suggestedDefaultChord = SerializeHotkeyChord(parsed.chord);
@@ -284,10 +351,13 @@ namespace DearModdingUI
 		}
 	}
 
-	void HotkeyRegistry::BeginCapture() noexcept
+	void HotkeyRegistry::BeginCapture(HotkeySlot a_slot) noexcept
 	{
 		const std::scoped_lock lock{ m_mutex };
 		m_capture.reset();
+		m_captureKeys = {};
+		m_captureSlot = a_slot;
+		m_captureValid = true;
 		m_capturing = true;
 	}
 
@@ -319,20 +389,21 @@ namespace DearModdingUI
 		const std::scoped_lock lock{ m_mutex };
 		m_capturing = false;
 		m_capture.reset();
+		m_heldKeys.fill(false);
 		for (auto& active : m_activeKeys)
+			ReleaseKeyLocked(active);
+	}
+
+	void HotkeyRegistry::ReleaseKeyLocked(ActiveKey& a_active) noexcept
+	{
+		if (a_active.queued)
 		{
-			if (active.action == DMUI_INVALID_HOTKEY_ACTION_HANDLE && !active.captured)
-				continue;
-			if (active.queued)
-			{
-				const auto tail =
-					(m_eventHead + m_eventCount) % m_events.size();
-				m_events[tail] = { active.action, false };
-				++m_eventCount;
-				--m_reservedReleaseCount;
-			}
-			active = {};
+			const auto tail = (m_eventHead + m_eventCount) % m_events.size();
+			m_events[tail] = { a_active.action, false };
+			++m_eventCount;
+			--m_reservedReleaseCount;
 		}
+		a_active = {};
 	}
 
 	DMUI_Result HotkeyRegistry::Query(
@@ -350,9 +421,10 @@ namespace DearModdingUI
 		const auto* action = FindActionLocked(a_action);
 		if (!action || action->client != a_client)
 			return DMUI_RESULT_ACTION_NOT_FOUND;
-		a_binding->state = action->state;
-		const auto chord = action->state == DMUI_HOTKEY_BINDING_BOUND ?
-			SerializeHotkeyChord(action->effective) :
+		const auto& binding = action->bindings[0];
+		a_binding->state = binding.state;
+		const auto chord = binding.state == DMUI_HOTKEY_BINDING_BOUND ?
+			SerializeHotkeyChord(binding.effective) :
 			std::string{ "none" };
 		std::memcpy(a_binding->chord, chord.c_str(), chord.size() + 1);
 		return DMUI_RESULT_OK;
@@ -381,31 +453,33 @@ namespace DearModdingUI
 
 	DMUI_Result HotkeyRegistry::SetOverride(
 		std::string_view a_id,
-		std::string_view a_chord) noexcept
+		std::string_view a_chord, HotkeySlot a_slot) noexcept
 	{
 		const auto parsed = ParseHotkeyChord(a_chord);
-		if (!parsed.recognized)
+		if (!parsed.recognized || !parsed.chord.FitsSlot(a_slot))
 			return DMUI_RESULT_UNKNOWN_CHORD;
 		try
 		{
 			const std::scoped_lock lock{ m_mutex };
+			auto& overrides = m_overrides[static_cast<size_t>(a_slot)];
 			const auto found = std::ranges::find_if(m_actions, [&](const auto& a_action) {
 				return a_action.live && a_action.id == a_id;
 			});
 			if (found == m_actions.end())
 				return DMUI_RESULT_ACTION_NOT_FOUND;
-			const auto previous = m_overrides.find(found->id);
-			const auto hadPrevious = previous != m_overrides.end();
+			const auto previous = overrides.find(found->id);
+			const auto hadPrevious = previous != overrides.end();
 			const auto previousChord = hadPrevious ? previous->second : std::string{};
-			m_overrides[found->id] = SerializeHotkeyChord(parsed.chord);
+			overrides[found->id] = SerializeHotkeyChord(parsed.chord);
 			RecomputeBindingsLocked();
-			if (found->state == DMUI_HOTKEY_BINDING_BOUND ||
-				found->state == DMUI_HOTKEY_BINDING_UNBOUND_USER)
+			const auto state = found->bindings[static_cast<size_t>(a_slot)].state;
+			if (state == DMUI_HOTKEY_BINDING_BOUND ||
+				state == DMUI_HOTKEY_BINDING_UNBOUND_USER)
 				return DMUI_RESULT_OK;
 			if (hadPrevious)
-				m_overrides[found->id] = previousChord;
+				overrides[found->id] = previousChord;
 			else
-				m_overrides.erase(found->id);
+				overrides.erase(found->id);
 			RecomputeBindingsLocked();
 			return DMUI_RESULT_DUPLICATE_ACTION_ID;
 		}
@@ -415,10 +489,10 @@ namespace DearModdingUI
 		}
 	}
 
-	bool HotkeyRegistry::RemoveOverride(std::string_view a_id) noexcept
+	bool HotkeyRegistry::RemoveOverride(std::string_view a_id, HotkeySlot a_slot) noexcept
 	{
 		const std::scoped_lock lock{ m_mutex };
-		const auto erased = m_overrides.erase(std::string{ a_id }) != 0;
+		const auto erased = m_overrides[static_cast<size_t>(a_slot)].erase(std::string{ a_id }) != 0;
 		if (erased)
 			RecomputeBindingsLocked();
 		return erased;
@@ -433,35 +507,66 @@ namespace DearModdingUI
 		if (a_keyCode >= m_activeKeys.size())
 			return HotkeyMessageResult::kPassThrough;
 		const std::scoped_lock lock{ m_mutex };
+		const auto wasHeld = m_heldKeys[a_keyCode];
+		m_heldKeys[a_keyCode] = a_pressed;
 		auto& active = m_activeKeys[a_keyCode];
 		if (!a_pressed)
 		{
-			if (active.action == DMUI_INVALID_HOTKEY_ACTION_HANDLE && !active.captured)
-				return HotkeyMessageResult::kPassThrough;
-			if (active.queued)
+			if (m_capturing && active.captured &&
+				std::ranges::find(m_captureKeys.keys, a_keyCode) != m_captureKeys.keys.end())
 			{
-				const auto tail =
-					(m_eventHead + m_eventCount) % m_events.size();
-				m_events[tail] = { active.action, false };
-				++m_eventCount;
-				--m_reservedReleaseCount;
+				if (m_captureValid && ChordLength(m_captureKeys) <= kChordCapacity)
+					m_capture = m_captureKeys;
+				m_capturing = false;
 			}
-			active = {};
+			if (!active.IsOwned())
+				return HotkeyMessageResult::kPassThrough;
+			ReleaseKeyLocked(active);
 			return HotkeyMessageResult::kConsumed;
 		}
-		if (active.action != DMUI_INVALID_HOTKEY_ACTION_HANDLE || active.captured)
+		if (active.IsOwned())
 			return HotkeyMessageResult::kConsumed;
-		if (a_repeat)
+		if (a_repeat || wasHeld || !IsHostBindableKey(a_keyCode))
 			return HotkeyMessageResult::kPassThrough;
-		const HotkeyChord pressed{ a_keyCode, a_modifiers };
+		const auto slot = HotkeySlotForKey(a_keyCode);
+		const auto index = static_cast<size_t>(slot);
+		if (slot == HotkeySlot::kGamepad)
+			a_modifiers = 0;
 		if (m_capturing)
 		{
-			if (!IsHostBindableKey(a_keyCode))
+			if (slot != m_captureSlot)
 				return HotkeyMessageResult::kPassThrough;
-			m_capture = pressed;
-			m_capturing = false;
+			const auto empty = std::ranges::find(m_captureKeys.keys, 0u);
+			if (empty == m_captureKeys.keys.end())
+				m_captureValid = false;
+			else
+			{
+				*empty = a_keyCode;
+				std::sort(m_captureKeys.keys.begin(), empty + 1);
+			}
+			m_captureKeys.modifiers = a_modifiers;
 			active.captured = true;
 			return HotkeyMessageResult::kConsumed;
+		}
+		const auto matches = [&](HotkeyChord a_chord) {
+			return !a_chord.IsNone() && a_chord.modifiers == a_modifiers &&
+				std::ranges::find(a_chord.keys, a_keyCode) != a_chord.keys.end() &&
+				std::ranges::all_of(a_chord.keys, [&](auto a_key) {
+					return !a_key || m_heldKeys[a_key];
+				});
+		};
+		const auto hasActivation = [&](DMUI_HotkeyActionHandle a_action, bool a_toggle) {
+			return std::ranges::any_of(m_activeKeys, [&](const auto& a_active) {
+				return a_active.slot == slot &&
+					(a_toggle ? a_active.toggle : a_active.action == a_action);
+			});
+		};
+		if (matches(m_reservedChords[index]) &&
+			!hasActivation(DMUI_INVALID_HOTKEY_ACTION_HANDLE, true))
+		{
+			active.toggle = true;
+			active.slot = slot;
+			return HotkeyMessageResult::kMenuToggle;
 		}
 		const auto found = std::ranges::find_if(m_actions, [&](const auto& a_action) {
 			const auto contextAllowed =
@@ -479,21 +584,22 @@ namespace DearModdingUI
 				a_action.enabled &&
 				contextAllowed &&
 				!a_action.callbackFailed &&
-				a_action.state == DMUI_HOTKEY_BINDING_BOUND &&
-				a_action.effective == pressed;
+				a_action.bindings[index].state == DMUI_HOTKEY_BINDING_BOUND &&
+				matches(a_action.bindings[index].effective) &&
+				!hasActivation(a_action.handle, false);
 		});
 		if (found == m_actions.end())
 			return HotkeyMessageResult::kPassThrough;
 		if (m_eventCount + m_reservedReleaseCount + 2 > m_events.size())
 		{
-			active = { found->handle, false };
+			active = { found->handle, false, false, false, slot };
 			return HotkeyMessageResult::kConsumedPairDropped;
 		}
 		const auto tail = (m_eventHead + m_eventCount) % m_events.size();
 		m_events[tail] = { found->handle, true };
 		++m_eventCount;
 		++m_reservedReleaseCount;
-		active = { found->handle, true };
+		active = { found->handle, true, false, false, slot };
 		return HotkeyMessageResult::kConsumed;
 	}
 
@@ -530,42 +636,45 @@ namespace DearModdingUI
 		try
 		{
 			const std::scoped_lock lock{ m_mutex };
-			std::vector<HotkeyActionSnapshot> result;
-			result.reserve(m_actions.size() + m_overrides.size());
+			std::map<std::string, HotkeyActionSnapshot> snapshots;
 			for (const auto& action : m_actions)
 			{
 				if (!action.live)
 					continue;
-				const auto override = m_overrides.find(action.id);
-				result.push_back({
-					action.id,
-					action.displayName,
-					action.suggestedDefaultChord,
-					override != m_overrides.end() ? override->second : std::string{},
-					action.state == DMUI_HOTKEY_BINDING_BOUND ?
-						SerializeHotkeyChord(action.effective) :
-						std::string{ "none" },
-					action.state,
-					true
-				});
+				auto& snapshot = snapshots[action.id];
+				snapshot.id = action.id;
+				snapshot.displayName = action.displayName;
+				snapshot.suggestedDefaultChord = action.suggestedDefaultChord;
+				snapshot.registered = true;
+				for (const auto slot : kHotkeySlots)
+				{
+					const auto index = static_cast<size_t>(slot);
+					const auto& binding = action.bindings[index];
+					snapshot.bindings[index].effectiveChord =
+						binding.state == DMUI_HOTKEY_BINDING_BOUND ?
+							SerializeHotkeyChord(binding.effective) : "none";
+					snapshot.bindings[index].state = binding.state;
+				}
 			}
-			for (const auto& [id, chord] : m_overrides)
+			for (const auto slot : kHotkeySlots)
 			{
-				if (std::ranges::any_of(m_actions, [&](const auto& a_action) {
-						return a_action.live && a_action.id == id;
-					}))
-					continue;
-				result.push_back({
-					id,
-					id,
-					{},
-					chord,
-					chord,
-					DMUI_HOTKEY_BINDING_UNBOUND_NEVER_SET,
-					false
-				});
+				const auto index = static_cast<size_t>(slot);
+				for (const auto& [id, chord] : m_overrides[index])
+				{
+					auto& snapshot = snapshots[id];
+					snapshot.id = id;
+					if (!snapshot.registered)
+					{
+						snapshot.displayName = id;
+						snapshot.bindings[index].effectiveChord = chord;
+					}
+					snapshot.bindings[index].overrideChord = chord;
+				}
 			}
-			std::ranges::sort(result, {}, &HotkeyActionSnapshot::id);
+			std::vector<HotkeyActionSnapshot> result;
+			result.reserve(snapshots.size());
+			for (auto& [id, snapshot] : snapshots)
+				result.push_back(std::move(snapshot));
 			return result;
 		}
 		catch (...)
@@ -574,12 +683,12 @@ namespace DearModdingUI
 		}
 	}
 
-	std::map<std::string, std::string> HotkeyRegistry::Overrides() const noexcept
+	std::map<std::string, std::string> HotkeyRegistry::Overrides(HotkeySlot a_slot) const noexcept
 	{
 		try
 		{
 			const std::scoped_lock lock{ m_mutex };
-			return m_overrides;
+			return m_overrides[static_cast<size_t>(a_slot)];
 		}
 		catch (...)
 		{
@@ -590,10 +699,7 @@ namespace DearModdingUI
 	void HotkeyRegistry::RecomputeBindingsLocked() noexcept
 	{
 		for (auto& action : m_actions)
-		{
-			action.effective = {};
-			action.state = DMUI_HOTKEY_BINDING_UNBOUND_NEVER_SET;
-		}
+			action.bindings = {};
 		std::vector<Action*> ordered;
 		ordered.reserve(m_actions.size());
 		for (auto& action : m_actions)
@@ -604,59 +710,39 @@ namespace DearModdingUI
 		std::ranges::sort(ordered, {}, [](const auto* a_action) {
 			return a_action->id;
 		});
-		std::set<std::pair<uint32_t, uint32_t>> occupied;
-		for (auto* action : ordered)
+		for (const auto slot : kHotkeySlots)
 		{
-			const auto override = m_overrides.find(action->id);
-			if (override == m_overrides.end())
-				continue;
-			const auto parsed = ParseHotkeyChord(override->second);
-			if (!parsed.recognized)
+			const auto index = static_cast<size_t>(slot);
+			const auto& overrides = m_overrides[index];
+			std::set<HotkeyChord> occupied{ m_reservedChords[index] };
+			// User choices take priority over client suggestions.
+			for (const bool userOverride : { true, false })
 			{
-				action->state = DMUI_HOTKEY_BINDING_UNBOUND_INVALID_OVERRIDE;
-				continue;
+				for (auto* action : ordered)
+				{
+					const auto override = overrides.find(action->id);
+					if ((override != overrides.end()) != userOverride)
+						continue;
+					auto& binding = action->bindings[index];
+					const auto parsed = userOverride ? ParseHotkeyChord(override->second) :
+						ParsedHotkeyChord{
+							slot == HotkeySlot::kKeyboardMouse ? action->suggestedDefault : HotkeyChord{},
+							true };
+					if (!parsed.recognized || !parsed.chord.FitsSlot(slot))
+						binding.state = DMUI_HOTKEY_BINDING_UNBOUND_INVALID_OVERRIDE;
+					else if (parsed.chord.IsNone())
+						binding.state = userOverride ? DMUI_HOTKEY_BINDING_UNBOUND_USER :
+							DMUI_HOTKEY_BINDING_UNBOUND_NEVER_SET;
+					else if (!occupied.insert(parsed.chord).second)
+						binding.state = userOverride ? DMUI_HOTKEY_BINDING_UNBOUND_OVERRIDE_CONFLICT :
+							DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT;
+					else
+					{
+						binding.effective = parsed.chord;
+						binding.state = DMUI_HOTKEY_BINDING_BOUND;
+					}
+				}
 			}
-			if (parsed.chord.IsNone())
-			{
-				action->state = DMUI_HOTKEY_BINDING_UNBOUND_USER;
-				continue;
-			}
-			const auto key = std::pair{
-				parsed.chord.keyCode,
-				parsed.chord.modifiers
-			};
-			if (parsed.chord == m_reservedChord ||
-				occupied.contains(key))
-			{
-				action->state = DMUI_HOTKEY_BINDING_UNBOUND_OVERRIDE_CONFLICT;
-				continue;
-			}
-			action->effective = parsed.chord;
-			action->state = DMUI_HOTKEY_BINDING_BOUND;
-			occupied.insert(key);
-		}
-		for (auto* action : ordered)
-		{
-			if (m_overrides.contains(action->id))
-				continue;
-			if (action->suggestedDefault.IsNone())
-			{
-				action->state = DMUI_HOTKEY_BINDING_UNBOUND_NEVER_SET;
-				continue;
-			}
-			const auto key = std::pair{
-				action->suggestedDefault.keyCode,
-				action->suggestedDefault.modifiers
-			};
-			if (action->suggestedDefault == m_reservedChord ||
-				occupied.contains(key))
-			{
-				action->state = DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT;
-				continue;
-			}
-			action->effective = action->suggestedDefault;
-			action->state = DMUI_HOTKEY_BINDING_BOUND;
-			occupied.insert(key);
 		}
 	}
 
@@ -676,14 +762,14 @@ namespace DearModdingUI
 
 	namespace Hotkeys
 	{
-		void InitializeOverrides(std::map<std::string, std::string> a_overrides) noexcept
+		void InitializeOverrides(std::map<std::string, std::string> a_overrides, HotkeySlot a_slot) noexcept
 		{
-			RegistryInstance().InitializeOverrides(std::move(a_overrides));
+			RegistryInstance().InitializeOverrides(std::move(a_overrides), a_slot);
 		}
 
-		void SetReservedChord(HotkeyChord a_chord) noexcept
+		void SetReservedChord(HotkeyChord a_chord, HotkeySlot a_slot) noexcept
 		{
-			RegistryInstance().SetReservedChord(a_chord);
+			RegistryInstance().SetReservedChord(a_chord, a_slot);
 		}
 
 		DMUI_Result Register(
@@ -727,9 +813,9 @@ namespace DearModdingUI
 			RegistryInstance().ReleaseActiveKeys();
 		}
 
-		void BeginCapture() noexcept
+		void BeginCapture(HotkeySlot a_slot) noexcept
 		{
-			RegistryInstance().BeginCapture();
+			RegistryInstance().BeginCapture(a_slot);
 		}
 
 		bool CancelCapture() noexcept
@@ -767,21 +853,21 @@ namespace DearModdingUI
 			return RegistryInstance().Snapshot();
 		}
 
-		std::map<std::string, std::string> Overrides() noexcept
+		std::map<std::string, std::string> Overrides(HotkeySlot a_slot) noexcept
 		{
-			return RegistryInstance().Overrides();
+			return RegistryInstance().Overrides(a_slot);
 		}
 
 		DMUI_Result SetOverride(
 			std::string_view a_id,
-			std::string_view a_chord) noexcept
+			std::string_view a_chord, HotkeySlot a_slot) noexcept
 		{
-			return RegistryInstance().SetOverride(a_id, a_chord);
+			return RegistryInstance().SetOverride(a_id, a_chord, a_slot);
 		}
 
-		bool RemoveOverride(std::string_view a_id) noexcept
+		bool RemoveOverride(std::string_view a_id, HotkeySlot a_slot) noexcept
 		{
-			return RegistryInstance().RemoveOverride(a_id);
+			return RegistryInstance().RemoveOverride(a_id, a_slot);
 		}
 	}
 }

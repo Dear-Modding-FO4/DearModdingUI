@@ -6,6 +6,7 @@
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/controls/SettingsTable.h>
 #include <DearModdingUI/VisualDecisions.h>
+#include <DearModdingUI/host/ControllerNavigation.h>
 
 #include <algorithm>
 #include <cfloat>
@@ -21,7 +22,8 @@ namespace DearModdingUI
 	std::optional<HotkeyChord> DrawKeyCapture(
 		const char* a_id,
 		const char* a_binding,
-		float a_width) noexcept
+		float a_width, HotkeySlot a_slot, bool a_allowClear, const char* a_details,
+		bool a_captureEnabled, const char* a_warning) noexcept
 	{
 		static ImGuiID captureTarget{};
 		const auto id = ImGui::GetID(a_id);
@@ -33,14 +35,59 @@ namespace DearModdingUI
 				captureTarget = 0;
 		}
 		ImGui::PushID(a_id);
-		const auto text = captureTarget == id ?
-			"Press a key... (Esc cancels)###Capture" :
-			std::string{ a_binding } + "###Capture";
-		if (ImGui::Button(text.c_str(), { a_width, 0.0f }))
+		const auto capturing = captureTarget == id;
+		const auto bound = a_binding && *a_binding &&
+			!EqualsIgnoringCase(a_binding, "none") &&
+			std::string_view{ a_binding } != "Not set";
+		const auto width = a_width > 0.0f ? a_width : ImGui::GetContentRegionAvail().x;
+		const auto height = ImGui::GetFrameHeight();
+		const auto clearWidth = height;
+		const auto origin = ImGui::GetCursorScreenPos();
+		const auto display = FormatHotkeyChord(a_binding ? a_binding : "");
+		const auto text = capturing ?
+			(a_slot == HotkeySlot::kGamepad ? "Press buttons..." : "Press keys...") :
+			(bound ? display.c_str() : a_warning ? "Check binding" : "Not set");
+		ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+		ImGui::PushStyleColor(ImGuiCol_Text, a_warning && !capturing ?
+			Theme::StatusTextColor(DMUI_STATUS_SEVERITY_WARNING) : ImGui::GetStyleColorVec4(
+			bound || capturing ? ImGuiCol_Text : ImGuiCol_TextDisabled));
+		ImGui::BeginDisabled(!a_captureEnabled);
+		if (ImGui::Button((std::string{ text } + "###Capture").c_str(),
+				{ (std::max)(width - clearWidth, 1.0f), height }))
 		{
-			Hotkeys::BeginCapture();
+			Hotkeys::BeginCapture(a_slot);
 			captureTarget = id;
 		}
+		ImGui::EndDisabled();
+		ImGui::PopStyleColor(2);
+		if (capturing)
+		{
+			auto color = ImGui::GetStyleColorVec4(ImGuiCol_CheckMark);
+			color.w *= 0.65f + 0.25f * std::sin(static_cast<float>(ImGui::GetTime()) * 4.0f);
+			ImGui::GetWindowDrawList()->AddRect(
+				origin, ImGui::GetItemRectMax(), ImGui::GetColorU32(color),
+				ImGui::GetStyle().FrameRounding, 0, 1.5f);
+		}
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) || ImGui::IsItemFocused())
+			ImGui::SetTooltip("%s%s%s%s%s%s",
+				a_details ? a_details : "", a_details ? "\n" : "", text,
+				a_warning ? "\n" : "", a_warning ? a_warning : "",
+				a_captureEnabled ? "\nRelease to bind. Esc / B cancels." : "");
+		if (bound && a_allowClear && !capturing)
+		{
+			ImGui::SameLine(0.0f, 0.0f);
+			if (DrawCompactChromeButton("##Clear",
+					{ origin.x + width - clearWidth, origin.y }, { clearWidth, height },
+					FindPhosphorIconGlyphOrZero("x"), "x", "Unbind",
+					ImGui::GetColorU32(ImGuiCol_TextDisabled)))
+			{
+				(void)Hotkeys::CancelCapture();
+				captureTarget = 0;
+				captured = HotkeyChord{};
+			}
+		}
+		ImGui::SetCursorScreenPos(origin);
+		ImGui::Dummy({ width, height });
 		ImGui::PopID();
 		return captured;
 	}
@@ -406,7 +453,7 @@ namespace DearModdingUI
 			return false;
 		const auto restore = ImGui::GetCursorScreenPos();
 		ImGui::SetCursorScreenPos(a_origin);
-		const auto pressed = ImGui::InvisibleButton(a_id, a_size);
+		const auto pressed = ImGui::InvisibleButton(a_id, a_size, ImGuiButtonFlags_EnableNav);
 		const auto hovered = ImGui::IsItemHovered(
 			ImGuiHoveredFlags_AllowWhenDisabled);
 		const ImRect bounds{
@@ -416,7 +463,7 @@ namespace DearModdingUI
 		(void)DrawRoundedHighlight(
 			bounds.Min,
 			bounds.Max,
-			hovered || a_active,
+			hovered || a_active || ImGui::IsItemFocused(),
 			ImGui::IsItemActive(),
 			window->DrawList);
 		if (a_glyph)
@@ -441,7 +488,7 @@ namespace DearModdingUI
 				&bounds);
 			ImGui::PopStyleColor();
 		}
-		if (hovered && a_tooltip)
+		if ((hovered || (ImGui::IsItemFocused() && ImGui::GetIO().NavVisible)) && a_tooltip)
 			ImGui::SetTooltip("%s", a_tooltip);
 		ImGui::SetCursorScreenPos(restore);
 		ImGui::Dummy({ 0.0f, 0.0f });
@@ -473,6 +520,7 @@ namespace DearModdingUI
 			a_options.selected,
 			a_options.expanded);
 		const auto hovered = ImGui::IsItemHovered();
+		ControllerNavigation::FocusSelectedItem(a_options.selected);
 		if (a_options.flushHorizontalHighlight)
 			ImGui::PopStyleVar();
 		const ImRect rect{ ImGui::GetItemRectMin(), ImGui::GetItemRectMax() };

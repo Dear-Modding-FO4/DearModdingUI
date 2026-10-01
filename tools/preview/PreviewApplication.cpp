@@ -4,12 +4,14 @@
 #include "PreviewRenderer.h"
 #include "PreviewWindow.h"
 #include "fixtures/HostHealthFixtures.h"
+#include "../../src/Platform/imgui/ImGuiWin32Integration.h"
 
 #include <DearModdingUI/presentation/BackgroundBlur.h>
 #include <Platform/input/CursorLoader.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/host/MenuDismissal.h>
+#include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/RenderExecution.h>
 #include <DearModdingUI/host/Shell.h>
@@ -25,6 +27,7 @@
 #include <imgui/imgui.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
@@ -184,6 +187,7 @@ namespace DearModdingUIPreview
 			auto& io = ImGui::GetIO();
 			io.ConfigFlags |=
 				ImGuiConfigFlags_NavEnableKeyboard |
+				ImGuiConfigFlags_NavEnableGamepad |
 				ImGuiConfigFlags_DockingEnable;
 			io.IniFilename = nullptr;
 			io.MouseDrawCursor = false;
@@ -242,6 +246,13 @@ namespace DearModdingUIPreview
 					registrationError.begin(),
 					registrationError.end());
 				return false;
+			}
+			if (options.screenshot && options.hostPage == HostPageKind::kSettings)
+			{
+				Hotkeys::InitializeOverrides({
+					{ "dmui.test.controller-bound",
+						options.hotkeyState == "conflict" ? "PadBack+PadLB+PadRB" : "PadLB+PadX" }
+				}, HotkeySlot::kGamepad);
 			}
 			Theme::Initialize(window.Handle());
 			if (options.syntheticHealth)
@@ -491,11 +502,44 @@ namespace DearModdingUIPreview
 					return false;
 				}
 
-				CursorLoader::PrepareFrame(IsMenuVisible());
 				BackgroundBlur::BeginFrame();
 				PresentationServices::BeginFrame();
 				ImGui_ImplDX11_NewFrame();
-				ImGui_ImplWin32_NewFrame();
+				const auto inputFocused = options.screenshot.has_value() || CursorLoader::HasFocus();
+				const auto hadGamepad = (ImGui::GetIO().BackendFlags & ImGuiBackendFlags_HasGamepad) != 0;
+				ControllerNavigation::BeginDesktopInput();
+				if (inputFocused)
+					ImGui_ImplWin32_NewFrame();
+				else
+					ImGuiWin32Integration::NewFrameWithoutGamepad();
+				if (options.hotkeyState == "capture")
+					ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_HasGamepad;
+				if (hadGamepad && !(ImGui::GetIO().BackendFlags & ImGuiBackendFlags_HasGamepad))
+				{
+					ControllerNavigation::Reset();
+					Hotkeys::ReleaseActiveKeys();
+				}
+				if (options.controllerNavigation)
+				{
+					ControllerNavigation::UseNavigation();
+					options.controllerNavigation = false;
+				}
+				if (a_captureFrame && options.hotkeyState == "capture")
+				{
+					constexpr std::array sequence{ "PadRB", "PadDown", "PadDown", "PadLeft", "PadA" };
+					const auto frame = *a_captureFrame;
+					if (frame > 0 && frame <= sequence.size() * 2)
+						ControllerNavigation::QueueButton(
+							*KeyCatalog::Parse(sequence[(frame - 1) / 2]),
+							frame % 2 ? 1.0f : 0.0f);
+				}
+				if (ControllerNavigation::PrepareFrame(IsMenuVisible() && inputFocused, true) &&
+					SetMenuVisible(!IsMenuVisible()) != DMUI_RESULT_OK)
+				{
+					a_error = L"Could not toggle the host menu.";
+					return false;
+				}
+				CursorLoader::PrepareFrame(IsMenuVisible());
 				if (a_captureFrame && IsTextViewScenario())
 					fixtures->PrepareTextViewCapture(*a_captureFrame);
 				ImGui::NewFrame();
@@ -553,6 +597,8 @@ namespace DearModdingUIPreview
 				if (!fixtures->ValidatePresentationCapture(fixtureError))
 					a_error.assign(fixtureError.begin(), fixtureError.end());
 			}
+			if (a_error.empty() && options.hotkeyState == "capture" && !Hotkeys::IsCapturing())
+				a_error = L"The controller fixture did not activate a binding capture.";
 			if (a_error.empty() && IsTextViewScenario())
 			{
 				std::string fixtureError;

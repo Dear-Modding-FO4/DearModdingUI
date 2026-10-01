@@ -774,7 +774,6 @@ namespace Addictol::platformImguiDetail
 		context.attachmentSource =
 			AttachmentSource::kRenderer;
 		s_rendererHealth.InvalidateObservation();
-		ClearConsumedToggleKeysLocked();
 		RequestRendererReconciliation();
 	}
 

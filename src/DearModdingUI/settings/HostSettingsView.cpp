@@ -630,30 +630,47 @@ namespace DearModdingUI
 			(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
 		}
 
+		[[nodiscard]] const char* HotkeyWarning(
+			DMUI_HotkeyBindingState a_state) noexcept
+		{
+			switch (a_state)
+			{
+			case DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT:
+				return "Conflict: suggested default is already assigned.";
+			case DMUI_HOTKEY_BINDING_UNBOUND_OVERRIDE_CONFLICT:
+				return "Conflict: saved binding is assigned to another action or menu toggle.";
+			case DMUI_HOTKEY_BINDING_UNBOUND_INVALID_OVERRIDE:
+				return "Invalid: saved binding is not recognized for this input device.";
+			default:
+				return nullptr;
+			}
+		}
+
 		void DrawInput() noexcept
 		{
 			DrawSectionHeader("Input and behavior");
+			DrawHelp("Typing needs a keyboard.");
 			auto& settings = g_settingsDraft.draft;
 			const auto& defaults = DefaultSettings();
 			if (BeginSettingsSection("##DearModdingUI.InputSettings"))
 			{
-				if (DrawSettingsRow(
-						"MenuToggleKey",
-						"Menu toggle key",
-						"Opens and closes the shared menu. Apply saves the key for this session and future launches.",
-						true,
-						[&]() noexcept {
-							if (const auto captured = DrawKeyCapture(
-									"##Value", settings.menuToggleKey.c_str(), ControlWidth()))
-								settings.menuToggleKey =
-									SerializeHotkeyChord(*captured);
-						},
-						[&]() noexcept {
-							return settings.menuToggleKey !=
-								defaults.menuToggleKey;
-						}))
+				for (const auto slot : kHotkeySlots)
 				{
-					settings.menuToggleKey = defaults.menuToggleKey;
+					const auto gamepad = slot == HotkeySlot::kGamepad;
+					auto& binding = gamepad ? settings.menuToggleGamepad : settings.menuToggleKey;
+					const auto& defaultBinding = gamepad ? defaults.menuToggleGamepad : defaults.menuToggleKey;
+					if (DrawSettingsRow(
+							gamepad ? "MenuToggleGamepad" : "MenuToggleKey",
+							gamepad ? "Menu toggle (controller)" : "Menu toggle (keyboard)",
+							"Opens and closes the shared menu. Apply saves the binding for this session and future launches.",
+							true,
+							[&]() noexcept {
+								if (const auto captured = DrawKeyCapture(
+										"##Value", binding.c_str(), ControlWidth(), slot, gamepad))
+									binding = SerializeHotkeyChord(*captured);
+							},
+							[&]() noexcept { return binding != defaultBinding; }))
+						binding = defaultBinding;
 				}
 				if (DrawSettingsRow(
 						"FallSoulsMode",
@@ -694,68 +711,59 @@ namespace DearModdingUI
 						ImGuiTableFlags_SizingStretchProp))
 				return;
 			ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthStretch, 1.5f);
-			ImGui::TableSetupColumn("Binding", ImGuiTableColumnFlags_WidthStretch, 1.0f);
-			ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthStretch, 1.0f);
-			ImGui::TableHeadersRow();
+			ImGui::TableSetupColumn("Keyboard / mouse", ImGuiTableColumnFlags_WidthStretch, 1.15f);
+			ImGui::TableSetupColumn("Controller", ImGuiTableColumnFlags_WidthStretch, 1.15f);
+			ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
+			ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, IM_COL32(0, 0, 0, 0));
+			for (const auto* label : { "Action", "Keyboard / mouse", "Controller" })
+			{
+				ImGui::TableNextColumn();
+				ImGui::TextDisabled("%s", label);
+			}
 			for (const auto& action : actions)
 			{
 				ImGui::PushID(action.id.c_str());
 				ImGui::TableNextRow();
 				ImGui::TableSetColumnIndex(0);
+				const auto rowStart = ImGui::GetCursorScreenPos();
+				ImGui::AlignTextToFramePadding();
 				if (action.registered)
-				{
 					ImGui::TextUnformatted(action.displayName.c_str());
+				else
 					ImGui::TextDisabled("%s", action.id.c_str());
-				}
-				else
-					ImGui::TextUnformatted(action.id.c_str());
+				if (ImGui::IsItemHovered())
+					ImGui::SetTooltip("%s%s", action.id.c_str(),
+						action.registered ? "" : "\nNot registered. Saved bindings can be cleared.");
 
-				ImGui::TableSetColumnIndex(1);
-				if (action.registered)
+				for (const auto slot : kHotkeySlots)
 				{
-					const auto preview = action.state == DMUI_HOTKEY_BINDING_BOUND ?
-						action.effectiveChord.c_str() :
-						"Unbound";
+					const auto index = static_cast<size_t>(slot);
+					ImGui::TableSetColumnIndex(static_cast<int>(index) + 1);
+					const auto& binding = action.bindings[index];
+					ImGui::PushID(static_cast<int>(slot));
+					const auto& chord = binding.state == DMUI_HOTKEY_BINDING_BOUND ?
+						binding.effectiveChord :
+						binding.state == DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT ?
+							action.suggestedDefaultChord : binding.overrideChord;
+					const auto* warning = !action.registered && !chord.empty() ?
+						"Not registered. This saved binding is inactive and can be cleared." :
+						HotkeyWarning(binding.state);
 					if (const auto captured = DrawKeyCapture(
-							"##Binding", preview, -1.0f))
-						(void)HostSettings::SetHotkeyOverride(
-							action.id, SerializeHotkeyChord(*captured));
-					if (ImGui::SmallButton("Unbind"))
+							"##Binding", chord.c_str(), -1.0f, slot, true,
+							action.id.c_str(), action.registered, warning))
 					{
-						(void)Hotkeys::CancelCapture();
-						(void)HostSettings::SetHotkeyOverride(action.id, "none");
+						if (action.registered)
+							(void)HostSettings::SetHotkeyOverride(
+								action.id, SerializeHotkeyChord(*captured), slot);
+						else
+							(void)HostSettings::RemoveHotkeyOverride(action.id, slot);
 					}
+					ImGui::PopID();
 				}
-				else
-				{
-					ImGui::TextUnformatted(action.overrideChord.c_str());
-					if (ImGui::SmallButton("Remove saved override"))
-						(void)HostSettings::RemoveHotkeyOverride(action.id);
-				}
-
-				ImGui::TableSetColumnIndex(2);
-				switch (action.state)
-				{
-				case DMUI_HOTKEY_BINDING_BOUND:
-					ImGui::TextUnformatted(action.registered ? "Bound" : "Not registered");
-					break;
-				case DMUI_HOTKEY_BINDING_UNBOUND_USER:
-					ImGui::TextUnformatted("Cleared by user");
-					break;
-				case DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT:
-					ImGui::TextUnformatted("Suggested default is taken");
-					break;
-				case DMUI_HOTKEY_BINDING_UNBOUND_OVERRIDE_CONFLICT:
-					ImGui::TextUnformatted("Saved binding conflicts");
-					break;
-				case DMUI_HOTKEY_BINDING_UNBOUND_INVALID_OVERRIDE:
-					ImGui::TextUnformatted("Saved binding is invalid");
-					break;
-				default:
-					ImGui::TextUnformatted(
-						action.registered ? "No suggested binding" : "Not registered");
-					break;
-				}
+				if (ImGui::IsWindowHovered() &&
+					ImGui::IsMouseHoveringRect(rowStart, ImGui::GetItemRectMax()))
+					ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg1,
+						ImGui::GetColorU32(ImGuiCol_HeaderHovered));
 				ImGui::PopID();
 			}
 			ImGui::EndTable();

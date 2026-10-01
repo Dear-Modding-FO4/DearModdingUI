@@ -4,6 +4,7 @@
 
 #include <Windows.h>
 
+#include <algorithm>
 #include <iostream>
 #include <optional>
 #include <string_view>
@@ -111,6 +112,8 @@ namespace DearModdingUIPreview
 			<< L"  --health-scenario <synthetic>  Add labeled synthetic Health states\n"
 			<< L"  --expand <client-id>      Expand a tree mod or enter a drill-down mod\n"
 			<< L"  --collapse-all            Collapse the tree or show the drill-down root\n"
+			<< L"  --controller-navigation   Start with controller focus and hints\n"
+			<< L"  --hotkey-state <capture|conflict>  Exercise controller binding UI\n"
 			<< L"  --help                    Show this help\n";
 	}
 
@@ -126,6 +129,11 @@ namespace DearModdingUIPreview
 			if (argument == L"--help")
 			{
 				a_options.help = true;
+				continue;
+			}
+			if (argument == L"--controller-navigation")
+			{
+				a_options.controllerNavigation = true;
 				continue;
 			}
 			if (argument == L"--collapse-all")
@@ -289,6 +297,15 @@ namespace DearModdingUIPreview
 				}
 				a_options.presentationScenario = *scenario;
 			}
+			else if (argument == L"--hotkey-state")
+			{
+				if (value != L"capture" && value != L"conflict")
+				{
+					a_error = L"Hotkey state must be capture or conflict.";
+					return false;
+				}
+				a_options.hotkeyState = *WideToUtf8(value);
+			}
 			else if (argument == L"--health-scenario")
 			{
 				if (value != L"synthetic")
@@ -322,6 +339,17 @@ namespace DearModdingUIPreview
 		{
 			a_error = L"--origin requires --navigation destinations.";
 			return false;
+		}
+		if (a_options.hotkeyState && (!a_options.screenshot ||
+			a_options.hostPage != HostPageKind::kSettings))
+		{
+			a_error = L"--hotkey-state requires --screenshot and --host-page settings.";
+			return false;
+		}
+		if (a_options.hotkeyState == "capture")
+		{
+			a_options.controllerNavigation = true;
+			a_options.frames = (std::max)(a_options.frames, 14u);
 		}
 		if (a_options.navigationOverride ==
 				NavigationPresentationKind::Destinations &&

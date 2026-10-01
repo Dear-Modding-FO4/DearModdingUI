@@ -265,6 +265,7 @@ namespace vmm_tests
 					Theme::kMinUserScale,
 					"Jost",
 					"Delete",
+					"PadBack+PadLB+PadRB",
 					FieldFeedbackPlacement::kUnderControl,
 					{ 0x12, 0x34, 0x56 },
 					{ 0x65, 0x43, 0x21 },
@@ -371,12 +372,9 @@ namespace vmm_tests
 				loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
 					loaded.settings.menuToggleKey == "F11" &&
 					!loaded.settings.fallSoulsMode &&
+					loaded.settings.menuToggleGamepad == "PadBack+PadLB+PadRB" &&
 					toggle.recognized && toggle.chord == HotkeyChord{ 0x57, 0 },
 				"an old valid host config did not retain the default FallSouls mode");
-			require(
-				DecideMenuToggle({ 0x57, 0 }, toggle.chord, false, true).open &&
-					!DecideMenuToggle({ 0xCF, 0 }, toggle.chord, false, true).matched,
-				"the loaded F11 binding did not replace End for opening the menu");
 			const auto pageDown = ParseMenuToggleChord("Pgdn");
 			require(
 				pageDown.recognized && pageDown.chord == HotkeyChord{ 0xD1, 0 } &&
@@ -386,22 +384,30 @@ namespace vmm_tests
 
 			std::ofstream(path, std::ios::trunc)
 				<< "[Additional]\n"
-				<< "sMenuToggleKey = \"ctrl+f5\"\n";
+				<< "sMenuToggleKey = \"ctrl+f5\"\n"
+				<< "sMenuToggleGamepad = \"none\"\n";
 			loaded = LoadHostInterfaceSettings(path);
 			const auto chord = ParseMenuToggleChord(loaded.settings.menuToggleKey);
 			require(loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
 					loaded.settings.menuToggleKey == "Ctrl+F5" &&
+					loaded.settings.menuToggleGamepad == "none" &&
 					chord.recognized &&
 					chord.chord == HotkeyChord{ 0x3F, kHotkeyModifierControl },
 				"the toggle chord lost its modifiers or canonical spelling");
-			require(DecideMenuToggle(chord.chord, chord.chord, false, true).open &&
-					!DecideMenuToggle(chord.chord, chord.chord, true, true).open &&
-					DecideMenuToggle(chord.chord, chord.chord, true, false).open &&
-					!DecideMenuToggle({ 0x3F, 0 }, chord.chord, false, true).matched &&
-					!DecideMenuToggle(
-						{ 0x3F, kHotkeyModifierControl | kHotkeyModifierShift },
-						chord.chord, false, true).matched,
-				"toggle matching or visibility decisions ignored the exact chord");
+			require(DecideMenuToggle(false, true) &&
+					!DecideMenuToggle(true, true) &&
+					DecideMenuToggle(true, false),
+				"toggle visibility decisions did not restore a hidden drawing backend");
+			for (const auto invalid : { "Ctrl+PadA", "F11", "PadLB+PadLB", "Hyper" })
+			{
+				std::ofstream(path, std::ios::trunc)
+					<< "[Additional]\nsMenuToggleGamepad = \"" << invalid << "\"\n";
+				loaded = LoadHostInterfaceSettings(path);
+				require(loaded.disposition == HostSettingsLoadDisposition::kCorrected &&
+						loaded.settings.menuToggleGamepad == "PadBack+PadLB+PadRB" &&
+						loaded.detail.find("sMenuToggleGamepad") != std::string::npos,
+					"invalid gamepad toggle lost fallback or diagnostics");
+			}
 
 			std::ofstream(path, std::ios::trunc)
 				<< "[Additional\n";
@@ -505,6 +511,8 @@ namespace vmm_tests
 			settings.feedbackErrorColor = "#ABCDEF";
 			settings.fallSoulsMode = true;
 			settings.hotkeys.emplace("example.action", "Ctrl+H");
+			settings.gamepadHotkeys = { { "example.action", "PadA+PadLB" }, { "removed.action", "none" } };
+			settings.menuToggleGamepad = "none";
 			const auto saved = PersistHostInterfaceSettings(path, settings);
 			require(saved.saved && !saved.usedCrossVolumeFallback,
 				"a same-volume settings replacement did not succeed normally");
@@ -516,7 +524,8 @@ namespace vmm_tests
 				loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
 					loaded.settings ==
 						DecodeHostInterfaceSettings(settings) &&
-					loaded.hotkeys == settings.hotkeys,
+					loaded.hotkeys == settings.hotkeys &&
+					loaded.gamepadHotkeys == settings.gamepadHotkeys,
 				"persisted host settings were not loadable through production parsing");
 
 			settings.menuToggleKey = "Insert";
@@ -539,7 +548,8 @@ namespace vmm_tests
 			require(
 				fallbackLoaded.settings ==
 						DecodeHostInterfaceSettings(settings) &&
-					fallbackLoaded.hotkeys == settings.hotkeys,
+					fallbackLoaded.hotkeys == settings.hotkeys &&
+					fallbackLoaded.gamepadHotkeys == settings.gamepadHotkeys,
 				"the cross-volume fallback did not install the serialized settings");
 			require(!std::filesystem::exists(path.string() + ".tmp"),
 				"the copy fallback retained its temporary file");

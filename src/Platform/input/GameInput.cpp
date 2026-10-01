@@ -1,9 +1,14 @@
 #include <Platform/input/GameInput.h>
 #include <Support/Detours.h>
+#include <Platform/rendering/PlatformImGui.h>
+#include <F4SE/InputMap.h>
 
 #include <RE/B/BSInputEventReceiver.h>
 #include <RE/B/BSInputEventUser.h>
+#include <RE/B/ButtonEvent.h>
 #include <RE/D/DeviceConnectEvent.h>
+#include <RE/M/MouseMoveEvent.h>
+#include <RE/T/ThumbstickEvent.h>
 #include <RE/H/hkRefPtr.h>
 #include <RE/I/InputEvent.h>
 #include <RE/M/MenuControls.h>
@@ -158,6 +163,36 @@ namespace Addictol::GameInput
 			RE::BSInputEventReceiver* a_receiver,
 			const RE::InputEvent* a_queueHead) noexcept
 		{
+			for (auto* event = a_queueHead; event; event = event->next)
+			{
+				if (const auto* connection = event->As<RE::DeviceConnectEvent>();
+					connection && connection->device == RE::INPUT_DEVICE::kGamepad && !connection->connected)
+					PlatformImgui::ReleaseGamepad();
+				if (const auto* stick = event->As<RE::ThumbstickEvent>();
+					stick && stick->device == RE::INPUT_DEVICE::kGamepad)
+					PlatformImgui::ObserveStick(
+						stick->idCode == RE::ThumbstickEvent::kLeft,
+						stick->xValue, stick->yValue);
+				if (const auto* move = event->As<RE::MouseMoveEvent>();
+					move && (move->mouseInputX || move->mouseInputY))
+					PlatformImgui::ObserveMouseMove();
+				const auto* button = event->As<RE::ButtonEvent>();
+				if (!button)
+					continue;
+				uint32_t code = 0;
+				bool pulse = false;
+				if (button->device == RE::INPUT_DEVICE::kMouse)
+				{
+					code = ImguiPlatform::MouseKeyCode(button->idCode);
+					pulse = button->idCode == static_cast<uint32_t>(RE::BS_BUTTON_CODE::kWheelUp) ||
+						button->idCode == static_cast<uint32_t>(RE::BS_BUTTON_CODE::kWheelDown);
+				}
+				else if (button->device == RE::INPUT_DEVICE::kGamepad)
+					code = F4SE::InputMap::GamepadMaskToKeycode(button->idCode);
+				if (code && code < F4SE::InputMap::kMaxMacros)
+					PlatformImgui::ObserveButton(
+						code, button->QPressed(), !pulse && button->QHeldDown(), pulse, button->value);
+			}
 			Forward(
 				s_menuControlsHook,
 				InputReceiver::kMenuControls,

@@ -8,6 +8,7 @@
 #include "PlatformImGuiInternal.h"
 
 #include <DearModdingUI/host/Host.h>
+#include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/host/RenderExecution.h>
 #include <Platform/input/CursorLoader.h>
 #include <Support/Detours.h>
@@ -97,7 +98,7 @@ namespace Addictol::platformImguiDetail
 				static_cast<float>(cursor->cursorPosX),
 				static_cast<float>(cursor->cursorPosY)
 			});
-			return accepted;
+			return accepted && !DearModdingUI::ControllerNavigation::IsNavigating();
 		}
 	}
 

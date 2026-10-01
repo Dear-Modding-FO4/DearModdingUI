@@ -125,5 +125,4 @@ namespace Addictol::platformImguiDetail
 	void ApplyDrawingRequestLocked(bool a_enabled) noexcept;
 	void CloseModalStateLocked(
 		DearModdingUI::CarrierMenu::Event a_event) noexcept;
-	void ClearConsumedToggleKeysLocked() noexcept;
 }

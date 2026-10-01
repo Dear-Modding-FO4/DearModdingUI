@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <Support/KeyCatalog.h>
 
 namespace Addictol::ImguiPlatform
 {
@@ -418,39 +419,15 @@ namespace Addictol::ImguiPlatform
 		return (a_lparam & kKeyRepeatBit) != 0;
 	}
 
-	// Fresh WM_KEYDOWN and WM_SYSKEYDOWN messages both dispatch, while auto repeat does not.
-	[[nodiscard]] constexpr bool DispatchesToggleCallback(
-		uint32_t a_message,
-		uint64_t a_lparam) noexcept
+	[[nodiscard]] constexpr uint32_t MouseKeyCode(uint32_t a_idCode) noexcept
 	{
-		return (a_message == kKeyDownMessage || a_message == kSysKeyDownMessage) && !IsKeyRepeat(a_lparam);
-	}
-
-	enum class ToggleMessageDecision : uint32_t
-	{
-		kForward,
-		kDispatch,
-		kConsume,
-		kConsumeAndRelease
-	};
-
-	[[nodiscard]] constexpr ToggleMessageDecision DecideToggleMessage(
-		uint32_t a_message,
-		uint64_t a_lparam,
-		bool a_pressConsumed) noexcept
-	{
-		if (a_message == kKeyDownMessage || a_message == kSysKeyDownMessage)
-		{
-			if (!IsKeyRepeat(a_lparam))
-				return ToggleMessageDecision::kDispatch;
-			return a_pressConsumed ?
-				ToggleMessageDecision::kConsume :
-				ToggleMessageDecision::kForward;
-		}
-		if ((a_message == kKeyUpMessage || a_message == kSysKeyUpMessage) &&
-			a_pressConsumed)
-			return ToggleMessageDecision::kConsumeAndRelease;
-		return ToggleMessageDecision::kForward;
+		if (a_idCode < DearModdingUI::KeyCatalog::kMouseButtonCount)
+			return DearModdingUI::KeyCatalog::kMouseButtonOffset + a_idCode;
+		if (a_idCode == 0x800)
+			return DearModdingUI::KeyCatalog::kMouseWheelOffset;
+		if (a_idCode == 0x900)
+			return DearModdingUI::KeyCatalog::kMouseWheelOffset + 1;
+		return 0;
 	}
 
 	inline constexpr uint32_t kEscapeVirtualKey = 0x1B;

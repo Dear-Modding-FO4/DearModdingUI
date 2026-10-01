@@ -16,6 +16,7 @@
 #include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/VisualDecisions.h>
 #include <DearModdingUI/navigation/CommandPalette.h>
+#include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/pages/HostPageViews.h>
 #include <DearModdingUI/controls/ChromeGeometry.h>
 #include <DearModdingUI/navigation/SidebarView.h>
@@ -295,6 +296,7 @@ namespace DearModdingUI
 			if (s_previewContentScrollY)
 				ImGui::SetScrollY(*s_previewContentScrollY);
 #endif
+			ControllerNavigation::BeginPane(ControllerNavigation::Pane::kContent);
 			if (a_state.activeHostPage)
 			{
 				DrawHostPage(*a_state.activeHostPage, a_state.hostPages);
@@ -445,10 +447,15 @@ namespace DearModdingUI
 				settingsWidth,
 				persistent ? dismissWidth : 0.0f,
 				ImGui::GetStyle().ItemSpacing.x);
+			const auto hintsWidth = ControllerNavigation::HintsWidth();
+			const auto hintsMinX = (std::max)(start.x,
+				controls.runMaxX - hintsWidth - ImGui::GetStyle().ItemSpacing.x * 2.0f);
+			const auto statusMaxX = hintsWidth > 0.0f ?
+				hintsMinX - ImGui::GetStyle().ItemSpacing.x : controls.runMaxX;
 
 			ImGui::PushClipRect(
 				start,
-				{ controls.runMaxX, start.y + rowHeight },
+				{ (std::max)(start.x, statusMaxX), start.y + rowHeight },
 				true);
 			PlaceRowContent({
 				start.x,
@@ -470,13 +477,24 @@ namespace DearModdingUI
 			if (status)
 			{
 				ImGui::SameLine();
-				if (DrawFooterStatus(*status, controls.runMaxX))
+				if (DrawFooterStatus(*status, statusMaxX))
 				{
 					a_state.statusDetails = *status;
 					ImGui::OpenPopup(kStatusDetailsPopupId);
 				}
 			}
 			ImGui::PopClipRect();
+			if (hintsWidth > 0.0f)
+			{
+				const Theme::FontGuard font{ Theme::FontRole::kSubtext };
+				PlaceRowContent({
+					hintsMinX,
+					RowContentY(start.y, rowHeight, ImGui::GetTextLineHeight())
+				});
+				ImGui::PushClipRect(start, { controls.runMaxX, start.y + rowHeight }, true);
+				ControllerNavigation::DrawHints();
+				ImGui::PopClipRect();
+			}
 
 			if (persistent && controls.dismissMaxX > controls.dismissMinX &&
 				DrawCompactChromeButton(
@@ -573,6 +591,14 @@ namespace DearModdingUI
 	void DrawShell() noexcept
 	{
 		auto& state = State();
+		ControllerNavigation::BeginShell();
+		if (ControllerNavigation::TakeSearch())
+			state.palette.RequestOpen();
+		if (ControllerNavigation::TakeClose())
+		{
+			CloseShellAndSaveLayout();
+			return;
+		}
 		HostSettings::SetPageActive(
 			state.activeHostPage == HostPageKind::kSettings);
 		Theme::ApplyStyle();
@@ -725,6 +751,7 @@ namespace DearModdingUI
 				}
 				DrawContent(model, state);
 				ImGui::EndTable();
+				ControllerNavigation::EndPanes();
 			}
 			ImGui::EndChild();
 
@@ -771,7 +798,10 @@ namespace DearModdingUI
 			return;
 		}
 		if (ConsumeMenuEscapeTarget(MenuEscapeTarget::kInteraction))
+		{
+			ImGui::ClearActiveID();
 			return;
+		}
 		if (DismissCapturedMenuPopup())
 			return;
 		if (!ConsumeMenuEscapeTarget(MenuEscapeTarget::kHost))

@@ -14,7 +14,7 @@ namespace DmuiTests
 		DMUI_HotkeyContextPolicy policy;
 	};
 
-	inline constexpr std::array<HotkeyDescriptor, 6> kHotkeyDescriptors{ {
+	inline constexpr std::array<HotkeyDescriptor, 8> kHotkeyDescriptors{ {
 		{
 			"dearmodding.tests.general.toggle-overlay",
 			"Toggle DMUI test overlay",
@@ -48,6 +48,18 @@ namespace DmuiTests
 		{
 			"dearmodding.tests.general.digit-probe",
 			"Digit 7 parser probe",
+			"NONE",
+			DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED
+		},
+		{
+			"dmui.test.controller-bound",
+			"Controller binding example",
+			"Ctrl+Shift+F9",
+			DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED
+		},
+		{
+			"dmui.test.controller-unbound",
+			"Optional controller action",
 			"NONE",
 			DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED
 		}

@@ -121,7 +121,12 @@ namespace DearModdingUI
 	[[nodiscard]] std::optional<HotkeyChord> DrawKeyCapture(
 		const char* a_id,
 		const char* a_binding,
-		float a_width) noexcept;
+		float a_width,
+		HotkeySlot a_slot = HotkeySlot::kKeyboardMouse,
+		bool a_allowClear = true,
+		const char* a_details = nullptr,
+		bool a_captureEnabled = true,
+		const char* a_warning = nullptr) noexcept;
 	[[nodiscard]] bool HasIconGlyph(char32_t a_glyph) noexcept;
 	[[nodiscard]] ImU32 IconColor(
 		ImU32 a_textColor,

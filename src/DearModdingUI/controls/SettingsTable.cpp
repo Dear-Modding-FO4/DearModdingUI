@@ -4,6 +4,7 @@
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/controls/FieldFeedback.h>
 #include <DearModdingUI/presentation/Theme.h>
+#include <DearModdingUI/host/ControllerNavigation.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -518,6 +519,10 @@ namespace DearModdingUI::SettingsTable
 					"Reset this setting to its default." :
 					"This setting already uses its default.",
 				a_options.resetEnabled);
+			a_resetPressed |= ControllerNavigation::ResetFocusedRow(
+				a_options.resetEnabled,
+				{ s_state.labelRect.Min.x, resetContentRect.Min.y },
+				{ resetContentRect.Max.x, (std::max)(controlsMaxY, resetContentRect.Max.y) });
 		}
 		ImGui::EndTable();
 		RestoreFullSpanContent();

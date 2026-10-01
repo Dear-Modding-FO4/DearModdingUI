@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/host/Host.h>
+#include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <imgui/imgui.h>
@@ -648,6 +649,7 @@ namespace DearModdingUI
 				"##DearModdingMenusList",
 				{ -FLT_MIN, -FLT_MIN }))
 		{
+			ControllerNavigation::BeginPane(ControllerNavigation::Pane::kSidebar);
 			DrawSectionHeader("Host", PhosphorGlyph::kAppWindow);
 			DrawHostRows(a_selection, intent);
 			ImGui::Spacing();

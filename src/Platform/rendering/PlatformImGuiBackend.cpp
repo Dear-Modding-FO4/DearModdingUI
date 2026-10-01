@@ -1,9 +1,13 @@
+#include <RE/M/MenuCursor.h>
+
 #include "PlatformImGuiInternal.h"
+#include "../imgui/ImGuiWin32Integration.h"
 
 #include <DearModdingUI/presentation/BackgroundBlur.h>
 #include <Platform/input/CarrierMenu.h>
 #include <Platform/input/CursorLoader.h>
 #include <DearModdingUI/host/Host.h>
+#include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <Platform/rendering/D3D11State.h>
@@ -17,6 +21,7 @@
 #include <imgui/backends/imgui_impl_win32.h>
 
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <limits>
 #include <optional>
@@ -145,6 +150,7 @@ namespace Addictol::platformImguiDetail
 				auto& io = ImGui::GetIO();
 				io.ConfigFlags |=
 					ImGuiConfigFlags_NavEnableKeyboard |
+					ImGuiConfigFlags_NavEnableGamepad |
 					ImGuiConfigFlags_DockingEnable;
 				io.IniFilename = nullptr;
 				io.MouseDrawCursor = false;
@@ -338,6 +344,29 @@ namespace Addictol::platformImguiDetail
 			}
 		}
 
+		void ApplyCursorWarpLocked() noexcept
+		{
+			const auto target = DearModdingUI::ControllerNavigation::TakeCursorWarp();
+			if (!target)
+				return;
+			auto* cursor = RE::MenuCursor::GetSingleton();
+			const auto client = ReadClientSize(Context().attachment.window);
+			if (!cursor || !client.width || !client.height)
+				return;
+			const auto& buffer = s_backendState.backBufferIdentity;
+			const auto native = MapNativeCursorToBackBuffer(
+				{ target->x, target->y }, buffer.width, buffer.height, client.width, client.height);
+			// The engine setter also dispatches the position to registered Scaleform cursors.
+			using SetCursorPos = void (*)(RE::MenuCursor*, int32_t, int32_t);
+			static const REL::Relocation<SetCursorPos> setCursorPos{ REL::VariantID{ 865628, 2287488 } };
+			setCursorPos(cursor, static_cast<int32_t>(std::lround(native.x)),
+				static_cast<int32_t>(std::lround(native.y)));
+			const auto position = MapNativeCursorToBackBuffer(
+				{ static_cast<float>(cursor->cursorPosX), static_cast<float>(cursor->cursorPosY) },
+				client.width, client.height, buffer.width, buffer.height);
+			DearModdingUI::CursorLoader::ApplyNativePosition(position.x, position.y);
+		}
+
 		[[nodiscard]] LPARAM MapMouseMoveToBackBufferLocked(
 			HWND a_window,
 			LPARAM a_lparam) noexcept
@@ -438,8 +467,14 @@ namespace Addictol::platformImguiDetail
 			DearModdingUI::PresentationServices::BeginFrame();
 
 			ImGui_ImplDX11_NewFrame();
-			ImGui_ImplWin32_NewFrame();
+			// The engine queue is the sole gamepad producer in the game backend.
+			auto& io = ImGui::GetIO();
+			DearModdingUI::ImGuiWin32Integration::NewFrameWithoutGamepad();
+			io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
 			ApplyBackBufferCoordinateSpaceLocked(a_nativePosition);
+			DearModdingUI::ControllerNavigation::PrepareFrame(modalVisible);
+			if (a_nativePosition)
+				ApplyCursorWarpLocked();
 			ImGui::NewFrame();
 			context.callbacks.draw();
 			ImGui::Render();

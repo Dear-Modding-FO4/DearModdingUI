@@ -84,6 +84,7 @@ namespace DearModdingUI
 		float uiScale{ Theme::kDefaultUserScale };
 		std::string bodyFontFamily{ kDefaultBodyFontFamily };
 		std::string menuToggleKey{ SerializeHotkeyChord(kMenuDefaultToggleChord) };
+		std::string menuToggleGamepad{ SerializeHotkeyChord(kMenuDefaultGamepadToggleChord) };
 		FieldFeedbackPlacement feedbackPlacement{
 			DEFAULT_FIELD_FEEDBACK_LAYOUT
 		};
@@ -146,7 +147,9 @@ namespace DearModdingUI
 		float uiScale{ Theme::kDefaultUserScale };
 		std::string bodyFontFamily{ kDefaultBodyFontFamily };
 		std::string menuToggleKey{ SerializeHotkeyChord(kMenuDefaultToggleChord) };
+		std::string menuToggleGamepad{ SerializeHotkeyChord(kMenuDefaultGamepadToggleChord) };
 		std::map<std::string, std::string> hotkeys;
+		std::map<std::string, std::string> gamepadHotkeys;
 		std::string feedbackPlacement{
 			FieldFeedbackLayoutName(DEFAULT_FIELD_FEEDBACK_LAYOUT)
 		};
@@ -321,6 +324,8 @@ namespace DearModdingUI
 			DecodeBodyFontFamily(a_settings.bodyFontFamily);
 		a_settings.menuToggleKey = SerializeHotkeyChord(
 			ParseMenuToggleChord(a_settings.menuToggleKey).chord);
+		a_settings.menuToggleGamepad = SerializeHotkeyChord(
+			ParseMenuToggleChord(a_settings.menuToggleGamepad, HotkeySlot::kGamepad).chord);
 		return a_settings;
 	}
 
@@ -343,6 +348,7 @@ namespace DearModdingUI
 			a_settings.uiScale,
 			a_settings.bodyFontFamily,
 			a_settings.menuToggleKey,
+			a_settings.menuToggleGamepad,
 			ParseFieldFeedbackLayout(
 				a_settings.feedbackPlacement).value_or(
 					DEFAULT_FIELD_FEEDBACK_LAYOUT),
@@ -375,6 +381,8 @@ namespace DearModdingUI
 			a_settings.uiScale,
 			a_settings.bodyFontFamily,
 			a_settings.menuToggleKey,
+			a_settings.menuToggleGamepad,
+			{},
 			{},
 			std::string{ FieldFeedbackLayoutName(
 				a_settings.feedbackPlacement) },
@@ -429,10 +437,11 @@ namespace DearModdingUI
 		void NotifyMenuVisible(bool a_visible) noexcept;
 		void SetPageActive(bool a_active) noexcept;
 		[[nodiscard]] uint64_t PageRevision() noexcept;
-		[[nodiscard]] HotkeyChord MenuToggleChord() noexcept;
 		[[nodiscard]] bool SetHotkeyOverride(
 			std::string_view a_id,
-			std::string_view a_chord) noexcept;
-		[[nodiscard]] bool RemoveHotkeyOverride(std::string_view a_id) noexcept;
+			std::string_view a_chord,
+			HotkeySlot a_slot = HotkeySlot::kKeyboardMouse) noexcept;
+		[[nodiscard]] bool RemoveHotkeyOverride(std::string_view a_id,
+			HotkeySlot a_slot = HotkeySlot::kKeyboardMouse) noexcept;
 	}
 }

@@ -20,6 +20,7 @@ namespace DearModdingUI
 	{
 		HostInterfaceSettings settings;
 		std::map<std::string, std::string> hotkeys;
+		std::map<std::string, std::string> gamepadHotkeys;
 		HostSettingsLoadDisposition disposition{
 			HostSettingsLoadDisposition::kMissing
 		};

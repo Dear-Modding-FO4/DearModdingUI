@@ -40,29 +40,21 @@ namespace Addictol
 			}
 		}
 
-		[[nodiscard]] bool ToggleHost(
-			uint32_t a_keyCode,
-			uint32_t a_modifiers) noexcept
+		void ToggleHost() noexcept
 		{
-			const auto decision = DearModdingUI::DecideMenuToggle(
-				{ a_keyCode, a_modifiers },
-				DearModdingUI::HostSettings::MenuToggleChord(),
+			const auto open = DearModdingUI::DecideMenuToggle(
 				DearModdingUI::IsMenuVisible(),
 				PlatformImgui::IsReady());
-			if (!decision.matched)
-				return false;
-
-			const auto result = DearModdingUI::SetMenuVisible(decision.open);
+			const auto result = DearModdingUI::SetMenuVisible(open);
 			PlatformImgui::SetDrawingEnabled(
-				result == DMUI_RESULT_OK && decision.open);
-			if (decision.open && result != DMUI_RESULT_OK &&
+				result == DMUI_RESULT_OK && open);
+			if (open && result != DMUI_RESULT_OK &&
 				!s_backendFailureLogged.exchange(true, std::memory_order_acq_rel))
 			{
 				REX::ERROR(
 					"DearModdingUI: menu cannot open, result {}"sv,
 					result);
 			}
-			return true;
 		}
 
 		void MessageListener(F4SE::MessagingInterface::Message* a_message) noexcept

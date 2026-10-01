@@ -130,7 +130,6 @@ namespace Addictol
 		const ContextLock lock;
 		CloseModalStateLocked(
 			DearModdingUI::CarrierMenu::Event::kGameTransition);
-		ClearConsumedToggleKeysLocked();
 	}
 
 	bool PlatformImgui::IsReady() noexcept

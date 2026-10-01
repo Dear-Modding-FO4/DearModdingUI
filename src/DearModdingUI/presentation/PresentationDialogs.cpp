@@ -354,6 +354,7 @@ namespace DearModdingUI::PresentationServices
 				ImGui::SameLine();
 				if (ImGui::Button(snapshot.cancelLabel.c_str()))
 					action = DialogAction::kCancel;
+				ImGui::SetItemDefaultFocus();
 			}
 			if (!open && snapshot.event == DMUI_DIALOG_EVENT_PENDING)
 				action = DialogAction::kCancel;

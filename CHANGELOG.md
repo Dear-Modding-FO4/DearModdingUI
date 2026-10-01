@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Keyboard bindings**: Host toggle and client hotkeys accept nearly every keyboard key and Ctrl/Alt/Shift chords, bound by pressing the chord.
+- **Controller navigation**: Left-stick and D-pad focus by default; LS toggles a cursor centered on the focused item, with A clicks and D-pad return to navigation. Shared B/Escape dismissal, pane switching, scrolling, row reset, search, and compact controller hints are supported. Desktop preview uses XInput.
+- **Input bindings**: Host toggle and client hotkeys support keyboard/mouse and gamepad slots, up to three-key or three-button combos, and Ctrl/Alt/Shift modifiers for keyboard/mouse chords. The gamepad menu toggle defaults to LB+RB+View (Back).
 - **Shared read-only text viewer**: Added a host-owned, clipped text viewport with independent scrolling, monospace rendering, overlapping literal-match highlighting, wrap navigation helpers, and exact byte-offset reveal.
 
 ### Changed

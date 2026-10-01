@@ -123,3 +123,15 @@ static HWND WINAPI DmuiImGuiCreateWindowExW(
 #undef RegisterClassExW
 #undef GetPropA
 #undef SetPropA
+
+namespace DearModdingUI::ImGuiWin32Integration
+{
+	void NewFrameWithoutGamepad() noexcept
+	{
+		auto* backend = ImGui_ImplWin32_GetBackendData(ImGui::GetIO());
+		const auto getState = backend->XInputGetState;
+		backend->XInputGetState = nullptr;
+		ImGui_ImplWin32_NewFrame();
+		backend->XInputGetState = getState;
+	}
+}

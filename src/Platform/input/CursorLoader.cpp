@@ -1,5 +1,6 @@
 #include <Platform/input/CursorLoader.h>
 #include <DearModdingUI/VisualDecisions.h>
+#include <DearModdingUI/host/ControllerNavigation.h>
 
 #include <Windows.h>
 
@@ -74,7 +75,8 @@ namespace DearModdingUI::CursorLoader
 		const auto cursor = DecideCursorPresentation(
 			g_window && a_modalVisible && HasFocus());
 		ImGui::GetIO().MouseDrawCursor =
-			g_source == Source::kSoftware && cursor.drawSoftwareCursor;
+			g_source == Source::kSoftware && cursor.drawSoftwareCursor &&
+			!ControllerNavigation::IsNavigating();
 
 		switch (DecideCursorTransition(g_owned, cursor.hideOperatingSystemCursor))
 		{

@@ -9,6 +9,7 @@
 
 #include <REX/REX.h>
 
+#include <array>
 #include <atomic>
 #include <exception>
 #include <filesystem>
@@ -17,7 +18,6 @@
 #include <mutex>
 #include <optional>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 namespace DearModdingUI::HostSettings
@@ -33,10 +33,8 @@ namespace DearModdingUI::HostSettings
 		std::once_flag s_loadOnce;
 		std::mutex s_settingsMutex;
 		HostInterfaceSettings s_settings;
-		std::map<std::string, std::string> s_hotkeyOverrides;
-		static_assert(std::is_trivially_copyable_v<HotkeyChord>);
-		static_assert(std::atomic<HotkeyChord>::is_always_lock_free);
-		std::atomic<HotkeyChord> s_menuToggleChord{ kMenuDefaultToggleChord };
+		using OverridesBySlot = std::array<std::map<std::string, std::string>, 2>;
+		OverridesBySlot s_hotkeyOverrides;
 		std::mutex s_configurationHealthMutex;
 		HostSettingsHealthState s_configurationHealthState;
 
@@ -146,8 +144,10 @@ namespace DearModdingUI::HostSettings
 		void UpdateMenuToggleChord() noexcept
 		{
 			const auto chord = ParseMenuToggleChord(s_settings.menuToggleKey).chord;
-			s_menuToggleChord.store(chord, std::memory_order_release);
 			Hotkeys::SetReservedChord(chord);
+			Hotkeys::SetReservedChord(
+				ParseMenuToggleChord(s_settings.menuToggleGamepad, HotkeySlot::kGamepad).chord,
+				HotkeySlot::kGamepad);
 		}
 
 		void EnsureLoaded() noexcept
@@ -158,8 +158,9 @@ namespace DearModdingUI::HostSettings
 					auto loaded = LoadHostInterfaceSettings(ConfigPath());
 					const std::scoped_lock lock{ s_settingsMutex };
 					s_settings = std::move(loaded.settings);
-					s_hotkeyOverrides = std::move(loaded.hotkeys);
-					Hotkeys::InitializeOverrides(s_hotkeyOverrides);
+					s_hotkeyOverrides = { std::move(loaded.hotkeys), std::move(loaded.gamepadHotkeys) };
+					for (const auto slot : kHotkeySlots)
+						Hotkeys::InitializeOverrides(s_hotkeyOverrides[static_cast<size_t>(slot)], slot);
 					UpdateMenuToggleChord();
 					{
 						const std::scoped_lock healthLock{
@@ -225,14 +226,15 @@ namespace DearModdingUI::HostSettings
 
 		[[nodiscard]] bool SaveSettings(
 			const HostInterfaceSettings& a_settings,
-			const std::map<std::string, std::string>& a_hotkeyOverrides,
+			const OverridesBySlot& a_hotkeyOverrides,
 			std::string& a_error) noexcept
 		{
 			try
 			{
 				auto persisted =
 					EncodeNormalizedHostInterfaceSettings(a_settings);
-				persisted.hotkeys = a_hotkeyOverrides;
+				persisted.hotkeys = a_hotkeyOverrides[0];
+				persisted.gamepadHotkeys = a_hotkeyOverrides[1];
 				const auto result = PersistHostInterfaceSettings(
 					ConfigPath(),
 					persisted);
@@ -279,6 +281,25 @@ namespace DearModdingUI::HostSettings
 				s_pageRevision.fetch_add(1, std::memory_order_release);
 			}
 			s_pageActive.store(a_active, std::memory_order_release);
+		}
+
+		[[nodiscard]] bool PersistHotkeyChange(
+			HotkeySlot a_slot, std::map<std::string, std::string> a_previous) noexcept
+		{
+			std::string error;
+			{
+				const std::scoped_lock lock{ s_settingsMutex };
+				auto updated = s_hotkeyOverrides;
+				updated[static_cast<size_t>(a_slot)] = Hotkeys::Overrides(a_slot);
+				if (SaveSettings(s_settings, updated, error))
+				{
+					s_hotkeyOverrides = std::move(updated);
+					return true;
+				}
+			}
+			Hotkeys::InitializeOverrides(std::move(a_previous), a_slot);
+			(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, error);
+			return false;
 		}
 	}
 
@@ -398,57 +419,24 @@ namespace DearModdingUI::HostSettings
 		return s_pageRevision.load(std::memory_order_acquire);
 	}
 
-	HotkeyChord MenuToggleChord() noexcept
-	{
-		EnsureLoaded();
-		return s_menuToggleChord.load(std::memory_order_acquire);
-	}
-
 	bool SetHotkeyOverride(
 		std::string_view a_id,
-		std::string_view a_chord) noexcept
+		std::string_view a_chord, HotkeySlot a_slot) noexcept
 	{
 		EnsureLoaded();
-		const auto previous = Hotkeys::Overrides();
-		const auto result = Hotkeys::SetOverride(a_id, a_chord);
+		auto previous = Hotkeys::Overrides(a_slot);
+		const auto result = Hotkeys::SetOverride(a_id, a_chord, a_slot);
 		if (result != DMUI_RESULT_OK)
-		{
-			Hotkeys::InitializeOverrides(previous);
 			return false;
-		}
-		auto updated = Hotkeys::Overrides();
-		std::string error;
-		{
-			const std::scoped_lock lock{ s_settingsMutex };
-			if (SaveSettings(s_settings, updated, error))
-			{
-				s_hotkeyOverrides = std::move(updated);
-				return true;
-			}
-		}
-		Hotkeys::InitializeOverrides(previous);
-		(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, error);
-		return false;
+		return PersistHotkeyChange(a_slot, std::move(previous));
 	}
 
-	bool RemoveHotkeyOverride(std::string_view a_id) noexcept
+	bool RemoveHotkeyOverride(std::string_view a_id, HotkeySlot a_slot) noexcept
 	{
 		EnsureLoaded();
-		const auto previous = Hotkeys::Overrides();
-		if (!Hotkeys::RemoveOverride(a_id))
+		auto previous = Hotkeys::Overrides(a_slot);
+		if (!Hotkeys::RemoveOverride(a_id, a_slot))
 			return false;
-		auto updated = Hotkeys::Overrides();
-		std::string error;
-		{
-			const std::scoped_lock lock{ s_settingsMutex };
-			if (SaveSettings(s_settings, updated, error))
-			{
-				s_hotkeyOverrides = std::move(updated);
-				return true;
-			}
-		}
-		Hotkeys::InitializeOverrides(previous);
-		(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, error);
-		return false;
+		return PersistHotkeyChange(a_slot, std::move(previous));
 	}
 }

@@ -3,6 +3,8 @@
 #include "PreviewRenderer.h"
 
 #include <DearModdingUI/host/MenuDismissal.h>
+#include <DearModdingUI/host/ControllerNavigation.h>
+#include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/Host.h>
 #include <Platform/input/CursorLoader.h>
@@ -160,6 +162,11 @@ namespace DearModdingUIPreview
 		WPARAM a_wparam,
 		LPARAM a_lparam)
 	{
+		if (a_message == WM_KILLFOCUS || (a_message == WM_ACTIVATEAPP && !a_wparam))
+		{
+			ControllerNavigation::Reset();
+			Hotkeys::ReleaseActiveKeys();
+		}
 		if (CursorLoader::HandleWindowMessage(
 				a_window, a_message, static_cast<uint64_t>(a_lparam)))
 			return 1;

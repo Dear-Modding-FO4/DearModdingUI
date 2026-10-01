@@ -332,20 +332,26 @@ The optional appended `registerHotkeyAction` entry registers a stable, process-w
 ID, display name, suggested default chord, callback, and user data. The action ID must contain at least
 two nonempty ASCII segments separated by `.`; each segment starts with a letter and continues with
 letters, digits, `_`, or `-`. Registration rejects malformed IDs, duplicate IDs across all clients, and
-unknown chord strings. Chords combine `Ctrl`, `Alt`, and `Shift` with one host key catalog token,
+unknown chord strings. Chords combine `Ctrl`, `Alt`, and `Shift` with up to three distinct host key catalog tokens,
 such as `F11` or `Shift+F11`; `none` is an explicit unbound suggestion. Keyboard tokens cover letters,
 digits, `F1`-`F15`, navigation (`Home`, `End`, `PageUp`, `PageDown`, `Insert`, `Delete`, arrows),
 `Numpad0`-`Numpad9` and named numpad operations, punctuation names (`Minus`, `Equals`, `LeftBracket`,
 `RightBracket`, `Semicolon`, `Apostrophe`, `Grave`, `Backslash`, `Comma`, `Period`, `Slash`),
 `Tab`, `Enter`, `Backspace`, `Space`, lock keys, `PrintScreen`, `Pause`, Windows, media, and browser
 keys. Keys are physical scan-code positions named by the US layout. Escape and standalone
-Ctrl/Alt/Shift keys are reserved; mouse and gamepad tokens are not bindable yet.
+Ctrl/Alt/Shift keys are reserved. `Mouse3`-`Mouse8`, `WheelUp`, and `WheelDown` are bindable in the
+keyboard/mouse slot; `Mouse1` and `Mouse2` remain reserved for the UI. The gamepad slot accepts
+`PadUp`, `PadDown`, `PadLeft`, `PadRight`, `PadStart`, `PadBack`, `PadLS`, `PadRS`, `PadLB`, `PadRB`,
+`PadA`, `PadB`, `PadX`, `PadY`, `PadLT`, and `PadRT`, without keyboard modifiers or mixed-device chords.
+Canonical chords must fit the ABI's 31-character limit.
 Older hosts reject newer tokens with `UNKNOWN_CHORD`.
 
 Registration success does not imply a binding. Query `queryHotkeyBinding` with the returned handle to
 obtain the current canonical chord and a distinct state for bound, user-cleared, suggested-default
 conflict, never set, saved-override conflict, or invalid saved override. The host persists user
-overrides by stable action ID in the `[Hotkeys]` TOML table. Overrides for uninstalled clients remain
+overrides by stable action ID in the `[Hotkeys]` TOML table. `suggestedDefaultChord` and
+`queryHotkeyBinding` describe the keyboard/mouse slot. Gamepad bindings are user-assigned in the host,
+persist in `[GamepadHotkeys]`, and fire the same callback. Overrides for uninstalled clients remain
 visible as not-registered rows in the host hotkey manager until the user removes them.
 
 The appended `unregisterHotkeyAction` entry is render-execution-only and returns `WRONG_THREAD`
@@ -356,8 +362,10 @@ No later callback for the action runs after unregister returns.
 It retains the saved override as a not-registered row, reapplies it on re-registration, and immediately
 recomputes bindings so another action can use the chord.
 
-The window procedure decides and swallows bound presses, repeats, and matching releases synchronously.
-It only queues callback events. Both press and release callbacks are dispatched FIFO in the serialized
+The registry matches all input sources. Bound keyboard presses, repeats, and matching releases are
+swallowed synchronously; mouse/gamepad input is observed without changing the game's input queue.
+A chord fires on the last required press and releases when that triggering key is released.
+Client events are queued. Both press and release callbacks are dispatched FIFO in the serialized
 post-`Present` observer scope, so they cannot overlap page, action, or frame-observer callbacks even
 when the game migrates `Present` between OS threads. Repeats are coalesced, events survive stalled presentation,
 and the 512-event queue reserves release capacity for every accepted press. Overflow drops and logs a
@@ -438,8 +446,15 @@ input capture. Initialization and frame observers retain their existing `Present
 
 The standalone host initializes on the first valid active-swapchain `Present` whenever any client was
 accepted. Clients can open the common menu by selecting one of their registered settings pages through
-the host API. The existing host menu toggle remains in `[Additional]` for compatibility and reserves its
-exact chord against client hotkeys.
+the host API. Menu toggles remain in `[Additional]`: `sMenuToggleKey` defaults to `End`;
+`sMenuToggleGamepad` defaults to `PadBack+PadLB+PadRB` and accepts `none`. Each reserves its exact
+chord against client hotkeys in the same slot.
+
+In the menu, D-pad selects navigation mode; mouse or left-stick movement selects cursor mode.
+A activates focus or clicks the cursor, never both. B uses the Escape dismissal chain; Start closes.
+LB/RB selects sidebar/content (slow/fast tweak while editing), LT/RT pages, and right stick scrolls.
+X uses the focused row's existing reset operation; Y opens search. Text entry needs a keyboard.
+Capture ignores buttons held before it opens; release a fresh chord to bind it, or use Esc/B to cancel.
 
 ## Final swapchain handoff
 

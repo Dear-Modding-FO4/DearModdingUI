@@ -13,8 +13,7 @@ namespace Addictol
 		{
 			void (*setup)(void* a_window) noexcept{ nullptr };
 			void (*draw)() noexcept{ nullptr };
-			// Returns true to consume the press, its repeats, and its matching release.
-			bool (*toggle)(uint32_t a_keyCode, uint32_t a_modifiers) noexcept{ nullptr };
+			void (*toggle)() noexcept{ nullptr };
 
 			[[nodiscard]] constexpr bool Valid() const noexcept
 			{
@@ -35,6 +34,11 @@ namespace Addictol
 
 		void SetDrawingEnabled(bool a_enabled) noexcept;
 		void HandleGameTransition() noexcept;
+		void ObserveButton(uint32_t a_keyCode, bool a_pressed, bool a_repeat,
+			bool a_pulse = false, float a_value = 1.0f) noexcept;
+		void ObserveStick(bool a_left, float a_x, float a_y) noexcept;
+		void ObserveMouseMove() noexcept;
+		void ReleaseGamepad() noexcept;
 
 		[[nodiscard]] bool IsReady() noexcept;
 		[[nodiscard]] bool QueryVideoMemory(uint64_t& a_used, uint64_t& a_budget) noexcept;

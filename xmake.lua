@@ -122,6 +122,7 @@ local source_sets = {
         "src/DearModdingUI/host/IconResolution.cpp",
         "src/DearModdingUI/host/HostAPISettingsRows.cpp",
         "src/DearModdingUI/host/MenuDismissal.cpp",
+        "src/DearModdingUI/host/ControllerNavigation.cpp",
         "src/DearModdingUI/host/Registry*.cpp",
         "src/DearModdingUI/host/RenderExecution.cpp",
         "src/DearModdingUI/host/Status.cpp",
@@ -344,6 +345,7 @@ target("dmui-tests", function()
         "Depends",
         "Depends/toml11/single_include",
         "Depends/commonlibf4/include",
+        "Depends/commonlibf4/lib/commonlib-shared/include",
         "Depends/commonlibf4/lib/dearmoddingui-api/include"
     )
     add_defines("DMUI_UI_TESTING", "DMUI_PREVIEW")

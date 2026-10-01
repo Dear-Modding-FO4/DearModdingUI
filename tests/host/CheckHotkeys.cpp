@@ -78,6 +78,21 @@ namespace vmm_tests
 
 	void run_hotkey_checks(Runner& runner)
 	{
+		runner.test("gamepad capture ignores the activation button already held", [] {
+			HotkeyRegistry registry;
+			registry.SetContext({ true, false, false, false });
+			(void)registry.HandleKey(KeyCatalog::kPadA, 0, true, false);
+			registry.BeginCapture(HotkeySlot::kGamepad);
+			(void)registry.HandleKey(KeyCatalog::kPadA, 0, true, true);
+			(void)registry.HandleKey(KeyCatalog::kPadA, 0, false, false);
+			require(registry.IsCapturing() && !registry.TakeCapture(),
+				"the A that opened capture was bound on release");
+			(void)registry.HandleKey(KeyCatalog::kPadY, 0, true, false);
+			(void)registry.HandleKey(KeyCatalog::kPadY, 0, false, false);
+			const auto captured = registry.TakeCapture();
+			require(captured && SerializeHotkeyChord(*captured) == "PadY",
+				"fresh gamepad press failed after pre-held A was released");
+		});
 		runner.test("key catalog tokens preserve identity and fit host chords", [] {
 			for (size_t index = 0; index < KeyCatalog::kKeys.size(); ++index)
 			{
@@ -94,7 +109,8 @@ namespace vmm_tests
 						"catalog tokens are ambiguous");
 				if (IsHostBindableKey(key.code))
 				{
-					const HotkeyChord chord{ key.code, 7 };
+					const HotkeyChord chord{ key.code,
+						HotkeySlotForKey(key.code) == HotkeySlot::kGamepad ? 0u : 7u };
 					const auto parsed = ParseHotkeyChord(SerializeHotkeyChord(chord));
 					require(parsed.recognized && parsed.chord == chord,
 						"bindable catalog key was lost in host parsing");
@@ -107,7 +123,7 @@ namespace vmm_tests
 					 std::pair{ "9", 0x0Au }, std::pair{ "Esc", 0x01u } })
 				require(KeyCatalog::Parse(token) == code,
 					"legacy name or alias changed identity");
-			for (const auto token : { "PadA", "Mouse4", "Escape", "LeftShift" })
+			for (const auto token : { "Mouse1", "Mouse2", "Escape", "LeftShift" })
 				require(!ParseHotkeyChord(token).recognized,
 					"host accepted a key without a supported binding producer");
 			require(ParseHotkeyChord("Pause").recognized,
@@ -126,18 +142,20 @@ namespace vmm_tests
 			require(registry.HandleKey(0x3F, kHotkeyModifierControl, true, true) ==
 					HotkeyMessageResult::kPassThrough && registry.IsCapturing(),
 				"repeat was captured");
+			(void)registry.HandleKey(0x3F, 0, false, false);
 			require(registry.HandleKey(0x3F, kHotkeyModifierControl, true, false) ==
-					HotkeyMessageResult::kConsumed && !registry.IsCapturing(),
-				"capture did not consume the fresh press");
-			const auto captured = registry.TakeCapture();
-			require(captured && *captured == HotkeyChord{ 0x3F, kHotkeyModifierControl } &&
+					HotkeyMessageResult::kConsumed && registry.IsCapturing() &&
 					!registry.TakeCapture(),
-				"capture lost modifiers or was delivered twice");
+				"capture did not consume the fresh press");
 			require(registry.HandleKey(0x3F, 0, true, true) ==
 					HotkeyMessageResult::kConsumed &&
 					registry.HandleKey(0x3F, 0, false, false) ==
 						HotkeyMessageResult::kConsumed,
 				"capture did not retain the repeat and release");
+			const auto captured = registry.TakeCapture();
+			require(captured && *captured == HotkeyChord{ 0x3F, kHotkeyModifierControl } &&
+					!registry.TakeCapture() && !registry.IsCapturing(),
+				"capture lost modifiers or was delivered twice");
 			registry.DispatchQueued();
 			require(state.edgeCount == 0, "capture also fired the bound action");
 			registry.BeginCapture();
@@ -197,6 +215,165 @@ namespace vmm_tests
 			require(!ParseHotkeyChord("Meta+F11").recognized, "an unknown modifier was accepted");
 			require(!ParseHotkeyChord("Shift+").recognized, "a missing key was accepted");
 			require(!ParseHotkeyChord("F11+").recognized, "a trailing separator was accepted");
+			const auto combo = ParseHotkeyChord("PadRB+PadLB+PadBack");
+			require(combo.recognized &&
+					SerializeHotkeyChord(combo.chord) == "PadBack+PadLB+PadRB" &&
+					ParseHotkeyChord("PadLB+PadBack+PadRB").chord == combo.chord,
+				"multi-key identity was not canonical");
+			for (const auto invalid : { "F1+F1", "A+B+C+D", "A+PadA", "Mouse3+PadLB",
+					 "Ctrl+PadLB", "A++B", "Ctrl+Alt+Shift+PgDn+PgUp+End" })
+				require(!ParseHotkeyChord(invalid).recognized,
+					std::string{ invalid } + " was accepted");
+			const auto capacity = ParseHotkeyChord("Ctrl+Alt+Shift+NumpadDecimal+F1");
+			require(capacity.recognized && SerializeHotkeyChord(capacity.chord).size() == 31,
+				"largest ABI-compatible chord was rejected");
+			const auto keyboardCombo = ParseHotkeyChord("Shift+Mouse3+F5+A");
+			require(keyboardCombo.recognized &&
+					SerializeHotkeyChord(keyboardCombo.chord) == "Shift+A+F5+Mouse3",
+				"keyboard/mouse combination lost ordering");
+		});
+
+		runner.test("hotkey display uses short labels and natural controller ordering", [] {
+			for (const auto& [chord, display] : {
+					 std::pair{ "Ctrl+Shift+F11", "Ctrl + Shift + F11" },
+					 std::pair{ "Mouse4", "Mouse 4" },
+					 std::pair{ "WheelUp", "Wheel Up" },
+					 std::pair{ "Numpad5", "Numpad 5" },
+					 std::pair{ "PadBack+PadLB+PadRB", "LB + RB + View" },
+					 std::pair{ "PadA+PadStart+PadLT", "LT + Start + A" },
+					 std::pair{ "PadDown+PadRT+PadB", "RT + B + D-Pad Down" },
+					 std::pair{ "PadLS+PadRS+PadX", "LS + RS + X" },
+					 std::pair{ "PadLeft+PadRight+PadY", "Y + D-Pad Left + D-Pad Right" },
+					 std::pair{ "PadUp", "D-Pad Up" },
+					 std::pair{ "none", "Not set" },
+					 std::pair{ "Unknown", "Invalid binding" } })
+				require(FormatHotkeyChord(chord) == display,
+					std::string{ chord } + " displayed incorrectly");
+		});
+
+		runner.test("dual slots match held combinations and release the triggering key", [] {
+			HotkeyRegistry registry;
+			CallbackState state;
+			const auto action = Register(registry, 1, "Example.Combo", "Ctrl+Mouse3", state);
+			require(registry.SetOverride("Example.Combo", "PadLB+PadRB+PadBack", HotkeySlot::kGamepad) ==
+					DMUI_RESULT_OK,
+				"gamepad override was not accepted");
+			std::array<uint32_t, 3> keys{ KeyCatalog::kPadBack, KeyCatalog::kPadLB, KeyCatalog::kPadRB };
+			do
+			{
+				require(registry.HandleKey(keys[0], 0, true, false) == HotkeyMessageResult::kPassThrough &&
+						registry.HandleKey(keys[1], 0, true, false) == HotkeyMessageResult::kPassThrough,
+					"subset fired a three-button chord");
+				require(registry.HandleKey(keys[2], 0, true, false) == HotkeyMessageResult::kConsumed &&
+						registry.HandleKey(keys[2], 0, true, true) == HotkeyMessageResult::kConsumed,
+					"last press did not activate or retain repeats");
+				registry.DispatchQueued();
+				require(state.pressed == state.released + 1, "press did not reach the action");
+				(void)registry.HandleKey(keys[0], 0, false, false);
+				require(registry.HandleKey(keys[0], 0, true, false) == HotkeyMessageResult::kPassThrough,
+					"repressing a non-trigger key duplicated the active slot");
+				(void)registry.HandleKey(keys[0], 0, false, false);
+				registry.DispatchQueued();
+				require(state.pressed == state.released + 1, "non-trigger release ended activation");
+				require(registry.HandleKey(keys[2], 0, false, false) == HotkeyMessageResult::kConsumed,
+					"trigger release was not owned");
+				(void)registry.HandleKey(keys[1], 0, false, false);
+				registry.DispatchQueued();
+				require(state.pressed == state.released, "trigger release was not dispatched");
+			} while (std::next_permutation(keys.begin(), keys.end()));
+			require(registry.HandleKey(KeyCatalog::kMouseButtonOffset + 2, kHotkeyModifierControl, true, false) ==
+					HotkeyMessageResult::kConsumed,
+				"keyboard/mouse slot stopped working after assigning gamepad");
+			(void)registry.HandleKey(KeyCatalog::kPadBack, 0, true, false);
+			(void)registry.HandleKey(KeyCatalog::kPadLB, 0, true, false);
+			require(registry.HandleKey(KeyCatalog::kPadRB, kHotkeyModifierControl, true, false) ==
+					HotkeyMessageResult::kConsumed,
+				"keyboard activation or modifiers blocked the gamepad slot");
+			registry.DispatchQueued();
+			require(state.pressed == 8 && state.released == 6,
+				"slots could not activate independently");
+			(void)registry.HandleKey(KeyCatalog::kMouseButtonOffset + 2, 0, false, false);
+			registry.ReleaseActiveKeys();
+			registry.DispatchQueued();
+			require(state.pressed == 8 && state.released == 8 &&
+					std::string{ Query(registry, 1, action).chord } == "Ctrl+Mouse3",
+				"dual slots changed callback identity or ABI query slot");
+		});
+
+		runner.test("slot conflicts and reserved toggles share one matching owner", [] {
+			HotkeyRegistry registry;
+			CallbackState state;
+			registry.SetReservedChord(ParseHotkeyChord("Ctrl+F5").chord);
+			registry.SetReservedChord(ParseHotkeyChord("PadLB+PadRB+PadBack").chord, HotkeySlot::kGamepad);
+			const auto action = Register(registry, 1, "Example.First", "Ctrl+F5", state);
+			(void)Register(registry, 2, "Example.Second", "F6", state);
+			require(Query(registry, 1, action).state == DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT &&
+					registry.SetOverride("Example.First", "PadBack+PadRB+PadLB", HotkeySlot::kGamepad) ==
+						DMUI_RESULT_DUPLICATE_ACTION_ID,
+				"reserved toggle did not block a same-slot client");
+			require(registry.SetOverride("Example.First", "PadA", HotkeySlot::kGamepad) == DMUI_RESULT_OK &&
+					registry.SetOverride("Example.Second", "PadA", HotkeySlot::kGamepad) ==
+						DMUI_RESULT_DUPLICATE_ACTION_ID &&
+					registry.Snapshot()[1].bindings[0].state == DMUI_HOTKEY_BINDING_BOUND,
+				"gamepad conflict changed the independent keyboard slot");
+			require(registry.HandleKey(0x3F, 0, true, false) == HotkeyMessageResult::kPassThrough,
+				"toggle ignored exact modifiers");
+			(void)registry.HandleKey(0x3F, 0, false, false);
+			require(registry.HandleKey(0x3F, kHotkeyModifierControl, true, false) ==
+					HotkeyMessageResult::kMenuToggle &&
+					registry.HandleKey(0x3F, kHotkeyModifierControl, true, true) ==
+						HotkeyMessageResult::kConsumed &&
+					registry.HandleKey(0x3F, 0, false, false) == HotkeyMessageResult::kConsumed,
+				"keyboard toggle did not own exactly one press pair");
+			(void)registry.HandleKey(KeyCatalog::kPadLB, 0, true, false);
+			(void)registry.HandleKey(KeyCatalog::kPadRB, 0, true, false);
+			require(registry.HandleKey(KeyCatalog::kPadBack, 0, true, false) == HotkeyMessageResult::kMenuToggle &&
+					registry.HandleKey(KeyCatalog::kPadBack, 0, true, true) == HotkeyMessageResult::kConsumed &&
+					registry.HandleKey(KeyCatalog::kPadBack, 0, false, false) == HotkeyMessageResult::kConsumed,
+				"gamepad toggle did not own exactly one press pair");
+			registry.DispatchQueued();
+			require(state.edgeCount == 0, "reserved toggle called a client");
+		});
+
+		runner.test("capture accumulates only the selected slot and consumes remaining releases", [] {
+			HotkeyRegistry registry;
+			registry.SetReservedChord(ParseHotkeyChord("PadLB+PadRB+PadBack").chord, HotkeySlot::kGamepad);
+			registry.SetContext({ true });
+			registry.BeginCapture(HotkeySlot::kGamepad);
+			for (const auto code : { 275u, 271u, 274u })
+				require(registry.HandleKey(code, 7, true, false) == HotkeyMessageResult::kConsumed &&
+						registry.IsCapturing() && !registry.TakeCapture(),
+					"gamepad capture completed before release");
+			require(registry.HandleKey(KeyCatalog::kPadBack, 0, false, false) == HotkeyMessageResult::kConsumed &&
+					registry.TakeCapture() == ParseHotkeyChord("PadLB+PadRB+PadBack").chord &&
+					!registry.IsCapturing(),
+				"first release lost the held set or retained keyboard modifiers");
+			for (const auto code : { 274u, 275u })
+				require(registry.HandleKey(code, 0, false, false) == HotkeyMessageResult::kConsumed,
+					"remaining capture release escaped");
+			registry.BeginCapture();
+			require(registry.HandleKey(KeyCatalog::kPadA, 0, true, false) == HotkeyMessageResult::kPassThrough &&
+					registry.HandleKey(KeyCatalog::kMouseButtonOffset, 0, true, false) == HotkeyMessageResult::kPassThrough &&
+					registry.IsCapturing(),
+				"keyboard capture accepted gamepad or Mouse1");
+			require(registry.HandleKey(KeyCatalog::kMouseButtonOffset + 2, kHotkeyModifierAlt, true, false) == HotkeyMessageResult::kConsumed &&
+					registry.HandleKey(KeyCatalog::kMouseButtonOffset + 2, 0, false, false) == HotkeyMessageResult::kConsumed &&
+					registry.TakeCapture() == ParseHotkeyChord("Alt+Mouse3").chord,
+				"mouse capture did not preserve press modifiers");
+			registry.BeginCapture();
+			for (const auto code : { 0x1Eu, 0x30u, 0x2Eu, 0x20u })
+				(void)registry.HandleKey(code, 0, true, false);
+			(void)registry.HandleKey(0x1E, 0, false, false);
+			require(!registry.IsCapturing() && !registry.TakeCapture(),
+				"over-capacity capture silently bound a subset");
+			registry.ReleaseActiveKeys();
+			registry.SetContext({ true });
+			registry.BeginCapture();
+			for (const auto code : { 0xD1u, 0xC9u, 0xCFu })
+				(void)registry.HandleKey(code, 7, true, false);
+			(void)registry.HandleKey(0xCF, 0, false, false);
+			require(!registry.TakeCapture() && !registry.IsCapturing(),
+				"captured canonical chord exceeded the ABI buffer");
 		});
 
 		runner.test("hotkey contexts are checked before consuming presses", [] {
@@ -213,6 +390,10 @@ namespace vmm_tests
 					HotkeyMessageResult::kPassThrough,
 				"unsafe gameplay context consumed a press");
 			registry.SetContext({ false, false, false, true });
+			require(registry.HandleKey(0, kHotkeyModifierControl, true, false) ==
+					HotkeyMessageResult::kPassThrough,
+				"unknown scan code matched chord padding");
+			(void)registry.HandleKey(0x19, 0, false, false);
 			require(registry.HandleKey(0x19, kHotkeyModifierControl, true, false) ==
 					HotkeyMessageResult::kConsumed,
 				"safe gameplay context did not consume a press");
@@ -336,6 +517,10 @@ namespace vmm_tests
 			registry.InitializeOverrides({
 				{ "RemovedMod.Toggle", "Shift+F11" }
 			});
+			registry.InitializeOverrides({
+				{ "RemovedPad.Toggle", "PadA" },
+				{ "Example.Toggle", "PadB" }
+			}, HotkeySlot::kGamepad);
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameObservation
 			};
@@ -353,20 +538,25 @@ namespace vmm_tests
 			const auto orphanedAction = std::ranges::find(
 				snapshot, std::string{ "Example.Toggle" }, &HotkeyActionSnapshot::id);
 			require(removed != snapshot.end() && !removed->registered &&
-					removed->overrideChord == "Shift+F11",
+					removed->bindings[0].overrideChord == "Shift+F11",
 				"pre-existing orphaned override was dropped or changed");
 			require(orphanedAction != snapshot.end() &&
 					!orphanedAction->registered &&
-					orphanedAction->overrideChord == "Ctrl+F11",
+					orphanedAction->bindings[0].overrideChord == "Ctrl+F11" &&
+					orphanedAction->bindings[1].overrideChord == "PadB",
 				"unregistered action was not retained as an orphan");
 			require(std::ranges::count(
 					snapshot, std::string{ "Example.Toggle" }, &HotkeyActionSnapshot::id) == 1,
 				"the tombstone duplicated the orphan row");
 			require(registry.Overrides().contains("RemovedMod.Toggle") &&
-					registry.Overrides().contains("Example.Toggle"),
+					registry.Overrides().contains("Example.Toggle") &&
+					registry.Overrides(HotkeySlot::kGamepad).contains("RemovedPad.Toggle"),
 				"orphaned overrides were not retained for persistence");
 			const auto stale = action;
 			action = Register(registry, 1, "Example.Toggle", "F10", state);
+			require(registry.HandleKey(KeyCatalog::kPadB, 0, true, false) == HotkeyMessageResult::kConsumed,
+				"re-registration lost the gamepad override");
+			(void)registry.HandleKey(KeyCatalog::kPadB, 0, false, false);
 			const auto binding = Query(registry, 1, action);
 			require(action > stale &&
 					binding.state == DMUI_HOTKEY_BINDING_BOUND &&

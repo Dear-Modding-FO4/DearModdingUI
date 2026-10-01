@@ -9,6 +9,7 @@
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/host/MenuDismissal.h>
+#include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <Platform/input/GameInput.h>
 
@@ -49,9 +50,28 @@ namespace Addictol::platformImguiDetail
 
 		constexpr size_t kWindowHookCapacity = 4;
 		std::array<WindowHookRecord, kWindowHookCapacity> s_windowHooks{};
-		std::array<std::atomic<bool>, DearModdingUI::KeyCatalog::kMaximumMacroCode>
-			s_consumedToggleKeys{};
 		std::atomic<bool> s_consumedEscape{ false };
+
+		[[nodiscard]] DearModdingUI::HotkeyMessageResult HandleHotkey(
+			uint32_t a_keyCode, uint32_t a_modifiers, bool a_pressed, bool a_repeat) noexcept
+		{
+			const auto* ui = RE::UI::GetSingleton();
+			DearModdingUI::Hotkeys::SetContext({
+				DearModdingUI::IsMenuVisible(),
+				DearModdingUI::PresentationServices::HasActiveDialog(),
+				DearModdingUI::IsMenuVisible(),
+				ui && ui->menuMode == 0
+			});
+			const auto result = DearModdingUI::Hotkeys::HandleKey(
+				a_keyCode, a_modifiers, a_pressed, a_repeat);
+			if (result == DearModdingUI::HotkeyMessageResult::kMenuToggle &&
+				Context().callbacks.toggle)
+				Context().callbacks.toggle();
+			else if (result == DearModdingUI::HotkeyMessageResult::kConsumedPairDropped)
+				REX::WARN(
+					"DearModdingUI: hotkey event queue overflowed; one press/release pair was dropped"sv);
+			return result;
+		}
 
 		[[nodiscard]] WindowHookRecord* FindWindowHook(
 			HWND a_window) noexcept
@@ -185,7 +205,6 @@ namespace Addictol::platformImguiDetail
 				keyCode = KeyboardKeyCode(
 					scanCode, extended, static_cast<uint32_t>(a_wparam));
 			}
-			const auto keyIndex = static_cast<size_t>(keyCode);
 			const auto focusLost = a_message == WM_KILLFOCUS ||
 				(a_message == WM_ACTIVATEAPP && !a_wparam);
 			const auto focusGained = a_message == WM_SETFOCUS ||
@@ -251,14 +270,6 @@ namespace Addictol::platformImguiDetail
 			if (!escapeConsumed &&
 				((inputFocused && keyPressed) || keyReleased))
 			{
-				const auto* ui = RE::UI::GetSingleton();
-				DearModdingUI::Hotkeys::SetContext({
-					DearModdingUI::IsMenuVisible(),
-					DearModdingUI::PresentationServices::
-						HasActiveDialog(),
-					DearModdingUI::IsMenuVisible(),
-					ui && ui->menuMode == 0
-				});
 				if ((a_wparam == VK_F4) &&
 					(modifiers &
 						DearModdingUI::kHotkeyModifierAlt) &&
@@ -277,61 +288,16 @@ namespace Addictol::platformImguiDetail
 				}
 
 				const auto hotkeyResult =
-					DearModdingUI::Hotkeys::HandleKey(
+					HandleHotkey(
 						keyCode,
 						modifiers,
 						keyPressed,
 						(static_cast<uint64_t>(a_lparam) &
 							kKeyRepeatBit) != 0);
-				if (hotkeyResult ==
-					DearModdingUI::HotkeyMessageResult::
-						kConsumedPairDropped)
-				{
-					REX::WARN(
-						"DearModdingUI: hotkey event queue overflowed; one press/release pair was dropped"sv);
-				}
 				if (hotkeyResult !=
 					DearModdingUI::HotkeyMessageResult::
 						kPassThrough)
 					return 0;
-			}
-
-			if (!escapeConsumed)
-			{
-				const auto trackableKey =
-					keyIndex < s_consumedToggleKeys.size();
-				const auto pressConsumed = trackableKey &&
-					s_consumedToggleKeys[keyIndex].load(
-						std::memory_order_acquire);
-				const auto toggleDecision = DecideToggleMessage(
-					a_message,
-					static_cast<uint64_t>(a_lparam),
-					pressConsumed);
-				if (toggleDecision ==
-					ToggleMessageDecision::kConsume)
-					return 0;
-				if (toggleDecision ==
-					ToggleMessageDecision::kConsumeAndRelease)
-				{
-					s_consumedToggleKeys[keyIndex].store(
-						false,
-						std::memory_order_release);
-					return 0;
-				}
-				if (toggleDecision ==
-						ToggleMessageDecision::kDispatch &&
-					inputFocused &&
-					Context().callbacks.toggle(
-						keyCode, modifiers))
-				{
-					if (trackableKey)
-					{
-						s_consumedToggleKeys[keyIndex].store(
-							true,
-							std::memory_order_release);
-					}
-					return 0;
-				}
 			}
 
 			{
@@ -478,6 +444,8 @@ namespace Addictol::platformImguiDetail
 			return;
 
 		auto& io = ImGui::GetIO();
+		if (!active)
+			DearModdingUI::ControllerNavigation::Reset();
 		io.ClearInputKeys();
 		io.ClearInputMouse();
 	}
@@ -497,6 +465,7 @@ namespace Addictol::platformImguiDetail
 	void CloseModalStateLocked(
 		DearModdingUI::CarrierMenu::Event a_event) noexcept
 	{
+		DearModdingUI::Hotkeys::ReleaseActiveKeys();
 		SetModalInputStateLocked(false);
 		DearModdingUI::CloseMenu();
 		DearModdingUI::CarrierMenu::Handle(a_event);
@@ -504,9 +473,68 @@ namespace Addictol::platformImguiDetail
 			DearModdingUI::CursorLoader::PrepareFrame(false);
 	}
 
-	void ClearConsumedToggleKeysLocked() noexcept
+}
+
+namespace Addictol::PlatformImgui
+{
+	void ObserveButton(uint32_t a_keyCode, bool a_pressed, bool a_repeat, bool a_pulse, float a_value) noexcept
 	{
-		for (auto& consumed : s_consumedToggleKeys)
-			consumed.store(false, std::memory_order_release);
+		{
+			const platformImguiDetail::ContextLock lock;
+			if (a_pressed && !DearModdingUI::CursorLoader::HasFocus())
+				return;
+		}
+		if (DearModdingUI::ControllerNavigation::ButtonKey(a_keyCode) != ImGuiKey_None)
+		{
+			DearModdingUI::HotkeyMessageResult result;
+			{
+				const platformImguiDetail::ContextLock lock;
+				const auto* ui = RE::UI::GetSingleton();
+				const auto visible = DearModdingUI::IsMenuVisible();
+				result = DearModdingUI::ControllerNavigation::RouteButton(
+					a_keyCode, a_pressed, a_repeat,
+					a_keyCode >= DearModdingUI::KeyCatalog::kPadLT ?
+						DearModdingUI::ControllerNavigation::AnalogValue(a_value) : a_value,
+					{ visible, DearModdingUI::PresentationServices::HasActiveDialog(),
+						visible, ui && ui->menuMode == 0 });
+			}
+			// Toggle callbacks reacquire the platform lock.
+			if (result == DearModdingUI::HotkeyMessageResult::kMenuToggle &&
+				platformImguiDetail::Context().callbacks.toggle)
+				platformImguiDetail::Context().callbacks.toggle();
+			return;
+		}
+		uint32_t modifiers = 0;
+		if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
+			modifiers |= DearModdingUI::kHotkeyModifierShift;
+		if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0)
+			modifiers |= DearModdingUI::kHotkeyModifierControl;
+		if ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0)
+			modifiers |= DearModdingUI::kHotkeyModifierAlt;
+		(void)platformImguiDetail::HandleHotkey(a_keyCode, modifiers, a_pressed, a_repeat);
+		if (a_pulse && a_pressed)
+			(void)platformImguiDetail::HandleHotkey(a_keyCode, modifiers, false, false);
+	}
+
+	void ObserveMouseMove() noexcept
+	{
+		const platformImguiDetail::ContextLock lock;
+		if (ImGui::GetCurrentContext() && DearModdingUI::IsMenuVisible())
+			DearModdingUI::ControllerNavigation::UseCursor();
+	}
+
+	void ObserveStick(bool a_left, float a_x, float a_y) noexcept
+	{
+		const platformImguiDetail::ContextLock lock;
+		if (ImGui::GetCurrentContext() && DearModdingUI::IsMenuVisible() &&
+			DearModdingUI::CursorLoader::HasFocus())
+			DearModdingUI::ControllerNavigation::QueueStick(a_left, a_x, a_y);
+	}
+
+	void ReleaseGamepad() noexcept
+	{
+		const platformImguiDetail::ContextLock lock;
+		DearModdingUI::ControllerNavigation::Reset();
+		DearModdingUI::Hotkeys::ReleaseActiveKeys();
 	}
 }

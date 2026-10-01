@@ -200,6 +200,7 @@ namespace DearModdingUI
 			section["fMenuUiScale"] = static_cast<double>(a_settings.uiScale);
 			section["sMenuBodyFontFamily"] = a_settings.bodyFontFamily;
 			section["sMenuToggleKey"] = a_settings.menuToggleKey;
+			section["sMenuToggleGamepad"] = a_settings.menuToggleGamepad;
 			section["bMenuFallSoulsMode"] = a_settings.fallSoulsMode;
 			section["sFieldFeedbackLayout"] = a_settings.feedbackPlacement;
 			section["sFieldFeedbackInfoColor"] =
@@ -208,9 +209,13 @@ namespace DearModdingUI
 				a_settings.feedbackWarningColor;
 			section["sFieldFeedbackErrorColor"] =
 				a_settings.feedbackErrorColor;
-			root["Hotkeys"] = toml::table{};
-			for (const auto& [id, chord] : a_settings.hotkeys)
-				root["Hotkeys"][id] = chord;
+			const auto writeBindings = [&](const char* a_name, const auto& a_bindings) {
+				root[a_name] = toml::table{};
+				for (const auto& [id, chord] : a_bindings)
+					root[a_name][id] = chord;
+			};
+			writeBindings("Hotkeys", a_settings.hotkeys);
+			writeBindings("GamepadHotkeys", a_settings.gamepadHotkeys);
 			return toml::format(root);
 		}
 
@@ -412,6 +417,12 @@ namespace DearModdingUI
 						a_settings.menuToggleKey,
 						runtime.menuToggleKey));
 			}
+			if (!ParseMenuToggleChord(a_settings.menuToggleGamepad, HotkeySlot::kGamepad).recognized)
+			{
+				AppendCorrection(a_corrections, std::format(
+					"sMenuToggleGamepad \"{}\" used \"{}\"",
+					a_settings.menuToggleGamepad, runtime.menuToggleGamepad));
+			}
 			if (!ParseFieldFeedbackLayout(a_settings.feedbackPlacement))
 			{
 				AppendCorrection(
@@ -561,6 +572,11 @@ namespace DearModdingUI
 				"sMenuToggleKey",
 				settings.menuToggleKey,
 				result.corrections);
+			settings.menuToggleGamepad = ReadSetting<std::string>(
+				section,
+				"sMenuToggleGamepad",
+				settings.menuToggleGamepad,
+				result.corrections);
 			settings.fallSoulsMode = ReadSetting<bool>(
 				section,
 				"bMenuFallSoulsMode",
@@ -587,18 +603,21 @@ namespace DearModdingUI
 				settings.feedbackErrorColor,
 				result.corrections);
 
-			if (root.contains("Hotkeys") && root.at("Hotkeys").is_table())
-			{
-				for (const auto& [id, value] : root.at("Hotkeys").as_table())
+			const auto readBindings = [&](const char* a_name, auto& a_bindings) {
+				if (!root.contains(a_name) || !root.at(a_name).is_table())
+					return;
+				for (const auto& [id, value] : root.at(a_name).as_table())
 				{
 					if (value.is_string())
-						result.hotkeys.emplace(id, value.as_string());
+						a_bindings.emplace(id, value.as_string());
 					else
 						result.corrections.push_back(
-							std::format("Hotkeys.{} was ignored because it was not text",
-								id));
+							std::format("{}.{} was ignored because it was not text",
+								a_name, id));
 				}
-			}
+			};
+			readBindings("Hotkeys", result.hotkeys);
+			readBindings("GamepadHotkeys", result.gamepadHotkeys);
 			result.settings = NormalizeSettings(
 				std::move(settings),
 				result.corrections);
@@ -613,6 +632,7 @@ namespace DearModdingUI
 		{
 			result.settings = {};
 			result.hotkeys.clear();
+			result.gamepadHotkeys.clear();
 			result.disposition = HostSettingsLoadDisposition::kFailed;
 			result.detail = std::format(
 				"Could not load {}: {}. Using defaults; correct or remove the file and restart.",
@@ -623,6 +643,7 @@ namespace DearModdingUI
 		{
 			result.settings = {};
 			result.hotkeys.clear();
+			result.gamepadHotkeys.clear();
 			result.disposition = HostSettingsLoadDisposition::kFailed;
 			result.detail = std::format(
 				"Could not load {}. Using defaults; correct or remove the file and restart.",

@@ -153,8 +153,8 @@ namespace DearModdingUI
 			DrawSectionHeader(
 				"FAQ",
 				FindPhosphorIconGlyphOrZero("question"));
-			const auto faq = BuildHomeFaq(SerializeHotkeyChord(
-				HostSettings::MenuToggleChord()));
+			const auto faq = BuildHomeFaq(
+				FormatHotkeyChord(HostSettings::Current().menuToggleKey));
 			std::vector<FaqRowEntry> entries;
 			entries.reserve(faq.size());
 			for (const auto& entry : faq)

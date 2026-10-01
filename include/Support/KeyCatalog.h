@@ -40,12 +40,31 @@ namespace DearModdingUI
 		inline constexpr int32_t kGamepadButtonOffset = 266;
 		inline constexpr int32_t kGamepadButtonCount = 16;
 		inline constexpr int32_t kMaximumMacroCode = 282;
+		inline constexpr uint32_t kPadUp = kGamepadButtonOffset;
+		inline constexpr uint32_t kPadDown = kGamepadButtonOffset + 1;
+		inline constexpr uint32_t kPadLeft = kGamepadButtonOffset + 2;
+		inline constexpr uint32_t kPadRight = kGamepadButtonOffset + 3;
+		inline constexpr uint32_t kPadStart = kGamepadButtonOffset + 4;
+		inline constexpr uint32_t kPadBack = kGamepadButtonOffset + 5;
+		inline constexpr uint32_t kPadLS = kGamepadButtonOffset + 6;
+		inline constexpr uint32_t kPadRS = kGamepadButtonOffset + 7;
+		inline constexpr uint32_t kPadLB = kGamepadButtonOffset + 8;
+		inline constexpr uint32_t kPadRB = kGamepadButtonOffset + 9;
+		inline constexpr uint32_t kPadA = kGamepadButtonOffset + 10;
+		inline constexpr uint32_t kPadB = kGamepadButtonOffset + 11;
+		inline constexpr uint32_t kPadX = kGamepadButtonOffset + 12;
+		inline constexpr uint32_t kPadY = kGamepadButtonOffset + 13;
+		inline constexpr uint32_t kPadLT = kGamepadButtonOffset + 14;
+		inline constexpr uint32_t kPadRT = kGamepadButtonOffset + 15;
 
 		struct Entry
 		{
 			uint32_t code;
 			std::string_view token;
 			std::string_view label;
+			// Host display metadata must not change MCM's legacy labels.
+			std::string_view shortLabel{};
+			uint32_t displayOrder{};
 		};
 
 		inline constexpr std::array kKeys{
@@ -193,32 +212,32 @@ namespace DearModdingUI
 			Entry{ 0xEB, "MyComputer", "My Computer" },
 			Entry{ 0xEC, "Mail", "Mail" },
 			Entry{ 0xED, "MediaSelect", "Media Select" },
-			Entry{ 256, "Mouse1", "Mouse 1" },
-			Entry{ 257, "Mouse2", "Mouse 2" },
-			Entry{ 258, "Mouse3", "Mouse 3" },
-			Entry{ 259, "Mouse4", "Mouse 4" },
-			Entry{ 260, "Mouse5", "Mouse 5" },
-			Entry{ 261, "Mouse6", "Mouse 6" },
-			Entry{ 262, "Mouse7", "Mouse 7" },
-			Entry{ 263, "Mouse8", "Mouse 8" },
-			Entry{ 264, "WheelUp", "Mouse Wheel Up" },
-			Entry{ 265, "WheelDown", "Mouse Wheel Down" },
-			Entry{ 266, "PadUp", "D-Pad Up" },
-			Entry{ 267, "PadDown", "D-Pad Down" },
-			Entry{ 268, "PadLeft", "D-Pad Left" },
-			Entry{ 269, "PadRight", "D-Pad Right" },
-			Entry{ 270, "PadStart", "Start" },
-			Entry{ 271, "PadBack", "Back" },
-			Entry{ 272, "PadLS", "Left Stick" },
-			Entry{ 273, "PadRS", "Right Stick" },
-			Entry{ 274, "PadLB", "Left Bumper" },
-			Entry{ 275, "PadRB", "Right Bumper" },
-			Entry{ 276, "PadA", "A" },
-			Entry{ 277, "PadB", "B" },
-			Entry{ 278, "PadX", "X" },
-			Entry{ 279, "PadY", "Y" },
-			Entry{ 280, "PadLT", "Left Trigger" },
-			Entry{ 281, "PadRT", "Right Trigger" }
+			Entry{ kMouseButtonOffset, "Mouse1", "Mouse 1" },
+			Entry{ kMouseButtonOffset + 1, "Mouse2", "Mouse 2" },
+			Entry{ kMouseButtonOffset + 2, "Mouse3", "Mouse 3" },
+			Entry{ kMouseButtonOffset + 3, "Mouse4", "Mouse 4" },
+			Entry{ kMouseButtonOffset + 4, "Mouse5", "Mouse 5" },
+			Entry{ kMouseButtonOffset + 5, "Mouse6", "Mouse 6" },
+			Entry{ kMouseButtonOffset + 6, "Mouse7", "Mouse 7" },
+			Entry{ kMouseButtonOffset + 7, "Mouse8", "Mouse 8" },
+			Entry{ kMouseWheelOffset, "WheelUp", "Mouse Wheel Up", "Wheel Up" },
+			Entry{ kMouseWheelOffset + 1, "WheelDown", "Mouse Wheel Down", "Wheel Down" },
+			Entry{ kPadUp, "PadUp", "D-Pad Up", "D-Pad Up", kGamepadButtonOffset + 12 },
+			Entry{ kPadDown, "PadDown", "D-Pad Down", "D-Pad Down", kGamepadButtonOffset + 13 },
+			Entry{ kPadLeft, "PadLeft", "D-Pad Left", "D-Pad Left", kGamepadButtonOffset + 14 },
+			Entry{ kPadRight, "PadRight", "D-Pad Right", "D-Pad Right", kGamepadButtonOffset + 15 },
+			Entry{ kPadStart, "PadStart", "Start", "Start", kGamepadButtonOffset + 5 },
+			Entry{ kPadBack, "PadBack", "Back", "View", kGamepadButtonOffset + 4 },
+			Entry{ kPadLS, "PadLS", "Left Stick", "LS", kGamepadButtonOffset + 6 },
+			Entry{ kPadRS, "PadRS", "Right Stick", "RS", kGamepadButtonOffset + 7 },
+			Entry{ kPadLB, "PadLB", "Left Bumper", "LB", kGamepadButtonOffset },
+			Entry{ kPadRB, "PadRB", "Right Bumper", "RB", kGamepadButtonOffset + 1 },
+			Entry{ kPadA, "PadA", "A", "A", kGamepadButtonOffset + 8 },
+			Entry{ kPadB, "PadB", "B", "B", kGamepadButtonOffset + 9 },
+			Entry{ kPadX, "PadX", "X", "X", kGamepadButtonOffset + 10 },
+			Entry{ kPadY, "PadY", "Y", "Y", kGamepadButtonOffset + 11 },
+			Entry{ kPadLT, "PadLT", "Left Trigger", "LT", kGamepadButtonOffset + 2 },
+			Entry{ kPadRT, "PadRT", "Right Trigger", "RT", kGamepadButtonOffset + 3 }
 		};
 
 		[[nodiscard]] constexpr const Entry* Find(uint32_t a_code) noexcept

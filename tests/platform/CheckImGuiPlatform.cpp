@@ -19,6 +19,7 @@ namespace
 namespace vmm_tests
 {
 	void run_cursor_ownership_checks(Runner& runner);
+	void run_gamepad_input_checks(Runner& runner);
 
 	void run_imgui_platform_checks(Runner& runner)
 	{
@@ -35,6 +36,7 @@ namespace vmm_tests
 				"Pause and NumLock overrides did not preserve identity");
 		});
 		run_cursor_ownership_checks(runner);
+		run_gamepad_input_checks(runner);
 		runner.test("native cursor and Present share one submission per active frame", [] {
 			FrameSubmission frame;
 			constexpr PresentAttachmentToken first{ 11, 7 };
@@ -358,35 +360,13 @@ namespace vmm_tests
 				"WM_MOUSEMOVE cannot reach the game's native cursor");
 		});
 
-		runner.test("toggle callback fires once per physical press", [] {
-			require(
-				DecideToggleMessage(kKeyDownMessage, 1, false) ==
-					ToggleMessageDecision::kDispatch,
-				"a fresh keydown must invoke the toggle callback");
-			require(
-				DecideToggleMessage(kSysKeyDownMessage, 1, false) ==
-					ToggleMessageDecision::kDispatch,
-				"a fresh system keydown must invoke the toggle callback");
-			require(
-				DecideToggleMessage(kKeyDownMessage, kKeyRepeatBit | 1, true) ==
-					ToggleMessageDecision::kConsume,
-				"a consumed press must also consume repeats");
-			require(
-				DecideToggleMessage(kKeyDownMessage, kKeyRepeatBit | 1, false) ==
-					ToggleMessageDecision::kForward,
-				"an unrelated repeat must reach the game");
-			require(
-				DecideToggleMessage(kKeyUpMessage, 1, true) ==
-					ToggleMessageDecision::kConsumeAndRelease,
-				"a consumed press must consume and release its key-up");
-			require(
-				DecideToggleMessage(kSysKeyUpMessage, 1, true) ==
-					ToggleMessageDecision::kConsumeAndRelease,
-				"a consumed system press must consume and release its key-up");
-			require(
-				DecideToggleMessage(kKeyUpMessage, 1, false) ==
-					ToggleMessageDecision::kForward,
-				"an unrelated key-up must reach the game");
+		runner.test("engine mouse ids map buttons and wheel without keyboard aliases", [] {
+			using namespace DearModdingUI::KeyCatalog;
+			for (uint32_t id = 0; id < kMouseButtonCount; ++id)
+				require(MouseKeyCode(id) == kMouseButtonOffset + id, "mouse button code drifted");
+			require(MouseKeyCode(0x800) == kMouseWheelOffset && MouseKeyCode(0x900) == kMouseWheelOffset + 1 &&
+					MouseKeyCode(kMouseButtonCount) == 0 && MouseKeyCode(0x1000) == 0,
+				"wheel or unknown mouse id mapped incorrectly");
 		});
 
 		runner.test("Escape ownership follows the visible host press pair", [] {

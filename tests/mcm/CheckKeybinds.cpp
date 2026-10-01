@@ -1,5 +1,6 @@
 #include <DearModdingUI/MCM/Keybinds.h>
 #include <DearModdingUI/MCM/ValueSource.h>
+#include <Support/KeyCatalog.h>
 
 #include "../Harness.h"
 #include "../FakeDiagnosticReporter.h"
@@ -148,15 +149,15 @@ namespace vmm_tests
 					SummarizeCompatibility(page).resolvedKeybinds == 2,
 				"resolved keybind state or count was lost");
 			require(KeyName(255) == "Keycode 255" &&
-					KeyName(256) == "Mouse 1" &&
-					KeyName(263) == "Mouse 8" &&
-					KeyName(264) == "Mouse Wheel Up" &&
-					KeyName(265) == "Mouse Wheel Down" &&
-					KeyName(266) == "D-Pad Up" &&
-					KeyName(281) == "Right Trigger" &&
+					KeyName(DearModdingUI::KeyCatalog::kMouseButtonOffset) == "Mouse 1" &&
+					KeyName(DearModdingUI::KeyCatalog::kMouseButtonOffset + 7) == "Mouse 8" &&
+					KeyName(DearModdingUI::KeyCatalog::kMouseWheelOffset) == "Mouse Wheel Up" &&
+					KeyName(DearModdingUI::KeyCatalog::kMouseWheelOffset + 1) == "Mouse Wheel Down" &&
+					KeyName(DearModdingUI::KeyCatalog::kPadUp) == "D-Pad Up" &&
+					KeyName(DearModdingUI::KeyCatalog::kPadRT) == "Right Trigger" &&
 					KeyName(282) == "Keycode 282",
 				"keyboard, mouse, wheel, or gamepad boundaries changed");
-			require(FormatKeybind(266, 7) == "Ctrl+Shift+Alt+D-Pad Up",
+			require(FormatKeybind(DearModdingUI::KeyCatalog::kPadUp, 7) == "Ctrl+Shift+Alt+D-Pad Up",
 				"modifier order or gamepad naming changed");
 		});
 
