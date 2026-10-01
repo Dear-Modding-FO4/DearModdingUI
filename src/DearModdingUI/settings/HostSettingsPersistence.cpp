@@ -186,6 +186,7 @@ namespace DearModdingUI
 			root["Additional"] = toml::table{};
 			auto& section = root["Additional"];
 			section["bMenuMonochromeIcons"] = a_settings.monochromeIcons;
+			section["sMenuLogoColors"] = a_settings.logoColors;
 			section["sMenuSidebarLayout"] = a_settings.sidebarLayout;
 			section["sMenuAccentColor"] = a_settings.accentColor;
 			section["fMenuWindowOpacity"] = static_cast<double>(
@@ -332,6 +333,15 @@ namespace DearModdingUI
 		{
 			const auto runtime = DecodeHostInterfaceSettings(a_settings);
 
+			if (!ParseLogoColorMode(a_settings.logoColors))
+			{
+				AppendCorrection(
+					a_corrections,
+					std::format(
+						"sMenuLogoColors \"{}\" used \"{}\"",
+						a_settings.logoColors,
+						LogoColorModeName(runtime.logoColors)));
+			}
 			if (!ParseUserSidebarLayout(a_settings.sidebarLayout))
 			{
 				AppendCorrection(
@@ -517,6 +527,11 @@ namespace DearModdingUI
 			const auto root = toml::parse(a_path.string());
 			const auto& section = toml::find(root, "Additional");
 			PersistedHostInterfaceSettings settings;
+			settings.logoColors = ReadSetting<std::string>(
+				section,
+				"sMenuLogoColors",
+				settings.logoColors,
+				result.corrections);
 			settings.monochromeIcons = ReadSetting<bool>(
 				section,
 				"bMenuMonochromeIcons",

@@ -751,10 +751,23 @@ namespace DearModdingUI
 			const auto rowHeight = (std::max)(
 				titleSize.y,
 				a_options.buttons.empty() ? 0.0f : buttonExtent);
-			const ImVec2 titlePosition{
+			ImVec2 titlePosition{
 				start.x + (std::max)(a_options.titleInsetX, 0.0f),
 				RowContentY(start.y, rowHeight, titleSize.y)
 			};
+			if (a_options.drawLeadingMark)
+			{
+				auto* drawList = ImGui::GetWindowDrawList();
+				drawList->PushClipRect(
+					start, { layout.titleMaxX, start.y + rowHeight }, true);
+				a_options.drawLeadingMark(
+					drawList,
+					{ titlePosition.x + titleSize.y * 0.5f,
+						titlePosition.y + titleSize.y * 0.5f },
+					titleSize.y * 0.5f);
+				drawList->PopClipRect();
+				titlePosition.x += titleSize.y + ImGui::GetStyle().ItemInnerSpacing.x;
+			}
 			ImGui::RenderTextEllipsis(
 				ImGui::GetWindowDrawList(),
 				titlePosition,

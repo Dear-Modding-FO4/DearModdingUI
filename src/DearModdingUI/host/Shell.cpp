@@ -1,6 +1,7 @@
 #include <DearModdingUI/host/Shell.h>
 
 #include <DearModdingUI/presentation/BackgroundBlur.h>
+#include <DearModdingUI/presentation/Logo.h>
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/settings/HostSettings.h>
@@ -196,14 +197,21 @@ namespace DearModdingUI
 			return DrawTitleRow({
 				.title = breadcrumb.c_str(),
 				.titleScale = Theme::kHeaderFallbackTextScale,
-				.titleInsetX = BulletRunContentInset(
-					ImGui::GetStyle().FramePadding.x,
-					ImGui::GetFontSize()),
 				.buttons = {
 					&closeButton,
 					a_drawClose ? size_t{ 1 } : size_t{}
 				},
-				.buttonExtentPolicy = extentPolicy
+				.buttonExtentPolicy = extentPolicy,
+				.drawLeadingMark = [](ImDrawList* a_drawList, ImVec2 a_center,
+					float a_radius) noexcept {
+					LogoColors colors;
+					if (HostSettings::EffectivePreview().logoColors == LogoColorMode::kAccent)
+					{
+						const auto accent = ImGui::GetColorU32(Theme::colors::Accent());
+						colors = { accent, accent, accent, accent };
+					}
+					DrawLogo(a_drawList, a_center, a_radius * 0.85f, colors);
+				}
 			}).has_value();
 		}
 

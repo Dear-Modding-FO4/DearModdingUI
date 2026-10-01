@@ -141,6 +141,7 @@ local source_sets = {
         "src/DearModdingUI/settings/HostSettingsPersistence.cpp",
         "src/DearModdingUI/presentation/BlurPipelineState.cpp",
         "src/DearModdingUI/presentation/FontCatalog.cpp",
+        "src/DearModdingUI/presentation/Logo.cpp",
         "src/DearModdingUI/presentation/Presentation*.cpp",
         "src/DearModdingUI/presentation/ThemeColors.cpp",
         "src/Platform/files/ExternalOpen.cpp",

@@ -362,6 +362,30 @@ namespace DearModdingUI
 			}
 
 			if (DrawSettingsRow(
+					"LogoColors",
+					"Logo colors",
+					"Uses the original logo colors or the current accent, independently of icon color mode.",
+					true,
+					[&]() noexcept {
+						auto mode = settings.logoColors == LogoColorMode::kAccent ? 1 : 0;
+						constexpr const char* modes[]{ "Original colors", "Accent" };
+						ImGui::SetNextItemWidth(ControlWidth());
+						if (ImGui::Combo("##Value", &mode, modes, static_cast<int>(std::size(modes))))
+						{
+							settings.logoColors = mode == 1 ?
+								LogoColorMode::kAccent : LogoColorMode::kOriginal;
+							changed = true;
+						}
+					},
+					[&]() noexcept {
+						return settings.logoColors != defaults.logoColors;
+					}))
+			{
+				settings.logoColors = defaults.logoColors;
+				changed = true;
+			}
+
+			if (DrawSettingsRow(
 					"WindowBackgroundOpacity",
 					"Window background opacity",
 					"Raises or lowers the darkness of the host window without changing client content.",

@@ -115,6 +115,7 @@ namespace DearModdingUI
 		};
 		bool drawSeparator{ true };
 		const char* summary{};
+		void (*drawLeadingMark)(ImDrawList*, ImVec2, float) noexcept{};
 	};
 
 	void PlaceRowContent(const ImVec2& a_position) noexcept;

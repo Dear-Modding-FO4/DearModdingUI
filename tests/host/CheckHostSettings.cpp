@@ -28,6 +28,42 @@ namespace vmm_tests
 
 	void run_host_settings_checks(Runner& runner)
 	{
+		runner.test("logo colors persist and diagnose invalid configuration", [] {
+			const auto root = std::filesystem::current_path() /
+				".Build" / "Tests" / "logo-config-fixture";
+			std::filesystem::create_directories(root);
+			const auto path = root / "DearModdingUI.toml";
+			std::ofstream(path) << "[Additional]\n";
+			auto loaded = LoadHostInterfaceSettings(path);
+			require(loaded.settings.logoColors == LogoColorMode::kOriginal &&
+					loaded.disposition == HostSettingsLoadDisposition::kLoaded,
+				"older configs did not default to original logo colors");
+			auto draft = BeginHostSettingsDraft(loaded.settings);
+			draft.draft.logoColors = LogoColorMode::kAccent;
+			require(HostSettingsDraftDiffers(draft) &&
+					PreviewHostInterfaceSettings(draft.draft).logoColors == LogoColorMode::kAccent,
+				"logo colors were omitted from the draft preview");
+			const auto persisted = EncodeHostInterfaceSettings(draft.draft);
+			require(persisted.logoColors == "accent" &&
+					PersistHostInterfaceSettings(path, persisted).saved,
+				"accent logo colors could not be saved");
+			loaded = LoadHostInterfaceSettings(path);
+			require(loaded.settings.logoColors == LogoColorMode::kAccent &&
+					loaded.disposition == HostSettingsLoadDisposition::kLoaded,
+				"accent logo colors did not round-trip");
+			RevertHostSettingsDraft(draft);
+			require(draft.draft.logoColors == LogoColorMode::kOriginal,
+				"revert retained the logo color preview");
+			std::ofstream(path, std::ios::trunc)
+				<< "[Additional]\nsMenuLogoColors = \"unknown\"\n";
+			loaded = LoadHostInterfaceSettings(path);
+			require(loaded.settings.logoColors == LogoColorMode::kOriginal &&
+					loaded.disposition == HostSettingsLoadDisposition::kCorrected &&
+					loaded.detail.find("sMenuLogoColors \"unknown\" used \"original\"") != std::string::npos,
+				"invalid logo colors lost fallback or diagnostics");
+			std::filesystem::remove_all(root);
+		});
+
 		runner.test("settings action rows keep fixed non-overlapping geometry", [] {
 			constexpr std::array widths{ 24.0f, 28.0f, 32.0f };
 			const auto widthSum =

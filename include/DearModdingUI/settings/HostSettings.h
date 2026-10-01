@@ -15,6 +15,28 @@
 
 namespace DearModdingUI
 {
+	enum class LogoColorMode
+	{
+		kOriginal,
+		kAccent
+	};
+
+	[[nodiscard]] constexpr std::optional<LogoColorMode> ParseLogoColorMode(
+		std::string_view a_value) noexcept
+	{
+		if (a_value == "original")
+			return LogoColorMode::kOriginal;
+		if (a_value == "accent")
+			return LogoColorMode::kAccent;
+		return std::nullopt;
+	}
+
+	[[nodiscard]] constexpr std::string_view LogoColorModeName(
+		LogoColorMode a_mode) noexcept
+	{
+		return a_mode == LogoColorMode::kAccent ? "accent" : "original";
+	}
+
 	struct HostAccentColor
 	{
 		uint8_t red{ 0x42 };
@@ -98,6 +120,7 @@ namespace DearModdingUI
 			kDefaultFeedbackErrorColor
 		};
 		bool fallSoulsMode{ false };
+		LogoColorMode logoColors{ LogoColorMode::kOriginal };
 
 		[[nodiscard]] bool operator==(
 			const HostInterfaceSettings&) const noexcept = default;
@@ -127,6 +150,7 @@ namespace DearModdingUI
 		HostPaletteColor feedbackErrorColor{
 			kDefaultFeedbackErrorColor
 		};
+		LogoColorMode logoColors{ LogoColorMode::kOriginal };
 
 		[[nodiscard]] bool operator==(
 			const HostInterfacePreviewSettings&) const noexcept = default;
@@ -157,6 +181,7 @@ namespace DearModdingUI
 		std::string feedbackWarningColor{ EncodeHostAccentColor(kDefaultFeedbackWarningColor) };
 		std::string feedbackErrorColor{ EncodeHostAccentColor(kDefaultFeedbackErrorColor) };
 		bool fallSoulsMode{ false };
+		std::string logoColors{ "original" };
 
 		[[nodiscard]] bool operator==(
 			const PersistedHostInterfaceSettings&) const noexcept = default;
@@ -296,6 +321,8 @@ namespace DearModdingUI
 	{
 		if (a_settings.iconColorMode != Theme::IconColorMode::kMonochrome)
 			a_settings.iconColorMode = Theme::IconColorMode::kColored;
+		if (a_settings.logoColors != LogoColorMode::kAccent)
+			a_settings.logoColors = LogoColorMode::kOriginal;
 		a_settings.sidebarLayout =
 			NormalizeUserSidebarLayout(a_settings.sidebarLayout);
 		a_settings.feedbackPlacement =
@@ -361,7 +388,8 @@ namespace DearModdingUI
 			DecodeHostColor(
 				a_settings.feedbackErrorColor,
 				kDefaultFeedbackErrorColor),
-			a_settings.fallSoulsMode
+			a_settings.fallSoulsMode,
+			ParseLogoColorMode(a_settings.logoColors).value_or(LogoColorMode::kOriginal)
 		});
 	}
 
@@ -389,7 +417,8 @@ namespace DearModdingUI
 			EncodeHostAccentColor(a_settings.feedbackInfoColor),
 			EncodeHostAccentColor(a_settings.feedbackWarningColor),
 			EncodeHostAccentColor(a_settings.feedbackErrorColor),
-			a_settings.fallSoulsMode
+			a_settings.fallSoulsMode,
+			std::string{ LogoColorModeName(a_settings.logoColors) }
 		};
 	}
 
@@ -420,7 +449,8 @@ namespace DearModdingUI
 			a_settings.feedbackPlacement,
 			a_settings.feedbackInfoColor,
 			a_settings.feedbackWarningColor,
-			a_settings.feedbackErrorColor
+			a_settings.feedbackErrorColor,
+			a_settings.logoColors
 		};
 	}
 
