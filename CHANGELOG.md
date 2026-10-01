@@ -49,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Two-pane sidebar layout**: Two-pane navigation now displays mods and their pages side by side in a resizable, independently scrolling two-column layout (`twopane`). The divider position is remembered with window layout.
 - **Icon rail sidebar layout**: Added a compact sidebar layout (`iconrail`) featuring an independently scrolling icon rail on the left and mod pages on the right, with hover tooltips displaying mod names.
 - **Collapsible origin sections**: Mod origin groups (such as Native and MCM) can now be collapsed or expanded, preserving their disclosure state during navigation.
-- **Host-owned icon resolution**: Added the `resolveIconGlyph` host API entry (`DMUI_HOST_API_RESOLVE_ICON_GLYPH_SIZE`), migrating automatic setting-group icon inference from client heuristics to a centralized host catalog. The host indexes full Phosphor icon names, semantic tags, and domain vocabulary with deterministic whole-word matching, English singularization fallback, and lowest-codepoint tie breaking.
+- **Host-owned icon resolution**: Added the `resolveIconGlyph` host API entry, migrating automatic setting-group icon inference from client heuristics to a centralized host catalog. The host indexes full Phosphor icon names, semantic tags, and domain vocabulary with deterministic whole-word matching, English singularization fallback, and lowest-codepoint tie breaking.
 
 ### Changed
 - **Fallout 4 native menu cursor**: Replaced software and OS cursor rendering with Fallout 4's native hardware menu cursor during modal menu display, matching in-game cursor appearance, speed, and scaling.

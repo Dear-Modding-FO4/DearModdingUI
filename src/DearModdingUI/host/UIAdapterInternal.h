@@ -10,8 +10,8 @@
 namespace DearModdingUI::UI::AdapterInternal
 {
 	[[nodiscard]] DMUI_Result Validate(DMUI_ClientHandle a_client) noexcept;
-	[[nodiscard]] bool HasWindowDrawListClip() noexcept;
-	[[nodiscard]] DMUI_Result EndDrawWindow(DMUI_ClientHandle a_client, void (*a_end)()) noexcept;
+	[[nodiscard]] bool HasWindowDrawListClip(bool a_table = false) noexcept;
+	[[nodiscard]] DMUI_Result EndDrawWindow(DMUI_ClientHandle a_client, void (*a_end)(), bool a_table = false) noexcept;
 	[[nodiscard]] DMUI_Result ValidateText(
 		DMUI_ClientHandle a_client, const char* a_text, size_t a_length) noexcept;
 	[[nodiscard]] DMUI_Result CopyText(

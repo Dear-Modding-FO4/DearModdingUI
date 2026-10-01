@@ -22,6 +22,8 @@ namespace DearModdingUI::UI
 			DMUI_DrawTarget target;
 			ImDrawList* list;
 			int depth;
+			int windows;
+			int tables;
 		};
 		thread_local std::vector<ClipEntry> s_clips;
 		thread_local size_t s_clipFloor{};
@@ -106,13 +108,37 @@ namespace DearModdingUI::UI
 	}
 	DrawListClipScope::~DrawListClipScope() noexcept
 	{
+		auto& context = *ImGui::GetCurrentContext();
+		const auto assertEnabled = context.IO.ConfigErrorRecoveryEnableAssert;
+		context.IO.ConfigErrorRecoveryEnableAssert = false;
 		while (s_clips.size() > m_depth)
 		{
 			const auto& entry = s_clips.back();
-			while (entry.list->_ClipRectStack.Size > entry.depth)
+			if (entry.target == DMUI_DRAW_TARGET_WINDOW)
+			{
+				// End native scopes above this clip before touching their clip entries.
+				while (context.CurrentWindowStack.Size > entry.windows ||
+					context.TablesTempDataStacked > entry.tables ||
+					entry.list->_ClipRectStack.Size > entry.depth + 1)
+				{
+					if (context.CurrentTable && context.CurrentTable->InnerWindow == context.CurrentWindow)
+						ImGui::EndTable();
+					else if (context.CurrentWindowStack.Size > entry.windows)
+					{
+						if (context.CurrentWindow->Flags & ImGuiWindowFlags_ChildWindow)
+							ImGui::EndChild();
+						else
+							ImGui::End();
+					}
+					else
+						break;
+				}
+			}
+			if (entry.list->_ClipRectStack.Size == entry.depth + 1)
 				entry.list->PopClipRect();
 			s_clips.pop_back();
 		}
+		context.IO.ConfigErrorRecoveryEnableAssert = assertEnabled;
 		s_clipFloor = m_previousFloor;
 	}
 	bool DrawListClipScope::Balanced() const noexcept
@@ -122,21 +148,24 @@ namespace DearModdingUI::UI
 
 	namespace AdapterInternal
 	{
-		bool HasWindowDrawListClip() noexcept
+		bool HasWindowDrawListClip(bool a_table) noexcept
 		{
 			const auto* list = ImGui::GetWindowDrawList();
-			return std::ranges::any_of(s_clips, [list](const ClipEntry& entry) {
-				return entry.target == DMUI_DRAW_TARGET_WINDOW && entry.list == list;
+			const auto& context = *ImGui::GetCurrentContext();
+			return std::ranges::any_of(s_clips, [&](const ClipEntry& entry) {
+				return entry.target == DMUI_DRAW_TARGET_WINDOW && entry.list == list &&
+					entry.windows >= context.CurrentWindowStack.Size &&
+					(!a_table || entry.tables >= context.TablesTempDataStacked);
 			});
 		}
 
-		DMUI_Result EndDrawWindow(DMUI_ClientHandle a_client, void (*a_end)()) noexcept
+		DMUI_Result EndDrawWindow(DMUI_ClientHandle a_client, void (*a_end)(), bool a_table) noexcept
 		{
 			const auto result = Validate(a_client);
 			if (result != DMUI_RESULT_OK)
 				return result;
 			// Native End would consume a client clip instead of its own window clip.
-			if (HasWindowDrawListClip())
+			if (HasWindowDrawListClip(a_table))
 				return DMUI_RESULT_INVALID_ARGUMENT;
 			a_end();
 			return DMUI_RESULT_OK;
@@ -256,7 +285,9 @@ namespace DearModdingUI::UI
 			DMUI_Vec2 min, DMUI_Vec2 max, uint32_t intersectWithCurrent) noexcept
 		{
 			return Draw(client, target, Rect(min, max) && intersectWithCurrent <= 1, [&](ImDrawList& list) {
-				s_clips.push_back({ client, target, &list, list._ClipRectStack.Size });
+				const auto& context = *ImGui::GetCurrentContext();
+				s_clips.push_back({ client, target, &list, list._ClipRectStack.Size,
+					context.CurrentWindowStack.Size, context.TablesTempDataStacked });
 				list.PushClipRect(Native(min), Native(max), intersectWithCurrent != 0);
 				return DMUI_RESULT_OK;
 			});

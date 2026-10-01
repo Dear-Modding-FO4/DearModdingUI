@@ -346,7 +346,7 @@ namespace DearModdingUI::UI
 
 		DMUI_Result DMUI_CALL EndTable(DMUI_ClientHandle a_client) noexcept
 		{
-			return EndDrawWindow(a_client, &ImGui::EndTable);
+			return EndDrawWindow(a_client, &ImGui::EndTable, true);
 		}
 
 		DMUI_Result DMUI_CALL BeginTooltip(

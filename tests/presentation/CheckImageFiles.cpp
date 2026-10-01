@@ -10,6 +10,7 @@
 #include <chrono>
 #include <filesystem>
 #include <thread>
+#include <vector>
 
 namespace vmm_tests
 {
@@ -28,6 +29,7 @@ namespace vmm_tests
 		{
 			support::D3DTestResources resources{ support::CreateImageResources() };
 			RenderExecution::Guard execution{ RenderExecution::Phase::kFrameDraw };
+			std::vector<DMUI_ImageHandle> handles;
 			ImageEnvironment()
 			{
 				(void)execution.NoteBinding(1);
@@ -35,9 +37,11 @@ namespace vmm_tests
 			}
 			~ImageEnvironment()
 			{
-				images::CancelClientImages(kOwner);
+				for (const auto handle : handles)
+					(void)images::ReleaseImage(kOwner, handle);
 				images::SetDevice(nullptr);
 			}
+			DMUI_ImageHandle Load(const std::string& a_path);
 		};
 
 		DMUI_ImageInfo Info(DMUI_ImageHandle a_handle)
@@ -47,11 +51,12 @@ namespace vmm_tests
 			return info;
 		}
 
-		DMUI_ImageHandle Load(const std::string& a_path)
+		DMUI_ImageHandle ImageEnvironment::Load(const std::string& a_path)
 		{
 			DMUI_ImageHandle handle{};
 			require(images::LoadImageFile(kOwner, a_path.c_str(), &handle) == DMUI_RESULT_OK,
 				"load was not accepted");
+			handles.push_back(handle);
 			require(Info(handle).status == DMUI_IMAGE_STATUS_LOADING,
 				"load published outside the frame boundary");
 			return handle;
@@ -77,7 +82,7 @@ namespace vmm_tests
 		runner.test("draw-list images skip loading and device loss but reject foreign and released handles", [] {
 			ImageEnvironment env;
 			support::presentation::ImGuiFrame frame;
-			const auto image = Load(Fixture("Alpha.png"));
+			const auto image = env.Load(Fixture("Alpha.png"));
 			const auto& api = UI::API();
 			const auto draw = [&](DMUI_ClientHandle owner) {
 				const RenderExecution::ClientGuard callback{ owner, true };
@@ -103,7 +108,7 @@ namespace vmm_tests
 
 		runner.test("File PNG uploads straight RGBA and DDS preserves mips without sRGB sampling", [] {
 			ImageEnvironment env;
-			const auto png = Load(Fixture("Alpha.png"));
+			const auto png = env.Load(Fixture("Alpha.png"));
 			require(Complete(png).status == DMUI_IMAGE_STATUS_READY, "PNG failed to load");
 			Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> view;
 			view.Attach(images::RetainImageViewForTests(kOwner, png));
@@ -113,7 +118,7 @@ namespace vmm_tests
 			require(width == 2 && height == 2 && pixels == std::vector<uint8_t>{
 				180, 90, 30, 128, 40, 120, 200, 64, 70, 80, 90, 0, 15, 25, 35, 255 },
 				"WIC changed stored color values or premultiplied alpha");
-			const auto dds = Load(Fixture("Tiles.dds"));
+			const auto dds = env.Load(Fixture("Tiles.dds"));
 			const auto info = Complete(dds);
 			require(info.status == DMUI_IMAGE_STATUS_READY && info.contentWidth == 8 && info.contentHeight == 8,
 				"BC1 DDS failed to load");
@@ -136,7 +141,7 @@ namespace vmm_tests
 			};
 			for (const auto& [path, failure] : cases)
 			{
-				const auto image = Load(path);
+				const auto image = env.Load(path);
 				const auto info = Complete(image);
 				require(info.status == DMUI_IMAGE_STATUS_FAILED && info.failure == failure,
 					"wrong failure for " + path + ": " + DMUI_ResultToString(info.failure));
@@ -145,9 +150,9 @@ namespace vmm_tests
 			}
 		});
 
-		runner.test("Released loading slots and retired owners cannot receive late file completions", [] {
+		runner.test("Released loading slots cannot receive late file completions", [] {
 			ImageEnvironment env;
-			const auto old = Load(Fixture("Tiles.dds"));
+			const auto old = env.Load(Fixture("Tiles.dds"));
 			const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
 			while (!images::HasFrameDemand())
 			{
@@ -156,7 +161,7 @@ namespace vmm_tests
 			}
 			require(Info(old).status == DMUI_IMAGE_STATUS_LOADING, "worker published before BeginFrame");
 			require(images::ReleaseImage(kOwner, old) == DMUI_RESULT_OK, "loading release failed");
-			const auto replacement = Load(Fixture("Alpha.png"));
+			const auto replacement = env.Load(Fixture("Alpha.png"));
 			require(static_cast<uint32_t>(old) == static_cast<uint32_t>(replacement) && old != replacement,
 				"test did not exercise slot reuse");
 			require(Complete(replacement).status == DMUI_IMAGE_STATUS_READY &&
@@ -164,12 +169,6 @@ namespace vmm_tests
 			DMUI_ImageInfo stale{};
 			require(images::QueryImage(kOwner, old, &stale) == DMUI_RESULT_STALE_HANDLE,
 				"old generation remained addressable");
-			const auto retired = Load(Fixture("Tiles.dds"));
-			images::CancelClientImages(kOwner);
-			const auto fresh = Load(Fixture("Alpha.png"));
-			require(Complete(fresh).status == DMUI_IMAGE_STATUS_READY, "retirement poisoned future work");
-			require(images::QueryImage(kOwner, retired, &stale) != DMUI_RESULT_OK ||
-				stale.status == DMUI_IMAGE_STATUS_RELEASED, "retired work published");
 		});
 
 		runner.test("Device changes reload from the file instead of retaining encoded or decoded data", [] {
@@ -178,7 +177,7 @@ namespace vmm_tests
 			std::filesystem::create_directories(folder);
 			const auto file = folder / "Reload.png";
 			std::filesystem::copy_file(Fixture("Alpha.png"), file, std::filesystem::copy_options::overwrite_existing);
-			const auto image = Load("ImageFileTests/./Reload.png");
+			const auto image = env.Load("ImageFileTests/./Reload.png");
 			const auto before = Complete(image);
 			require(before.status == DMUI_IMAGE_STATUS_READY && before.contentWidth == 2, "relative Data path failed");
 			std::filesystem::copy_file(Fixture("Tiles.png"), file, std::filesystem::copy_options::overwrite_existing);
@@ -200,13 +199,13 @@ namespace vmm_tests
 			using images::ImageFiles::FileQueue;
 			std::array<DMUI_ImageHandle, FileQueue::kClientCapacity> handles{};
 			for (auto& handle : handles)
-				handle = Load(Fixture("Tiles.png"));
+				handle = env.Load(Fixture("Tiles.png"));
 			DMUI_ImageHandle rejected{};
 			require(images::LoadImageFile(kOwner, Fixture("Tiles.png").c_str(), &rejected) == DMUI_RESULT_BUSY &&
 				rejected == DMUI_INVALID_IMAGE_HANDLE, "client in-flight cap did not reject work");
 			for (const auto handle : handles)
 				require(Complete(handle).status == DMUI_IMAGE_STATUS_READY, "bounded queue lost accepted work");
-			require(Complete(Load(Fixture("Tiles.png"))).status == DMUI_IMAGE_STATUS_READY,
+			require(Complete(env.Load(Fixture("Tiles.png"))).status == DMUI_IMAGE_STATUS_READY,
 				"published work did not return capacity");
 
 			FileQueue queue;

@@ -48,7 +48,7 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 		const std::scoped_lock lock{ m_mutex };
 		const auto matches = [&](const auto& job) {
 			return job && job->identity.owner == a_owner &&
-				(!a_handle || job->identity.handle == a_handle);
+				job->identity.handle == a_handle;
 		};
 		std::erase_if(m_queue, matches);
 		if (matches(m_active))

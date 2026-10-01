@@ -15,7 +15,6 @@ namespace DearModdingUI::PresentationServices
 {
 	[[nodiscard]] DMUI_Result LoadImageFile(
 		DMUI_ClientHandle a_client, const char* a_utf8Path, DMUI_ImageHandle* a_image) noexcept;
-	void CancelClientImages(DMUI_ClientHandle a_client) noexcept;
 
 	void SetDevice(ID3D11Device* a_device) noexcept;
 	void InvalidateDevice() noexcept;

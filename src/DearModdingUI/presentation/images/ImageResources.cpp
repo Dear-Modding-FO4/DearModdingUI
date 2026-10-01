@@ -366,16 +366,6 @@ namespace DearModdingUI::PresentationServices
 		}
 	}
 
-	void CancelClientImages(DMUI_ClientHandle a_client) noexcept
-	{
-		auto& service = GetImageService();
-		const std::scoped_lock lock{ service.mutex };
-		for (uint32_t slot = 0; slot < service.images.size(); ++slot)
-			if (service.images[slot].owner == a_client &&
-				service.images[slot].status != DMUI_IMAGE_STATUS_RELEASED)
-				RecycleImage(service, slot, DMUI_IMAGE_STATUS_RELEASED);
-	}
-
 	DMUI_Result ImportD3D11Image(
 		DMUI_ClientHandle a_client,
 		const DMUI_D3D11ImageDescriptor* a_descriptor,

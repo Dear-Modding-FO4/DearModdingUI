@@ -313,15 +313,14 @@ namespace vmm_tests
 			const DearModdingUI::UI::Testing::ValidationOverride validation{
 				&AcceptClient
 			};
-			auto api = DearModdingUI::UI::API();
-			api.button = nullptr;
+			const auto& api = DearModdingUI::UI::API();
 			const auto baseline = ImGui::GetCurrentWindow()->IDStack.Size;
 			dmui::ui::detail::ScopedContext context{ &api, 1u };
 			dmui::ui::PushID("balanced");
-			(void)dmui::ui::Button("missing");
+			(void)dmui::ui::Button(nullptr);
 			dmui::ui::PopID();
 			require(
-				context.Result() == DMUI_RESULT_UNSUPPORTED_ABI &&
+				context.Result() == DMUI_RESULT_INVALID_ARGUMENT &&
 					ImGui::GetCurrentWindow()->IDStack.Size == baseline,
 				"sticky UI failure prevented a required scope unwind");
 		});

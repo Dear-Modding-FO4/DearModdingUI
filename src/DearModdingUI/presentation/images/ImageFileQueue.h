@@ -33,7 +33,7 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 		static constexpr size_t kClientCapacity{ 4 };
 		~FileQueue();
 		[[nodiscard]] DMUI_Result Submit(LoadIdentity a_identity, const std::string& a_path) noexcept;
-		void Cancel(DMUI_ClientHandle a_owner, DMUI_ImageHandle a_handle = 0) noexcept;
+		void Cancel(DMUI_ClientHandle a_owner, DMUI_ImageHandle a_handle) noexcept;
 		[[nodiscard]] std::shared_ptr<LoadJob> TakeCompletion() noexcept;
 		[[nodiscard]] bool HasCompletion() noexcept;
 

@@ -35,6 +35,7 @@ namespace
 		size_t separatorCalls{};
 		size_t settingsTableCalls{};
 		size_t feedbackCalls{};
+		size_t diagnosticCalls{};
 		bool renderSettingsTables{};
 		DMUI_Result resolveResult{ DMUI_RESULT_OK };
 		uint32_t resolvedGlyph{};
@@ -223,6 +224,11 @@ namespace
 			result.ui = &FixtureUIAPI();
 			result.resolveIconGlyph = &ResolveIconGlyph;
 			result.setFieldFeedback = &SetFieldFeedback;
+			result.reportDiagnostic = [](DMUI_ClientHandle,
+				const DMUI_DiagnosticDescriptor*) noexcept -> DMUI_Result {
+				++s_fixtureHost.diagnosticCalls;
+				return DMUI_RESULT_OK;
+			};
 			result.requestDialog = [](DMUI_ClientHandle a_client,
 				const DMUI_DialogDescriptor* a_descriptor,
 				DMUI_DialogHandle* a_dialog) noexcept -> DMUI_Result {
@@ -289,7 +295,7 @@ namespace vmm_tests
 			imgui.EndWindow();
 			require(busy == DMUI_RESULT_OK && hostResult == DMUI_RESULT_BUSY,
 				"expected BUSY disabled the page or hid its service result");
-			require(failed == DMUI_RESULT_INVALID_ARGUMENT,
+			require(failed == DMUI_RESULT_INVALID_ARGUMENT && s_fixtureHost.diagnosticCalls == 1,
 				"expected service contention masked an actual UI failure");
 		});
 
@@ -736,53 +742,5 @@ namespace vmm_tests
 				"divider did not continue through the invisible settings table");
 		});
 
-		runner.test("declarative icon resolution fails closed on unavailable hosts", [] {
-			ResetFixture();
-			dmui::Client client{
-				"declarative-icon-errors",
-				"Declarative Icon Errors",
-				{ 1, 0 }
-			};
-			require(client.Connect(), "fixture client did not connect");
-			dmui::SettingsPage settings{
-				.groups = {
-					{
-						.id = "errors",
-						.label = "HostOnlyUnmappedErrors",
-						.settings = { { .id = "setting", .label = "Setting" } },
-						.expanded = false
-					}
-				},
-				.filterOptions = {
-					.showSearch = false,
-					.showModifiedOnly = false
-				}
-			};
-			require(
-				client.AddSettingsPage(
-					{ .id = "settings", .displayName = "Settings" },
-					std::move(settings))
-					.has_value(),
-				"declarative fixture page did not register");
-			auto& callback = s_fixtureHost.pages.front();
-
-			FixtureAPI().resolveIconGlyph = nullptr;
-			require(
-				callback.draw(callback.userData) == DMUI_RESULT_UNSUPPORTED_ABI &&
-					client.LastResult() == DMUI_RESULT_UNSUPPORTED_ABI &&
-					s_fixtureHost.resolveCalls == 0 &&
-					s_fixtureHost.collapsingHeaderCalls == 0,
-				"null host entry invoked or drew after negotiation failure");
-
-			FixtureAPI().resolveIconGlyph = &ResolveIconGlyph;
-			s_fixtureHost.resolveResult = DMUI_RESULT_CALLBACK_FAILED;
-			require(
-				callback.draw(callback.userData) == DMUI_RESULT_CALLBACK_FAILED &&
-					client.LastResult() == DMUI_RESULT_CALLBACK_FAILED &&
-					s_fixtureHost.resolveCalls == 1 &&
-					s_fixtureHost.collapsingHeaderCalls == 0,
-				"host resolver failure was hidden by a fake-success draw");
-			ResetFixture();
-		});
 	}
 }

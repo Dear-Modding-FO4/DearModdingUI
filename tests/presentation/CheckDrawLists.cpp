@@ -13,7 +13,7 @@ namespace vmm_tests
 
 	void run_draw_list_checks(Runner& runner)
 	{
-		runner.test("draw clips balance per target and unwind before failed callback recovery", [] {
+		runner.test("draw clips balance per target and interleave with failed callback recovery", [] {
 			ImGuiFrame frame;
 			auto recovery = ImGuiRecoverySnapshot::Capture();
 			auto* window = ImGui::GetWindowDrawList();
@@ -66,6 +66,86 @@ namespace vmm_tests
 				dmui::ui::ClipRectScope clip{ dmui::ui::WindowDrawList(), { 30, 30 }, { 90, 90 } };
 			}
 			require(clean.Balanced(), "RAII clip failed to balance");
+		});
+
+		runner.test("a window clip can surround a non-scrolling table", [] {
+			ImGuiFrame frame;
+			auto* list = ImGui::GetWindowDrawList();
+			const auto depth = list->_ClipRectStack.Size;
+			UI::DrawListClipScope clips;
+			{
+				dmui::ui::ClipRectScope clip{ dmui::ui::WindowDrawList(), { 30, 30 }, { 300, 300 } };
+				require(dmui::ui::BeginTable("Clipped table", 1), "table did not open");
+				dmui::ui::TableNextRow();
+				(void)dmui::ui::TableNextColumn();
+				dmui::ui::TextUnformatted("Clipped cell");
+				require(dmui::ui::checked::EndTable() == DMUI_RESULT_OK,
+					"EndTable rejected its enclosing client clip");
+				require(list->_ClipRectStack.Size == depth + 1,
+					"EndTable consumed its enclosing client clip");
+			}
+			require(clips.Balanced() && list->_ClipRectStack.Size == depth &&
+				dmui::ui::detail::LastResult() == DMUI_RESULT_OK,
+				"enclosing clip did not balance");
+		});
+
+		runner.test("callback failure inside a table recovers its enclosing client clip", [] {
+			ImGuiFrame frame;
+			auto recovery = ImGuiRecoverySnapshot::Capture();
+			auto* list = ImGui::GetWindowDrawList();
+			const auto depth = list->_ClipRectStack.Size;
+			const auto windows = GImGui->CurrentWindowStack.Size;
+			const auto tables = GImGui->TablesTempDataStacked;
+			{
+				UI::DrawListClipScope clips;
+				const auto result = [] {
+					dmui::ui::ClipRectScope clip{ dmui::ui::WindowDrawList(), { 30, 30 }, { 300, 300 } };
+					require(dmui::ui::BeginTable("Failed table", 1), "table did not open");
+					dmui::ui::TableNextRow();
+					(void)dmui::ui::TableNextColumn();
+					return DMUI_RESULT_CALLBACK_FAILED;
+				}();
+				require(result == DMUI_RESULT_CALLBACK_FAILED && !clips.Balanced() &&
+					list->_ClipRectStack.Size == depth + 2,
+					"failed clip destructor consumed ImGui's table clip");
+			}
+			(void)recovery->RecoverFailure();
+			require(list->_ClipRectStack.Size == depth &&
+				GImGui->CurrentWindowStack.Size == windows &&
+				GImGui->TablesTempDataStacked == tables,
+				"table recovery over-popped or leaked a clip/scope");
+		});
+
+		runner.test("EndTable reports an inner client clip and recovery preserves native clips", [] {
+			ImGuiFrame frame;
+			auto* list = ImGui::GetWindowDrawList();
+			const auto depth = list->_ClipRectStack.Size;
+			for (const bool beforeLayout : { false, true })
+			{
+				auto recovery = ImGuiRecoverySnapshot::Capture();
+				dmui::ui::detail::ClearError();
+				{
+					UI::DrawListClipScope clips;
+					require(dmui::ui::BeginTable("Inner clip", 1), "table did not open");
+					const auto push = [&] {
+						require(dmui::ui::WindowDrawList().PushClipRect({ 30, 30 }, { 300, 300 }),
+							"inner clip failed");
+					};
+					if (beforeLayout)
+						push();
+					dmui::ui::TableNextRow();
+					(void)dmui::ui::TableNextColumn();
+					if (!beforeLayout)
+						push();
+					dmui::ui::EndTable();
+					require(dmui::ui::detail::LastResult() == DMUI_RESULT_INVALID_ARGUMENT &&
+						GImGui->CurrentTable != nullptr && list->_ClipRectStack.Size == depth + 2,
+						"EndTable consumed an inner client clip instead of reporting it");
+				}
+				(void)recovery->RecoverFailure();
+				require(list->_ClipRectStack.Size == depth && GImGui->CurrentTable == nullptr,
+					"inner clip recovery corrupted the native clip stack");
+			}
 		});
 
 		runner.test("draw geometry rejects malformed inputs without submitting vertices", [] {
