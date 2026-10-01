@@ -228,14 +228,34 @@ rule("dmui.shaders", function()
             local header = path.join(output_root, shader.name .. ".h")
             batchcmds:show_progress(opt.progress, "${color.build.object}compiling.shader %s:%s",
                 sourcefile, shader.entry)
-            batchcmds:vrunv(fxc, {
-                "/nologo", "/Ges", "/O3",
-                "/E", shader.entry,
-                "/T", shader.profile,
-                "/Vn", "g_" .. shader.name,
-                "/Fh", header,
-                path(sourcefile)
-            })
+
+			if not is_host("linux") then
+				batchcmds:vrunv(fxc, {
+					"/nologo", "/Ges", "/O3",
+					"/E", shader.entry,
+					"/T", shader.profile,
+					"/Vn", "g_" .. shader.name,
+					"/Fh", header,
+					path(sourcefile)
+				})
+			else
+				batchcmds:vrunv("wine", {
+					fxc,
+					"/nologo", "/Ges", "/O3",
+					"/E", shader.entry,
+					"/T", shader.profile,
+					"/Vn", "g_" .. shader.name,
+					"/Fh", header,
+					path(sourcefile)
+				})
+
+				batchcmds:vrunv("sed", {
+					"-i",
+					"s/\x05#/#/g",
+					header
+				})
+			end
+
             table.insert(outputs, header)
         end
         batchcmds:add_depfiles(sourcefile)
