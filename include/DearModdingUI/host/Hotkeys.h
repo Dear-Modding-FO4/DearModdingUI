@@ -151,6 +151,7 @@ namespace DearModdingUI
 			bool a_enabled) noexcept;
 		void SetContext(HotkeyContextState a_context) noexcept;
 		void ReleaseActiveKeys() noexcept;
+		[[nodiscard]] bool IsToggleChordHeld() const noexcept;
 		void BeginCapture(HotkeySlot a_slot = HotkeySlot::kKeyboardMouse) noexcept;
 		[[nodiscard]] bool CancelCapture() noexcept;
 		[[nodiscard]] std::optional<HotkeyChord> TakeCapture() noexcept;
@@ -233,6 +234,7 @@ namespace DearModdingUI
 		size_t m_reservedReleaseCount{ 0 };
 		DMUI_HotkeyActionHandle m_nextAction{ 1 };
 		std::array<HotkeyChord, 2> m_reservedChords;
+		std::array<HotkeyChord, 2> m_heldToggleChords;
 		HotkeyContextState m_context;
 		bool m_capturing{ false };
 		HotkeySlot m_captureSlot{ HotkeySlot::kKeyboardMouse };
@@ -264,6 +266,7 @@ namespace DearModdingUI
 			bool a_enabled) noexcept;
 		void SetContext(HotkeyContextState a_context) noexcept;
 		void ReleaseActiveKeys() noexcept;
+		[[nodiscard]] bool IsToggleChordHeld() noexcept;
 		void BeginCapture(HotkeySlot a_slot = HotkeySlot::kKeyboardMouse) noexcept;
 		[[nodiscard]] bool CancelCapture() noexcept;
 		[[nodiscard]] std::optional<HotkeyChord> TakeCapture() noexcept;

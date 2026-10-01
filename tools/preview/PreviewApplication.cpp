@@ -4,9 +4,9 @@
 #include "PreviewRenderer.h"
 #include "PreviewWindow.h"
 #include "fixtures/HostHealthFixtures.h"
-#include "../../src/Platform/imgui/ImGuiWin32Integration.h"
 
 #include <DearModdingUI/presentation/BackgroundBlur.h>
+#include <Platform/imgui/ImGuiWin32Integration.h>
 #include <Platform/input/CursorLoader.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/settings/HostSettings.h>

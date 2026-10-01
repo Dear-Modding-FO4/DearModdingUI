@@ -127,9 +127,12 @@ namespace Addictol::GameInput
 
 	[[nodiscard]] constexpr InputQueueDecision DecideInputQueue(
 		bool a_menuVisible,
-		InputSuppressionPolicy a_policy = kMenuInputSuppression) noexcept
+		InputSuppressionPolicy a_policy = kMenuInputSuppression,
+		bool a_toggleChordHeld = false,
+		InputQueueDecision a_frameDecision = InputQueueDecision::kForward) noexcept
 	{
-		return a_menuVisible && a_policy == InputSuppressionPolicy::kAllDevices ?
+		return a_frameDecision == InputQueueDecision::kDiscard ||
+			((a_menuVisible || a_toggleChordHeld) && a_policy == InputSuppressionPolicy::kAllDevices) ?
 			InputQueueDecision::kDiscard :
 			InputQueueDecision::kForward;
 	}

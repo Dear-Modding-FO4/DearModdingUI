@@ -3,7 +3,7 @@
 #endif
 #include <Windows.h>
 
-#include "ImGuiWin32Integration.h"
+#include <Platform/imgui/ImGuiWin32Integration.h>
 
 #include <cstring>
 #include <cwchar>

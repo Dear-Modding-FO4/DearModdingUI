@@ -1,4 +1,5 @@
 #include <Platform/input/GameInput.h>
+#include <DearModdingUI/host/Hotkeys.h>
 #include <Support/Detours.h>
 #include <Platform/rendering/PlatformImGui.h>
 #include <F4SE/InputMap.h>
@@ -41,6 +42,8 @@ namespace Addictol::GameInput
 		static std::atomic<bool> s_installAttempted{ false };
 		static std::atomic<bool> s_installed{ false };
 		static std::atomic<bool> s_blocked{ false };
+		static InputQueueDecision s_frameDecision{ InputQueueDecision::kForward };
+		static const RE::InputEvent* s_frameHead{ nullptr };
 		static std::atomic<bool> s_runtimeFailureReported{ false };
 
 		class InputHealthReporter final : public DearModdingUI::HealthReporter
@@ -132,6 +135,16 @@ namespace Addictol::GameInput
 			}
 		}
 
+		[[nodiscard]] InputQueueDecision DecideCurrentInputQueue(
+			InputQueueDecision a_frameDecision = InputQueueDecision::kForward) noexcept
+		{
+			return DecideInputQueue(
+				s_blocked.load(std::memory_order_acquire),
+				kMenuInputSuppression,
+				DearModdingUI::Hotkeys::IsToggleChordHeld(),
+				a_frameDecision);
+		}
+
 		static void Forward(
 			ReceiverHook& a_hook,
 			InputReceiver a_receiverKind,
@@ -146,8 +159,10 @@ namespace Addictol::GameInput
 				return;
 			}
 
-			const auto decision = DecideInputQueue(
-				s_blocked.load(std::memory_order_acquire));
+			// Receivers sharing MenuControls' queue reuse its decision; any other queue decides afresh.
+			const auto decision = DecideCurrentInputQueue(
+				a_queueHead && a_queueHead == s_frameHead ?
+					s_frameDecision : InputQueueDecision::kForward);
 			if (decision == InputQueueDecision::kDiscard &&
 				a_receiverKind == InputReceiver::kMenuControls)
 			{
@@ -163,6 +178,9 @@ namespace Addictol::GameInput
 			RE::BSInputEventReceiver* a_receiver,
 			const RE::InputEvent* a_queueHead) noexcept
 		{
+			// All receivers discard the queue if any part of its dispatch requires blocking.
+			s_frameHead = a_queueHead;
+			s_frameDecision = DecideCurrentInputQueue();
 			for (auto* event = a_queueHead; event; event = event->next)
 			{
 				if (const auto* connection = event->As<RE::DeviceConnectEvent>();
@@ -176,22 +194,23 @@ namespace Addictol::GameInput
 				if (const auto* move = event->As<RE::MouseMoveEvent>();
 					move && (move->mouseInputX || move->mouseInputY))
 					PlatformImgui::ObserveMouseMove();
-				const auto* button = event->As<RE::ButtonEvent>();
-				if (!button)
-					continue;
-				uint32_t code = 0;
-				bool pulse = false;
-				if (button->device == RE::INPUT_DEVICE::kMouse)
+				if (const auto* button = event->As<RE::ButtonEvent>())
 				{
-					code = ImguiPlatform::MouseKeyCode(button->idCode);
-					pulse = button->idCode == static_cast<uint32_t>(RE::BS_BUTTON_CODE::kWheelUp) ||
-						button->idCode == static_cast<uint32_t>(RE::BS_BUTTON_CODE::kWheelDown);
+					uint32_t code = 0;
+					bool pulse = false;
+					if (button->device == RE::INPUT_DEVICE::kMouse)
+					{
+						code = ImguiPlatform::MouseKeyCode(button->idCode);
+						pulse = button->idCode == static_cast<uint32_t>(RE::BS_BUTTON_CODE::kWheelUp) ||
+							button->idCode == static_cast<uint32_t>(RE::BS_BUTTON_CODE::kWheelDown);
+					}
+					else if (button->device == RE::INPUT_DEVICE::kGamepad)
+						code = F4SE::InputMap::GamepadMaskToKeycode(button->idCode);
+					if (code && code < F4SE::InputMap::kMaxMacros)
+						PlatformImgui::ObserveButton(
+							code, button->QPressed(), !pulse && button->QHeldDown(), pulse, button->value);
 				}
-				else if (button->device == RE::INPUT_DEVICE::kGamepad)
-					code = F4SE::InputMap::GamepadMaskToKeycode(button->idCode);
-				if (code && code < F4SE::InputMap::kMaxMacros)
-					PlatformImgui::ObserveButton(
-						code, button->QPressed(), !pulse && button->QHeldDown(), pulse, button->value);
+				s_frameDecision = DecideCurrentInputQueue(s_frameDecision);
 			}
 			Forward(
 				s_menuControlsHook,

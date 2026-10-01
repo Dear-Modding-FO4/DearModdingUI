@@ -3,6 +3,7 @@
 
 #include "../Harness.h"
 #include <Support/KeyCatalog.h>
+#include <Platform/input/GameInput.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/host/MenuToggleChord.h>
 #include <DearModdingUI/host/MenuDismissal.h>
@@ -20,6 +21,72 @@ namespace vmm_tests
 
 	void run_gamepad_input_checks(Runner& runner)
 	{
+		runner.test("toggle queues stay blocked through chord release and recover on focus loss", [] {
+			using namespace DearModdingUI;
+			using namespace Addictol::GameInput;
+			HotkeyRegistry registry;
+			registry.SetReservedChord(kMenuDefaultGamepadToggleChord, HotkeySlot::kGamepad);
+			bool blocked = false;
+			auto frame = InputQueueDecision::kForward;
+			const auto decide = [&](InputQueueDecision a_previous = InputQueueDecision::kForward) {
+				return DecideInputQueue(
+					blocked, kMenuInputSuppression, registry.IsToggleChordHeld(), a_previous);
+			};
+			const auto route = [&](uint32_t a_code, bool a_pressed, bool a_repeat = false) {
+				if (registry.HandleKey(a_code, 0, a_pressed, a_repeat) == HotkeyMessageResult::kMenuToggle)
+					blocked = !blocked;
+				frame = decide(frame);
+			};
+			frame = decide();
+			for (const auto code : { kPadLB, kPadRB, kPadBack })
+				route(code, true);
+			require(blocked && frame == InputQueueDecision::kDiscard,
+				"opening chord leaked its queue to later receivers");
+			for (const auto code : { kPadLB, kPadRB, kPadBack })
+				route(code, false);
+
+			frame = decide();
+			for (const auto code : { kPadLB, kPadRB, kPadBack })
+				route(code, true);
+			require(!blocked && registry.IsToggleChordHeld() &&
+					frame == InputQueueDecision::kDiscard && decide() == InputQueueDecision::kDiscard,
+				"closing chord leaked the closing queue or following held frame");
+			frame = decide();
+			route(kPadBack, false);
+			route(kPadLB, true, true);
+			route(kPadRB, false);
+			require(registry.IsToggleChordHeld() && decide() == InputQueueDecision::kDiscard,
+				"trigger release allowed a remaining shoulder hold into gameplay");
+			route(kPadLB, false);
+			require(!registry.IsToggleChordHeld() && frame == InputQueueDecision::kDiscard &&
+					decide() == InputQueueDecision::kForward,
+				"final release escaped its queue or kept the next queue blocked");
+
+			frame = decide();
+			route(kPadLB, true);
+			require(frame == InputQueueDecision::kForward,
+				"an old toggle activation blocked a fresh partial chord");
+			route(kPadRB, true);
+			route(kPadBack, true);
+			require(blocked && registry.IsToggleChordHeld(),
+				"fresh chord did not reopen the menu");
+			registry.ReleaseActiveKeys();
+			blocked = false;
+			require(!registry.IsToggleChordHeld() && decide() == InputQueueDecision::kForward,
+				"focus-loss or disconnect reconciliation retained the toggle hold");
+
+			registry.SetReservedChord(ParseHotkeyChord("Mouse3+Mouse4").chord);
+			blocked = true;
+			frame = decide();
+			route(kMouseButtonOffset + 2, true);
+			route(kMouseButtonOffset + 3, true);
+			require(!blocked && decide() == InputQueueDecision::kDiscard,
+				"keyboard-slot mouse toggle did not retain its hold");
+			route(kMouseButtonOffset + 3, false);
+			route(kMouseButtonOffset + 2, false);
+			require(frame == InputQueueDecision::kDiscard && decide() == InputQueueDecision::kForward,
+				"mouse toggle release did not preserve the frame boundary");
+		});
 		runner.test("controller arbitration preserves cursor A and edit commands", [] {
 			using namespace DearModdingUI::ControllerNavigation;
 			auto mode = ControllerMode::kCursor;

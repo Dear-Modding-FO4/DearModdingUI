@@ -752,7 +752,7 @@ namespace DearModdingUI
 				titleSize.y,
 				a_options.buttons.empty() ? 0.0f : buttonExtent);
 			ImVec2 titlePosition{
-				start.x + (std::max)(a_options.titleInsetX, 0.0f),
+				start.x,
 				RowContentY(start.y, rowHeight, titleSize.y)
 			};
 			if (a_options.drawLeadingMark)

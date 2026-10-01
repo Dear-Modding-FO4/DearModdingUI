@@ -108,7 +108,6 @@ namespace DearModdingUI
 		const char* title;
 		Theme::FontRole titleFont{ Theme::FontRole::kTitle };
 		float titleScale{ 1.0f };
-		float titleInsetX{};
 		std::span<const TitleRowButton> buttons;
 		TitleRowButtonExtentPolicy buttonExtentPolicy{
 			TitleRowButtonExtentPolicy::kTitleBar

@@ -277,6 +277,7 @@ target("imgui", function()
     )
 
     add_includedirs("Depends/imgui", { public = true })
+    add_includedirs("include")
     add_defines("NDEBUG", "_LIB")
     add_cxxflags(
         "/Ob2",

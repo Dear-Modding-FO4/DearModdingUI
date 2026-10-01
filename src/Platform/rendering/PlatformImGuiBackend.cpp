@@ -1,7 +1,7 @@
 #include <RE/M/MenuCursor.h>
 
 #include "PlatformImGuiInternal.h"
-#include "../imgui/ImGuiWin32Integration.h"
+#include <Platform/imgui/ImGuiWin32Integration.h>
 
 #include <DearModdingUI/presentation/BackgroundBlur.h>
 #include <Platform/input/CarrierMenu.h>

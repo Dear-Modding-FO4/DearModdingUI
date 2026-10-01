@@ -390,8 +390,17 @@ namespace DearModdingUI
 		m_capturing = false;
 		m_capture.reset();
 		m_heldKeys.fill(false);
+		m_heldToggleChords = {};
 		for (auto& active : m_activeKeys)
 			ReleaseKeyLocked(active);
+	}
+
+	bool HotkeyRegistry::IsToggleChordHeld() const noexcept
+	{
+		const std::scoped_lock lock{ m_mutex };
+		return std::ranges::any_of(m_heldToggleChords, [](const auto& a_chord) {
+			return !a_chord.IsNone();
+		});
 	}
 
 	void HotkeyRegistry::ReleaseKeyLocked(ActiveKey& a_active) noexcept
@@ -512,6 +521,11 @@ namespace DearModdingUI
 		auto& active = m_activeKeys[a_keyCode];
 		if (!a_pressed)
 		{
+			auto& toggleChord = m_heldToggleChords[static_cast<size_t>(HotkeySlotForKey(a_keyCode))];
+			if (std::ranges::none_of(toggleChord.keys, [&](auto a_key) {
+					return a_key && m_heldKeys[a_key];
+				}))
+				toggleChord = {};
 			if (m_capturing && active.captured &&
 				std::ranges::find(m_captureKeys.keys, a_keyCode) != m_captureKeys.keys.end())
 			{
@@ -566,6 +580,8 @@ namespace DearModdingUI
 		{
 			active.toggle = true;
 			active.slot = slot;
+			// Retain the whole chord after its triggering key releases or the binding changes.
+			m_heldToggleChords[index] = m_reservedChords[index];
 			return HotkeyMessageResult::kMenuToggle;
 		}
 		const auto found = std::ranges::find_if(m_actions, [&](const auto& a_action) {
@@ -811,6 +827,11 @@ namespace DearModdingUI
 		void ReleaseActiveKeys() noexcept
 		{
 			RegistryInstance().ReleaseActiveKeys();
+		}
+
+		bool IsToggleChordHeld() noexcept
+		{
+			return RegistryInstance().IsToggleChordHeld();
 		}
 
 		void BeginCapture(HotkeySlot a_slot) noexcept

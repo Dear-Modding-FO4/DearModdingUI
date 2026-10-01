@@ -450,7 +450,8 @@ the host API. Menu toggles remain in `[Additional]`: `sMenuToggleKey` defaults t
 `sMenuToggleGamepad` defaults to `PadBack+PadLB+PadRB` and accepts `none`. Each reserves its exact
 chord against client hotkeys in the same slot.
 
-In the menu, D-pad selects navigation mode; mouse or left-stick movement selects cursor mode.
+In the menu, D-pad or left stick moves focus; mouse movement selects cursor mode.
+LS toggles between navigation and cursor mode, centering the cursor on the focused item.
 A activates focus or clicks the cursor, never both. B uses the Escape dismissal chain; Start closes.
 LB/RB selects sidebar/content (slow/fast tweak while editing), LT/RT pages, and right stick scrolls.
 X uses the focused row's existing reset operation; Y opens search. Text entry needs a keyboard.
