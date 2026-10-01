@@ -320,7 +320,7 @@ namespace DearModdingUI
 		a_settings.bodyFontFamily =
 			DecodeBodyFontFamily(a_settings.bodyFontFamily);
 		a_settings.menuToggleKey = std::string{ MenuToggleKeyName(
-			ParseMenuToggleKey(a_settings.menuToggleKey).virtualKey) };
+			ParseMenuToggleKey(a_settings.menuToggleKey).keyCode) };
 		return a_settings;
 	}
 
@@ -429,7 +429,7 @@ namespace DearModdingUI
 		void NotifyMenuVisible(bool a_visible) noexcept;
 		void SetPageActive(bool a_active) noexcept;
 		[[nodiscard]] uint64_t PageRevision() noexcept;
-		[[nodiscard]] uint32_t MenuToggleVirtualKey() noexcept;
+		[[nodiscard]] uint32_t MenuToggleKeyCode() noexcept;
 		[[nodiscard]] bool SetHotkeyOverride(
 			std::string_view a_id,
 			std::string_view a_chord) noexcept;

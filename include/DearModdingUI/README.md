@@ -332,8 +332,15 @@ The optional appended `registerHotkeyAction` entry registers a stable, process-w
 ID, display name, suggested default chord, callback, and user data. The action ID must contain at least
 two nonempty ASCII segments separated by `.`; each segment starts with a letter and continues with
 letters, digits, `_`, or `-`. Registration rejects malformed IDs, duplicate IDs across all clients, and
-unknown chord strings. Supported chords combine `Ctrl`, `Alt`, and `Shift` with the host key table, such
-as `F11` or `Shift+F11`; `none` is an explicit unbound suggestion.
+unknown chord strings. Chords combine `Ctrl`, `Alt`, and `Shift` with one host key catalog token,
+such as `F11` or `Shift+F11`; `none` is an explicit unbound suggestion. Keyboard tokens cover letters,
+digits, `F1`-`F15`, navigation (`Home`, `End`, `PageUp`, `PageDown`, `Insert`, `Delete`, arrows),
+`Numpad0`-`Numpad9` and named numpad operations, punctuation names (`Minus`, `Equals`, `LeftBracket`,
+`RightBracket`, `Semicolon`, `Apostrophe`, `Grave`, `Backslash`, `Comma`, `Period`, `Slash`),
+`Tab`, `Enter`, `Backspace`, `Space`, lock keys, `PrintScreen`, `Pause`, Windows, media, and browser
+keys. Keys are physical scan-code positions named by the US layout. Escape and standalone
+Ctrl/Alt/Shift keys are reserved; mouse and gamepad tokens are not bindable yet.
+Older hosts reject newer tokens with `UNKNOWN_CHORD`.
 
 Registration success does not imply a binding. Query `queryHotkeyBinding` with the returned handle to
 obtain the current canonical chord and a distinct state for bound, user-cleared, suggested-default
@@ -432,7 +439,7 @@ input capture. Initialization and frame observers retain their existing `Present
 The standalone host initializes on the first valid active-swapchain `Present` whenever any client was
 accepted. Clients can open the common menu by selecting one of their registered settings pages through
 the host API. The existing host menu toggle remains in `[Additional]` for compatibility and reserves its
-virtual key against client chords.
+key code against client chords.
 
 ## Final swapchain handoff
 

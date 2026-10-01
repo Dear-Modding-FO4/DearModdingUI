@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/MCM/Compatibility.h>
 #include <DearModdingUI/MCM/DiagnosticReporter.h>
+#include <Support/KeyCatalog.h>
 
 #include <cstdint>
 #include <filesystem>
@@ -11,15 +12,14 @@
 
 namespace DearModdingUI::MCM
 {
-	// Mirrored from CommonLibF4's F4SE/InputMap.h because dmui-mcm cannot depend on F4SE headers.
-	inline constexpr int32_t kKeyboardKeyCount = 256;
-	inline constexpr int32_t kMouseButtonOffset = 256;
-	inline constexpr int32_t kMouseButtonCount = 8;
-	inline constexpr int32_t kMouseWheelOffset = 264;
-	inline constexpr int32_t kMouseWheelDirectionCount = 2;
-	inline constexpr int32_t kGamepadButtonOffset = 266;
-	inline constexpr int32_t kGamepadButtonCount = 16;
-	inline constexpr int32_t kMaximumMacroCode = 282;
+	using KeyCatalog::kKeyboardKeyCount;
+	using KeyCatalog::kMouseButtonOffset;
+	using KeyCatalog::kMouseButtonCount;
+	using KeyCatalog::kMouseWheelOffset;
+	using KeyCatalog::kMouseWheelDirectionCount;
+	using KeyCatalog::kGamepadButtonOffset;
+	using KeyCatalog::kGamepadButtonCount;
+	using KeyCatalog::kMaximumMacroCode;
 
 	enum class KeybindFileState : uint8_t
 	{

@@ -121,48 +121,38 @@ namespace DearModdingUI
 				return {};
 			if (EqualsIgnoringCase(token, "Shift"))
 			{
-				if (chord.virtualKey || (chord.modifiers & kHotkeyModifierShift))
+				if (chord.keyCode || (chord.modifiers & kHotkeyModifierShift))
 					return {};
 				chord.modifiers |= kHotkeyModifierShift;
 			}
 			else if (EqualsIgnoringCase(token, "Ctrl"))
 			{
-				if (chord.virtualKey || (chord.modifiers & kHotkeyModifierControl))
+				if (chord.keyCode || (chord.modifiers & kHotkeyModifierControl))
 					return {};
 				chord.modifiers |= kHotkeyModifierControl;
 			}
 			else if (EqualsIgnoringCase(token, "Alt"))
 			{
-				if (chord.virtualKey || (chord.modifiers & kHotkeyModifierAlt))
+				if (chord.keyCode || (chord.modifiers & kHotkeyModifierAlt))
 					return {};
 				chord.modifiers |= kHotkeyModifierAlt;
 			}
 			else
 			{
-				if (chord.virtualKey)
+				if (chord.keyCode)
 					return {};
-				if (token.size() == 1)
-				{
-					const auto key = AsciiUpper(token.front());
-					if ((key >= 'A' && key <= 'Z') ||
-						(key >= '0' && key <= '9'))
-						chord.virtualKey = static_cast<uint32_t>(key);
-					else
-						return {};
-				}
-				else
-				{
-					const auto parsed = ParseMenuToggleKey(token);
-					if (!parsed.recognized)
-						return {};
-					chord.virtualKey = parsed.virtualKey;
-				}
+				const auto parsed = ParseMenuToggleKey(token);
+				if (!parsed.recognized)
+					return {};
+				chord.keyCode = parsed.keyCode;
 			}
 			if (end == std::string_view::npos)
 				break;
 			start = end + 1;
+			if (start == a_value.size())
+				return {};
 		}
-		return { chord, chord.virtualKey != 0 };
+		return { chord, chord.keyCode != 0 };
 	}
 
 	std::string SerializeHotkeyChord(HotkeyChord a_chord)
@@ -176,11 +166,7 @@ namespace DearModdingUI
 			value += "Alt+";
 		if (a_chord.modifiers & kHotkeyModifierShift)
 			value += "Shift+";
-		if ((a_chord.virtualKey >= 'A' && a_chord.virtualKey <= 'Z') ||
-			(a_chord.virtualKey >= '0' && a_chord.virtualKey <= '9'))
-			value.push_back(static_cast<char>(a_chord.virtualKey));
-		else
-			value += MenuToggleKeyName(a_chord.virtualKey);
+		value += KeyCatalog::Token(a_chord.keyCode);
 		return value;
 	}
 
@@ -192,10 +178,10 @@ namespace DearModdingUI
 		RecomputeBindingsLocked();
 	}
 
-	void HotkeyRegistry::SetReservedVirtualKey(uint32_t a_virtualKey) noexcept
+	void HotkeyRegistry::SetReservedKeyCode(uint32_t a_keyCode) noexcept
 	{
 		const std::scoped_lock lock{ m_mutex };
-		m_reservedVirtualKey = a_virtualKey;
+		m_reservedKeyCode = a_keyCode;
 		RecomputeBindingsLocked();
 	}
 
@@ -291,14 +277,51 @@ namespace DearModdingUI
 	{
 		const std::scoped_lock lock{ m_mutex };
 		m_context = a_context;
+		if (!a_context.hostMenuVisible)
+		{
+			m_capturing = false;
+			m_capture.reset();
+		}
+	}
+
+	void HotkeyRegistry::BeginCapture() noexcept
+	{
+		const std::scoped_lock lock{ m_mutex };
+		m_capture.reset();
+		m_capturing = true;
+	}
+
+	bool HotkeyRegistry::CancelCapture() noexcept
+	{
+		const std::scoped_lock lock{ m_mutex };
+		const auto capturing = m_capturing;
+		m_capturing = false;
+		m_capture.reset();
+		return capturing;
+	}
+
+	std::optional<HotkeyChord> HotkeyRegistry::TakeCapture() noexcept
+	{
+		const std::scoped_lock lock{ m_mutex };
+		const auto captured = m_capture;
+		m_capture.reset();
+		return captured;
+	}
+
+	bool HotkeyRegistry::IsCapturing() const noexcept
+	{
+		const std::scoped_lock lock{ m_mutex };
+		return m_capturing;
 	}
 
 	void HotkeyRegistry::ReleaseActiveKeys() noexcept
 	{
 		const std::scoped_lock lock{ m_mutex };
+		m_capturing = false;
+		m_capture.reset();
 		for (auto& active : m_activeKeys)
 		{
-			if (active.action == DMUI_INVALID_HOTKEY_ACTION_HANDLE)
+			if (active.action == DMUI_INVALID_HOTKEY_ACTION_HANDLE && !active.captured)
 				continue;
 			if (active.queued)
 			{
@@ -402,18 +425,18 @@ namespace DearModdingUI
 	}
 
 	HotkeyMessageResult HotkeyRegistry::HandleKey(
-		uint32_t a_virtualKey,
+		uint32_t a_keyCode,
 		uint32_t a_modifiers,
 		bool a_pressed,
 		bool a_repeat) noexcept
 	{
-		if (a_virtualKey >= m_activeKeys.size())
+		if (a_keyCode >= m_activeKeys.size())
 			return HotkeyMessageResult::kPassThrough;
 		const std::scoped_lock lock{ m_mutex };
-		auto& active = m_activeKeys[a_virtualKey];
+		auto& active = m_activeKeys[a_keyCode];
 		if (!a_pressed)
 		{
-			if (active.action == DMUI_INVALID_HOTKEY_ACTION_HANDLE)
+			if (active.action == DMUI_INVALID_HOTKEY_ACTION_HANDLE && !active.captured)
 				return HotkeyMessageResult::kPassThrough;
 			if (active.queued)
 			{
@@ -426,11 +449,20 @@ namespace DearModdingUI
 			active = {};
 			return HotkeyMessageResult::kConsumed;
 		}
-		if (active.action != DMUI_INVALID_HOTKEY_ACTION_HANDLE)
+		if (active.action != DMUI_INVALID_HOTKEY_ACTION_HANDLE || active.captured)
 			return HotkeyMessageResult::kConsumed;
 		if (a_repeat)
 			return HotkeyMessageResult::kPassThrough;
-		const HotkeyChord pressed{ a_virtualKey, a_modifiers };
+		const HotkeyChord pressed{ a_keyCode, a_modifiers };
+		if (m_capturing)
+		{
+			if (!IsHostBindableKey(a_keyCode))
+				return HotkeyMessageResult::kPassThrough;
+			m_capture = pressed;
+			m_capturing = false;
+			active.captured = true;
+			return HotkeyMessageResult::kConsumed;
+		}
 		const auto found = std::ranges::find_if(m_actions, [&](const auto& a_action) {
 			const auto contextAllowed =
 				a_action.contextPolicy == DMUI_HOTKEY_CONTEXT_ALWAYS ||
@@ -590,10 +622,10 @@ namespace DearModdingUI
 				continue;
 			}
 			const auto key = std::pair{
-				parsed.chord.virtualKey,
+				parsed.chord.keyCode,
 				parsed.chord.modifiers
 			};
-			if (parsed.chord.virtualKey == m_reservedVirtualKey ||
+			if (parsed.chord.keyCode == m_reservedKeyCode ||
 				occupied.contains(key))
 			{
 				action->state = DMUI_HOTKEY_BINDING_UNBOUND_OVERRIDE_CONFLICT;
@@ -613,10 +645,10 @@ namespace DearModdingUI
 				continue;
 			}
 			const auto key = std::pair{
-				action->suggestedDefault.virtualKey,
+				action->suggestedDefault.keyCode,
 				action->suggestedDefault.modifiers
 			};
-			if (action->suggestedDefault.virtualKey == m_reservedVirtualKey ||
+			if (action->suggestedDefault.keyCode == m_reservedKeyCode ||
 				occupied.contains(key))
 			{
 				action->state = DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT;
@@ -649,9 +681,9 @@ namespace DearModdingUI
 			RegistryInstance().InitializeOverrides(std::move(a_overrides));
 		}
 
-		void SetReservedVirtualKey(uint32_t a_virtualKey) noexcept
+		void SetReservedKeyCode(uint32_t a_keyCode) noexcept
 		{
-			RegistryInstance().SetReservedVirtualKey(a_virtualKey);
+			RegistryInstance().SetReservedKeyCode(a_keyCode);
 		}
 
 		DMUI_Result Register(
@@ -695,14 +727,34 @@ namespace DearModdingUI
 			RegistryInstance().ReleaseActiveKeys();
 		}
 
+		void BeginCapture() noexcept
+		{
+			RegistryInstance().BeginCapture();
+		}
+
+		bool CancelCapture() noexcept
+		{
+			return RegistryInstance().CancelCapture();
+		}
+
+		std::optional<HotkeyChord> TakeCapture() noexcept
+		{
+			return RegistryInstance().TakeCapture();
+		}
+
+		bool IsCapturing() noexcept
+		{
+			return RegistryInstance().IsCapturing();
+		}
+
 		HotkeyMessageResult HandleKey(
-			uint32_t a_virtualKey,
+			uint32_t a_keyCode,
 			uint32_t a_modifiers,
 			bool a_pressed,
 			bool a_repeat) noexcept
 		{
 			return RegistryInstance().HandleKey(
-				a_virtualKey, a_modifiers, a_pressed, a_repeat);
+				a_keyCode, a_modifiers, a_pressed, a_repeat);
 		}
 
 		void DispatchQueued() noexcept

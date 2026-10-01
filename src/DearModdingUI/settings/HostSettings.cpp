@@ -150,10 +150,10 @@ namespace DearModdingUI::HostSettings
 					s_settings = std::move(loaded.settings);
 					s_hotkeyOverrides = std::move(loaded.hotkeys);
 					s_menuToggleKey.store(
-						ParseMenuToggleKey(s_settings.menuToggleKey).virtualKey,
+						ParseMenuToggleKey(s_settings.menuToggleKey).keyCode,
 						std::memory_order_release);
 					Hotkeys::InitializeOverrides(s_hotkeyOverrides);
-					Hotkeys::SetReservedVirtualKey(
+					Hotkeys::SetReservedKeyCode(
 						s_menuToggleKey.load(std::memory_order_acquire));
 					{
 						const std::scoped_lock healthLock{
@@ -324,9 +324,9 @@ namespace DearModdingUI::HostSettings
 			}
 			s_settings = std::move(a_settings);
 			s_menuToggleKey.store(
-				ParseMenuToggleKey(s_settings.menuToggleKey).virtualKey,
+				ParseMenuToggleKey(s_settings.menuToggleKey).keyCode,
 				std::memory_order_release);
-			Hotkeys::SetReservedVirtualKey(
+			Hotkeys::SetReservedKeyCode(
 				s_menuToggleKey.load(std::memory_order_acquire));
 		}
 		(void)SetHostStatus(
@@ -396,7 +396,7 @@ namespace DearModdingUI::HostSettings
 		return s_pageRevision.load(std::memory_order_acquire);
 	}
 
-	uint32_t MenuToggleVirtualKey() noexcept
+	uint32_t MenuToggleKeyCode() noexcept
 	{
 		EnsureLoaded();
 		return s_menuToggleKey.load(std::memory_order_acquire);

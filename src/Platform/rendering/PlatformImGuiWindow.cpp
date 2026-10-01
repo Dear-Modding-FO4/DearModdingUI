@@ -49,7 +49,8 @@ namespace Addictol::platformImguiDetail
 
 		constexpr size_t kWindowHookCapacity = 4;
 		std::array<WindowHookRecord, kWindowHookCapacity> s_windowHooks{};
-		std::array<std::atomic<bool>, 256> s_consumedToggleKeys{};
+		std::array<std::atomic<bool>, DearModdingUI::KeyCatalog::kMaximumMacroCode>
+			s_consumedToggleKeys{};
 		std::atomic<bool> s_consumedEscape{ false };
 
 		[[nodiscard]] WindowHookRecord* FindWindowHook(
@@ -165,7 +166,26 @@ namespace Addictol::platformImguiDetail
 				bool& value;
 			};
 
-			const auto keyIndex = static_cast<size_t>(a_wparam);
+			uint32_t keyCode{};
+			if (a_message == WM_KEYDOWN || a_message == WM_SYSKEYDOWN ||
+				a_message == WM_KEYUP || a_message == WM_SYSKEYUP)
+			{
+				auto scanCode = static_cast<uint8_t>(
+					(static_cast<uint64_t>(a_lparam) >> 16) & 0xFFu);
+				auto extended =
+					(static_cast<uint64_t>(a_lparam) & (1ull << 24)) != 0;
+				if (!scanCode)
+				{
+					const auto mapped = MapVirtualKeyW(
+						static_cast<UINT>(a_wparam), MAPVK_VK_TO_VSC_EX);
+					scanCode = static_cast<uint8_t>(mapped & 0xFFu);
+					const auto prefix = (mapped >> 8) & 0xFFu;
+					extended = prefix == 0xE0 || prefix == 0xE1;
+				}
+				keyCode = KeyboardKeyCode(
+					scanCode, extended, static_cast<uint32_t>(a_wparam));
+			}
+			const auto keyIndex = static_cast<size_t>(keyCode);
 			const auto focusLost = a_message == WM_KILLFOCUS ||
 				(a_message == WM_ACTIVATEAPP && !a_wparam);
 			const auto focusGained = a_message == WM_SETFOCUS ||
@@ -239,7 +259,7 @@ namespace Addictol::platformImguiDetail
 				if ((GetKeyState(VK_MENU) & 0x8000) != 0)
 					modifiers |= DearModdingUI::kHotkeyModifierAlt;
 
-				if ((keyIndex == VK_F4) &&
+				if ((a_wparam == VK_F4) &&
 					(modifiers &
 						DearModdingUI::kHotkeyModifierAlt) &&
 					!((modifiers &
@@ -258,7 +278,7 @@ namespace Addictol::platformImguiDetail
 
 				const auto hotkeyResult =
 					DearModdingUI::Hotkeys::HandleKey(
-						static_cast<uint32_t>(a_wparam),
+						keyCode,
 						modifiers,
 						keyPressed,
 						(static_cast<uint64_t>(a_lparam) &
@@ -302,7 +322,7 @@ namespace Addictol::platformImguiDetail
 						ToggleMessageDecision::kDispatch &&
 					inputFocused &&
 					Context().callbacks.toggle(
-						static_cast<uint32_t>(a_wparam)))
+						keyCode))
 				{
 					if (trackableKey)
 					{

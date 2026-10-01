@@ -21,13 +21,13 @@ namespace DearModdingUI
 
 	struct HotkeyChord
 	{
-		uint32_t virtualKey{ 0 };
+		uint32_t keyCode{ 0 };
 		uint32_t modifiers{ 0 };
 
 		[[nodiscard]] constexpr bool operator==(const HotkeyChord&) const noexcept = default;
 		[[nodiscard]] constexpr bool IsNone() const noexcept
 		{
-			return virtualKey == 0;
+			return keyCode == 0;
 		}
 	};
 
@@ -74,7 +74,7 @@ namespace DearModdingUI
 	{
 	public:
 		void InitializeOverrides(std::map<std::string, std::string> a_overrides) noexcept;
-		void SetReservedVirtualKey(uint32_t a_virtualKey) noexcept;
+		void SetReservedKeyCode(uint32_t a_keyCode) noexcept;
 		[[nodiscard]] DMUI_Result Register(
 			DMUI_ClientHandle a_client,
 			const DMUI_HotkeyActionDescriptor* a_descriptor,
@@ -92,12 +92,16 @@ namespace DearModdingUI
 			bool a_enabled) noexcept;
 		void SetContext(HotkeyContextState a_context) noexcept;
 		void ReleaseActiveKeys() noexcept;
+		void BeginCapture() noexcept;
+		[[nodiscard]] bool CancelCapture() noexcept;
+		[[nodiscard]] std::optional<HotkeyChord> TakeCapture() noexcept;
+		[[nodiscard]] bool IsCapturing() const noexcept;
 		[[nodiscard]] DMUI_Result SetOverride(
 			std::string_view a_id,
 			std::string_view a_chord) noexcept;
 		[[nodiscard]] bool RemoveOverride(std::string_view a_id) noexcept;
 		[[nodiscard]] HotkeyMessageResult HandleKey(
-			uint32_t a_virtualKey,
+			uint32_t a_keyCode,
 			uint32_t a_modifiers,
 			bool a_pressed,
 			bool a_repeat) noexcept;
@@ -135,6 +139,7 @@ namespace DearModdingUI
 		{
 			DMUI_HotkeyActionHandle action{ DMUI_INVALID_HOTKEY_ACTION_HANDLE };
 			bool queued{ false };
+			bool captured{ false };
 		};
 
 		void RecomputeBindingsLocked() noexcept;
@@ -146,19 +151,21 @@ namespace DearModdingUI
 		std::vector<Action> m_actions;
 		std::map<std::string, std::string> m_overrides;
 		std::array<Event, kHotkeyEventQueueCapacity> m_events{};
-		std::array<ActiveKey, 256> m_activeKeys{};
+		std::array<ActiveKey, KeyCatalog::kMaximumMacroCode> m_activeKeys{};
 		size_t m_eventHead{ 0 };
 		size_t m_eventCount{ 0 };
 		size_t m_reservedReleaseCount{ 0 };
 		DMUI_HotkeyActionHandle m_nextAction{ 1 };
-		uint32_t m_reservedVirtualKey{ 0 };
+		uint32_t m_reservedKeyCode{ 0 };
 		HotkeyContextState m_context;
+		bool m_capturing{ false };
+		std::optional<HotkeyChord> m_capture;
 	};
 
 	namespace Hotkeys
 	{
 		void InitializeOverrides(std::map<std::string, std::string> a_overrides) noexcept;
-		void SetReservedVirtualKey(uint32_t a_virtualKey) noexcept;
+		void SetReservedKeyCode(uint32_t a_keyCode) noexcept;
 		[[nodiscard]] DMUI_Result Register(
 			DMUI_ClientHandle a_client,
 			const DMUI_HotkeyActionDescriptor* a_descriptor,
@@ -176,8 +183,12 @@ namespace DearModdingUI
 			bool a_enabled) noexcept;
 		void SetContext(HotkeyContextState a_context) noexcept;
 		void ReleaseActiveKeys() noexcept;
+		void BeginCapture() noexcept;
+		[[nodiscard]] bool CancelCapture() noexcept;
+		[[nodiscard]] std::optional<HotkeyChord> TakeCapture() noexcept;
+		[[nodiscard]] bool IsCapturing() noexcept;
 		[[nodiscard]] HotkeyMessageResult HandleKey(
-			uint32_t a_virtualKey,
+			uint32_t a_keyCode,
 			uint32_t a_modifiers,
 			bool a_pressed,
 			bool a_repeat) noexcept;

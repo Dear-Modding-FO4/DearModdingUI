@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/API.h>
 #include <DearModdingUI/controls/ChromeGeometry.h>
+#include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/SettingsActions.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/VisualDecisions.h>
@@ -117,6 +118,10 @@ namespace DearModdingUI
 	};
 
 	void PlaceRowContent(const ImVec2& a_position) noexcept;
+	[[nodiscard]] std::optional<HotkeyChord> DrawKeyCapture(
+		const char* a_id,
+		const char* a_binding,
+		float a_width) noexcept;
 	[[nodiscard]] bool HasIconGlyph(char32_t a_glyph) noexcept;
 	[[nodiscard]] ImU32 IconColor(
 		ImU32 a_textColor,

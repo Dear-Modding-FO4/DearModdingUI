@@ -154,7 +154,7 @@ namespace DearModdingUI
 				"FAQ",
 				FindPhosphorIconGlyphOrZero("question"));
 			const auto faq = BuildHomeFaq(MenuToggleKeyName(
-				HostSettings::MenuToggleVirtualKey()));
+				HostSettings::MenuToggleKeyCode()));
 			std::vector<FaqRowEntry> entries;
 			entries.reserve(faq.size());
 			for (const auto& entry : faq)

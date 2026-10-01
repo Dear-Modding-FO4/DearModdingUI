@@ -4,6 +4,18 @@
 
 namespace Addictol::ImguiPlatform
 {
+	[[nodiscard]] constexpr uint32_t KeyboardKeyCode(
+		uint8_t a_scanCode,
+		bool a_extended,
+		uint32_t a_virtualKey) noexcept
+	{
+		if (a_virtualKey == 0x13)
+			return 0xC5;
+		if (a_virtualKey == 0x90)
+			return 0x45;
+		return a_scanCode | (a_extended ? 0x80u : 0u);
+	}
+
 	inline constexpr uint32_t kPresentSlot = 8;
 	inline constexpr uint32_t kResizeBuffersSlot = 13;
 	inline constexpr uint32_t kPresentTestFlag = 0x00000001;

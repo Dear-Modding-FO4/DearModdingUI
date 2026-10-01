@@ -296,7 +296,7 @@ namespace vmm_tests
 				std::numeric_limits<float>::infinity();
 			persisted.uiScale = 99.0f;
 			persisted.bodyFontFamily = "..\\escaped";
-			persisted.menuToggleKey = "Pause";
+			persisted.menuToggleKey = "Hyper";
 			persisted.feedbackPlacement = "beside";
 			persisted.feedbackInfoColor = "blue";
 			persisted.feedbackWarningColor = "#GG0000";
@@ -371,17 +371,17 @@ namespace vmm_tests
 				loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
 					loaded.settings.menuToggleKey == "F11" &&
 					!loaded.settings.fallSoulsMode &&
-					toggleKey.recognized && toggleKey.virtualKey == 0x7A,
+					toggleKey.recognized && toggleKey.keyCode == 0x57,
 				"an old valid host config did not retain the default FallSouls mode");
 			require(
-				DecideMenuToggle(0x7A, toggleKey.virtualKey, false, true).open &&
-					!DecideMenuToggle(0x23, toggleKey.virtualKey, false, true).matched,
+				DecideMenuToggle(0x57, toggleKey.keyCode, false, true).open &&
+					!DecideMenuToggle(0xCF, toggleKey.keyCode, false, true).matched,
 				"the loaded F11 binding did not replace End for opening the menu");
 			const auto pageDown = ParseMenuToggleKey("Pgdn");
 			require(
-				pageDown.recognized && pageDown.virtualKey == 0x22 &&
-					MenuToggleKeyName(pageDown.virtualKey) == "PageDown" &&
-					ParseMenuToggleKey("pageup").virtualKey == 0x21,
+				pageDown.recognized && pageDown.keyCode == 0xD1 &&
+					MenuToggleKeyName(pageDown.keyCode) == "PageDown" &&
+					ParseMenuToggleKey("pageup").keyCode == 0xC9,
 				"Page Up/Down names or aliases were not accepted");
 
 			std::ofstream(path, std::ios::trunc)
@@ -412,7 +412,7 @@ namespace vmm_tests
 			const auto path = root / "DearModdingUI.toml";
 			std::ofstream(path)
 				<< "[Additional]\n"
-				<< "sMenuToggleKey = \"Pause\"\n"
+				<< "sMenuToggleKey = \"Hyper\"\n"
 				<< "sMenuSidebarLayout = \"columns\"\n"
 				<< "fMenuUiScale = 99.0\n"
 				<< "sMenuAccentColor = \"bad\"\n"
@@ -427,7 +427,7 @@ namespace vmm_tests
 					loaded.settings.menuToggleKey == "End" &&
 					observation.state == HealthState::kDegraded &&
 					observation.reason.find(
-						"sMenuToggleKey \"Pause\" used \"End\"") !=
+						"sMenuToggleKey \"Hyper\" used \"End\"") !=
 						std::string::npos,
 				"configuration health reported a stale toggle fallback");
 

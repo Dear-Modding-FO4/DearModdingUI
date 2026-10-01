@@ -8,6 +8,7 @@ namespace DearModdingUI
 	enum class MenuEscapeTarget : uint32_t
 	{
 		kNone,
+		kKeyCapture,
 		kInteraction,
 		kPopup,
 		kDialog,

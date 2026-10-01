@@ -78,6 +78,82 @@ namespace vmm_tests
 
 	void run_hotkey_checks(Runner& runner)
 	{
+		runner.test("key catalog tokens preserve identity and fit host chords", [] {
+			for (size_t index = 0; index < KeyCatalog::kKeys.size(); ++index)
+			{
+				const auto& key = KeyCatalog::kKeys[index];
+				require(KeyCatalog::Parse(key.token) == key.code &&
+						KeyCatalog::Find(key.code) == &key,
+					"catalog key did not round trip");
+				require(!key.token.empty() && key.token.size() <= 16 &&
+						key.token.size() + std::string_view{ "Ctrl+Alt+Shift+" }.size() <= 31 &&
+						key.token.find_first_of("+ \t\r\n\v\f") == std::string_view::npos,
+					"catalog token cannot fit the chord grammar or ABI buffer");
+				for (size_t other = index + 1; other < KeyCatalog::kKeys.size(); ++other)
+					require(!EqualsIgnoringCase(key.token, KeyCatalog::kKeys[other].token),
+						"catalog tokens are ambiguous");
+				if (IsHostBindableKey(key.code))
+				{
+					const HotkeyChord chord{ key.code, 7 };
+					const auto parsed = ParseHotkeyChord(SerializeHotkeyChord(chord));
+					require(parsed.recognized && parsed.chord == chord &&
+							ParseMenuToggleKey(key.token).keyCode == key.code,
+						"bindable catalog key was lost in host parsing");
+				}
+			}
+			for (const auto& [token, code] : std::array{
+					 std::pair{ "f11", 0x57u }, std::pair{ "End", 0xCFu },
+					 std::pair{ "PgUp", 0xC9u }, std::pair{ "PgDn", 0xD1u },
+					 std::pair{ "a", 0x1Eu }, std::pair{ "0", 0x0Bu },
+					 std::pair{ "9", 0x0Au }, std::pair{ "Esc", 0x01u } })
+				require(KeyCatalog::Parse(token) == code,
+					"legacy name or alias changed identity");
+			for (const auto token : { "PadA", "Mouse4", "Escape", "LeftShift" })
+				require(!ParseMenuToggleKey(token).recognized &&
+						!ParseHotkeyChord(token).recognized,
+					"host accepted a key without a supported binding producer");
+			require(ParseMenuToggleKey("Pause").recognized,
+				"Pause is still excluded from keyboard bindings");
+		});
+
+		runner.test("key capture owns edges before actions and cancels cleanly", [] {
+			HotkeyRegistry registry;
+			CallbackState state;
+			(void)Register(registry, 1, "Example.Capture", "Ctrl+F5", state);
+			registry.SetContext({ true, false, false, false });
+			registry.BeginCapture();
+			require(registry.HandleKey(0x1D, kHotkeyModifierControl, true, false) ==
+					HotkeyMessageResult::kPassThrough && registry.IsCapturing(),
+				"modifier press ended capture or was consumed");
+			require(registry.HandleKey(0x3F, kHotkeyModifierControl, true, true) ==
+					HotkeyMessageResult::kPassThrough && registry.IsCapturing(),
+				"repeat was captured");
+			require(registry.HandleKey(0x3F, kHotkeyModifierControl, true, false) ==
+					HotkeyMessageResult::kConsumed && !registry.IsCapturing(),
+				"capture did not consume the fresh press");
+			const auto captured = registry.TakeCapture();
+			require(captured && *captured == HotkeyChord{ 0x3F, kHotkeyModifierControl } &&
+					!registry.TakeCapture(),
+				"capture lost modifiers or was delivered twice");
+			require(registry.HandleKey(0x3F, 0, true, true) ==
+					HotkeyMessageResult::kConsumed &&
+					registry.HandleKey(0x3F, 0, false, false) ==
+						HotkeyMessageResult::kConsumed,
+				"capture did not retain the repeat and release");
+			registry.DispatchQueued();
+			require(state.edgeCount == 0, "capture also fired the bound action");
+			registry.BeginCapture();
+			require(registry.CancelCapture() && !registry.CancelCapture() &&
+					!registry.TakeCapture(),
+				"cancel did not clear capture exactly once");
+			registry.BeginCapture();
+			registry.SetContext({});
+			require(registry.HandleKey(0x3E, 0, true, false) ==
+					HotkeyMessageResult::kPassThrough &&
+					!registry.IsCapturing() && !registry.TakeCapture(),
+				"hidden host captured a key");
+		});
+
 		runner.test("hotkey registration validates ids, chords, and global identity", [] {
 			require(ValidHotkeyActionId("Addictol.Telemetry.ToggleOverlay"),
 				"a valid namespaced id was rejected");
@@ -122,6 +198,7 @@ namespace vmm_tests
 			}
 			require(!ParseHotkeyChord("Meta+F11").recognized, "an unknown modifier was accepted");
 			require(!ParseHotkeyChord("Shift+").recognized, "a missing key was accepted");
+			require(!ParseHotkeyChord("F11+").recognized, "a trailing separator was accepted");
 		});
 
 		runner.test("hotkey contexts are checked before consuming presses", [] {
@@ -134,15 +211,15 @@ namespace vmm_tests
 			require(registry.Register(1, &descriptor, &action) == DMUI_RESULT_OK,
 				"contextual hotkey registration failed");
 			registry.SetContext({ false, false, false, false });
-			require(registry.HandleKey('P', kHotkeyModifierControl, true, false) ==
+			require(registry.HandleKey(0x19, kHotkeyModifierControl, true, false) ==
 					HotkeyMessageResult::kPassThrough,
 				"unsafe gameplay context consumed a press");
 			registry.SetContext({ false, false, false, true });
-			require(registry.HandleKey('P', kHotkeyModifierControl, true, false) ==
+			require(registry.HandleKey(0x19, kHotkeyModifierControl, true, false) ==
 					HotkeyMessageResult::kConsumed,
 				"safe gameplay context did not consume a press");
 			registry.SetContext({ true, false, false, false });
-			require(registry.HandleKey('P', 0, false, false) ==
+			require(registry.HandleKey(0x19, 0, false, false) ==
 					HotkeyMessageResult::kConsumed,
 				"an owned release was lost after the context changed");
 			registry.DispatchQueued();
@@ -155,15 +232,15 @@ namespace vmm_tests
 			CallbackState state;
 			const auto action = Register(
 				registry, 1, "Example.Enabled", "G", state);
-			require(registry.HandleKey('G', 0, true, false) ==
+			require(registry.HandleKey(0x22, 0, true, false) ==
 					HotkeyMessageResult::kConsumed,
 				"enabled alphanumeric action did not consume");
 			require(registry.SetEnabled(1, action, false) == DMUI_RESULT_OK,
 				"hotkey disable failed");
-			require(registry.HandleKey('G', 0, false, false) ==
+			require(registry.HandleKey(0x22, 0, false, false) ==
 					HotkeyMessageResult::kConsumed,
 				"disable lost the owned release");
-			require(registry.HandleKey('G', 0, true, false) ==
+			require(registry.HandleKey(0x22, 0, true, false) ==
 					HotkeyMessageResult::kPassThrough,
 				"disabled action consumed a new press");
 			registry.DispatchQueued();
@@ -175,11 +252,11 @@ namespace vmm_tests
 			HotkeyRegistry registry;
 			CallbackState state;
 			(void)Register(registry, 1, "Example.Focus", "H", state);
-			require(registry.HandleKey('H', 0, true, false) ==
+			require(registry.HandleKey(0x23, 0, true, false) ==
 					HotkeyMessageResult::kConsumed,
 				"focus test press was not consumed");
 			registry.ReleaseActiveKeys();
-			require(registry.HandleKey('H', 0, false, false) ==
+			require(registry.HandleKey(0x23, 0, false, false) ==
 					HotkeyMessageResult::kPassThrough,
 				"physical release after reconciliation was swallowed");
 			registry.DispatchQueued();
@@ -279,13 +356,13 @@ namespace vmm_tests
 			HotkeyRegistry registry;
 			CallbackState state;
 			(void)Register(registry, 1, "Example.Toggle", "Shift+F11", state);
-			require(registry.HandleKey(0x7A, kHotkeyModifierShift, true, false) ==
+			require(registry.HandleKey(0x57, kHotkeyModifierShift, true, false) ==
 					HotkeyMessageResult::kConsumed,
 				"the bound press was not consumed");
-			require(registry.HandleKey(0x7A, kHotkeyModifierShift, true, true) ==
+			require(registry.HandleKey(0x57, kHotkeyModifierShift, true, true) ==
 					HotkeyMessageResult::kConsumed,
 				"the bound repeat was not consumed");
-			require(registry.HandleKey(0x7A, 0, false, false) ==
+			require(registry.HandleKey(0x57, 0, false, false) ==
 					HotkeyMessageResult::kConsumed,
 				"the matching release was not consumed");
 			require(state.pressed == 0, "the press ran on the message thread");
@@ -327,14 +404,14 @@ namespace vmm_tests
 			(void)execution.NoteBinding(1);
 			CallbackState state;
 			const auto action = Register(registry, 1, "Example.Toggle", "F10", state);
-			require(registry.HandleKey(0x79, 0, true, false) ==
+			require(registry.HandleKey(0x44, 0, true, false) ==
 					HotkeyMessageResult::kConsumed,
 				"the bound press was not queued");
 			require(registry.Unregister(1, action) == DMUI_RESULT_OK,
 				"hotkey unregister failed");
 			registry.DispatchQueued();
 			require(state.edgeCount == 0, "a queued event survived unregister");
-			require(registry.HandleKey(0x79, 0, false, false) ==
+			require(registry.HandleKey(0x44, 0, false, false) ==
 					HotkeyMessageResult::kConsumed,
 				"the canceled pair release was not swallowed");
 			registry.DispatchQueued();
@@ -344,7 +421,7 @@ namespace vmm_tests
 			require(registry.Query(1, action, &stale) ==
 					DMUI_RESULT_ACTION_NOT_FOUND,
 				"a stale handle resolved after unregister");
-			require(registry.HandleKey(0x79, 0, true, false) ==
+			require(registry.HandleKey(0x44, 0, true, false) ==
 					HotkeyMessageResult::kPassThrough,
 				"an unregistered action consumed a new press");
 		});
@@ -353,10 +430,10 @@ namespace vmm_tests
 			HotkeyRegistry registry;
 			CallbackState state;
 			(void)Register(registry, 1, "Example.Toggle", "F10", state);
-			require(registry.HandleKey(0x7A, 0, true, false) ==
+			require(registry.HandleKey(0x57, 0, true, false) ==
 					HotkeyMessageResult::kPassThrough,
 				"an unbound press was swallowed");
-			require(registry.HandleKey(0x7A, 0, false, false) ==
+			require(registry.HandleKey(0x57, 0, false, false) ==
 					HotkeyMessageResult::kPassThrough,
 				"an unbound release was swallowed");
 			registry.DispatchQueued();
@@ -369,17 +446,17 @@ namespace vmm_tests
 			(void)Register(registry, 1, "Example.Toggle", "F10", state);
 			for (size_t index = 0; index < kHotkeyEventQueueCapacity / 2; ++index)
 			{
-				require(registry.HandleKey(0x79, 0, true, false) ==
+				require(registry.HandleKey(0x44, 0, true, false) ==
 						HotkeyMessageResult::kConsumed,
 					"an in-capacity press was dropped");
-				require(registry.HandleKey(0x79, 0, false, false) ==
+				require(registry.HandleKey(0x44, 0, false, false) ==
 						HotkeyMessageResult::kConsumed,
 					"an in-capacity release was dropped");
 			}
-			require(registry.HandleKey(0x79, 0, true, false) ==
+			require(registry.HandleKey(0x44, 0, true, false) ==
 					HotkeyMessageResult::kConsumedPairDropped,
 				"overflow did not drop the new whole pair");
-			require(registry.HandleKey(0x79, 0, false, false) ==
+			require(registry.HandleKey(0x44, 0, false, false) ==
 					HotkeyMessageResult::kConsumed,
 				"the dropped pair release was not swallowed");
 			registry.DispatchQueued();

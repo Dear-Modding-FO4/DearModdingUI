@@ -22,6 +22,18 @@ namespace vmm_tests
 
 	void run_imgui_platform_checks(Runner& runner)
 	{
+		runner.test("Win32 scan codes distinguish extended keys and lock overrides", [] {
+			require(KeyboardKeyCode(0x1D, false, 0x11) == 0x1D &&
+					KeyboardKeyCode(0x1D, true, 0x11) == 0x9D,
+				"left and right Ctrl collided");
+			require(KeyboardKeyCode(0x48, false, 0x68) == 0x48 &&
+					KeyboardKeyCode(0x48, true, 0x26) == 0xC8 &&
+					KeyboardKeyCode(0x1C, true, 0x0D) == 0x9C,
+				"numpad and extended navigation keys collided");
+			require(KeyboardKeyCode(0x45, false, 0x13) == 0xC5 &&
+					KeyboardKeyCode(0x45, true, 0x90) == 0x45,
+				"Pause and NumLock overrides did not preserve identity");
+		});
 		run_cursor_ownership_checks(runner);
 		runner.test("native cursor and Present share one submission per active frame", [] {
 			FrameSubmission frame;

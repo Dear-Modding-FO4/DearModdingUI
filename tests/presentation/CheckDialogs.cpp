@@ -1,6 +1,7 @@
 #include "../support/D3DTestResources.h"
 #include "../support/PresentationTestSupport.h"
 #include <DearModdingUI/host/MenuDismissal.h>
+#include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/RenderExecution.h>
 #include <DearModdingUI/Client.h>
@@ -224,6 +225,15 @@ namespace vmm_tests
 				"outer popup did not open");
 			const auto outerId = context->OpenPopupStack.back().PopupId;
 			ImGui::SetActiveID(interactionId, window);
+
+			Hotkeys::BeginCapture();
+			CaptureMenuEscapePress(true, true, outerId);
+			require(!DismissCapturedMenuDialog() && !DismissCapturedMenuPopup() &&
+					ConsumeMenuEscapeTarget(MenuEscapeTarget::kKeyCapture) &&
+					Hotkeys::CancelCapture() &&
+					!ConsumeMenuEscapeTarget(MenuEscapeTarget::kHost) &&
+					!ConsumeMenuEscapeTarget(MenuEscapeTarget::kInteraction),
+				"capture Escape also reached a dialog, popup, interaction, or host");
 
 			CaptureMenuEscapePress(true, false, 0);
 			require(

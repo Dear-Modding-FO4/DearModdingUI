@@ -307,6 +307,7 @@ target("dmui-mcm", function()
         { public = true }
     )
     add_includedirs("Depends/nlohmann-json/single_include")
+    add_includedirs("include")
 end)
 
 target("dmui-tests", function()
@@ -472,7 +473,7 @@ target("DearModdingUI-MCM", function()
     add_files("mcm/runtime/src/**.cpp")
     add_headerfiles("mcm/runtime/include/**.h", "mcm/adapters/include/**.h")
     add_extrafiles("mcm/README.md")
-    add_includedirs("mcm/runtime/include", "mcm/adapters/include")
+    add_includedirs("mcm/runtime/include", "mcm/adapters/include", "include")
     set_pcxxheader("Depends/commonlibf4/include/F4SE/Impl/PCH.h")
 end)
 

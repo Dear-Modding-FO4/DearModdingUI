@@ -1,4 +1,5 @@
 #include <DearModdingUI/host/MenuDismissal.h>
+#include <DearModdingUI/host/Hotkeys.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -58,7 +59,8 @@ namespace DearModdingUI
 		s_popupId.store(topPopupId, std::memory_order_relaxed);
 		s_popupDepth.store(popupDepth, std::memory_order_relaxed);
 		s_target.store(
-			DecideMenuEscapeTarget({
+			a_menuVisible && Hotkeys::IsCapturing() ?
+				MenuEscapeTarget::kKeyCapture : DecideMenuEscapeTarget({
 				a_menuVisible,
 				activeInteraction,
 				a_dialogActive,

@@ -40,11 +40,11 @@ namespace Addictol
 			}
 		}
 
-		[[nodiscard]] bool ToggleHost(uint32_t a_virtualKey) noexcept
+		[[nodiscard]] bool ToggleHost(uint32_t a_keyCode) noexcept
 		{
 			const auto decision = DearModdingUI::DecideMenuToggle(
-				a_virtualKey,
-				DearModdingUI::HostSettings::MenuToggleVirtualKey(),
+				a_keyCode,
+				DearModdingUI::HostSettings::MenuToggleKeyCode(),
 				DearModdingUI::IsMenuVisible(),
 				PlatformImgui::IsReady());
 			if (!decision.matched)

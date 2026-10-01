@@ -18,6 +18,33 @@
 
 namespace DearModdingUI
 {
+	std::optional<HotkeyChord> DrawKeyCapture(
+		const char* a_id,
+		const char* a_binding,
+		float a_width) noexcept
+	{
+		static ImGuiID captureTarget{};
+		const auto id = ImGui::GetID(a_id);
+		std::optional<HotkeyChord> captured;
+		if (captureTarget == id)
+		{
+			captured = Hotkeys::TakeCapture();
+			if (captured || !Hotkeys::IsCapturing())
+				captureTarget = 0;
+		}
+		ImGui::PushID(a_id);
+		const auto text = captureTarget == id ?
+			"Press a key... (Esc cancels)###Capture" :
+			std::string{ a_binding } + "###Capture";
+		if (ImGui::Button(text.c_str(), { a_width, 0.0f }))
+		{
+			Hotkeys::BeginCapture();
+			captureTarget = id;
+		}
+		ImGui::PopID();
+		return captured;
+	}
+
 	namespace
 	{
 		inline constexpr ImVec4 kTransparentButtonChrome{ 0, 0, 0, 0 };

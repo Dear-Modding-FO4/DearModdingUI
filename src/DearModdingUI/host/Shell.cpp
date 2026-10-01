@@ -6,6 +6,7 @@
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/host/MenuDismissal.h>
+#include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/navigation/NavigationController.h>
 #include <DearModdingUI/navigation/NavigationPresentation.h>
 #if defined(DMUI_PREVIEW)
@@ -764,6 +765,11 @@ namespace DearModdingUI
 
 	void ApplyMenuEscapeDismissal() noexcept
 	{
+		if (ConsumeMenuEscapeTarget(MenuEscapeTarget::kKeyCapture))
+		{
+			(void)Hotkeys::CancelCapture();
+			return;
+		}
 		if (ConsumeMenuEscapeTarget(MenuEscapeTarget::kInteraction))
 			return;
 		if (DismissCapturedMenuPopup())

@@ -3,6 +3,7 @@
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/MenuDismissal.h>
+#include <DearModdingUI/host/Hotkeys.h>
 
 #include <REX/REX.h>
 #if !defined(DMUI_PREVIEW)
@@ -39,6 +40,7 @@ namespace DearModdingUI::HostInternal
 
 		if (!a_visible)
 		{
+			(void)Hotkeys::CancelCapture();
 			ResetMenuEscapeRequest();
 			PresentationServices::NotifyMenuClosed();
 		}

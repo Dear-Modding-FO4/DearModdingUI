@@ -646,26 +646,11 @@ namespace DearModdingUI
 							const auto selectedKey =
 								ParseMenuToggleKey(settings.menuToggleKey);
 							const auto selectedName =
-								MenuToggleKeyName(selectedKey.virtualKey);
-							ImGui::SetNextItemWidth(ControlWidth());
-							if (ImGui::BeginCombo(
-									"##Value",
-									selectedName.data()))
-							{
-								for (const auto& key : kMenuToggleKeys)
-								{
-									const auto selected =
-										key.virtualKey ==
-										selectedKey.virtualKey;
-									if (ImGui::Selectable(
-											key.name.data(),
-											selected))
-										settings.menuToggleKey = key.name;
-									if (selected)
-										ImGui::SetItemDefaultFocus();
-								}
-								ImGui::EndCombo();
-							}
+								MenuToggleKeyName(selectedKey.keyCode);
+							if (const auto captured = DrawKeyCapture(
+									"##Value", selectedName.data(), ControlWidth()))
+								settings.menuToggleKey =
+									KeyCatalog::Token(captured->keyCode);
 						},
 						[&]() noexcept {
 							return settings.menuToggleKey !=
@@ -735,32 +720,14 @@ namespace DearModdingUI
 					const auto preview = action.state == DMUI_HOTKEY_BINDING_BOUND ?
 						action.effectiveChord.c_str() :
 						"Unbound";
-					ImGui::SetNextItemWidth(-1.0f);
-					if (ImGui::BeginCombo("##Binding", preview))
+					if (const auto captured = DrawKeyCapture(
+							"##Binding", preview, -1.0f))
+						(void)HostSettings::SetHotkeyOverride(
+							action.id, SerializeHotkeyChord(*captured));
+					if (ImGui::SmallButton("Unbind"))
 					{
-						if (ImGui::Selectable(
-								"Unbound",
-								action.state == DMUI_HOTKEY_BINDING_UNBOUND_USER))
-							(void)HostSettings::SetHotkeyOverride(action.id, "none");
-						for (uint32_t modifiers = 0; modifiers < 8; ++modifiers)
-						{
-							for (const auto& key : kMenuToggleKeys)
-							{
-								const auto chord = SerializeHotkeyChord({
-									key.virtualKey,
-									modifiers
-								});
-								const auto selected =
-									action.state == DMUI_HOTKEY_BINDING_BOUND &&
-									action.effectiveChord == chord;
-								if (ImGui::Selectable(chord.c_str(), selected))
-									(void)HostSettings::SetHotkeyOverride(
-										action.id, chord);
-								if (selected)
-									ImGui::SetItemDefaultFocus();
-							}
-						}
-						ImGui::EndCombo();
+						(void)Hotkeys::CancelCapture();
+						(void)HostSettings::SetHotkeyOverride(action.id, "none");
 					}
 				}
 				else
