@@ -187,6 +187,76 @@ namespace DmuiTests::Detail
 		dmui::ui::TextDisabled(
 			"Text rejects empty, \"reject\", or an in-memory duplicate "
 			"(initial duplicate: alpha). Rejection preserves text.");
+
+		(void)client.DrawSectionHeader("Client popups");
+		const bool modalRequested = dmui::ui::Button("Open custom modal") ||
+			m_presentationPopupPending == true;
+		if (modalRequested)
+		{
+			m_modalOpen = true;
+			dmui::ui::OpenPopup("Custom modal");
+		}
+		dmui::ui::SameLine();
+		if (dmui::ui::Button("Open item popup") || m_presentationPopupPending == false)
+			dmui::ui::OpenPopup("Item popup");
+		m_presentationPopupPending.reset();
+		if (dmui::ui::PopupScope popup{ "Item popup" })
+		{
+			m_popupDrawn = true;
+			dmui::ui::Text("A page-owned popup, anchored at its button.");
+			if (dmui::ui::Selectable("Choose this item"))
+				dmui::ui::CloseCurrentPopup();
+			dmui::ui::SetItemDefaultFocus();
+			if (dmui::ui::Button("Dismiss"))
+				dmui::ui::CloseCurrentPopup();
+		}
+		if (dmui::ui::ModalScope modal{ "Custom modal", m_modalOpen })
+		{
+			m_modalDrawn = true;
+			dmui::ui::Text("This page owns the modal chain.");
+			dmui::ui::TextDisabled("Escape or controller B closes one level.");
+			if (dmui::ui::Button("Open nested confirmation"))
+			{
+				m_nestedOpen = true;
+				dmui::ui::OpenPopup("Nested confirmation");
+			}
+			dmui::ui::SetItemDefaultFocus();
+			if (dmui::ui::Button("Request host dialog (expect BUSY)") ||
+				std::exchange(m_busyProbePending, false))
+			{
+				const DMUI_DialogDescriptor descriptor{
+					DMUI_DIALOG_KIND_CONFIRM, "Blocked host dialog",
+					"Must not stack over a client modal.", "Accept", "Cancel",
+					nullptr, nullptr, 1
+				};
+				(void)client.RequestDialog(descriptor);
+				m_busyResult = client.LastResult();
+			}
+			dmui::ui::Text("Host dialog request: %s", DMUI_ResultToString(m_busyResult));
+			if (dmui::ui::Button("Close custom modal"))
+				dmui::ui::CloseCurrentPopup();
+			if (dmui::ui::ModalScope nested{ "Nested confirmation", m_nestedOpen })
+			{
+				dmui::ui::Text("Confirm this harmless in-memory operation?");
+				if (dmui::ui::Button("Confirm"))
+					dmui::ui::CloseCurrentPopup();
+				dmui::ui::SameLine();
+				if (dmui::ui::Button("Cancel"))
+					dmui::ui::CloseCurrentPopup();
+				dmui::ui::SetItemDefaultFocus();
+			}
+		}
+	}
+
+	void NotificationDialogExercise::RequestPresentationPopup(bool a_modal) noexcept
+	{
+		m_presentationPopupPending = a_modal;
+		m_busyProbePending = a_modal;
+	}
+
+	bool NotificationDialogExercise::PopupCaptureComplete(bool a_modal) const noexcept
+	{
+		return a_modal ? m_modalDrawn && m_busyResult == DMUI_RESULT_BUSY : m_popupDrawn;
 	}
 
 	void NotificationDialogExercise::RequestConfirmDialog() noexcept

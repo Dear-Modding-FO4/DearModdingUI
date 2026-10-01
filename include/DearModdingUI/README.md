@@ -139,6 +139,31 @@ its vocabulary is compiled into the mod and cannot receive later host updates.
 Raw `Client::DrawSectionHeader`, collapsing-section, and link operations remain
 unchanged; zero still means no icon and they do not infer automatically.
 
+## Client popups and modals
+
+Call `ui::OpenPopup(id)` once (setting `open=true` for a modal), then draw with `ui::PopupScope{id}` or
+`ui::ModalScope{id, open}` each frame. The modal's `bool& open` reports closure;
+its optional `hasCloseButton` defaults to true. `BeginPopup` and `BeginPopupModal`
+return visibility, and only a successful begin requires `EndPopup`.
+`CloseCurrentPopup` closes the current level. `IsPopupOpen` includes pending opens.
+`WindowFlags` exposes supported popup window options.
+
+One owner holds the modal chain: either a client page or the host dialog service.
+Nested modals from that same page are allowed. A host dialog request returns
+`BUSY` while another owner holds the chain. A blocked client begin returns false
+without a UI error. Service `BUSY` remains available through `Client::LastResult`
+without disabling the drawing callback; UI-table errors still fail it.
+The client's open request remains pending until the chain is free.
+Non-modal client popups also wait rather than displacing another owner's modal.
+
+IDs use the current ID stack and are additionally page-scoped, independent of
+other pages and clients. Popup APIs require
+an active page drawing callback. Leaving a page, closing the menu, or failing its
+callback closes its popups and cancels pending opens. Escape and controller B
+close one level after any active edit; the modal's next begin reports `open=false`.
+Opening initializes navigation focus; `SetItemDefaultFocus` can select the initial
+item. Pane switching stays disabled while a modal is open.
+
 ## Shared theme and widgets
 
 The theme and widget entries expose the host's visual vocabulary without publishing

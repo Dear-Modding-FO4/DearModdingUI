@@ -11,6 +11,7 @@
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/host/MenuDismissal.h>
+#include <DearModdingUI/host/ModalCoordinator.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/RenderExecution.h>
@@ -548,14 +549,17 @@ namespace DearModdingUIPreview
 					ImGui::EndFrame();
 					return false;
 				}
+				ModalCoordinator::BeginFrame();
 				DrawDemandedOverlays();
 				PresentationServices::DrawNotification();
 				if (IsMenuVisible())
 				{
 					DrawShell();
-					PresentationServices::DrawDialog(true);
-					ApplyMenuEscapeDismissal();
 				}
+				PresentationServices::DrawDialog(IsMenuVisible());
+				if (IsMenuVisible())
+					ApplyMenuEscapeDismissal();
+				ModalCoordinator::FinishFrame();
 				ImGui::Render();
 
 				renderer.Clear();
@@ -593,7 +597,9 @@ namespace DearModdingUIPreview
 			if (a_error.empty() && options.presentationScenario)
 			{
 				std::string fixtureError;
-				if (!fixtures->ValidatePresentationCapture(fixtureError))
+				if (PageFailed(fixtures->PresentationPage(*options.presentationScenario)))
+					a_error = L"The presentation page callback failed before capture.";
+				else if (!fixtures->ValidatePresentationCapture(fixtureError))
 					a_error.assign(fixtureError.begin(), fixtureError.end());
 			}
 			if (a_error.empty() && options.hotkeyState == "capture" && !Hotkeys::IsCapturing())

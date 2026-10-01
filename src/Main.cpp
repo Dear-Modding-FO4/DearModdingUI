@@ -1,5 +1,6 @@
 #include <Platform/input/CarrierMenu.h>
 #include <DearModdingUI/host/Host.h>
+#include <DearModdingUI/host/ModalCoordinator.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/host/MenuToggleChord.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
@@ -30,14 +31,17 @@ namespace Addictol
 
 		void DrawHost() noexcept
 		{
+			DearModdingUI::ModalCoordinator::BeginFrame();
 			DearModdingUI::DrawDemandedOverlays();
 			DearModdingUI::PresentationServices::DrawNotification();
 			if (DearModdingUI::IsMenuVisible())
 			{
 				DearModdingUI::DrawShell();
-				DearModdingUI::PresentationServices::DrawDialog(true);
-				DearModdingUI::ApplyMenuEscapeDismissal();
 			}
+			DearModdingUI::PresentationServices::DrawDialog(DearModdingUI::IsMenuVisible());
+			if (DearModdingUI::IsMenuVisible())
+				DearModdingUI::ApplyMenuEscapeDismissal();
+			DearModdingUI::ModalCoordinator::FinishFrame();
 		}
 
 		void ToggleHost() noexcept

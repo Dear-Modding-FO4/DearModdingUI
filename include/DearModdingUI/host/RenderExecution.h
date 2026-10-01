@@ -45,7 +45,8 @@ namespace DearModdingUI::RenderExecution
 	class ClientGuard
 	{
 	public:
-		ClientGuard(DMUI_ClientHandle a_client, bool a_drawing) noexcept;
+		ClientGuard(DMUI_ClientHandle a_client, bool a_drawing,
+			DMUI_PageHandle a_page = DMUI_INVALID_PAGE_HANDLE) noexcept;
 		~ClientGuard() noexcept;
 
 		ClientGuard(const ClientGuard&) = delete;
@@ -56,6 +57,7 @@ namespace DearModdingUI::RenderExecution
 	private:
 		DMUI_ClientHandle m_previousClient;
 		bool m_previousDrawing;
+		DMUI_PageHandle m_previousPage;
 	};
 
 	[[nodiscard]] bool IsActive() noexcept;
@@ -64,4 +66,5 @@ namespace DearModdingUI::RenderExecution
 		bool a_drawingRequired) noexcept;
 	[[nodiscard]] Phase ActivePhase() noexcept;
 	[[nodiscard]] uint64_t ActiveBinding() noexcept;
+	[[nodiscard]] DMUI_PageHandle ActivePage() noexcept;
 }

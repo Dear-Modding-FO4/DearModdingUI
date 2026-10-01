@@ -1,5 +1,6 @@
 #include <DearModdingUI/host/MenuDismissal.h>
 #include <DearModdingUI/host/Hotkeys.h>
+#include <DearModdingUI/host/ModalCoordinator.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -20,20 +21,10 @@ namespace DearModdingUI
 			if (!ConsumeMenuEscapeTarget(a_target))
 				return false;
 
-			auto* context = ImGui::GetCurrentContext();
 			const auto popupDepth =
 				s_popupDepth.load(std::memory_order_relaxed);
-			if (!context ||
-				!popupDepth ||
-				static_cast<size_t>(context->OpenPopupStack.Size) !=
-					popupDepth ||
-				context->OpenPopupStack.back().PopupId !=
-					s_popupId.load(std::memory_order_relaxed))
-				return true;
-
-			ImGui::ClosePopupToLevel(
-				static_cast<int>(popupDepth - 1),
-				true);
+			ModalCoordinator::Dismiss(
+				s_popupId.load(std::memory_order_relaxed), popupDepth);
 			return true;
 		}
 	}

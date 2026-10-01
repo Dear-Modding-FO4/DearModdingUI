@@ -5,6 +5,9 @@
 #include <DearModdingUI/controls/SettingsTable.h>
 #include <DearModdingUI/host/HostAPIEntries.h>
 #include <DearModdingUI/host/UIAdapter.h>
+#include <DearModdingUI/host/ModalCoordinator.h>
+#include <DearModdingUI/host/RenderExecution.h>
+#include <DearModdingUI/presentation/PresentationServices.h>
 
 #include <cstdint>
 #include <string>
@@ -220,6 +223,12 @@ namespace
 			result.ui = &FixtureUIAPI();
 			result.resolveIconGlyph = &ResolveIconGlyph;
 			result.setFieldFeedback = &SetFieldFeedback;
+			result.requestDialog = [](DMUI_ClientHandle a_client,
+				const DMUI_DialogDescriptor* a_descriptor,
+				DMUI_DialogHandle* a_dialog) noexcept -> DMUI_Result {
+				return DearModdingUI::PresentationServices::RequestDialog(
+					a_client, a_descriptor, a_dialog, true);
+			};
 			return result;
 		}();
 		return api;
@@ -246,6 +255,44 @@ namespace vmm_tests
 {
 	void run_general_test_fixture_checks(Runner& runner)
 	{
+		runner.test("expected dialog contention does not disable a C++ page callback", [] {
+			using namespace DearModdingUI;
+			ResetFixture();
+			dmui::Client client{ "modal-busy", "Modal busy", { 1, 0 } };
+			require(client.Connect(), "modal fixture client did not connect");
+			bool injectUIFailure{};
+			const auto page = client.AddPage({ .id = "modal", .displayName = "Modal" }, [&] {
+				bool open{ true };
+				dmui::ui::OpenPopup("Owned modal");
+				if (dmui::ui::ModalScope modal{ "Owned modal", open })
+				{
+					const DMUI_DialogDescriptor descriptor{
+						DMUI_DIALOG_KIND_CONFIRM, "Busy", "Busy", "OK", "Cancel",
+						nullptr, nullptr, 1
+					};
+					(void)client.RequestDialog(descriptor);
+					if (injectUIFailure)
+						dmui::ui::OpenPopup(nullptr);
+				}
+			});
+			require(page.has_value(), "modal fixture page did not register");
+			support::ImGuiTestContext imgui;
+			RenderExecution::Guard execution{ RenderExecution::Phase::kFrameDraw };
+			RenderExecution::ClientGuard callback{ 1, true, *page };
+			imgui.BeginWindow("Modal callback");
+			const auto& registered = s_fixtureHost.pages.front();
+			const auto busy = registered.draw(registered.userData);
+			const auto hostResult = client.LastResult();
+			injectUIFailure = true;
+			const auto failed = registered.draw(registered.userData);
+			ModalCoordinator::ClosePage(*page);
+			imgui.EndWindow();
+			require(busy == DMUI_RESULT_OK && hostResult == DMUI_RESULT_BUSY,
+				"expected BUSY disabled the page or hid its service result");
+			require(failed == DMUI_RESULT_INVALID_ARGUMENT,
+				"expected service contention masked an actual UI failure");
+		});
+
 		runner.test("Connect rejects mismatched ABI before registration", [] {
 			ResetFixture();
 			auto& api = FixtureAPI();

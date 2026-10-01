@@ -1,5 +1,6 @@
 #define DMUI_HOST_EXPORTS
 #include <DearModdingUI/host/RenderExecution.h>
+#include <DearModdingUI/host/ModalCoordinator.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/host/ImGuiRecovery.h>
@@ -117,6 +118,7 @@ namespace DearModdingUI
 			if (result != DMUI_RESULT_OK)
 			{
 				const auto recovered = recovery->RecoverFailure();
+				a_disable();
 				LogImGuiRecovery(a_identity, recovered);
 				g_clientFontPushes.clear();
 				REX::ERROR(
@@ -382,7 +384,8 @@ namespace DearModdingUI
 		};
 		const RenderExecution::ClientGuard executionGuard{
 			page != pages.end() ? page->client : DMUI_INVALID_CLIENT_HANDLE,
-			true
+			true,
+			a_page
 		};
 		const auto identity = page != pages.end() ?
 			ClientCallbackIdentity{
@@ -394,14 +397,21 @@ namespace DearModdingUI
 				page->clientDisplayName
 			} :
 			ClientCallbackIdentity{ "page", a_page };
-		return InvokeClientCallback(
+		ModalCoordinator::TouchPage(a_page);
+		const auto drawn = InvokeClientCallback(
 			identity,
 			[&]() noexcept {
-				return service.registry.InvokePage(a_page);
+				const auto result = service.registry.InvokePage(a_page);
+				return ModalCoordinator::HasBracket({
+					page != pages.end() ? page->client : DMUI_INVALID_CLIENT_HANDLE,
+					a_page }) ? DMUI_RESULT_INVALID_ARGUMENT : result;
 			},
 			[&]() noexcept {
 				service.registry.MarkPageFailed(a_page);
 			});
+		if (!drawn)
+			ModalCoordinator::ClosePage(a_page);
+		return drawn;
 	}
 
 	bool PageFailed(DMUI_PageHandle a_page) noexcept

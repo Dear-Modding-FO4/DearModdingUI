@@ -3,6 +3,7 @@
 #include <DearModdingUI/presentation/Theme.h>
 #include <Support/BoundedString.h>
 #include <DearModdingUI/host/MenuDismissal.h>
+#include <DearModdingUI/host/ModalCoordinator.h>
 #include "PresentationServiceOwners.h"
 
 #include <imgui/imgui.h>
@@ -37,8 +38,6 @@ namespace DearModdingUI::PresentationServices
 			std::string error;
 			DMUI_DialogEventKind event{ DMUI_DIALOG_EVENT_PENDING };
 			uint64_t submissionId{};
-			bool popupOpened{};
-			uint32_t popupId{};
 		};
 
 		struct DialogService
@@ -144,6 +143,8 @@ namespace DearModdingUI::PresentationServices
 				return DMUI_RESULT_BUSY;
 			if (service.nextDialog == DMUI_INVALID_DIALOG_HANDLE)
 				return DMUI_RESULT_RESOURCE_EXHAUSTED;
+			if (!ModalCoordinator::ReserveDialog(service.nextDialog))
+				return DMUI_RESULT_BUSY;
 			dialog.handle = service.nextDialog++;
 			service.dialog = std::move(dialog);
 			*a_dialog = service.dialog.handle;
@@ -187,7 +188,10 @@ namespace DearModdingUI::PresentationServices
 			std::memcpy(a_textBuffer, dialog.text.data(), required);
 		if (dialog.event == DMUI_DIALOG_EVENT_CANCELLED ||
 			dialog.event == DMUI_DIALOG_EVENT_COMPLETED)
+		{
+			ModalCoordinator::ReleaseDialog(dialog.handle);
 			dialog = {};
+		}
 		return DMUI_RESULT_OK;
 	}
 
@@ -270,7 +274,6 @@ namespace DearModdingUI::PresentationServices
 				DismissCapturedMenuDialog();
 			auto& service = GetDialogService();
 			Dialog snapshot;
-			bool openPopup{};
 			{
 				const std::scoped_lock lock{ service.mutex };
 				auto& dialog = service.dialog;
@@ -280,34 +283,26 @@ namespace DearModdingUI::PresentationServices
 				{
 					if (dialog.event == DMUI_DIALOG_EVENT_PENDING)
 						dialog.event = DMUI_DIALOG_EVENT_CANCELLED;
+					ModalCoordinator::ReleaseDialog(dialog.handle);
 					return;
 				}
 				if (dialog.event == DMUI_DIALOG_EVENT_COMPLETED ||
 					dialog.event == DMUI_DIALOG_EVENT_CANCELLED)
+				{
+					ModalCoordinator::ReleaseDialog(dialog.handle);
 					return;
+				}
 				snapshot = dialog;
-				openPopup = !dialog.popupOpened;
-				dialog.popupOpened = true;
 			}
 
-			const auto popupId = snapshot.title + "###dmui.dialog";
-			const auto popupImGuiId = ImGui::GetID(popupId.c_str());
-			{
-				const std::scoped_lock lock{ service.mutex };
-				if (service.dialog.handle == snapshot.handle)
-					service.dialog.popupId = popupImGuiId;
-			}
-			if (openPopup)
-				ImGui::OpenPopup(popupId.c_str());
 			bool open{ true };
-			if (!ImGui::BeginPopupModal(
-					popupId.c_str(),
+			if (!ModalCoordinator::BeginDialog(
+					snapshot.title.c_str(),
 					snapshot.event == DMUI_DIALOG_EVENT_PENDING ?
 						&open :
-						nullptr,
-					ImGuiWindowFlags_AlwaysAutoResize))
+						nullptr))
 			{
-				if (escapeDismissed &&
+				if ((!open || escapeDismissed) &&
 					snapshot.event == DMUI_DIALOG_EVENT_PENDING)
 				{
 					const std::scoped_lock lock{ service.mutex };
@@ -410,7 +405,7 @@ namespace DearModdingUI::PresentationServices
 			service.dialog.event == DMUI_DIALOG_EVENT_CANCELLED ||
 			service.dialog.event == DMUI_DIALOG_EVENT_COMPLETED)
 			return 0;
-		return service.dialog.popupId;
+		return ModalCoordinator::DialogPopupId();
 	}
 
 	namespace Dialogs

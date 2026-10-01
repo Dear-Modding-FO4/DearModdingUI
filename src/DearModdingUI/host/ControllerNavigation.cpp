@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/host/MenuDismissal.h>
+#include <DearModdingUI/host/ModalCoordinator.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <REX/REX.h>
@@ -47,7 +48,8 @@ namespace DearModdingUI::ControllerNavigation
 		void RequestPane(Pane a_pane) noexcept
 		{
 			s_requestedPane = a_pane;
-			s_paneRequested = !ImGui::GetCurrentContext()->OpenPopupStack.Size;
+			s_paneRequested = !ModalCoordinator::HasModal() &&
+				!ImGui::GetCurrentContext()->OpenPopupStack.Size;
 		}
 
 		void SetMode(ControllerMode a_mode) noexcept
@@ -490,7 +492,7 @@ namespace DearModdingUI::ControllerNavigation
 		s_drawingPane = a_pane;
 		s_paneWindows[static_cast<size_t>(a_pane)] = ImGui::GetCurrentWindow();
 		if (!s_paneRequested || s_requestedPane != a_pane ||
-			ImGui::GetCurrentContext()->OpenPopupStack.Size)
+			ImGui::GetCurrentContext()->OpenPopupStack.Size || ModalCoordinator::HasModal())
 			return;
 		auto* window = ImGui::GetCurrentWindow();
 		ImGui::FocusWindow(window);
@@ -507,7 +509,8 @@ namespace DearModdingUI::ControllerNavigation
 			return pane && g.NavWindow && ImGui::IsWindowChildOf(g.NavWindow, pane, false, false);
 		};
 		// A horizontal move that finds nothing at a pane edge continues into the neighboring pane.
-		if (!IsNavigating() || g.ActiveId || !ImGui::NavMoveRequestButNoResultYet())
+		if (!IsNavigating() || g.ActiveId || g.OpenPopupStack.Size || ModalCoordinator::HasModal() ||
+			!ImGui::NavMoveRequestButNoResultYet())
 			return;
 		if (g.NavMoveDir == ImGuiDir_Left && from(Pane::kContent))
 			RequestPane(Pane::kSidebar);

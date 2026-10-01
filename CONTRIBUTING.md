@@ -105,7 +105,7 @@ Useful arguments:
 - `--scroll-y <pixels>`: Scrolls page content before capture.
 - `--page <id>`: Navigates directly to a registered settings page.
 - `--sidebar <tree|twopane|drilldown|iconrail>`: Selects a sidebar presentation layout.
-- `--presentation <overlay|notification|image|plot|dialog>`: Tests specific presentation services.
+- `--presentation <overlay|notification|image|plot|dialog|modal|popup>`: Tests presentation services and client popups.
 - `--frames <count>`: Renders more frames before capture if a scenario needs time to initialize.
 
 Scenarios live in `tools\shared` and `tools\preview\fixtures`, and are not packaged. For example:

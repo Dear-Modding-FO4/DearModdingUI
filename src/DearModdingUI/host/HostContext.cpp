@@ -4,6 +4,7 @@
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/MenuDismissal.h>
 #include <DearModdingUI/host/Hotkeys.h>
+#include <DearModdingUI/host/ModalCoordinator.h>
 
 #include <REX/REX.h>
 #if !defined(DMUI_PREVIEW)
@@ -26,6 +27,8 @@ namespace DearModdingUI::HostInternal
 	{
 		const auto previous =
 			a_service.activePage.exchange(a_page, std::memory_order_acq_rel);
+		if (previous != a_page)
+			ModalCoordinator::ClosePage(previous);
 		a_service.registry.NotifyPageActivity(previous, a_page);
 	}
 
@@ -43,6 +46,7 @@ namespace DearModdingUI::HostInternal
 			(void)Hotkeys::CancelCapture();
 			ResetMenuEscapeRequest();
 			PresentationServices::NotifyMenuClosed();
+			ModalCoordinator::NotifyMenuClosed();
 		}
 		HostSettings::NotifyMenuVisible(a_visible);
 	}

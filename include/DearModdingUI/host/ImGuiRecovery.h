@@ -103,8 +103,6 @@ namespace DearModdingUI
 			m_context->OpenPopupStack.Capacity = m_openPopupSize;
 			m_openPopupData = nullptr;
 			m_openPopupSize = 0;
-			if (!m_context->OpenPopupStack.empty())
-				ImGui::ClosePopupToLevel(0, true);
 			return recovery;
 		}
 

@@ -7,6 +7,7 @@ namespace vmm_tests
 	void run_presentation_image_resource_checks(Runner&);
 	void run_presentation_overlay_notification_plot_checks(Runner&);
 	void run_presentation_dialog_interaction_checks(Runner&);
+	void run_popup_checks(Runner&);
 
 	void run_presentation_service_checks(Runner& runner)
 	{
@@ -15,5 +16,6 @@ namespace vmm_tests
 		run_presentation_image_resource_checks(runner);
 		run_presentation_overlay_notification_plot_checks(runner);
 		run_presentation_dialog_interaction_checks(runner);
+		run_popup_checks(runner);
 	}
 }

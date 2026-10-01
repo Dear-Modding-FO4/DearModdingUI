@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Client popups and modals**: Page-scoped popup UI operations and RAII scopes share one modal owner with host dialogs, including nested modals and single-level Escape/controller-B dismissal.
 - **Host title logo**: Added a resolution-independent Dear Modding vector logo with original colors or an accent-color appearance setting.
 - **Controller navigation**: Left-stick and D-pad focus by default; LS or RS toggles a cursor centered on the focused item, which the right stick moves as in the game while the left stick scrolls. A clicks, and the D-pad returns to navigation. Shared B/Escape dismissal, pane switching, scrolling, row reset, search, and compact controller hints are supported. Desktop preview uses XInput.
 - **Input bindings**: Host toggle and client hotkeys support keyboard/mouse and gamepad slots, up to three-key or three-button combos, and Ctrl/Alt/Shift modifiers for keyboard/mouse chords. The gamepad menu toggle defaults to LB+RB+View (Back).

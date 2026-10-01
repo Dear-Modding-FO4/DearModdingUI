@@ -8,6 +8,33 @@
 
 namespace DearModdingUI::UI::Bindings
 {
+	[[nodiscard]] inline DMUI_Result TranslateWindowFlags(
+		DMUI_UIWindowFlags a_value,
+		ImGuiWindowFlags& a_native) noexcept
+	{
+		constexpr uint32_t known{ DMUI_UI_WINDOW_FLAGS_NO_TITLE_BAR | DMUI_UI_WINDOW_FLAGS_NO_RESIZE | DMUI_UI_WINDOW_FLAGS_NO_MOVE | DMUI_UI_WINDOW_FLAGS_NO_SCROLLBAR | DMUI_UI_WINDOW_FLAGS_NO_SCROLL_WITH_MOUSE | DMUI_UI_WINDOW_FLAGS_ALWAYS_AUTO_RESIZE | DMUI_UI_WINDOW_FLAGS_NO_SAVED_SETTINGS | DMUI_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR };
+		if ((a_value & ~known) != 0)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		a_native = 0;
+		if ((a_value & DMUI_UI_WINDOW_FLAGS_NO_TITLE_BAR) != 0)
+			a_native |= ImGuiWindowFlags_NoTitleBar;
+		if ((a_value & DMUI_UI_WINDOW_FLAGS_NO_RESIZE) != 0)
+			a_native |= ImGuiWindowFlags_NoResize;
+		if ((a_value & DMUI_UI_WINDOW_FLAGS_NO_MOVE) != 0)
+			a_native |= ImGuiWindowFlags_NoMove;
+		if ((a_value & DMUI_UI_WINDOW_FLAGS_NO_SCROLLBAR) != 0)
+			a_native |= ImGuiWindowFlags_NoScrollbar;
+		if ((a_value & DMUI_UI_WINDOW_FLAGS_NO_SCROLL_WITH_MOUSE) != 0)
+			a_native |= ImGuiWindowFlags_NoScrollWithMouse;
+		if ((a_value & DMUI_UI_WINDOW_FLAGS_ALWAYS_AUTO_RESIZE) != 0)
+			a_native |= ImGuiWindowFlags_AlwaysAutoResize;
+		if ((a_value & DMUI_UI_WINDOW_FLAGS_NO_SAVED_SETTINGS) != 0)
+			a_native |= ImGuiWindowFlags_NoSavedSettings;
+		if ((a_value & DMUI_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR) != 0)
+			a_native |= ImGuiWindowFlags_HorizontalScrollbar;
+		return DMUI_RESULT_OK;
+	}
+
 	[[nodiscard]] inline DMUI_Result TranslateColor(
 		DMUI_UIColor a_value,
 		ImGuiCol& a_native) noexcept
@@ -1105,6 +1132,29 @@ namespace DearModdingUI::UI::Bindings
 		float a_width,
 		const char* a_text,
 		size_t a_length) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL OpenPopup(
+		DMUI_ClientHandle a_client,
+		const char* a_id) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL BeginPopup(
+		DMUI_ClientHandle a_client,
+		const char* a_id,
+		DMUI_UIWindowFlags a_flags,
+		uint32_t* a_visible) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL BeginPopupModal(
+		DMUI_ClientHandle a_client,
+		const char* a_id,
+		uint32_t a_hasCloseButton,
+		uint32_t* a_open,
+		DMUI_UIWindowFlags a_flags,
+		uint32_t* a_visible) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL EndPopup(
+		DMUI_ClientHandle a_client) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL CloseCurrentPopup(
+		DMUI_ClientHandle a_client) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL IsPopupOpen(
+		DMUI_ClientHandle a_client,
+		const char* a_id,
+		uint32_t* a_open) noexcept;
 
 	[[nodiscard]] inline DMUI_UIAPI MakeAPI() noexcept
 	{
@@ -1182,7 +1232,13 @@ namespace DearModdingUI::UI::Bindings
 			&PlotAnnotated,
 			&GetCursorPos,
 			&SetCursorPos,
-			&TextAligned
+			&TextAligned,
+			&OpenPopup,
+			&BeginPopup,
+			&BeginPopupModal,
+			&EndPopup,
+			&CloseCurrentPopup,
+			&IsPopupOpen
 		};
 	}
 }

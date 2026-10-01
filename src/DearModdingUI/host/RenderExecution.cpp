@@ -32,6 +32,7 @@ namespace DearModdingUI::RenderExecution
 			DMUI_INVALID_CLIENT_HANDLE
 		};
 		thread_local bool s_drawingCallback{};
+		thread_local DMUI_PageHandle s_activePage{};
 	}
 
 	Guard::Guard(Phase a_phase) noexcept :
@@ -55,18 +56,21 @@ namespace DearModdingUI::RenderExecution
 
 	ClientGuard::ClientGuard(
 		DMUI_ClientHandle a_client,
-		bool a_drawing) noexcept :
+		bool a_drawing, DMUI_PageHandle a_page) noexcept :
 		m_previousClient(s_activeClient),
-		m_previousDrawing(s_drawingCallback)
+		m_previousDrawing(s_drawingCallback),
+		m_previousPage(s_activePage)
 	{
 		s_activeClient = a_client;
 		s_drawingCallback = a_drawing;
+		s_activePage = a_page;
 	}
 
 	ClientGuard::~ClientGuard() noexcept
 	{
 		s_activeClient = m_previousClient;
 		s_drawingCallback = m_previousDrawing;
+		s_activePage = m_previousPage;
 	}
 
 	ThreadTransition Guard::NoteBinding(uint64_t a_bindingId) noexcept
@@ -115,4 +119,6 @@ namespace DearModdingUI::RenderExecution
 	{
 		return s_binding;
 	}
+
+	DMUI_PageHandle ActivePage() noexcept { return s_activePage; }
 }

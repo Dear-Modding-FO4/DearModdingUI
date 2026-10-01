@@ -171,6 +171,10 @@ namespace DmuiTests
 				case PresentationScenario::kDialog:
 					m_dialogs.RequestPresentationDialog();
 					break;
+				case PresentationScenario::kModal:
+				case PresentationScenario::kPopup:
+					m_dialogs.RequestPresentationPopup(a_scenario == PresentationScenario::kModal);
+					break;
 				}
 				if (!activated)
 				{
@@ -197,6 +201,8 @@ namespace DmuiTests
 				{
 				case PresentationScenario::kNotification:
 				case PresentationScenario::kDialog:
+				case PresentationScenario::kModal:
+				case PresentationScenario::kPopup:
 					exercise =
 						DmuiTestFixtures::ExerciseKind::kNotificationsAndDialogs;
 					break;
@@ -253,6 +259,11 @@ namespace DmuiTests
 				case PresentationScenario::kDialog:
 					expected = "a successfully requested text-entry dialog";
 					complete = m_dialogs.DialogCaptureComplete();
+					break;
+				case PresentationScenario::kModal:
+				case PresentationScenario::kPopup:
+					expected = "a visible client popup";
+					complete = m_dialogs.PopupCaptureComplete(*active == PresentationScenario::kModal);
 					break;
 				}
 				if (!complete)

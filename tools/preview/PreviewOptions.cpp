@@ -107,7 +107,7 @@ namespace DearModdingUIPreview
 			<< L"  --sidebar <tree|twopane|drilldown|iconrail>  Select the sidebar layout\n"
 			<< L"  --navigation <grouped|destinations>  Enable a preview-only navigation comparison\n"
 			<< L"  --origin <native|bridged>  Select the destinations comparison tab\n"
-			<< L"  --presentation <overlay|notification|image|plot|dialog>\n"
+			<< L"  --presentation <overlay|notification|image|plot|dialog|modal|popup>\n"
 			<< L"                            Activate a shared exercise capture state\n"
 			<< L"  --health-scenario <synthetic>  Add labeled synthetic Health states\n"
 			<< L"  --expand <client-id>      Expand a tree mod or enter a drill-down mod\n"

@@ -25,7 +25,9 @@ namespace DmuiTests
 		kNotification,
 		kImage,
 		kPlot,
-		kDialog
+		kDialog,
+		kModal,
+		kPopup
 	};
 
 	struct PresentationScenarioDescriptor
@@ -66,6 +68,12 @@ namespace DmuiTests
 			"dialog",
 			"notifications-dialogs",
 			true
+		},
+		PresentationScenarioDescriptor{
+			PresentationScenario::kModal, "modal", "notifications-dialogs", true
+		},
+		PresentationScenarioDescriptor{
+			PresentationScenario::kPopup, "popup", "notifications-dialogs", true
 		}
 	};
 

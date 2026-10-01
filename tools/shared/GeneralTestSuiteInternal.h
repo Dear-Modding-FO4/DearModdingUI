@@ -416,6 +416,8 @@ namespace DmuiTests::Detail
 		void Draw() noexcept;
 		void Observe(uint64_t a_frameCount) noexcept;
 		void RequestPresentationDialog() noexcept;
+		void RequestPresentationPopup(bool a_modal) noexcept;
+		[[nodiscard]] bool PopupCaptureComplete(bool a_modal) const noexcept;
 		[[nodiscard]] uint64_t EventCount() const noexcept;
 		[[nodiscard]] uint64_t NotificationEventCount() const noexcept;
 		[[nodiscard]] bool NotificationCaptureComplete() const noexcept;
@@ -470,5 +472,12 @@ namespace DmuiTests::Detail
 		uint64_t m_dialogCancellations{};
 		DMUI_Result m_dialogResult{ DMUI_RESULT_OK };
 		bool m_presentationDialogPending{};
+		std::optional<bool> m_presentationPopupPending;
+		bool m_modalOpen{};
+		bool m_nestedOpen{};
+		bool m_modalDrawn{};
+		bool m_popupDrawn{};
+		bool m_busyProbePending{};
+		DMUI_Result m_busyResult{ DMUI_RESULT_OK };
 	};
 }
