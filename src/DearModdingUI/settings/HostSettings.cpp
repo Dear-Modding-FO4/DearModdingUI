@@ -17,6 +17,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace DearModdingUI::HostSettings
@@ -33,7 +34,9 @@ namespace DearModdingUI::HostSettings
 		std::mutex s_settingsMutex;
 		HostInterfaceSettings s_settings;
 		std::map<std::string, std::string> s_hotkeyOverrides;
-		std::atomic<uint32_t> s_menuToggleKey{ kMenuDefaultToggleKey };
+		static_assert(std::is_trivially_copyable_v<HotkeyChord>);
+		static_assert(std::atomic<HotkeyChord>::is_always_lock_free);
+		std::atomic<HotkeyChord> s_menuToggleChord{ kMenuDefaultToggleChord };
 		std::mutex s_configurationHealthMutex;
 		HostSettingsHealthState s_configurationHealthState;
 
@@ -140,6 +143,13 @@ namespace DearModdingUI::HostSettings
 			}
 		}
 
+		void UpdateMenuToggleChord() noexcept
+		{
+			const auto chord = ParseMenuToggleChord(s_settings.menuToggleKey).chord;
+			s_menuToggleChord.store(chord, std::memory_order_release);
+			Hotkeys::SetReservedChord(chord);
+		}
+
 		void EnsureLoaded() noexcept
 		{
 			std::call_once(s_loadOnce, []() noexcept {
@@ -149,12 +159,8 @@ namespace DearModdingUI::HostSettings
 					const std::scoped_lock lock{ s_settingsMutex };
 					s_settings = std::move(loaded.settings);
 					s_hotkeyOverrides = std::move(loaded.hotkeys);
-					s_menuToggleKey.store(
-						ParseMenuToggleKey(s_settings.menuToggleKey).keyCode,
-						std::memory_order_release);
 					Hotkeys::InitializeOverrides(s_hotkeyOverrides);
-					Hotkeys::SetReservedKeyCode(
-						s_menuToggleKey.load(std::memory_order_acquire));
+					UpdateMenuToggleChord();
 					{
 						const std::scoped_lock healthLock{
 							s_configurationHealthMutex
@@ -323,11 +329,7 @@ namespace DearModdingUI::HostSettings
 				return false;
 			}
 			s_settings = std::move(a_settings);
-			s_menuToggleKey.store(
-				ParseMenuToggleKey(s_settings.menuToggleKey).keyCode,
-				std::memory_order_release);
-			Hotkeys::SetReservedKeyCode(
-				s_menuToggleKey.load(std::memory_order_acquire));
+			UpdateMenuToggleChord();
 		}
 		(void)SetHostStatus(
 			DMUI_STATUS_SEVERITY_SUCCESS,
@@ -396,10 +398,10 @@ namespace DearModdingUI::HostSettings
 		return s_pageRevision.load(std::memory_order_acquire);
 	}
 
-	uint32_t MenuToggleKeyCode() noexcept
+	HotkeyChord MenuToggleChord() noexcept
 	{
 		EnsureLoaded();
-		return s_menuToggleKey.load(std::memory_order_acquire);
+		return s_menuToggleChord.load(std::memory_order_acquire);
 	}
 
 	bool SetHotkeyOverride(

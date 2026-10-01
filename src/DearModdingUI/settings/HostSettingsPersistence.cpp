@@ -403,7 +403,7 @@ namespace DearModdingUI
 						a_settings.bodyFontFamily,
 						runtime.bodyFontFamily));
 			}
-			if (!ParseMenuToggleKey(a_settings.menuToggleKey).recognized)
+			if (!ParseMenuToggleChord(a_settings.menuToggleKey).recognized)
 			{
 				AppendCorrection(
 					a_corrections,

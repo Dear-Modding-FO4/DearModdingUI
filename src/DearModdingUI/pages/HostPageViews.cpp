@@ -9,7 +9,7 @@
 #include <DearModdingUI/settings/HostSettingsView.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/controls/LinkRow.h>
-#include <DearModdingUI/host/MenuToggleKey.h>
+#include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/controls/SettingsTable.h>
 #include <DearModdingUI/host/Status.h>
 #include <DearModdingUI/presentation/Theme.h>
@@ -153,8 +153,8 @@ namespace DearModdingUI
 			DrawSectionHeader(
 				"FAQ",
 				FindPhosphorIconGlyphOrZero("question"));
-			const auto faq = BuildHomeFaq(MenuToggleKeyName(
-				HostSettings::MenuToggleKeyCode()));
+			const auto faq = BuildHomeFaq(SerializeHotkeyChord(
+				HostSettings::MenuToggleChord()));
 			std::vector<FaqRowEntry> entries;
 			entries.reserve(faq.size());
 			for (const auto& entry : faq)

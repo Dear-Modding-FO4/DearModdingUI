@@ -1,7 +1,7 @@
 #include <Platform/input/CarrierMenu.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/settings/HostSettings.h>
-#include <DearModdingUI/host/MenuToggleKey.h>
+#include <DearModdingUI/host/MenuToggleChord.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/Shell.h>
 #include <DearModdingUI/presentation/Theme.h>
@@ -40,11 +40,13 @@ namespace Addictol
 			}
 		}
 
-		[[nodiscard]] bool ToggleHost(uint32_t a_keyCode) noexcept
+		[[nodiscard]] bool ToggleHost(
+			uint32_t a_keyCode,
+			uint32_t a_modifiers) noexcept
 		{
 			const auto decision = DearModdingUI::DecideMenuToggle(
-				a_keyCode,
-				DearModdingUI::HostSettings::MenuToggleKeyCode(),
+				{ a_keyCode, a_modifiers },
+				DearModdingUI::HostSettings::MenuToggleChord(),
 				DearModdingUI::IsMenuVisible(),
 				PlatformImgui::IsReady());
 			if (!decision.matched)

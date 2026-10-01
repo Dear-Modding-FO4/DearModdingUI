@@ -1,7 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/API.h>
-#include <DearModdingUI/host/MenuToggleKey.h>
+#include <Support/KeyCatalog.h>
 
 #include <array>
 #include <cstdint>
@@ -18,6 +18,27 @@ namespace DearModdingUI
 	inline constexpr uint32_t kHotkeyModifierShift{ 1u << 0 };
 	inline constexpr uint32_t kHotkeyModifierControl{ 1u << 1 };
 	inline constexpr uint32_t kHotkeyModifierAlt{ 1u << 2 };
+
+	[[nodiscard]] constexpr bool IsHostBindableKey(uint32_t a_keyCode) noexcept
+	{
+		if (a_keyCode >= KeyCatalog::kKeyboardKeyCount ||
+			!KeyCatalog::Find(a_keyCode))
+			return false;
+		// Escape drives dismissal; standalone modifiers only qualify chords.
+		switch (a_keyCode)
+		{
+		case 0x01:
+		case 0x1D:
+		case 0x9D:
+		case 0x2A:
+		case 0x36:
+		case 0x38:
+		case 0xB8:
+			return false;
+		default:
+			return true;
+		}
+	}
 
 	struct HotkeyChord
 	{
@@ -74,7 +95,7 @@ namespace DearModdingUI
 	{
 	public:
 		void InitializeOverrides(std::map<std::string, std::string> a_overrides) noexcept;
-		void SetReservedKeyCode(uint32_t a_keyCode) noexcept;
+		void SetReservedChord(HotkeyChord a_chord) noexcept;
 		[[nodiscard]] DMUI_Result Register(
 			DMUI_ClientHandle a_client,
 			const DMUI_HotkeyActionDescriptor* a_descriptor,
@@ -156,7 +177,7 @@ namespace DearModdingUI
 		size_t m_eventCount{ 0 };
 		size_t m_reservedReleaseCount{ 0 };
 		DMUI_HotkeyActionHandle m_nextAction{ 1 };
-		uint32_t m_reservedKeyCode{ 0 };
+		HotkeyChord m_reservedChord;
 		HotkeyContextState m_context;
 		bool m_capturing{ false };
 		std::optional<HotkeyChord> m_capture;
@@ -165,7 +186,7 @@ namespace DearModdingUI
 	namespace Hotkeys
 	{
 		void InitializeOverrides(std::map<std::string, std::string> a_overrides) noexcept;
-		void SetReservedKeyCode(uint32_t a_keyCode) noexcept;
+		void SetReservedChord(HotkeyChord a_chord) noexcept;
 		[[nodiscard]] DMUI_Result Register(
 			DMUI_ClientHandle a_client,
 			const DMUI_HotkeyActionDescriptor* a_descriptor,

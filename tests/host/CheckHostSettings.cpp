@@ -329,7 +329,7 @@ namespace vmm_tests
 				"malformed font family did not fall back");
 			require(
 				decoded.menuToggleKey ==
-					MenuToggleKeyName(kMenuDefaultToggleKey),
+					SerializeHotkeyChord(kMenuDefaultToggleChord),
 				"malformed toggle key did not fall back");
 			require(
 				decoded.feedbackPlacement ==
@@ -366,23 +366,42 @@ namespace vmm_tests
 				<< "sMenuToggleKey = \"F11\"\n"
 				<< "sMenuSidebarLayout = \"tree\"\n";
 			loaded = LoadHostInterfaceSettings(path);
-			const auto toggleKey = ParseMenuToggleKey(loaded.settings.menuToggleKey);
+			const auto toggle = ParseMenuToggleChord(loaded.settings.menuToggleKey);
 			require(
 				loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
 					loaded.settings.menuToggleKey == "F11" &&
 					!loaded.settings.fallSoulsMode &&
-					toggleKey.recognized && toggleKey.keyCode == 0x57,
+					toggle.recognized && toggle.chord == HotkeyChord{ 0x57, 0 },
 				"an old valid host config did not retain the default FallSouls mode");
 			require(
-				DecideMenuToggle(0x57, toggleKey.keyCode, false, true).open &&
-					!DecideMenuToggle(0xCF, toggleKey.keyCode, false, true).matched,
+				DecideMenuToggle({ 0x57, 0 }, toggle.chord, false, true).open &&
+					!DecideMenuToggle({ 0xCF, 0 }, toggle.chord, false, true).matched,
 				"the loaded F11 binding did not replace End for opening the menu");
-			const auto pageDown = ParseMenuToggleKey("Pgdn");
+			const auto pageDown = ParseMenuToggleChord("Pgdn");
 			require(
-				pageDown.recognized && pageDown.keyCode == 0xD1 &&
-					MenuToggleKeyName(pageDown.keyCode) == "PageDown" &&
-					ParseMenuToggleKey("pageup").keyCode == 0xC9,
+				pageDown.recognized && pageDown.chord == HotkeyChord{ 0xD1, 0 } &&
+					SerializeHotkeyChord(pageDown.chord) == "PageDown" &&
+					ParseMenuToggleChord("pageup").chord == HotkeyChord{ 0xC9, 0 },
 				"Page Up/Down names or aliases were not accepted");
+
+			std::ofstream(path, std::ios::trunc)
+				<< "[Additional]\n"
+				<< "sMenuToggleKey = \"ctrl+f5\"\n";
+			loaded = LoadHostInterfaceSettings(path);
+			const auto chord = ParseMenuToggleChord(loaded.settings.menuToggleKey);
+			require(loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
+					loaded.settings.menuToggleKey == "Ctrl+F5" &&
+					chord.recognized &&
+					chord.chord == HotkeyChord{ 0x3F, kHotkeyModifierControl },
+				"the toggle chord lost its modifiers or canonical spelling");
+			require(DecideMenuToggle(chord.chord, chord.chord, false, true).open &&
+					!DecideMenuToggle(chord.chord, chord.chord, true, true).open &&
+					DecideMenuToggle(chord.chord, chord.chord, true, false).open &&
+					!DecideMenuToggle({ 0x3F, 0 }, chord.chord, false, true).matched &&
+					!DecideMenuToggle(
+						{ 0x3F, kHotkeyModifierControl | kHotkeyModifierShift },
+						chord.chord, false, true).matched,
+				"toggle matching or visibility decisions ignored the exact chord");
 
 			std::ofstream(path, std::ios::trunc)
 				<< "[Additional\n";
@@ -448,6 +467,17 @@ namespace vmm_tests
 					observation.reason.find("Saved accepted settings") !=
 						std::string::npos,
 				"a successful write did not resolve persisted configuration health");
+
+			std::ofstream(path, std::ios::trunc)
+				<< "[Additional]\n"
+				<< "sMenuToggleKey = \"none\"\n";
+			const auto unbound = LoadHostInterfaceSettings(path);
+			state.RecordLoad(unbound);
+			require(unbound.disposition == HostSettingsLoadDisposition::kCorrected &&
+					unbound.settings.menuToggleKey == "End" &&
+					state.Observation().reason.find(
+						"sMenuToggleKey \"none\" used \"End\"") != std::string::npos,
+				"none disabled the menu toggle instead of reporting the End fallback");
 			std::filesystem::remove_all(root, error);
 		});
 
@@ -463,8 +493,11 @@ namespace vmm_tests
 			const auto path = root / "DearModdingUI.toml";
 			std::ofstream(path) << "old settings";
 
-			PersistedHostInterfaceSettings settings;
-			settings.menuToggleKey = "Home";
+			auto runtime = DefaultHostInterfaceSettings();
+			runtime.menuToggleKey = "ctrl+f5";
+			auto settings = EncodeHostInterfaceSettings(runtime);
+			require(settings.menuToggleKey == "Ctrl+F5",
+				"settings encoding did not preserve the canonical toggle chord");
 			settings.sidebarLayout = "twopane";
 			settings.feedbackPlacement = "strip";
 			settings.feedbackInfoColor = "#123456";

@@ -141,10 +141,10 @@ namespace DearModdingUI
 			{
 				if (chord.keyCode)
 					return {};
-				const auto parsed = ParseMenuToggleKey(token);
-				if (!parsed.recognized)
+				const auto code = KeyCatalog::Parse(token);
+				if (!code || !IsHostBindableKey(*code))
 					return {};
-				chord.keyCode = parsed.keyCode;
+				chord.keyCode = *code;
 			}
 			if (end == std::string_view::npos)
 				break;
@@ -178,10 +178,10 @@ namespace DearModdingUI
 		RecomputeBindingsLocked();
 	}
 
-	void HotkeyRegistry::SetReservedKeyCode(uint32_t a_keyCode) noexcept
+	void HotkeyRegistry::SetReservedChord(HotkeyChord a_chord) noexcept
 	{
 		const std::scoped_lock lock{ m_mutex };
-		m_reservedKeyCode = a_keyCode;
+		m_reservedChord = a_chord;
 		RecomputeBindingsLocked();
 	}
 
@@ -625,7 +625,7 @@ namespace DearModdingUI
 				parsed.chord.keyCode,
 				parsed.chord.modifiers
 			};
-			if (parsed.chord.keyCode == m_reservedKeyCode ||
+			if (parsed.chord == m_reservedChord ||
 				occupied.contains(key))
 			{
 				action->state = DMUI_HOTKEY_BINDING_UNBOUND_OVERRIDE_CONFLICT;
@@ -648,7 +648,7 @@ namespace DearModdingUI
 				action->suggestedDefault.keyCode,
 				action->suggestedDefault.modifiers
 			};
-			if (action->suggestedDefault.keyCode == m_reservedKeyCode ||
+			if (action->suggestedDefault == m_reservedChord ||
 				occupied.contains(key))
 			{
 				action->state = DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT;
@@ -681,9 +681,9 @@ namespace DearModdingUI
 			RegistryInstance().InitializeOverrides(std::move(a_overrides));
 		}
 
-		void SetReservedKeyCode(uint32_t a_keyCode) noexcept
+		void SetReservedChord(HotkeyChord a_chord) noexcept
 		{
-			RegistryInstance().SetReservedKeyCode(a_keyCode);
+			RegistryInstance().SetReservedChord(a_chord);
 		}
 
 		DMUI_Result Register(

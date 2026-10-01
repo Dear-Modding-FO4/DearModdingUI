@@ -1,6 +1,6 @@
 #pragma once
 
-#include <DearModdingUI/host/MenuToggleKey.h>
+#include <DearModdingUI/host/MenuToggleChord.h>
 #include <DearModdingUI/controls/FieldFeedback.h>
 #include <DearModdingUI/navigation/Sidebar.h>
 #include <DearModdingUI/ThemeDefaults.h>
@@ -83,7 +83,7 @@ namespace DearModdingUI
 		float backgroundBlurStrength{ kDefaultBackgroundBlurStrength };
 		float uiScale{ Theme::kDefaultUserScale };
 		std::string bodyFontFamily{ kDefaultBodyFontFamily };
-		std::string menuToggleKey{ MenuToggleKeyName(kMenuDefaultToggleKey) };
+		std::string menuToggleKey{ SerializeHotkeyChord(kMenuDefaultToggleChord) };
 		FieldFeedbackPlacement feedbackPlacement{
 			DEFAULT_FIELD_FEEDBACK_LAYOUT
 		};
@@ -145,7 +145,7 @@ namespace DearModdingUI
 		float backgroundBlurStrength{ kDefaultBackgroundBlurStrength };
 		float uiScale{ Theme::kDefaultUserScale };
 		std::string bodyFontFamily{ kDefaultBodyFontFamily };
-		std::string menuToggleKey{ MenuToggleKeyName(kMenuDefaultToggleKey) };
+		std::string menuToggleKey{ SerializeHotkeyChord(kMenuDefaultToggleChord) };
 		std::map<std::string, std::string> hotkeys;
 		std::string feedbackPlacement{
 			FieldFeedbackLayoutName(DEFAULT_FIELD_FEEDBACK_LAYOUT)
@@ -319,8 +319,8 @@ namespace DearModdingUI
 			Theme::kDefaultUserScale);
 		a_settings.bodyFontFamily =
 			DecodeBodyFontFamily(a_settings.bodyFontFamily);
-		a_settings.menuToggleKey = std::string{ MenuToggleKeyName(
-			ParseMenuToggleKey(a_settings.menuToggleKey).keyCode) };
+		a_settings.menuToggleKey = SerializeHotkeyChord(
+			ParseMenuToggleChord(a_settings.menuToggleKey).chord);
 		return a_settings;
 	}
 
@@ -429,7 +429,7 @@ namespace DearModdingUI
 		void NotifyMenuVisible(bool a_visible) noexcept;
 		void SetPageActive(bool a_active) noexcept;
 		[[nodiscard]] uint64_t PageRevision() noexcept;
-		[[nodiscard]] uint32_t MenuToggleKeyCode() noexcept;
+		[[nodiscard]] HotkeyChord MenuToggleChord() noexcept;
 		[[nodiscard]] bool SetHotkeyOverride(
 			std::string_view a_id,
 			std::string_view a_chord) noexcept;

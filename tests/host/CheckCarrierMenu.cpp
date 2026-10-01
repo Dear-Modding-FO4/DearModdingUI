@@ -1,6 +1,5 @@
 #include "../support/DearModdingUITestSupport.h"
 #include <Platform/input/CarrierMenu.h>
-#include <DearModdingUI/host/MenuToggleKey.h>
 #include <algorithm>
 #include <array>
 #include <filesystem>

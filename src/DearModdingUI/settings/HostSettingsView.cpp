@@ -643,14 +643,10 @@ namespace DearModdingUI
 						"Opens and closes the shared menu. Apply saves the key for this session and future launches.",
 						true,
 						[&]() noexcept {
-							const auto selectedKey =
-								ParseMenuToggleKey(settings.menuToggleKey);
-							const auto selectedName =
-								MenuToggleKeyName(selectedKey.keyCode);
 							if (const auto captured = DrawKeyCapture(
-									"##Value", selectedName.data(), ControlWidth()))
+									"##Value", settings.menuToggleKey.c_str(), ControlWidth()))
 								settings.menuToggleKey =
-									KeyCatalog::Token(captured->keyCode);
+									SerializeHotkeyChord(*captured);
 						},
 						[&]() noexcept {
 							return settings.menuToggleKey !=

@@ -14,7 +14,7 @@ namespace Addictol
 			void (*setup)(void* a_window) noexcept{ nullptr };
 			void (*draw)() noexcept{ nullptr };
 			// Returns true to consume the press, its repeats, and its matching release.
-			bool (*toggle)(uint32_t a_keyCode) noexcept{ nullptr };
+			bool (*toggle)(uint32_t a_keyCode, uint32_t a_modifiers) noexcept{ nullptr };
 
 			[[nodiscard]] constexpr bool Valid() const noexcept
 			{

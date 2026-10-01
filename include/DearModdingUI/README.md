@@ -439,7 +439,7 @@ input capture. Initialization and frame observers retain their existing `Present
 The standalone host initializes on the first valid active-swapchain `Present` whenever any client was
 accepted. Clients can open the common menu by selecting one of their registered settings pages through
 the host API. The existing host menu toggle remains in `[Additional]` for compatibility and reserves its
-key code against client chords.
+exact chord against client hotkeys.
 
 ## Final swapchain handoff
 

@@ -96,8 +96,7 @@ namespace vmm_tests
 				{
 					const HotkeyChord chord{ key.code, 7 };
 					const auto parsed = ParseHotkeyChord(SerializeHotkeyChord(chord));
-					require(parsed.recognized && parsed.chord == chord &&
-							ParseMenuToggleKey(key.token).keyCode == key.code,
+					require(parsed.recognized && parsed.chord == chord,
 						"bindable catalog key was lost in host parsing");
 				}
 			}
@@ -109,10 +108,9 @@ namespace vmm_tests
 				require(KeyCatalog::Parse(token) == code,
 					"legacy name or alias changed identity");
 			for (const auto token : { "PadA", "Mouse4", "Escape", "LeftShift" })
-				require(!ParseMenuToggleKey(token).recognized &&
-						!ParseHotkeyChord(token).recognized,
+				require(!ParseHotkeyChord(token).recognized,
 					"host accepted a key without a supported binding producer");
-			require(ParseMenuToggleKey("Pause").recognized,
+			require(ParseHotkeyChord("Pause").recognized,
 				"Pause is still excluded from keyboard bindings");
 		});
 
@@ -287,6 +285,30 @@ namespace vmm_tests
 			require(Query(registry, 1, unset).state ==
 					DMUI_HOTKEY_BINDING_UNBOUND_NEVER_SET,
 				"never-set state was not reported");
+		});
+
+		runner.test("host reservation conflicts only with the exact toggle chord", [] {
+			HotkeyRegistry registry;
+			registry.SetReservedChord({ 0x3F, kHotkeyModifierControl });
+			CallbackState state;
+			const auto same = Register(registry, 1, "Example.Same", "Ctrl+F5", state);
+			const auto plain = Register(registry, 1, "Example.Plain", "F5", state);
+			require(Query(registry, 1, same).state ==
+					DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT &&
+					Query(registry, 1, plain).state == DMUI_HOTKEY_BINDING_BOUND,
+				"toggle reservation ignored modifiers or failed to reserve its chord");
+			require(registry.SetOverride("Example.Same", "Ctrl+F5") ==
+					DMUI_RESULT_DUPLICATE_ACTION_ID && registry.Overrides().empty(),
+				"a conflicting edit bypassed the toggle chord reservation");
+			registry.InitializeOverrides({ { "Example.Same", "Ctrl+F5" } });
+			require(Query(registry, 1, same).state ==
+					DMUI_HOTKEY_BINDING_UNBOUND_OVERRIDE_CONFLICT,
+				"a persisted override bypassed the toggle chord reservation");
+			registry.SetReservedChord({ 0x3F, 0 });
+			require(Query(registry, 1, same).state == DMUI_HOTKEY_BINDING_BOUND &&
+					Query(registry, 1, plain).state ==
+						DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT,
+				"changing the toggle chord did not recompute exact conflicts");
 		});
 
 		runner.test("default conflicts reassign when the winning action unregisters", [] {

@@ -208,6 +208,16 @@ namespace Addictol::platformImguiDetail
 				a_message == WM_KEYDOWN || a_message == WM_SYSKEYDOWN;
 			const auto keyReleased =
 				a_message == WM_KEYUP || a_message == WM_SYSKEYUP;
+			uint32_t modifiers{ 0 };
+			if (keyPressed || keyReleased)
+			{
+				if ((GetKeyState(VK_SHIFT) & 0x8000) != 0)
+					modifiers |= DearModdingUI::kHotkeyModifierShift;
+				if ((GetKeyState(VK_CONTROL) & 0x8000) != 0)
+					modifiers |= DearModdingUI::kHotkeyModifierControl;
+				if ((GetKeyState(VK_MENU) & 0x8000) != 0)
+					modifiers |= DearModdingUI::kHotkeyModifierAlt;
+			}
 			const auto escapeDecision = DecideEscapeMessage(
 				a_message,
 				static_cast<uint32_t>(a_wparam),
@@ -249,16 +259,6 @@ namespace Addictol::platformImguiDetail
 					DearModdingUI::IsMenuVisible(),
 					ui && ui->menuMode == 0
 				});
-				uint32_t modifiers{ 0 };
-				if ((GetKeyState(VK_SHIFT) & 0x8000) != 0)
-					modifiers |=
-						DearModdingUI::kHotkeyModifierShift;
-				if ((GetKeyState(VK_CONTROL) & 0x8000) != 0)
-					modifiers |=
-						DearModdingUI::kHotkeyModifierControl;
-				if ((GetKeyState(VK_MENU) & 0x8000) != 0)
-					modifiers |= DearModdingUI::kHotkeyModifierAlt;
-
 				if ((a_wparam == VK_F4) &&
 					(modifiers &
 						DearModdingUI::kHotkeyModifierAlt) &&
@@ -322,7 +322,7 @@ namespace Addictol::platformImguiDetail
 						ToggleMessageDecision::kDispatch &&
 					inputFocused &&
 					Context().callbacks.toggle(
-						keyCode))
+						keyCode, modifiers))
 				{
 					if (trackableKey)
 					{
