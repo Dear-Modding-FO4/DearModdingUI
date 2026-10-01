@@ -1,4 +1,5 @@
 #include <DearModdingUI/controls/TextViewer.h>
+#include <Support/Utf8.h>
 
 #include <DearModdingUI/presentation/Theme.h>
 
@@ -124,65 +125,6 @@ namespace DearModdingUI
 					!IsUtf8Continuation(a_text[a_offset]));
 		}
 
-		[[nodiscard]] bool IsValidUtf8(
-			const char* a_text,
-			size_t a_textLength) noexcept
-		{
-			size_t offset = 0;
-			while (offset < a_textLength)
-			{
-				const auto lead = static_cast<unsigned char>(a_text[offset]);
-				size_t length{};
-				uint32_t minimum{};
-				uint32_t codePoint{};
-				if (lead <= 0x7Fu)
-				{
-					if (lead == 0)
-						return false;
-					++offset;
-					continue;
-				}
-				if ((lead & 0xE0u) == 0xC0u)
-				{
-					length = 2;
-					minimum = 0x80u;
-					codePoint = lead & 0x1Fu;
-				}
-				else if ((lead & 0xF0u) == 0xE0u)
-				{
-					length = 3;
-					minimum = 0x800u;
-					codePoint = lead & 0x0Fu;
-				}
-				else if ((lead & 0xF8u) == 0xF0u)
-				{
-					length = 4;
-					minimum = 0x10000u;
-					codePoint = lead & 0x07u;
-				}
-				else
-				{
-					return false;
-				}
-				if (offset + length > a_textLength)
-					return false;
-				for (size_t index = 1; index < length; ++index)
-				{
-					const auto continuation =
-						static_cast<unsigned char>(a_text[offset + index]);
-					if ((continuation & 0xC0u) != 0x80u)
-						return false;
-					codePoint =
-						(codePoint << 6u) | (continuation & 0x3Fu);
-				}
-				if (codePoint < minimum ||
-					codePoint > 0x10FFFFu ||
-					(codePoint >= 0xD800u && codePoint <= 0xDFFFu))
-					return false;
-				offset += length;
-			}
-			return true;
-		}
 
 		void DestroyTextViewCaches(
 			ImGuiContext*,
@@ -283,7 +225,7 @@ namespace DearModdingUI
 			const auto* text = a_descriptor.text ?
 				a_descriptor.text :
 				"";
-			if (!IsValidUtf8(text, a_descriptor.textLength))
+			if (!Support::IsValidUtf8(text, a_descriptor.textLength))
 				return DMUI_RESULT_INVALID_ARGUMENT;
 
 			size_t expectedLine = 1;

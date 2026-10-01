@@ -10,6 +10,8 @@
 namespace DearModdingUI::UI::AdapterInternal
 {
 	[[nodiscard]] DMUI_Result Validate(DMUI_ClientHandle a_client) noexcept;
+	[[nodiscard]] bool HasWindowDrawListClip() noexcept;
+	[[nodiscard]] DMUI_Result EndDrawWindow(DMUI_ClientHandle a_client, void (*a_end)()) noexcept;
 	[[nodiscard]] DMUI_Result ValidateText(
 		DMUI_ClientHandle a_client, const char* a_text, size_t a_length) noexcept;
 	[[nodiscard]] DMUI_Result CopyText(
@@ -28,6 +30,7 @@ namespace DearModdingUI::UI::AdapterInternal
 		const void* a_second,
 		uint32_t a_secondSize) noexcept;
 	[[nodiscard]] ImVec2 Native(DMUI_Vec2 a_value) noexcept;
+	[[nodiscard]] ImVec4 StableRGBA(uint32_t a_rgba) noexcept;
 	[[nodiscard]] DMUI_Vec2 Stable(ImVec2 a_value) noexcept;
 	[[nodiscard]] DMUI_Result TranslateInputFlags(
 		DMUI_UIInputTextFlags a_flags,

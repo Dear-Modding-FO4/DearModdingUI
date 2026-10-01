@@ -6,6 +6,20 @@
 
 namespace DearModdingUI::UI
 {
+	class DrawListClipScope
+	{
+	public:
+		DrawListClipScope() noexcept;
+		~DrawListClipScope() noexcept;
+		DrawListClipScope(const DrawListClipScope&) = delete;
+		DrawListClipScope& operator=(const DrawListClipScope&) = delete;
+		[[nodiscard]] bool Balanced() const noexcept;
+
+	private:
+		size_t m_depth;
+		size_t m_previousFloor;
+	};
+
 	class ListClipperScope
 	{
 	public:

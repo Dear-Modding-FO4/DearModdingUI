@@ -78,6 +78,8 @@ namespace DearModdingUI::UI::Bindings
 	DMUI_Result DMUI_CALL EndPopup(DMUI_ClientHandle a_client) noexcept
 	{
 		return PopupOperation(a_client, [](ModalCoordinator::Owner a_owner) {
+			if (AdapterInternal::HasWindowDrawListClip())
+				return DMUI_RESULT_INVALID_ARGUMENT;
 			return ModalCoordinator::End(a_owner) ?
 				DMUI_RESULT_OK : DMUI_RESULT_INVALID_ARGUMENT;
 		});

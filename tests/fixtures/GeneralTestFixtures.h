@@ -60,7 +60,8 @@ namespace DmuiTestFixtures
 		kOverlay,
 		kInteractions,
 		kNotificationsAndDialogs,
-		kPlot
+		kPlot,
+		kCustomDrawing
 	};
 
 	enum class Outcome : uint8_t
@@ -129,6 +130,14 @@ namespace DmuiTestFixtures
 			"Annotated frame-time plot and explicit observed/failed/unexercised counters.",
 			"Inspect the plot label and reference lines while reviewing the live counters.",
 			"The label stays visible, plot contents clip, and absence of errors never implies pass."
+		},
+		ExercisePage{
+			ExerciseKind::kCustomDrawing,
+			"custom-drawing",
+			"Custom drawing",
+			"Immediate geometry, images, clipping, and viewport draw targets.",
+			"Inspect the shapes and clip demo; toggle the viewport markers.",
+			"Curves are smooth, the concave notch stays empty, and clipped geometry stays inside its border."
 		}
 	};
 

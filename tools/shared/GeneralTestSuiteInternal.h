@@ -237,6 +237,9 @@ namespace DmuiTests::Detail
 
 		void ObserveFrame() noexcept;
 		void DrawImages() noexcept;
+		void DrawCustomDrawing() noexcept;
+		void EnableDrawingMarkers() noexcept;
+		[[nodiscard]] bool DrawingCaptureComplete() const noexcept;
 		void DrawPlot(const char* a_id) noexcept;
 		void SeedPlot() noexcept;
 		void DrawOverlayImages() noexcept;
@@ -289,6 +292,9 @@ namespace DmuiTests::Detail
 		uint64_t m_plotDraws{};
 		DMUI_Result m_plotResult{ DMUI_RESULT_OK };
 		bool m_plotSeeded{};
+		bool m_foregroundMarker{};
+		bool m_backgroundMarker{};
+		bool m_customDrawingComplete{};
 		ComPtr<ID3D11Device> m_imageDevice;
 		ComPtr<ID3D11Texture2D> m_imageTexture;
 		ComPtr<ID3D11ShaderResourceView> m_imageView;

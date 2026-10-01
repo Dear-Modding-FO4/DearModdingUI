@@ -139,6 +139,39 @@ its vocabulary is compiled into the mod and cannot receive later host updates.
 Raw `Client::DrawSectionHeader`, collapsing-section, and link operations remain
 unchanged; zero still means no icon and they do not infer automatically.
 
+## Custom draw lists
+
+`ui::WindowDrawList()`, `ui::ForegroundDrawList()`, and `ui::BackgroundDrawList()`
+return lightweight `ui::DrawList` values, never native pointers. The C table's
+`drawListAdd*` operations take `DMUI_DrawTarget` first after the client handle.
+They are available in any callback that permits UI operations.
+
+Coordinates are absolute screen-space pixels; packed colors are `0xRRGGBBAA`.
+Window operations use the current window, including a current popup. Foreground
+and background operations use the main viewport. Submission is immediate:
+window geometry stays ordered relative to widgets, background geometry is
+behind windows, and client foreground geometry is below host toasts. The native
+cursor stays above both. Drawing does not reserve layout space; use `ui::Dummy`
+for an inline canvas.
+
+The operations cover lines, outlined/filled rectangles, circles and triangles,
+cubic Beziers, polylines, filled simple polygons (including concave polygons),
+text, and images. Polygon points should wind clockwise. Point counts must be
+1..65536; fewer than three polygon points draw nothing. Coordinates must be finite;
+sizes, rounding, and thickness must be finite and nonnegative. Circle/Bezier
+segment counts are 0 (automatic) or at most 65536. Text is length-delimited,
+NUL-free UTF-8; font size 0 uses the current font size. Images use the same
+ownership, frame leases, loading, and device-loss behavior as `ui::Image`.
+Loading or device-lost images return OK without drawing; released or foreign
+handles fail.
+
+Use `ui::ClipRectScope{list, min, max}` to intersect a draw list's clip rectangle;
+pass `false` as the fourth argument to replace it instead. This changes rendering
+only, not widget hit testing. Balance each target independently and end window
+clip scopes before leaving that window, popup, or table. An unmatched pop or an unclosed
+scope is a client error. The host unwinds outstanding clips before callback
+recovery, including failures, so one callback cannot clip another.
+
 ## Client popups and modals
 
 Call `ui::OpenPopup(id)` once (setting `open=true` for a modal), then draw with `ui::PopupScope{id}` or

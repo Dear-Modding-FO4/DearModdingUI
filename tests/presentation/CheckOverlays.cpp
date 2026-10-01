@@ -168,11 +168,15 @@ namespace vmm_tests
 			{
 				ImGuiFrame frame;
 				const auto* focused = ImGui::GetCurrentContext()->NavWindow;
+				dmui::ui::ForegroundDrawList().AddRectFilled({ 10, 10 }, { 60, 60 }, 0x123456FF);
+				auto* foreground = ImGui::GetForegroundDrawList();
+				const auto clientEnd = foreground->VtxBuffer.Size;
 				PresentationServices::DrawNotifications(false);
 				require(ImGui::GetCurrentContext()->NavWindow == focused &&
-						ImGui::GetForegroundDrawList()->VtxBuffer.Size > 0 &&
+						clientEnd > 0 && foreground->VtxBuffer.Size > clientEnd &&
+						foreground->VtxBuffer[0].col == IM_COL32(0x12, 0x34, 0x56, 255) &&
 						PresentationServices::Notifications::Snapshot().Visible().front().lastUpdate.has_value(),
-					"viewport-height overflow prevented passive foreground presentation");
+					"toasts did not append after client foreground geometry without taking focus");
 			}
 			PresentationServices::InvalidateDevice();
 			require(!PresentationServices::HasFrameDemand(),

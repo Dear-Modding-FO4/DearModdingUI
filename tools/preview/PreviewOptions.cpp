@@ -107,7 +107,7 @@ namespace DearModdingUIPreview
 			<< L"  --sidebar <tree|twopane|drilldown|iconrail>  Select the sidebar layout\n"
 			<< L"  --navigation <grouped|destinations>  Enable a preview-only navigation comparison\n"
 			<< L"  --origin <native|bridged>  Select the destinations comparison tab\n"
-			<< L"  --presentation <overlay|notification|image|plot|dialog|modal|popup>\n"
+			<< L"  --presentation <overlay|notification|image|plot|dialog|modal|popup|draw-list>\n"
 			<< L"                            Activate a shared exercise capture state\n"
 			<< L"  --menu-closed            Show only overlays and notifications\n"
 			<< L"  --health-scenario <synthetic>  Add labeled synthetic Health states\n"
@@ -298,7 +298,7 @@ namespace DearModdingUIPreview
 				if (!scenario)
 				{
 					a_error =
-						L"Presentation must be overlay, notification, image, plot, or dialog.";
+						L"Presentation must be overlay, notification, image, plot, dialog, modal, popup, or draw-list.";
 					return false;
 				}
 				a_options.presentationScenario = *scenario;

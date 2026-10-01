@@ -149,6 +149,9 @@ namespace DmuiTests
 				bool activated{ true };
 				switch (a_scenario)
 				{
+				case PresentationScenario::kCustomDrawing:
+					m_resources.EnableDrawingMarkers();
+					break;
 				case PresentationScenario::kOverlay:
 					m_resources.SeedPlot();
 					m_overlay.ConfigurePresentation();
@@ -196,6 +199,9 @@ namespace DmuiTests
 				DmuiTestFixtures::ExerciseKind exercise{};
 				switch (a_scenario)
 				{
+				case PresentationScenario::kCustomDrawing:
+					exercise = DmuiTestFixtures::ExerciseKind::kCustomDrawing;
+					break;
 				case PresentationScenario::kNotification:
 				case PresentationScenario::kDialog:
 				case PresentationScenario::kModal:
@@ -234,6 +240,10 @@ namespace DmuiTests
 				std::string_view expected;
 				switch (*active)
 				{
+				case PresentationScenario::kCustomDrawing:
+					expected = "all custom primitives, a ready image, and both viewport markers";
+					complete = m_resources.DrawingCaptureComplete();
+					break;
 				case PresentationScenario::kOverlay:
 					expected = "a drawn managed overlay and annotated plot";
 					complete =
@@ -380,6 +390,9 @@ namespace DmuiTests
 					OutcomeObservation(a_kind));
 				switch (a_kind)
 				{
+				case DmuiTestFixtures::ExerciseKind::kCustomDrawing:
+					m_resources.DrawCustomDrawing();
+					break;
 				case DmuiTestFixtures::ExerciseKind::kResults:
 					DrawResults();
 					break;
@@ -475,6 +488,8 @@ namespace DmuiTests
 				using DmuiTestFixtures::Outcome;
 				switch (a_kind)
 				{
+				case ExerciseKind::kCustomDrawing:
+					return m_resources.DrawingCaptureComplete() ? Outcome::kObserved : Outcome::kUnexercised;
 				case ExerciseKind::kResults:
 					return m_initializationStatus == InitializationStatus::kComplete ?
 						Outcome::kObserved :

@@ -105,7 +105,7 @@ Useful arguments:
 - `--scroll-y <pixels>`: Scrolls page content before capture.
 - `--page <id>`: Navigates directly to a registered settings page.
 - `--sidebar <tree|twopane|drilldown|iconrail>`: Selects a sidebar presentation layout.
-- `--presentation <overlay|notification|image|plot|dialog|modal|popup>`: Tests presentation services and client popups.
+- `--presentation <overlay|notification|image|plot|dialog|modal|popup|draw-list>`: Tests presentation services, client popups, and custom geometry with viewport markers.
 - `--menu-closed`: Hides the shell for overlay-only notification captures.
 - `--frames <count>`: Renders more frames before capture if a scenario needs time to initialize.
 

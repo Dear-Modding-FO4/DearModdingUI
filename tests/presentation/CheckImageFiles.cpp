@@ -1,4 +1,6 @@
 #include "../support/D3DTestResources.h"
+#include "../support/PresentationTestSupport.h"
+#include <imgui/imgui.h>
 #include <DearModdingUI/host/RenderExecution.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/presentation/images/ImageFileQueue.h>
@@ -72,6 +74,33 @@ namespace vmm_tests
 
 	void run_presentation_image_file_checks(Runner& runner)
 	{
+		runner.test("draw-list images skip loading and device loss but reject foreign and released handles", [] {
+			ImageEnvironment env;
+			support::presentation::ImGuiFrame frame;
+			const auto image = Load(Fixture("Alpha.png"));
+			const auto& api = UI::API();
+			const auto draw = [&](DMUI_ClientHandle owner) {
+				const RenderExecution::ClientGuard callback{ owner, true };
+				return api.drawListAddImage(owner, DMUI_DRAW_TARGET_WINDOW, image,
+					{ 30, 30 }, { 90, 90 }, { 0, 0 }, { 1, 1 }, ~0u);
+			};
+			auto* list = ImGui::GetWindowDrawList();
+			const auto before = list->VtxBuffer.Size;
+			require(draw(kOwner) == DMUI_RESULT_OK && list->VtxBuffer.Size == before,
+				"loading image failed or submitted geometry");
+			require(draw(kOwner + 1) == DMUI_RESULT_STALE_HANDLE, "foreign image was accepted");
+			require(Complete(image).status == DMUI_IMAGE_STATUS_READY, "image did not load");
+			require(draw(kOwner) == DMUI_RESULT_OK && list->VtxBuffer.Size > before,
+				"ready draw-list image did not submit");
+			const auto ready = list->VtxBuffer.Size;
+			images::InvalidateDevice();
+			require(draw(kOwner) == DMUI_RESULT_OK && list->VtxBuffer.Size == ready,
+				"device-lost image was not skipped");
+			require(images::ReleaseImage(kOwner, image) == DMUI_RESULT_OK &&
+				draw(kOwner) == DMUI_RESULT_STALE_HANDLE, "released image was accepted");
+			images::CompleteRenderSubmission();
+		});
+
 		runner.test("File PNG uploads straight RGBA and DDS preserves mips without sRGB sampling", [] {
 			ImageEnvironment env;
 			const auto png = Load(Fixture("Alpha.png"));

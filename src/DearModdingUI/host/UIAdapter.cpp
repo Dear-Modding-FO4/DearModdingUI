@@ -300,7 +300,10 @@ namespace DearModdingUI::UI
 			return DMUI_RESULT_OK;                                       \
 		}
 
-		DMUI_UI_END(EndCombo, EndCombo)
+		DMUI_Result DMUI_CALL EndCombo(DMUI_ClientHandle a_client) noexcept
+		{
+			return EndDrawWindow(a_client, &ImGui::EndCombo);
+		}
 
 		DMUI_Result DMUI_CALL BeginDisabled(
 			DMUI_ClientHandle a_client,
@@ -341,7 +344,10 @@ namespace DearModdingUI::UI
 			return DMUI_RESULT_OK;
 		}
 
-		DMUI_UI_END(EndTable, EndTable)
+		DMUI_Result DMUI_CALL EndTable(DMUI_ClientHandle a_client) noexcept
+		{
+			return EndDrawWindow(a_client, &ImGui::EndTable);
+		}
 
 		DMUI_Result DMUI_CALL BeginTooltip(
 			DMUI_ClientHandle a_client,
@@ -357,7 +363,10 @@ namespace DearModdingUI::UI
 			return DMUI_RESULT_OK;
 		}
 
-		DMUI_UI_END(EndTooltip, EndTooltip)
+		DMUI_Result DMUI_CALL EndTooltip(DMUI_ClientHandle a_client) noexcept
+		{
+			return EndDrawWindow(a_client, &ImGui::EndTooltip);
+		}
 
 		DMUI_Result DMUI_CALL CalcTextSize(
 			DMUI_ClientHandle a_client,

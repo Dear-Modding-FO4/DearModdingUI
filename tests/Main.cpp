@@ -29,6 +29,7 @@ int main()
 	run_mcm_action_checks(runner);
 	run_general_test_fixture_checks(runner);
 	run_ui_contract_checks(runner);
+	run_draw_list_checks(runner);
 
 	std::cout << '\n' << runner.tests() - runner.failures() << '/' << runner.tests() << " checks passed\n";
 	return runner.failures() == 0 ? 0 : 1;

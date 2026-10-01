@@ -27,7 +27,8 @@ namespace DmuiTests
 		kPlot,
 		kDialog,
 		kModal,
-		kPopup
+		kPopup,
+		kCustomDrawing
 	};
 
 	struct PresentationScenarioDescriptor
@@ -39,6 +40,9 @@ namespace DmuiTests
 	};
 
 	inline constexpr std::array kPresentationScenarios{
+		PresentationScenarioDescriptor{
+			PresentationScenario::kCustomDrawing, "draw-list", "custom-drawing", true
+		},
 		PresentationScenarioDescriptor{
 			PresentationScenario::kOverlay,
 			"overlay",

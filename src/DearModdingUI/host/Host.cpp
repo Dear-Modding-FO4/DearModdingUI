@@ -113,7 +113,10 @@ namespace DearModdingUI
 			}
 			const auto result = [&]() {
 				const UI::ListClipperScope clippers;
-				return a_invoke();
+				const UI::DrawListClipScope clips;
+				const auto invoked = a_invoke();
+				return invoked == DMUI_RESULT_OK && !clips.Balanced() ?
+					DMUI_RESULT_INVALID_ARGUMENT : invoked;
 			}();
 			if (result != DMUI_RESULT_OK)
 			{

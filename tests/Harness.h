@@ -85,4 +85,5 @@ namespace vmm_tests
 	void run_mcm_action_checks(Runner& runner);
 	void run_general_test_fixture_checks(Runner& runner);
 	void run_ui_contract_checks(Runner& runner);
+	void run_draw_list_checks(Runner& runner);
 }

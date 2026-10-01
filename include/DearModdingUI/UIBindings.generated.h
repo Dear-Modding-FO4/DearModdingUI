@@ -1155,6 +1155,108 @@ namespace DearModdingUI::UI::Bindings
 		DMUI_ClientHandle a_client,
 		const char* a_id,
 		uint32_t* a_open) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListAddLine(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target,
+		DMUI_Vec2 a_p1,
+		DMUI_Vec2 a_p2,
+		uint32_t a_color,
+		float a_thickness) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListAddRect(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target,
+		DMUI_Vec2 a_min,
+		DMUI_Vec2 a_max,
+		uint32_t a_color,
+		float a_rounding,
+		float a_thickness) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListAddRectFilled(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target,
+		DMUI_Vec2 a_min,
+		DMUI_Vec2 a_max,
+		uint32_t a_color,
+		float a_rounding) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListAddCircle(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target,
+		DMUI_Vec2 a_center,
+		float a_radius,
+		uint32_t a_color,
+		uint32_t a_segments,
+		float a_thickness) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListAddCircleFilled(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target,
+		DMUI_Vec2 a_center,
+		float a_radius,
+		uint32_t a_color,
+		uint32_t a_segments) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListAddTriangle(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target,
+		DMUI_Vec2 a_p1,
+		DMUI_Vec2 a_p2,
+		DMUI_Vec2 a_p3,
+		uint32_t a_color,
+		float a_thickness) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListAddTriangleFilled(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target,
+		DMUI_Vec2 a_p1,
+		DMUI_Vec2 a_p2,
+		DMUI_Vec2 a_p3,
+		uint32_t a_color) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListAddBezierCubic(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target,
+		DMUI_Vec2 a_p1,
+		DMUI_Vec2 a_p2,
+		DMUI_Vec2 a_p3,
+		DMUI_Vec2 a_p4,
+		uint32_t a_color,
+		float a_thickness,
+		uint32_t a_segments) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListAddPolyline(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target,
+		const DMUI_Vec2* a_points,
+		uint32_t a_count,
+		uint32_t a_color,
+		uint32_t a_closed,
+		float a_thickness) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListAddPolygonFilled(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target,
+		const DMUI_Vec2* a_points,
+		uint32_t a_count,
+		uint32_t a_color) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListAddText(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target,
+		DMUI_Vec2 a_pos,
+		uint32_t a_color,
+		const char* a_text,
+		size_t a_length,
+		float a_fontSize) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListAddImage(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target,
+		DMUI_ImageHandle a_image,
+		DMUI_Vec2 a_min,
+		DMUI_Vec2 a_max,
+		DMUI_Vec2 a_uv0,
+		DMUI_Vec2 a_uv1,
+		uint32_t a_tint) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListPushClipRect(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target,
+		DMUI_Vec2 a_min,
+		DMUI_Vec2 a_max,
+		uint32_t a_intersectWithCurrent) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL DrawListPopClipRect(
+		DMUI_ClientHandle a_client,
+		DMUI_DrawTarget a_target) noexcept;
 
 	[[nodiscard]] inline DMUI_UIAPI MakeAPI() noexcept
 	{
@@ -1238,7 +1340,21 @@ namespace DearModdingUI::UI::Bindings
 			&BeginPopupModal,
 			&EndPopup,
 			&CloseCurrentPopup,
-			&IsPopupOpen
+			&IsPopupOpen,
+			&DrawListAddLine,
+			&DrawListAddRect,
+			&DrawListAddRectFilled,
+			&DrawListAddCircle,
+			&DrawListAddCircleFilled,
+			&DrawListAddTriangle,
+			&DrawListAddTriangleFilled,
+			&DrawListAddBezierCubic,
+			&DrawListAddPolyline,
+			&DrawListAddPolygonFilled,
+			&DrawListAddText,
+			&DrawListAddImage,
+			&DrawListPushClipRect,
+			&DrawListPopClipRect
 		};
 	}
 }
