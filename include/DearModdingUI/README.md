@@ -451,9 +451,11 @@ the host API. Menu toggles remain in `[Additional]`: `sMenuToggleKey` defaults t
 chord against client hotkeys in the same slot.
 
 In the menu, D-pad or left stick moves focus; mouse movement selects cursor mode.
-LS toggles between navigation and cursor mode, centering the cursor on the focused item.
+LS or RS toggles between navigation and cursor mode, centering the cursor on the focused item.
+In cursor mode the right stick moves the cursor, as in the game, and the left stick scrolls.
 A activates focus or clicks the cursor, never both. B uses the Escape dismissal chain; Start closes.
-LB/RB selects sidebar/content (slow/fast tweak while editing), LT/RT pages, and right stick scrolls.
+LB/RB selects sidebar/content (slow/fast tweak while editing), LT/RT pages, and right stick scrolls
+while navigating.
 X uses the focused row's existing reset operation; Y opens search. Text entry needs a keyboard.
 Capture ignores buttons held before it opens; release a fresh chord to bind it, or use Esc/B to cancel.
 

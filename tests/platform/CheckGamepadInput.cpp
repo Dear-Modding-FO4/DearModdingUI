@@ -103,8 +103,10 @@ namespace vmm_tests
 			require(DecideControllerMode(mode, false, 0) == mode &&
 				DecideControllerMode(mode, false, kPadLS) == ControllerMode::kCursor &&
 				DecideControllerMode(ControllerMode::kCursor, false, kPadLS) == mode &&
+				DecideControllerMode(mode, false, kPadRS) == ControllerMode::kCursor &&
+				DecideControllerMode(ControllerMode::kCursor, false, kPadRS) == mode &&
 				DecideControllerAction(kPadLS, mode, true, false) == ControllerAction::kToggleMode,
-				"LS did not toggle independently of editing or idle input changed modes");
+				"stick clicks did not toggle independently of editing or idle input changed modes");
 			require(DecideControllerAction(kPadB, mode, true, false) == ControllerAction::kBack &&
 				DecideControllerAction(kPadLB, mode, true, false) == ControllerAction::kNative &&
 				DecideControllerAction(kPadRB, mode, false, false) == ControllerAction::kContent,
@@ -235,14 +237,14 @@ namespace vmm_tests
 			require(io.MousePos.x == center.x && io.MousePos.y == center.y,
 				"stationary desktop mouse polling undid the warp");
 			BeginDesktopInput();
-			io.AddKeyAnalogEvent(ImGuiKey_GamepadLStickRight, true, 0.75f);
+			io.AddKeyAnalogEvent(ImGuiKey_GamepadRStickRight, true, 0.75f);
 			frame(true);
 			const auto moved = io.MousePos;
 			require(moved.x > center.x && moved.y == center.y &&
 				!ImGui::IsKeyDown(ImGuiKey_GamepadDpadRight),
-				"desktop stick did not move the warped cursor exclusively");
+				"desktop right stick did not move the warped cursor exclusively");
 			BeginDesktopInput();
-			io.AddKeyAnalogEvent(ImGuiKey_GamepadLStickRight, false, 0.0f);
+			io.AddKeyAnalogEvent(ImGuiKey_GamepadRStickRight, false, 0.0f);
 			io.AddMousePosEvent(400.0f, 400.0f);
 			frame(true);
 			require(io.MousePos.x == moved.x && io.MousePos.y == moved.y,

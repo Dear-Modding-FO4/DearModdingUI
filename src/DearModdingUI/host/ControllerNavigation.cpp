@@ -338,7 +338,7 @@ namespace DearModdingUI::ControllerNavigation
 					SetMode(DecideControllerMode(s_mode, false, code));
 					if (code >= KeyCatalog::kPadUp && code <= KeyCatalog::kPadRight)
 						UseNavigation();
-					if (code == KeyCatalog::kPadLS)
+					if (TogglesControllerMode(code))
 					{
 						if (IsNavigating())
 							UseNavigation();
@@ -431,7 +431,7 @@ namespace DearModdingUI::ControllerNavigation
 		}
 		if (a_desktop && !IsNavigating())
 		{
-			const ImVec2 stick{ s_leftStick[1] - s_leftStick[0], s_leftStick[2] - s_leftStick[3] };
+			const auto stick = s_rightStick;
 			if (stick.x || stick.y)
 			{
 				const auto delta = io.DeltaTime * ImGui::GetFontSize() * 24.0f;
@@ -468,7 +468,10 @@ namespace DearModdingUI::ControllerNavigation
 		if (!window || Hotkeys::IsCapturing())
 			return;
 		const auto step = ImGui::GetFontSize() * g.IO.DeltaTime * 30.0f;
-		auto scroll = -s_rightStick.y * step;
+		// Cursor mode follows the game: the right stick moves the cursor, so the left stick scrolls.
+		const auto scrollStick = IsNavigating() ? s_rightStick :
+			ImVec2{ s_leftStick[1] - s_leftStick[0], s_leftStick[2] - s_leftStick[3] };
+		auto scroll = -scrollStick.y * step;
 		if (!g.ActiveId)
 		{
 			if (ImGui::IsKeyPressed(ImGuiKey_GamepadL2))
@@ -478,8 +481,8 @@ namespace DearModdingUI::ControllerNavigation
 		}
 		if (scroll)
 			ImGui::SetScrollY(window, std::clamp(window->Scroll.y + scroll, 0.0f, window->ScrollMax.y));
-		if (s_rightStick.x)
-			ImGui::SetScrollX(window, std::clamp(window->Scroll.x + s_rightStick.x * step, 0.0f, window->ScrollMax.x));
+		if (scrollStick.x)
+			ImGui::SetScrollX(window, std::clamp(window->Scroll.x + scrollStick.x * step, 0.0f, window->ScrollMax.x));
 	}
 
 	void BeginPane(Pane a_pane) noexcept

@@ -37,12 +37,18 @@ namespace DearModdingUI::ControllerNavigation
 	enum class ControllerMode { kCursor, kNavigation };
 	enum class ControllerAction { kNative, kCursorClick, kBack, kClose, kSearch, kReset, kSidebar, kContent, kToggleMode };
 
+	// Either stick click toggles: LS from navigation, RS from the stick that drives the native cursor.
+	[[nodiscard]] constexpr bool TogglesControllerMode(uint32_t a_button) noexcept
+	{
+		return a_button == KeyCatalog::kPadLS || a_button == KeyCatalog::kPadRS;
+	}
+
 	[[nodiscard]] constexpr ControllerMode DecideControllerMode(
 		ControllerMode a_mode, bool a_cursorMoved, uint32_t a_button) noexcept
 	{
 		if (a_cursorMoved)
 			return ControllerMode::kCursor;
-		if (a_button == KeyCatalog::kPadLS)
+		if (TogglesControllerMode(a_button))
 			return a_mode == ControllerMode::kNavigation ? ControllerMode::kCursor : ControllerMode::kNavigation;
 		if (a_button >= KeyCatalog::kPadUp && a_button <= KeyCatalog::kPadRight)
 			return ControllerMode::kNavigation;
@@ -53,7 +59,7 @@ namespace DearModdingUI::ControllerNavigation
 		uint32_t a_button, ControllerMode a_mode, bool a_editing,
 		bool a_hasResetTarget) noexcept
 	{
-		if (a_button == KeyCatalog::kPadLS)
+		if (TogglesControllerMode(a_button))
 			return ControllerAction::kToggleMode;
 		if (a_button == KeyCatalog::kPadB)
 			return ControllerAction::kBack;
