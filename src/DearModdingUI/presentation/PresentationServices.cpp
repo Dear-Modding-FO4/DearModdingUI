@@ -1,4 +1,5 @@
 #include <DearModdingUI/presentation/PresentationServices.h>
+#include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/host/RenderExecution.h>
 #include "PresentationServiceOwners.h"
 
@@ -99,9 +100,12 @@ namespace DearModdingUI::PresentationServices
 		const auto visible = !ImGui::GetCurrentWindow()->SkipItems && ImGui::IsRectVisible(frameSize);
 		if (visible)
 		{
+			// Plots are display surfaces, not input fields, so they share the panel surface.
+			const auto surface = Theme::ColorSnapshot().panel;
 			ImGui::RenderFrame(itemMinimum,
 				{ itemMinimum.x + frameSize.x, itemMinimum.y + frameSize.y },
-				ImGui::GetColorU32(ImGuiCol_FrameBg), true, ImGui::GetStyle().FrameRounding);
+				ImGui::GetColorU32(ImVec4{ surface.x, surface.y, surface.z, surface.w }), true,
+				ImGui::GetStyle().FrameRounding);
 			drawList->PushClipRect(plotMinimum, plotMaximum, true);
 			for (size_t index = 0; index < a_descriptor->referenceLineCount; ++index)
 			{
