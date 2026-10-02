@@ -187,7 +187,6 @@ namespace DearModdingUI
 			&ApiAttachSwapChain,
 			&ApiRegisterAction,
 			&ApiSetStatus,
-			&ApiGetThemeColors,
 			&ApiPushFont,
 			&ApiPopFont,
 			&ApiDrawSectionHeader,

@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Managed overlay size restore**: Clients can restore persisted overlay sizes alongside position, requested by a client author.
-- **Themed panels**: Clipped client panels provide default page gaps and inner padding, optional scrolling, scoped style-var overrides, and callback recovery.
+- **Managed overlay size restore**: Clients can restore persisted overlay sizes alongside position.
+- **Themed panels**: Clipped client panels use the host section tint and provide default page gaps and inner padding, optional scrolling, scoped style-var overrides, and callback recovery.
 - **Custom drawing**: Immediate window, foreground, and background draw lists expose geometry, concave polygons, text, images, and callback-isolated clip scopes through ABI 2.
 - **File images**: Any-thread `loadImageFile` loads WIC formats and mipmapped DDS asynchronously, with queryable failures, bounded work, safe cancellation, and automatic device reload.
 - **Client popups and modals**: Page-scoped popup UI operations and RAII scopes share one modal owner with host dialogs, including nested modals and single-level Escape/controller-B dismissal.
@@ -24,7 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Growable search input**: Restored the three-argument C++ search helper with automatic growth during edits. An optional byte limit remains available; client-owned resize callbacks share the fixed-buffer input mechanism.
 
 ### Fixed
-- **Panel surfaces**: Client panels use the host section tint instead of input-field backgrounds.
 - **Periodic frame-time spikes**: Renderer monitoring no longer takes the engine renderer lock while the renderer binding is unchanged. It previously waited up to about 11 ms on the game thread four times per second during gameplay.
 - **Menu hitches**: Blur shaders are compiled at build time instead of on first menu open. MCM file-list scans run off the render thread, and closing the menu no longer rewrites an unchanged window layout. Packages no longer ship `Shaders` HLSL files.
 - **Search input capacity**: Removed the host's fixed 256-byte temporary buffer. Search controls now honor the caller's explicit UTF-8 byte capacity without partial-sequence truncation.

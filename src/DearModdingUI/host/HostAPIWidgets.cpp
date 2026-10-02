@@ -24,19 +24,6 @@ namespace DearModdingUI::HostAPIInternal
 {
 	using namespace HostInternal;
 
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiGetThemeColors(DMUI_ClientHandle a_client,
-														  DMUI_ThemeColors *a_colors) noexcept
-	{
-		if (!a_colors)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		const auto validation = ValidateDrawingClient(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-
-		*a_colors = Theme::ColorSnapshot();
-		return DMUI_RESULT_OK;
-	}
-
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiPushFont(DMUI_ClientHandle a_client,
 													DMUI_FontRole a_role) noexcept
 	{

@@ -235,7 +235,7 @@ The theme and widget entries expose the host's visual vocabulary without publish
 ImGui or C++ types in `API.h`. These calls accept only a
 registered client and are available while the host is ready on the render thread.
 
-`getThemeColors` fills `DMUI_ThemeColors` with the current accent, muted accent, success,
+`DMUI_UIAPI::getThemeColors` fills `DMUI_ThemeColors` with the current accent, muted accent, success,
 warning, error, info, and muted colors plus every status color. `pushFont` accepts the Body, Title,
 Heading, Subheading, or Subtext role; balance every successful push with `popFont`. The C++ wrapper
 provides `dmui::FontGuard`, `dmui::DrawStyledText`, `dmui::DrawLabeledValue`, and converts `DMUI_Vec4` to

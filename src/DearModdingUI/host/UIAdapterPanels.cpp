@@ -34,6 +34,7 @@ namespace DearModdingUI::UI
 			ImGuiID id{};
 			ImVec2 cursor{};
 			int frame{ -1 };
+			bool defaultSameLine{};
 		};
 
 		thread_local std::vector<StyleEntry> s_styles;
@@ -190,9 +191,11 @@ namespace DearModdingUI::UI
 			const auto validation = Validate(a_client);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
-			if (a_offsetFromStartX == 0.0f && a_spacing < 0.0f && FollowsPanel())
-				a_spacing = Theme::Layout().sectionGap;
+			s_lastPanel.defaultSameLine =
+				a_offsetFromStartX == 0.0f && a_spacing < 0.0f && FollowsPanel();
 			ImGui::SameLine(a_offsetFromStartX, a_spacing);
+			if (s_lastPanel.defaultSameLine)
+				s_lastPanel.cursor = ImGui::GetCursorScreenPos();
 			return DMUI_RESULT_OK;
 		}
 
@@ -219,9 +222,15 @@ namespace DearModdingUI::UI
 			}
 			auto* parent = ImGui::GetCurrentWindow();
 			const auto cursor = ImGui::GetCursorScreenPos();
-			if (FollowsPanel() && !parent->DC.IsSameLine && !parent->DC.IsSetPos &&
+			if (FollowsPanel() && !parent->DC.IsSetPos &&
 				cursor.x == s_lastPanel.cursor.x && cursor.y == s_lastPanel.cursor.y)
-				Theme::SectionSpacing();
+			{
+				if (parent->DC.IsSameLine && s_lastPanel.defaultSameLine)
+					ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+						Theme::Layout().sectionGap - ImGui::GetStyle().ItemSpacing.x);
+				else if (!parent->DC.IsSameLine)
+					Theme::SectionSpacing();
+			}
 			const auto background = (a_flags & DMUI_UI_PANEL_FLAGS_NO_BACKGROUND) == 0;
 			ImGuiChildFlags childFlags = background ?
 				ImGuiChildFlags_FrameStyle : ImGuiChildFlags_AlwaysUseWindowPadding;

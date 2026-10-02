@@ -91,6 +91,10 @@ namespace vmm_tests
 			const auto explicitGap = panel("ExplicitGap");
 			require(explicitGap.Min.x - fifth.Max.x == 3.0f,
 				"panel spacing replaced explicit SameLine spacing");
+			ui::SameLine();
+			ui::Button("After panel");
+			require(ImGui::GetItemRectMin().x - explicitGap.Max.x == metrics.itemSpacing.x,
+				"panel followed by a button used the section gap");
 			ui::SetCursorPos({ 30.0f, 300.0f });
 			const auto positioned = ui::GetCursorScreenPos();
 			const auto explicitPosition = panel("ExplicitPosition");

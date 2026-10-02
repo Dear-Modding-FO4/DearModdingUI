@@ -26,7 +26,6 @@ namespace DearModdingUI::HostAPIInternal
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::attachSwapChain)> ApiAttachSwapChain;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::setStatus)> ApiSetStatus;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::reportDiagnostic)> ApiReportDiagnostic;
-	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::getThemeColors)> ApiGetThemeColors;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::pushFont)> ApiPushFont;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::popFont)> ApiPopFont;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::drawSectionHeader)> ApiDrawSectionHeader;

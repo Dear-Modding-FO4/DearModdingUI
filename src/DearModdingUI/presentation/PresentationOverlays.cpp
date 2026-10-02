@@ -1,6 +1,7 @@
 #include <DearModdingUI/presentation/PresentationServices.h>
 
 #include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
 
 #include <algorithm>
 #include <cmath>
@@ -15,6 +16,18 @@ namespace DearModdingUI::PresentationServices
 {
 	namespace
 	{
+		[[nodiscard]] bool IsResizingOverlay(ImGuiWindow* a_window) noexcept
+		{
+			if (!a_window || GImGui->ActiveIdWindow != a_window || GImGui->ActiveId == 0 ||
+				!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+				return false;
+			for (int index = 0; index < 4; ++index)
+				if (GImGui->ActiveId == ImGui::GetWindowResizeCornerID(a_window, index) ||
+					GImGui->ActiveId == ImGui::GetWindowResizeBorderID(a_window, static_cast<ImGuiDir>(index)))
+					return true;
+			return false;
+		}
+
 		struct OverlayEntry
 		{
 			DMUI_ClientHandle owner{ DMUI_INVALID_CLIENT_HANDLE };
@@ -227,7 +240,12 @@ namespace DearModdingUI::PresentationServices
 		};
 		const auto position = ResolveOverlayPosition(options, viewport, expectedSize, hostScale);
 		const auto anchored = options.anchor != DMUI_OVERLAY_ANCHOR_FREE;
-		if (anchored || positionPending || previous.changeGeneration == 0)
+		const std::string windowLabel{
+			a_label.empty() ? "Managed overlay" : a_label
+		};
+		// Let ImGui own resize geometry until release, then restore the final anchor.
+		const auto resizing = IsResizingOverlay(ImGui::FindWindowByName(windowLabel.c_str()));
+		if ((anchored && !resizing) || (!anchored && positionPending) || previous.changeGeneration == 0)
 			ImGui::SetNextWindowPos(position, ImGuiCond_Always);
 		if (sizePending && (options.size.x > 0.0f || options.size.y > 0.0f))
 			ImGui::SetNextWindowSize(expectedSize, ImGuiCond_Always);
@@ -247,9 +265,6 @@ namespace DearModdingUI::PresentationServices
 			flags |= ImGuiWindowFlags_NoBackground;
 		if (!options.borderVisible)
 			flags |= ImGuiWindowFlags_NoDecoration;
-		const std::string windowLabel{
-			a_label.empty() ? "Managed overlay" : a_label
-		};
 		const auto opened = ImGui::Begin(windowLabel.c_str(), nullptr, flags);
 		ImGui::SetWindowFontScale(options.contentScale);
 

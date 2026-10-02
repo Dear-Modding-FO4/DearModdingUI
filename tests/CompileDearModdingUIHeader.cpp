@@ -87,10 +87,6 @@ static_assert(std::is_nothrow_invocable_v<
 	DMUI_StatusSeverity,
 	const char*>);
 static_assert(std::is_nothrow_invocable_v<
-	DMUI_GetThemeColorsFn,
-	DMUI_ClientHandle,
-	DMUI_ThemeColors*>);
-static_assert(std::is_nothrow_invocable_v<
 	DMUI_PushFontFn,
 	DMUI_ClientHandle,
 	DMUI_FontRole>);

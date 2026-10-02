@@ -173,6 +173,66 @@ namespace vmm_tests
 					DMUI_RESULT_INVALID_ARGUMENT, "non-finite desired size was accepted");
 		});
 
+		runner.test("anchored manual resize stays stable with a stationary mouse", [] {
+			support::ImGuiTestContext imgui{ { .disableInputTrickle = true } };
+			const DMUI_ManagedOverlayOptions options{
+				.anchor = DMUI_OVERLAY_ANCHOR_BOTTOM_RIGHT,
+				.offset = { 100, 100 },
+				.size = { 320, 200 },
+				.minimumSize = { 80, 80 },
+				.opacity = 1,
+				.contentScale = 1,
+				.backgroundVisible = 1,
+				.borderVisible = 1,
+				.allowArrangement = 1
+			};
+			require(PresentationServices::ConfigureOverlay(9, 14, &options) == DMUI_RESULT_OK,
+				"resize overlay configuration failed");
+			ImVec2 grip{};
+			DMUI_Vec2 resized{};
+			for (int frame = 0; frame < 9; ++frame)
+			{
+				auto& io = ImGui::GetIO();
+				if (frame == 2)
+					io.AddMousePosEvent(grip.x, grip.y);
+				if (frame == 3)
+					io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+				if (frame == 4)
+					io.AddMousePosEvent(grip.x - 40, grip.y - 30);
+				if (frame == 8)
+					io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+				imgui.BeginWindow("##OverlayManualResizeTest");
+				require(PresentationServices::BeginManagedOverlay(9, 14, "Manual resize overlay", true) ==
+						PresentationServices::ManagedOverlayBeginResult::kVisible,
+					"resize overlay did not open");
+				auto* window = ImGui::GetCurrentWindow();
+				if (frame == 1)
+					grip = { window->Pos.x + window->Size.x - 2, window->Pos.y + window->Size.y - 2 };
+				if (frame >= 3 && frame < 8)
+					require(GImGui->ActiveId == ImGui::GetWindowResizeCornerID(window, 0),
+						"mouse did not engage the manual resize grip");
+				PresentationServices::EndManagedOverlay();
+				DMUI_ManagedOverlayPlacement placement{};
+				require(PresentationServices::QueryOverlay(9, 14, &placement) == DMUI_RESULT_OK,
+					"resize placement was unavailable");
+				if (frame == 4)
+				{
+					resized = placement.size;
+					require(resized.x < options.size.x && resized.y < options.size.y,
+						"manual grip drag did not resize both axes");
+				}
+				if (frame > 4)
+					require(placement.size.x == resized.x && placement.size.y == resized.y,
+						"anchored overlay compounded resize while the mouse stayed still");
+				if (frame == 8)
+					require(placement.arrangementCompleted &&
+							placement.position.x + placement.size.x == io.DisplaySize.x - options.offset.x &&
+							placement.position.y + placement.size.y == io.DisplaySize.y - options.offset.y,
+						"resize release did not restore the final bottom-right anchor");
+				imgui.EndWindow();
+			}
+		});
+
 		runner.test("toast expiry starts at presentation and hover pauses it", [] {
 			using namespace PresentationServices::Notifications;
 			using namespace std::chrono_literals;
