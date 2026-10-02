@@ -2,6 +2,7 @@
 #include <DearModdingUI/host/RenderExecution.h>
 #include <DearModdingUI/host/UIAdapter.h>
 #include <DearModdingUI/UIBindings.generated.h>
+#include <DearModdingUI/presentation/Theme.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -266,6 +267,22 @@ namespace DearModdingUI::UI
 			a_metrics->indentSpacing = style.IndentSpacing;
 			a_metrics->scrollbarSize = style.ScrollbarSize;
 			a_metrics->fontSizeBase = style.FontSizeBase;
+			a_metrics->alpha = style.Alpha;
+			a_metrics->frameRounding = style.FrameRounding;
+			a_metrics->frameBorderSize = style.FrameBorderSize;
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL GetThemeColors(
+			DMUI_ClientHandle a_client,
+			DMUI_ThemeColors* a_colors) noexcept
+		{
+			if (!a_colors)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			*a_colors = Theme::ColorSnapshot();
 			return DMUI_RESULT_OK;
 		}
 

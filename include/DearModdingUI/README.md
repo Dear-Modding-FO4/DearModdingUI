@@ -141,6 +141,14 @@ unchanged; zero still means no icon and they do not infer automatically.
 
 ## Custom draw lists
 
+Use theme colors so custom drawing follows the user's accent:
+`ui::GetColorU32(&DMUI_ThemeColors::accent)` or `ui::GetColorU32(ui::Color::kText)`.
+Both accept an optional alpha multiplier and apply the current style alpha.
+`ui::GetThemeColors()` and `ui::GetThemeColor(&DMUI_ThemeColors::warning)` return
+live float colors; `ui::ColorConvertFloat4ToU32(Vec4)` only packs `0xRRGGBBAA`.
+`ui::GetStyleMetrics` supplies frame rounding, border thickness, padding, and spacing.
+Rebuild ABI 2 clients for the expanded style metrics and UI table.
+
 `ui::WindowDrawList()`, `ui::ForegroundDrawList()`, and `ui::BackgroundDrawList()`
 return lightweight `ui::DrawList` values, never native pointers. The C table's
 `drawListAdd*` operations take `DMUI_DrawTarget` first after the client handle.
@@ -173,6 +181,9 @@ scope is a client error. The host unwinds outstanding clips before callback
 recovery, including failures, so one callback cannot clip another.
 
 ## Client popups and modals
+
+Modals center on the main viewport when appearing. Non-modal popups anchor below
+their opening item.
 
 Call `ui::OpenPopup(id)` once (setting `open=true` for a modal), then draw with `ui::PopupScope{id}` or
 `ui::ModalScope{id, open}` each frame. The modal's `bool& open` reports closure;

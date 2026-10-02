@@ -188,7 +188,8 @@ namespace vmm_tests
 		});
 
 		runner.test("annotated plots clip references to the visible frame", [] {
-			ImGuiFrame frame;
+			support::ImGuiTestContext frame;
+			frame.BeginWindow("Annotated plot", { 20, 20 }, { 640, 480 });
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameDraw
 			};
@@ -238,6 +239,21 @@ namespace vmm_tests
 			require(foundReference &&
 					maximumReferenceX <= expectedMaximumX + 2.0f,
 				"reference line extended into the visible plot label");
+			const auto* draw = ImGui::GetWindowDrawList();
+			int lastReference{ -1 }, firstCurve{ -1 }, lastText{ -1 };
+			for (int index = 0; index < draw->IdxBuffer.Size; ++index)
+			{
+				const auto color = draw->VtxBuffer[draw->IdxBuffer[index]].col;
+				if (color == referenceColor)
+					lastReference = index;
+				if (color == ImGui::GetColorU32(ImGuiCol_PlotLines) && firstCurve < 0)
+					firstCurve = index;
+				if (color == ImGui::GetColorU32(ImGuiCol_Text))
+					lastText = index;
+			}
+			require(lastReference >= 0 && firstCurve > lastReference && lastText > firstCurve,
+				"plot references covered the curve or overlay: reference=" + std::to_string(lastReference) +
+					", curve=" + std::to_string(firstCurve) + ", text=" + std::to_string(lastText));
 			const float invalid[]{ std::numeric_limits<float>::quiet_NaN() };
 			descriptor.samples = invalid;
 			descriptor.sampleCount = 1;
@@ -245,6 +261,7 @@ namespace vmm_tests
 						12, "invalid", &descriptor) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"non-finite plot sample was accepted");
+			frame.EndWindow();
 		});
 
 	}

@@ -114,6 +114,8 @@ namespace DearModdingUI::ModalCoordinator
 			// BeginPopupModal hashes its label, whereas OpenPopupEx accepts an ID.
 			parent->IDStack.back() = 0;
 			ImGui::SetNextWindowBgAlpha(1.0f);
+			ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),
+				ImGuiCond_Appearing, { 0.5f, 0.5f });
 			const auto visible = BeginPopupModalWithRoundedTitleBarButtons(
 				title.c_str(), a_open, a_flags);
 			parent->IDStack.back() = seed;

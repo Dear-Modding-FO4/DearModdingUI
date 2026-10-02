@@ -1257,6 +1257,9 @@ namespace DearModdingUI::UI::Bindings
 	[[nodiscard]] DMUI_Result DMUI_CALL DrawListPopClipRect(
 		DMUI_ClientHandle a_client,
 		DMUI_DrawTarget a_target) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL GetThemeColors(
+		DMUI_ClientHandle a_client,
+		DMUI_ThemeColors* a_colors) noexcept;
 
 	[[nodiscard]] inline DMUI_UIAPI MakeAPI() noexcept
 	{
@@ -1354,7 +1357,8 @@ namespace DearModdingUI::UI::Bindings
 			&DrawListAddText,
 			&DrawListAddImage,
 			&DrawListPushClipRect,
-			&DrawListPopClipRect
+			&DrawListPopClipRect,
+			&GetThemeColors
 		};
 	}
 }

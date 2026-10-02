@@ -61,6 +61,32 @@ namespace vmm_tests
 
 	void run_ui_contract_checks(Runner& runner)
 	{
+		runner.test("draw-list colors preserve RGBA packing and live style alpha", [] {
+			ImGuiFrame frame;
+			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };
+			dmui::ui::detail::ScopedContext context{ &DearModdingUI::UI::API(), 1u };
+			require(dmui::ui::ColorConvertFloat4ToU32({ 1.0f, 0.5f, 0.25f, 0.0f }) == 0xFF804000u,
+				"float colors used native byte order instead of RRGGBBAA");
+			ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{ 0.8f, 0.2f, 0.4f, 0.6f });
+			const auto verify = [](dmui::ui::Color32 a_color, ImU32 a_expected) {
+				auto* draw = ImGui::GetWindowDrawList();
+				const auto first = draw->VtxBuffer.Size;
+				dmui::ui::WindowDrawList().AddRectFilled({ 50, 50 }, { 70, 70 }, a_color);
+				require(draw->VtxBuffer.Size > first && draw->VtxBuffer[first].col == a_expected,
+					"client color conversion changed channels or lost style alpha");
+			};
+			verify(dmui::ui::GetColorU32(dmui::ui::Color::kText, 0.5f),
+				ImGui::GetColorU32(ImGuiCol_Text, 0.5f));
+			const auto accent = dmui::ui::GetThemeColors().accent;
+			verify(dmui::ui::GetColorU32(&DMUI_ThemeColors::accent),
+				ImGui::GetColorU32(ImVec4{ accent.x, accent.y, accent.z, accent.w }));
+			ImGui::PopStyleColor();
+			verify(dmui::ui::GetColorU32(dmui::ui::Color::kText), ImGui::GetColorU32(ImGuiCol_Text));
+			ImGui::PopStyleVar();
+			require(context.Result() == DMUI_RESULT_OK, "color queries failed in a draw callback");
+		});
+
 		runner.test("cursor position round trips in window-local coordinates", [] {
 			ImGuiFrame frame;
 			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };

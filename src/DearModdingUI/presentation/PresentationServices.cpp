@@ -5,6 +5,7 @@
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 
+#include <algorithm>
 #include <cmath>
 
 namespace DearModdingUI::PresentationServices
@@ -84,16 +85,7 @@ namespace DearModdingUI::PresentationServices
 			{ a_descriptor->size.x, a_descriptor->size.y },
 			ImGui::CalcItemWidth(),
 			labelSize.y + ImGui::GetStyle().FramePadding.y * 2.0f);
-		ImGui::PlotLines(
-			a_id,
-			a_descriptor->samples,
-			sampleCount,
-			sampleOffset,
-			a_descriptor->overlayText,
-			a_descriptor->scaleMinimum,
-			a_descriptor->scaleMaximum,
-			{ a_descriptor->size.x, a_descriptor->size.y });
-		const auto itemMinimum = ImGui::GetItemRectMin();
+		const auto itemMinimum = ImGui::GetCursorScreenPos();
 		const auto padding = ImGui::GetStyle().FramePadding;
 		const ImVec2 plotMinimum{
 			itemMinimum.x + padding.x,
@@ -104,30 +96,65 @@ namespace DearModdingUI::PresentationServices
 			itemMinimum.y + frameSize.y - padding.y
 		};
 		auto* drawList = ImGui::GetWindowDrawList();
-		drawList->PushClipRect(plotMinimum, plotMaximum, true);
-		for (size_t index = 0; index < a_descriptor->referenceLineCount; ++index)
+		const auto visible = !ImGui::GetCurrentWindow()->SkipItems && ImGui::IsRectVisible(frameSize);
+		if (visible)
 		{
-			const auto& line = a_descriptor->referenceLines[index];
-			if (line.value < a_descriptor->scaleMinimum ||
-				line.value > a_descriptor->scaleMaximum)
-				continue;
-			const auto ratio =
-				(line.value - a_descriptor->scaleMinimum) /
-				(a_descriptor->scaleMaximum - a_descriptor->scaleMinimum);
-			const auto y =
-				plotMaximum.y -
-				ratio * (plotMaximum.y - plotMinimum.y);
-			drawList->AddLine(
-				{ plotMinimum.x, y },
-				{ plotMaximum.x, y },
-				ImGui::ColorConvertFloat4ToU32({
-					line.color.x,
-					line.color.y,
-					line.color.z,
-					line.color.w
-				}));
+			ImGui::RenderFrame(itemMinimum,
+				{ itemMinimum.x + frameSize.x, itemMinimum.y + frameSize.y },
+				ImGui::GetColorU32(ImGuiCol_FrameBg), true, ImGui::GetStyle().FrameRounding);
+			drawList->PushClipRect(plotMinimum, plotMaximum, true);
+			for (size_t index = 0; index < a_descriptor->referenceLineCount; ++index)
+			{
+				const auto& line = a_descriptor->referenceLines[index];
+				if (line.value < a_descriptor->scaleMinimum ||
+					line.value > a_descriptor->scaleMaximum)
+					continue;
+				const auto ratio =
+					(line.value - a_descriptor->scaleMinimum) /
+					(a_descriptor->scaleMaximum - a_descriptor->scaleMinimum);
+				const auto y =
+					plotMaximum.y -
+					ratio * (plotMaximum.y - plotMinimum.y);
+				drawList->AddLine(
+					{ plotMinimum.x, y },
+					{ plotMaximum.x, y },
+					ImGui::GetColorU32(ImVec4{
+						line.color.x,
+						line.color.y,
+						line.color.z,
+						line.color.w
+					}));
+			}
+			drawList->PopClipRect();
 		}
-		drawList->PopClipRect();
+
+		// Keep ImGui's sampling, hover, and item behavior without repainting the frame.
+		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4{});
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+		ImGui::PlotLines(a_id, a_descriptor->samples, sampleCount, sampleOffset,
+			nullptr, a_descriptor->scaleMinimum, a_descriptor->scaleMaximum,
+			{ a_descriptor->size.x, a_descriptor->size.y });
+		ImGui::PopStyleVar();
+		ImGui::PopStyleColor();
+		if (visible && a_descriptor->overlayText && *a_descriptor->overlayText)
+		{
+			const auto wrapWidth = (std::max)(1.0f, plotMaximum.x - plotMinimum.x - padding.x * 2.0f);
+			const auto textSize = ImGui::CalcTextSize(a_descriptor->overlayText, nullptr, false, wrapWidth);
+			const auto width = (std::min)(textSize.x, wrapWidth);
+			const ImVec2 textMinimum{
+				plotMinimum.x + (plotMaximum.x - plotMinimum.x - width) * 0.5f,
+				plotMinimum.y + padding.y
+			};
+			const ImVec2 textMaximum{ textMinimum.x + width, textMinimum.y + textSize.y };
+			drawList->PushClipRect(plotMinimum, plotMaximum, true);
+			drawList->AddRectFilled(
+				{ textMinimum.x - padding.x, textMinimum.y - padding.y },
+				{ textMaximum.x + padding.x, textMaximum.y + padding.y },
+				ImGui::GetColorU32(ImGuiCol_WindowBg), ImGui::GetStyle().FrameRounding);
+			drawList->AddText(ImGui::GetFont(), ImGui::GetFontSize(), textMinimum,
+				ImGui::GetColorU32(ImGuiCol_Text), a_descriptor->overlayText, nullptr, wrapWidth);
+			drawList->PopClipRect();
+		}
 		return DMUI_RESULT_OK;
 	}
 
