@@ -292,10 +292,14 @@ namespace DearModdingUI
 			ShellState& a_state) noexcept
 		{
 			ImGui::TableNextColumn();
-			if (!ImGui::BeginChild(
+			const auto gap = Theme::Layout().sectionGap;
+			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ gap, gap });
+			const auto visible = ImGui::BeginChild(
 					"##DearModdingPageFrame",
 					{},
-					ImGuiChildFlags_Borders))
+					ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding);
+			ImGui::PopStyleVar();
+			if (!visible)
 			{
 				ImGui::EndChild();
 				return;

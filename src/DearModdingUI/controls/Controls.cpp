@@ -835,7 +835,7 @@ namespace DearModdingUI
 			ImGui::SeparatorEx(
 				ImGuiSeparatorFlags_Horizontal,
 				SeparatorThickness());
-			ImGui::Spacing();
+			Theme::SectionSpacing();
 		}
 		return pressed;
 	}

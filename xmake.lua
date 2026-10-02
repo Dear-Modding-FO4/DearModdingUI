@@ -147,6 +147,7 @@ local source_sets = {
         "src/DearModdingUI/presentation/images/*.cpp",
         "src/Support/Runtime.cpp",
         "src/DearModdingUI/presentation/ThemeColors.cpp",
+        "src/DearModdingUI/presentation/ThemeLayout.cpp",
         "src/Platform/files/ExternalOpen.cpp",
         "src/Platform/input/CursorLoader.cpp",
         "src/Platform/settings/GameColors.cpp"

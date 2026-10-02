@@ -56,7 +56,8 @@ namespace DearModdingUI
 				"client \"{}\" (\"{}\")] required ImGui recovery "
 				"(windows {}->{}, tables {}->{}, IDs {}->{}, trees {}->{}, "
 				"colors {}->{}, style vars {}->{}, fonts {}->{}, focus scopes {}->{}, "
-				"groups {}->{}, item flags {}->{}, popups {}->{}, disabled {}->{})"sv,
+				"groups {}->{}, item flags {}->{}, popups {}->{}, disabled {}->{}, "
+				"client style vars {}->{}, panels {}->{})"sv,
 				a_identity.kind,
 				a_identity.handle,
 				a_identity.id,
@@ -86,7 +87,11 @@ namespace DearModdingUI
 				before.popups,
 				after.popups,
 				before.disabled,
-				after.disabled);
+				after.disabled,
+				before.layout.styles,
+				after.layout.styles,
+				before.layout.panels,
+				after.layout.panels);
 		}
 
 		template <class InvokeCallback, class DisableCallback>

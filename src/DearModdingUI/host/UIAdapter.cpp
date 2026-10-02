@@ -227,21 +227,6 @@ namespace DearModdingUI::UI
 			return Bindings::TranslateInputTextFlags(a_flags, a_native);
 		}
 
-		// ImGui asserts and ignores a push whose value shape differs from the style field.
-		[[nodiscard]] DMUI_Result TranslateStyleVarShape(
-			DMUI_UIStyleVar a_styleVar,
-			uint32_t a_components,
-			ImGuiStyleVar& a_native) noexcept
-		{
-			const auto translated = Bindings::TranslateStyleVar(a_styleVar, a_native);
-			if (translated != DMUI_RESULT_OK)
-				return translated;
-			const auto* info = ImGui::GetStyleVarInfo(a_native);
-			return info->DataType == ImGuiDataType_Float &&
-					info->Count == a_components ?
-				DMUI_RESULT_OK :
-				DMUI_RESULT_INVALID_ARGUMENT;
-		}
 	}
 
 	using namespace AdapterInternal;
@@ -270,6 +255,8 @@ namespace DearModdingUI::UI
 			a_metrics->alpha = style.Alpha;
 			a_metrics->frameRounding = style.FrameRounding;
 			a_metrics->frameBorderSize = style.FrameBorderSize;
+			a_metrics->sectionGap = Theme::Layout().sectionGap;
+			a_metrics->panelPadding = Stable(Theme::Layout().panelPadding);
 			return DMUI_RESULT_OK;
 		}
 
@@ -618,17 +605,6 @@ namespace DearModdingUI::UI
 			return DMUI_RESULT_OK;
 		}
 
-		DMUI_Result DMUI_CALL SameLine(
-			DMUI_ClientHandle a_client,
-			float a_offsetFromStartX,
-			float a_spacing) noexcept
-		{
-			const auto validation = Validate(a_client);
-			if (validation != DMUI_RESULT_OK)
-				return validation;
-			ImGui::SameLine(a_offsetFromStartX, a_spacing);
-			return DMUI_RESULT_OK;
-		}
 
 		DMUI_UI_END(Separator, Separator)
 
@@ -843,50 +819,6 @@ namespace DearModdingUI::UI
 			return DMUI_RESULT_OK;
 		}
 
-		DMUI_Result DMUI_CALL PushStyleVarFloat(
-			DMUI_ClientHandle a_client,
-			DMUI_UIStyleVar a_styleVar,
-			float a_value) noexcept
-		{
-			const auto validation = Validate(a_client);
-			if (validation != DMUI_RESULT_OK)
-				return validation;
-			ImGuiStyleVar styleVar{};
-			const auto translated = TranslateStyleVarShape(a_styleVar, 1u, styleVar);
-			if (translated != DMUI_RESULT_OK)
-				return translated;
-			ImGui::PushStyleVar(styleVar, a_value);
-			return DMUI_RESULT_OK;
-		}
-
-		DMUI_Result DMUI_CALL PushStyleVarVec2(
-			DMUI_ClientHandle a_client,
-			DMUI_UIStyleVar a_styleVar,
-			DMUI_Vec2 a_value) noexcept
-		{
-			const auto validation = Validate(a_client);
-			if (validation != DMUI_RESULT_OK)
-				return validation;
-			ImGuiStyleVar styleVar{};
-			const auto translated = TranslateStyleVarShape(a_styleVar, 2u, styleVar);
-			if (translated != DMUI_RESULT_OK)
-				return translated;
-			ImGui::PushStyleVar(styleVar, Native(a_value));
-			return DMUI_RESULT_OK;
-		}
-
-		DMUI_Result DMUI_CALL PopStyleVar(
-			DMUI_ClientHandle a_client,
-			int32_t a_count) noexcept
-		{
-			if (a_count < 0)
-				return DMUI_RESULT_INVALID_ARGUMENT;
-			const auto validation = Validate(a_client);
-			if (validation != DMUI_RESULT_OK)
-				return validation;
-			ImGui::PopStyleVar(a_count);
-			return DMUI_RESULT_OK;
-		}
 
 		DMUI_Result DMUI_CALL ListClipperBegin(
 			DMUI_ClientHandle a_client,

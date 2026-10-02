@@ -101,7 +101,7 @@ namespace DearModdingUI
 				const Theme::FontGuard font{ Theme::FontRole::kSubtext };
 				ImGui::TextWrapped("%s", HomeAboutText().data());
 			}
-			ImGui::Spacing();
+			Theme::SectionSpacing();
 			DrawSectionHeader(
 				"Overview",
 				FindPhosphorIconGlyphOrZero(kHostHomePage.iconName));
@@ -128,7 +128,7 @@ namespace DearModdingUI
 			DrawBulletText(summary.c_str());
 			ImGui::PopStyleColor();
 
-			ImGui::Spacing();
+			Theme::SectionSpacing();
 			DrawSectionHeader(
 				"Quick Links",
 				FindPhosphorIconGlyphOrZero("link"));
@@ -149,7 +149,7 @@ namespace DearModdingUI
 			}
 			(void)DrawLinkRow("##DearModdingUI.HomeQuickLinks", quickLinks);
 
-			ImGui::Spacing();
+			Theme::SectionSpacing();
 			DrawSectionHeader(
 				"FAQ",
 				FindPhosphorIconGlyphOrZero("question"));
@@ -241,7 +241,7 @@ namespace DearModdingUI
 				sectionIndex < sections.size();
 				++sectionIndex)
 			{
-				ImGui::Spacing();
+				Theme::SectionSpacing();
 				const auto& section = sections[sectionIndex];
 				DrawSectionHeader(section.heading.c_str(), section.glyph);
 				if (section.clients.empty())
@@ -300,7 +300,7 @@ namespace DearModdingUI
 				ImGui::PopID();
 			}
 
-			ImGui::Spacing();
+			Theme::SectionSpacing();
 			DrawSectionHeader(
 				"Reported problems",
 				FindPhosphorIconGlyphOrZero("warning-circle"));

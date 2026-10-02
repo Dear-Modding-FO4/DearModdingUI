@@ -381,6 +381,10 @@ namespace DearModdingUI::Theme
 		const auto bodySize = font ? font->LegacySize : kBaselineFontSize;
 		const auto scaleFactor = ResolveStyleScale(bodySize);
 		style.ScaleAllSizes(scaleFactor);
+		const LayoutStyle layoutDefaults;
+		Layout() = { ImTrunc(bodySize),
+			{ ImTrunc(layoutDefaults.panelPadding.x * scaleFactor),
+				ImTrunc(layoutDefaults.panelPadding.y * scaleFactor) } };
 
 		const auto scaleBorder = [scaleFactor](float a_value) {
 			if (a_value <= 0.0f)

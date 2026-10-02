@@ -139,6 +139,27 @@ its vocabulary is compiled into the mod and cannot receive later host updates.
 Raw `Client::DrawSectionHeader`, collapsing-section, and link operations remain
 unchanged; zero still means no icon and they do not infer automatically.
 
+## Layout and panels
+
+The host owns default page spacing and panel appearance. `ui::PanelScope`
+(or `BeginPanel` / `EndPanel`) provides a clipped child region using the theme's
+frame background, border, rounding, and panel padding. End only a panel whose
+begin returned true; the RAII scope handles this automatically.
+
+Size components above zero are fixed. Zero fills the available width or fits
+content height; negative components fill the available space minus that amount.
+Scrolling is off unless `PanelFlags::kScrollable` is set; use a fixed height for
+a scrolling panel. `kNoBackground` provides a layout-only panel.
+
+`DMUI_StyleMetrics::sectionGap` separates consecutive stacked panels and panels
+placed with default `ui::SameLine()`, and supplies the page's outer margin.
+`panelPadding` supplies their inner padding. Override these with the existing
+`PushStyleVar(StyleVar::kSectionGap, float)` and
+`PushStyleVar(StyleVar::kPanelPadding, Vec2)` / `PopStyleVar` stack.
+Raw `SetCursorPos`, explicit `SameLine` spacing, `Dummy`, and draw-list positioning
+remain available. Window draw lists inside a panel target that panel and are
+clipped to it. Rebuild ABI 2 clients for the added operations and metrics.
+
 ## Custom draw lists
 
 Use theme colors so custom drawing follows the user's accent:

@@ -1,4 +1,5 @@
 #include <DearModdingUI/host/UIAdapter.h>
+#include <DearModdingUI/host/ImGuiRecovery.h>
 #include <DearModdingUI/UIBindings.generated.h>
 #include "../Harness.h"
 #include "../support/ImGuiTestContext.h"
@@ -61,6 +62,169 @@ namespace vmm_tests
 
 	void run_ui_contract_checks(Runner& runner)
 	{
+		runner.test("panel gaps use the scoped theme without overriding explicit positioning", [] {
+			ImGuiFrame frame;
+			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };
+			dmui::ui::detail::ScopedContext context{ &DearModdingUI::UI::API(), 1u };
+			namespace ui = dmui::ui;
+			DMUI_StyleMetrics metrics{};
+			(void)ui::GetStyleMetrics(metrics);
+			const auto panel = [](const char* a_id) {
+				if (const ui::PanelScope scope{ a_id, { 100.0f, 60.0f } })
+					ui::TextUnformatted("Content");
+				return ImRect{ ImGui::GetItemRectMin(), ImGui::GetItemRectMax() };
+			};
+			const auto first = panel("First");
+			ui::SameLine();
+			const auto second = panel("Second");
+			const auto third = panel("Third");
+			require(second.Min.x - first.Max.x == metrics.sectionGap &&
+					third.Min.y - second.Max.y == metrics.sectionGap,
+				"default panels did not use the same horizontal and vertical section gap");
+			ui::PushStyleVar(ui::StyleVar::kSectionGap, 27.0f);
+			const auto fourth = panel("Fourth");
+			ui::SameLine();
+			const auto fifth = panel("Fifth");
+			require(fourth.Min.y - third.Max.y == 27.0f && fifth.Min.x - fourth.Max.x == 27.0f,
+				"panel spacing ignored the scoped override");
+			ui::SameLine(0.0f, 3.0f);
+			const auto explicitGap = panel("ExplicitGap");
+			require(explicitGap.Min.x - fifth.Max.x == 3.0f,
+				"panel spacing replaced explicit SameLine spacing");
+			ui::SetCursorPos({ 30.0f, 300.0f });
+			const auto positioned = ui::GetCursorScreenPos();
+			const auto explicitPosition = panel("ExplicitPosition");
+			require(explicitPosition.Min.x == positioned.x && explicitPosition.Min.y == positioned.y,
+				"panel spacing replaced explicit cursor positioning");
+			ui::SetCursorPos(ui::GetCursorPos());
+			const auto unchanged = ui::GetCursorScreenPos();
+			const auto explicitCurrentPosition = panel("ExplicitCurrentPosition");
+			require(explicitCurrentPosition.Min.y == unchanged.y,
+				"panel spacing replaced an explicit position equal to the current cursor");
+			ui::PopStyleVar();
+			require(context.Result() == DMUI_RESULT_OK, "panel layout dispatch failed");
+		});
+
+		runner.test("panels fit content height and preserve fill and negative size conventions", [] {
+			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };
+			support::ImGuiTestContext imgui;
+			namespace ui = dmui::ui;
+			ui::detail::ScopedContext context{ &DearModdingUI::UI::API(), 1u };
+			for (int frame = 0; frame < 3; ++frame)
+			{
+				imgui.BeginWindow("##PanelSizing", { 20, 20 }, { 600, 480 });
+				auto recovery = DearModdingUI::ImGuiRecoverySnapshot::Capture();
+				DMUI_StyleMetrics metrics{};
+				(void)ui::GetStyleMetrics(metrics);
+				const auto available = ui::GetContentRegionAvail().x;
+				if (const ui::PanelScope fit{ "Fit" })
+					ui::Dummy({ 30, 40 });
+				if (frame == 2)
+					require(ImGui::GetItemRectSize().x == available &&
+							ImGui::GetItemRectSize().y == 40 + metrics.panelPadding.y * 2,
+						"zero-sized panel did not fill width and fit padded content height");
+				if (const ui::PanelScope minus{ "Minus", { -40, 60 }, ui::PanelFlags::kNoBackground })
+				{
+					require(ImGui::GetCurrentWindow()->WindowBorderSize == 0,
+						"layout-only panel retained a border that clips nested panels");
+					ui::TextUnformatted("Content");
+				}
+				require(ImGui::GetItemRectSize().x == available - 40 &&
+						ImGui::GetItemRectSize().y == 60,
+					"negative width or fixed height did not match child conventions");
+				ui::SetCursorPos({ 0, 900 });
+				require(!ui::BeginPanel("Clipped", { 100, 60 }) &&
+						DearModdingUI::UI::GetLayoutDepths().panels == 0,
+					"false panel begin left a bracket open");
+				require(!recovery->RecoverAfterCallback().Repaired(), "balanced panel layout needed recovery");
+				imgui.EndWindow();
+			}
+			require(context.Result() == DMUI_RESULT_OK, "panel sizing dispatch failed");
+		});
+
+		runner.test("host style variables share push pop ordering and callback recovery", [] {
+			ImGuiFrame frame;
+			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };
+			const auto& api = DearModdingUI::UI::API();
+			DMUI_StyleMetrics before{}, scoped{}, after{};
+			(void)api.getStyleMetrics(1u, &before);
+			const auto nativeDepth = GImGui->StyleVarStack.Size;
+			auto recovery = DearModdingUI::ImGuiRecoverySnapshot::Capture();
+			require(api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_SECTION_GAP, 31.0f) == DMUI_RESULT_OK &&
+					api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_ALPHA, 0.4f) == DMUI_RESULT_OK &&
+					api.pushStyleVarVec2(1u, DMUI_UI_STYLE_VAR_PANEL_PADDING, { 18.0f, 14.0f }) == DMUI_RESULT_OK,
+				"mixed host and native styles could not be pushed");
+			(void)api.getStyleMetrics(1u, &scoped);
+			require(scoped.sectionGap == 31.0f && scoped.alpha == 0.4f &&
+					scoped.panelPadding.x == 18.0f && scoped.panelPadding.y == 14.0f,
+				"scoped metrics did not expose the active overrides");
+			require(api.popStyleVar(1u, 3) == DMUI_RESULT_OK, "mixed style pop failed");
+			(void)api.getStyleMetrics(1u, &after);
+			require(after.sectionGap == before.sectionGap && after.alpha == before.alpha &&
+					after.panelPadding.x == before.panelPadding.x && after.panelPadding.y == before.panelPadding.y,
+				"mixed style pop did not restore the theme");
+			require(api.pushStyleVarVec2(1u, DMUI_UI_STYLE_VAR_SECTION_GAP, { 1, 1 }) ==
+					DMUI_RESULT_INVALID_ARGUMENT &&
+					api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_PANEL_PADDING, 1) == DMUI_RESULT_INVALID_ARGUMENT &&
+					api.popStyleVar(1u, 1) == DMUI_RESULT_INVALID_ARGUMENT,
+				"wrong shapes or callback-boundary underflow were accepted");
+			(void)api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_SECTION_GAP, 41.0f);
+			(void)api.pushStyleVarVec2(1u, DMUI_UI_STYLE_VAR_PANEL_PADDING, { 2, 3 });
+			(void)api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_ALPHA, 0.2f);
+			require(recovery->RecoverFailure().Repaired(), "abandoned styles were not reported");
+			(void)api.getStyleMetrics(1u, &after);
+			require(after.sectionGap == before.sectionGap && after.alpha == before.alpha &&
+					after.panelPadding.x == before.panelPadding.x && after.panelPadding.y == before.panelPadding.y &&
+					GImGui->StyleVarStack.Size == nativeDepth &&
+					DearModdingUI::UI::GetLayoutDepths() == DearModdingUI::UI::LayoutDepths{},
+				"failed callback leaked native or host style state");
+		});
+
+		runner.test("panels isolate draw lists and recover abandoned child brackets", [] {
+			ImGuiFrame frame;
+			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };
+			const auto& api = DearModdingUI::UI::API();
+			auto* parent = ImGui::GetCurrentWindow();
+			auto* parentDraw = ImGui::GetWindowDrawList();
+			const auto nativeDepth = GImGui->StyleVarStack.Size;
+			auto recovery = DearModdingUI::ImGuiRecoverySnapshot::Capture();
+			require(api.endPanel(1u) == DMUI_RESULT_INVALID_ARGUMENT, "unmatched panel end was accepted");
+			uint32_t visible{};
+			require(api.beginPanel(1u, "Outer", { 240, 180 }, 0, &visible) == DMUI_RESULT_OK && visible,
+				"panel did not open");
+			auto* child = ImGui::GetCurrentWindow();
+			require(child != parent && child->DrawList != parentDraw &&
+					(child->Flags & (ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) ==
+						(ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse),
+				"panel did not establish its own non-scrolling draw window");
+			const auto clip = child->DrawList->_ClipRectStack.back();
+			require(clip.x >= child->Pos.x && clip.y >= child->Pos.y &&
+					clip.z <= child->Pos.x + child->Size.x && clip.w <= child->Pos.y + child->Size.y,
+				"panel draw list was not clipped to its window");
+			{
+				const DearModdingUI::UI::DrawListClipScope clips;
+				require(api.drawListPushClipRect(1u, DMUI_DRAW_TARGET_WINDOW,
+						{ clip.x, clip.y }, { clip.z, clip.w }, 1) == DMUI_RESULT_OK &&
+						api.endPanel(1u) == DMUI_RESULT_INVALID_ARGUMENT,
+					"panel end consumed an outstanding client clip");
+			}
+			(void)api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_SECTION_GAP, 2.0f);
+			require(api.beginPanel(1u, "Nested", { 100, 70 }, DMUI_UI_PANEL_FLAGS_SCROLLABLE, &visible) ==
+					DMUI_RESULT_OK && visible, "nested panel did not open");
+			require((ImGui::GetCurrentWindow()->Flags & ImGuiWindowFlags_NoScrollWithMouse) == 0,
+				"scrollable panel disabled wheel scrolling");
+			(void)api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_ALPHA, 0.5f);
+			require(api.endPanel(2u) == DMUI_RESULT_INVALID_ARGUMENT, "another client ended a panel");
+			const auto repaired = recovery->RecoverFailure();
+			require(repaired.Repaired() && ImGui::GetCurrentWindow() == parent &&
+					GImGui->StyleVarStack.Size == nativeDepth &&
+					DearModdingUI::UI::GetLayoutDepths() == DearModdingUI::UI::LayoutDepths{},
+				"failed callback left a child window or host bracket open");
+			require(api.beginPanel(1u, "NextCallback", { 100, 60 }, 0, &visible) == DMUI_RESULT_OK &&
+					visible && api.endPanel(1u) == DMUI_RESULT_OK,
+				"panel recovery poisoned the next callback");
+		});
+
 		runner.test("draw-list colors preserve RGBA packing and live style alpha", [] {
 			ImGuiFrame frame;
 			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };

@@ -3,6 +3,7 @@
 #include <cstring>
 #include <new>
 #include <optional>
+#include <DearModdingUI/host/UILayoutState.h>
 
 #include <imgui/imgui_internal.h>
 
@@ -22,6 +23,7 @@ namespace DearModdingUI
 		int itemFlags{ 0 };
 		int popups{ 0 };
 		int disabled{ 0 };
+		UI::LayoutDepths layout;
 
 		[[nodiscard]] bool operator==(
 			const ImGuiStackDepths&) const noexcept = default;
@@ -62,6 +64,7 @@ namespace DearModdingUI
 
 		ImGuiRecoverySnapshot(ImGuiRecoverySnapshot&& a_other) noexcept :
 			m_context(a_other.m_context),
+			m_layout(std::move(a_other.m_layout)),
 			m_stackState(a_other.m_stackState),
 			m_nextWindowData(a_other.m_nextWindowData),
 			m_nextItemData(a_other.m_nextItemData),
@@ -86,6 +89,7 @@ namespace DearModdingUI
 			const auto assertEnabled = io.ConfigErrorRecoveryEnableAssert;
 			io.ConfigErrorRecoveryEnableAssert = false;
 			ImGui::ErrorRecoveryTryToRecoverState(&m_stackState);
+			m_layout.Recover();
 			io.ConfigErrorRecoveryEnableAssert = assertEnabled;
 			const auto after = CaptureStackDepths(*m_context);
 			m_context->NextWindowData = m_nextWindowData;
@@ -123,7 +127,8 @@ namespace DearModdingUI
 				a_context.GroupStack.Size,
 				a_context.ItemFlagsStack.Size,
 				a_context.BeginPopupStack.Size,
-				a_context.DisabledStackSize
+				a_context.DisabledStackSize,
+				UI::GetLayoutDepths()
 			};
 		}
 
@@ -147,6 +152,7 @@ namespace DearModdingUI
 		}
 
 		ImGuiContext* m_context;
+		UI::LayoutRecovery m_layout;
 		ImGuiErrorRecoveryState m_stackState{};
 		ImGuiNextWindowData m_nextWindowData;
 		ImGuiNextItemData m_nextItemData;

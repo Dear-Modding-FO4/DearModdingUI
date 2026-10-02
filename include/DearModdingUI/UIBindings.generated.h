@@ -1260,6 +1260,14 @@ namespace DearModdingUI::UI::Bindings
 	[[nodiscard]] DMUI_Result DMUI_CALL GetThemeColors(
 		DMUI_ClientHandle a_client,
 		DMUI_ThemeColors* a_colors) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL BeginPanel(
+		DMUI_ClientHandle a_client,
+		const char* a_id,
+		DMUI_Vec2 a_size,
+		DMUI_UIPanelFlags a_flags,
+		uint32_t* a_visible) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL EndPanel(
+		DMUI_ClientHandle a_client) noexcept;
 
 	[[nodiscard]] inline DMUI_UIAPI MakeAPI() noexcept
 	{
@@ -1358,7 +1366,9 @@ namespace DearModdingUI::UI::Bindings
 			&DrawListAddImage,
 			&DrawListPushClipRect,
 			&DrawListPopClipRect,
-			&GetThemeColors
+			&GetThemeColors,
+			&BeginPanel,
+			&EndPanel
 		};
 	}
 }

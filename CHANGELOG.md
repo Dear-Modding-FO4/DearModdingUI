@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Themed panels**: Clipped client panels provide default page gaps and inner padding, optional scrolling, scoped style-var overrides, and callback recovery.
 - **Custom drawing**: Immediate window, foreground, and background draw lists expose geometry, concave polygons, text, images, and callback-isolated clip scopes through ABI 2.
 - **File images**: Any-thread `loadImageFile` loads WIC formats and mipmapped DDS asynchronously, with queryable failures, bounded work, safe cancellation, and automatic device reload.
 - **Client popups and modals**: Page-scoped popup UI operations and RAII scopes share one modal owner with host dialogs, including nested modals and single-level Escape/controller-B dismissal.

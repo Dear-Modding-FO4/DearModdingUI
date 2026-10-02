@@ -886,11 +886,11 @@ namespace DearModdingUI
 	{
 		EnsureDraft();
 		DrawAppearance();
-		ImGui::Spacing();
+		Theme::SectionSpacing();
 		DrawReadability();
-		ImGui::Spacing();
+		Theme::SectionSpacing();
 		DrawInput();
-		ImGui::Spacing();
+		Theme::SectionSpacing();
 		DrawReadOnlyFacts();
 	}
 }

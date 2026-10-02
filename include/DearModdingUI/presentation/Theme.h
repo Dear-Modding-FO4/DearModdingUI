@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/ThemeDefaults.h>
 #include <DearModdingUI/PresentationCore.h>
+#include <DearModdingUI/presentation/ThemeLayout.h>
 
 #include <array>
 #include <cstdint>
