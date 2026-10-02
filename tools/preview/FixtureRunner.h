@@ -1,26 +1,15 @@
 #pragma once
 
-#include <GeneralTestSuite.h>
-
-#include <filesystem>
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 struct ID3D11Device;
 
 namespace DearModdingUIPreview
 {
-	struct FixtureOptions
-	{
-		std::filesystem::path mcmConfigPath;
-		std::filesystem::path dataRoot;
-		std::filesystem::path userKeybindsPath;
-		bool mcmInstalled{ true };
-		bool gameLoaded{ true };
-		bool includeNavigationComparisonFixtures{};
-		bool includeSettingFeedbackFixtures{};
-		bool includeTextViewFixture{};
-	};
+	struct PreviewOptions;
 
 	class FixtureRunner final
 	{
@@ -35,16 +24,17 @@ namespace DearModdingUIPreview
 
 		[[nodiscard]] bool Register(
 			ID3D11Device* a_device,
-			std::string& a_error,
-			const FixtureOptions& a_options) noexcept;
+			const PreviewOptions& a_options,
+			std::wstring& a_error) noexcept;
 		[[nodiscard]] bool ActivatePresentationScenario(
-			DmuiTests::PresentationScenario a_scenario,
-			std::string& a_error) noexcept;
-		[[nodiscard]] uint64_t PresentationPage(
-			DmuiTests::PresentationScenario a_scenario) const noexcept;
-		[[nodiscard]] bool ValidatePresentationCapture(std::string& a_error) const;
-		[[nodiscard]] bool ValidateTextViewCapture(std::string& a_error) const;
-		void PrepareTextViewCapture(uint32_t a_frame);
+			std::wstring& a_error) noexcept;
+		[[nodiscard]] bool PresentationUsesMenu() const noexcept;
+		[[nodiscard]] uint64_t PresentationPage() const noexcept;
+		[[nodiscard]] bool BeforeFrame(std::wstring& a_error) const;
+		void PrepareInput(std::optional<uint32_t> a_frame);
+		void PrepareCaptureFrame(std::optional<uint32_t> a_frame);
+		[[nodiscard]] bool BeforeDraw(std::wstring& a_error) const;
+		[[nodiscard]] bool ValidateCapture(std::wstring& a_error) const;
 		void Stop() noexcept;
 
 	private:

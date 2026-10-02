@@ -1,1 +1,0 @@
-DMUI file-choice fixture: Alpha.

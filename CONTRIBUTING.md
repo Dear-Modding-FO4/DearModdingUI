@@ -43,9 +43,15 @@ Release builds produce two installable packages in `.Build/packages/`:
 | `DearModdingUI-MCM-<version>-release.zip` | Optional bridge DLL for legacy MCM menus. Requires the host. |
 
 Package versions come from `plugin_version` in `xmake.lua`.
-With `--test-release=y`, packaging instead produces one
-`DearModdingUI-<version>-test.zip`; see [test bundle setup](tools/test-client/README.md).
 Packaging reads runtime assets from the working tree under `data\F4SE\Plugins`.
+
+## Local fixtures
+
+The test plugin, preview scenarios, showcase, and fixture-only tests live in the
+gitignored `fixtures\` folder. When present, xmake includes them in local builds.
+With `--test-release=y`, packaging produces one `DearModdingUI-<version>-test.zip`
+containing the host, MCM bridge, test plugin, and test data. This option requires
+local fixtures. CI and public releases do not use them.
 
 ## Editor integration
 
@@ -67,13 +73,10 @@ Optional project generation, run from the repository root:
 | `mcm\adapters\` | Stable-UI rendering adapters shared by MCM consumers. |
 | `mcm\runtime\` | MCM bridge plugin entry point and game adapters. |
 | `tests\` | Subsystem suites under `host`, `presentation`, `platform`, and `mcm`; typed helpers under `support`. |
-| `tests\fixtures\` | Reusable synthetic client descriptors and registration fixtures. |
-| `tools\preview\` | Desktop preview, capture support, synthetic scenarios, and preview-only navigation implementations. |
-| `tools\shared\` | One interactive diagnostic suite shared by preview and the in-game runner. |
-| `tools\test-client\` | Thin F4SE runner for the shared diagnostic suite. |
+| `tools\preview\` | Desktop host preview, capture support, and preview-only navigation implementations. |
+| `tools\build-support\include\` | Compatibility stubs used only by tests and preview builds. |
 
-`xmake.lua` declares shared source sets once for every target. The `tools\shared\include`
-compatibility stubs are for the preview and tests only.
+`xmake.lua` declares shared source sets once for every target.
 
 ## Running tests
 
@@ -91,7 +94,8 @@ sources, so run it only when nothing else is editing or building.
 
 ## Standalone preview
 
-The standalone preview runs the UI renderer in a desktop window with synthetic data, allowing you to iterate on UI components without launching Fallout 4:
+The standalone preview runs the host UI in a desktop window without launching
+Fallout 4. Without local fixtures, it shows only host pages:
 
 ```powershell
 $projectRoot = (Resolve-Path -LiteralPath '.').Path
@@ -105,11 +109,11 @@ Useful arguments:
 - `--scroll-y <pixels>`: Scrolls page content before capture.
 - `--page <id>`: Navigates directly to a registered settings page.
 - `--sidebar <tree|twopane|drilldown|iconrail>`: Selects a sidebar presentation layout.
-- `--presentation <overlay|notification|image|plot|dialog|modal|popup|draw-list>`: Tests presentation services, client popups, and custom geometry with viewport markers.
+- `--presentation <overlay|notification|image|plot|dialog|modal|popup|draw-list>`: Activates a local fixture scenario.
 - `--menu-closed`: Hides the shell for overlay-only notification captures.
 - `--frames <count>`: Renders more frames before capture if a scenario needs time to initialize.
 
-Scenarios live in `tools\shared` and `tools\preview\fixtures`, and are not packaged. For example:
+With local fixtures present, for example:
 
 ```powershell
 .\.Build\Preview\dmui-preview.exe --page text-view/reader --frames 12 --screenshot .Build\Preview\TextViewReader.png

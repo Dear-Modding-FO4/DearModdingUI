@@ -2,6 +2,7 @@
 #include "../support/ImGuiTestContext.h"
 
 #include <DearModdingUI/controls/SettingsTable.h>
+#include <DearModdingUI/host/HostAPIEntries.h>
 
 #include <imgui/imgui.h>
 
@@ -24,12 +25,10 @@ namespace vmm_tests
 	void run_host_api_compatibility_checks(Runner& runner)
 	{
 		runner.test("settings rows use production adapters", [] {
-			const auto* api = DMUI_GetAPI(DMUI_ABI_VERSION);
-			require(api, "fixture host API was unavailable");
 			constexpr DMUI_ClientHandle owner{ 7 };
 			uint32_t visible{ 1u };
 			require(
-				api->beginSettingsRowEx(
+				HostAPIInternal::ApiBeginSettingsRowEx(
 					owner,
 					"null-options",
 					"",
@@ -55,7 +54,7 @@ namespace vmm_tests
 
 				visible = 0u;
 				require(
-					api->beginSettingsRow(
+					HostAPIInternal::ApiBeginSettingsRow(
 						owner, "empty-label", "", nullptr, &visible) ==
 							DMUI_RESULT_OK &&
 						visible != 0,
@@ -67,13 +66,13 @@ namespace vmm_tests
 				};
 				uint32_t resetPressed{ 1u };
 				require(
-					api->endSettingsRow(owner, nullptr, &resetPressed) ==
+					HostAPIInternal::ApiEndSettingsRow(owner, nullptr, &resetPressed) ==
 							DMUI_RESULT_INVALID_ARGUMENT &&
 						resetPressed == 0u,
 					"legacy end accepted null options");
 				resetPressed = 1u;
 				require(
-					api->endSettingsRow(
+					HostAPIInternal::ApiEndSettingsRow(
 						owner, &endOptions, &resetPressed) == DMUI_RESULT_OK &&
 						resetPressed == 0u,
 					"legacy row did not end through the shared renderer");
@@ -83,7 +82,7 @@ namespace vmm_tests
 				};
 				visible = 0u;
 				require(
-					api->beginSettingsRowEx(
+					HostAPIInternal::ApiBeginSettingsRowEx(
 						owner,
 						"full-span",
 						"",
@@ -97,7 +96,7 @@ namespace vmm_tests
 				endOptions.resetEnabled = 1u;
 				resetPressed = 1u;
 				require(
-					api->endSettingsRow(
+					HostAPIInternal::ApiEndSettingsRow(
 						owner, &endOptions, &resetPressed) == DMUI_RESULT_OK &&
 						resetPressed == 0u,
 					"legacy reset options did not use the shared row end");

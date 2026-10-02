@@ -1,165 +1,35 @@
 #include "FixtureRunner.h"
-
-#include "fixtures/MCMFixtures.h"
-#include "fixtures/NavigationFixtures.h"
-#include "fixtures/SettingFeedbackFixtures.h"
-#include "fixtures/TextViewFixture.h"
-
-#include <d3d11.h>
-
-#include <cstdio>
-#include <exception>
-#include <memory>
-#include <string_view>
-#include <vector>
+#include "PreviewOptions.h"
 
 namespace DearModdingUIPreview
 {
-	namespace
-	{
-		class PreviewEnvironment final : public DmuiTests::Environment
-		{
-		public:
-			void SetDevice(ID3D11Device* a_device) noexcept
-			{
-				m_device = a_device;
-			}
-
-			[[nodiscard]] Microsoft::WRL::ComPtr<ID3D11Device>
-				AcquireRendererDevice() noexcept override
-			{
-				Microsoft::WRL::ComPtr<ID3D11Device> result;
-				if (m_device)
-					result = m_device;
-				return result;
-			}
-
-			[[nodiscard]] bool SupportsGameInputContexts() const noexcept override
-			{
-				return false;
-			}
-
-			std::string ImageFixturePath(std::string_view a_name) const override
-			{
-				return std::string{ DMUI_IMAGE_FIXTURES "/" } + std::string{ a_name };
-			}
-
-			void Log(
-				DmuiTests::LogLevel a_level,
-				std::string_view a_message) noexcept override
-			{
-				const char* level = a_level == DmuiTests::LogLevel::kError ?
-					"error" : a_level == DmuiTests::LogLevel::kWarning ?
-					"warning" : "info";
-				std::fprintf(
-					stderr,
-					"[%s] %.*s\n",
-					level,
-					static_cast<int>(a_message.size()),
-					a_message.data());
-			}
-
-		private:
-			ID3D11Device* m_device{};
-		};
-	}
-
 	struct FixtureRunner::Impl
-	{
-		PreviewEnvironment environment;
-		DmuiTests::GeneralTestSuite testSuite{ environment };
-		DmuiTestFixtures::McmFixture mcmFixture;
-		std::vector<std::unique_ptr<dmui::Client>> navigationClients;
-		DmuiTestFixtures::SettingFeedbackFixture settingFeedback;
-		DmuiTestFixtures::TextViewFixture textView;
-	};
+	{};
 
-	FixtureRunner::FixtureRunner() :
-		m_impl(std::make_unique<Impl>())
-	{}
-
+	FixtureRunner::FixtureRunner() = default;
 	FixtureRunner::~FixtureRunner() = default;
 
-	void FixtureRunner::Stop() noexcept
-	{
-		m_impl->testSuite.Stop();
-	}
-
 	bool FixtureRunner::Register(
-		ID3D11Device* a_device,
-		std::string& a_error,
-		const FixtureOptions& a_options) noexcept
+		ID3D11Device*,
+		const PreviewOptions& a_options,
+		std::wstring& a_error) noexcept
 	{
-		try
+		if (a_options.page || a_options.presentationScenario ||
+			a_options.hotkeyState || a_options.syntheticHealth)
 		{
-			a_error.clear();
-			m_impl->environment.SetDevice(a_device);
-			if (!m_impl->testSuite.Initialize())
-			{
-				a_error = "Could not register the shared DMUI test fixture.";
-				return false;
-			}
-
-			DmuiTestFixtures::McmFixtureOptions mcmOptions{
-				.configPath = a_options.mcmConfigPath,
-				.dataRoot = a_options.dataRoot,
-				.userKeybindsPath = a_options.userKeybindsPath,
-				.state = {
-					a_options.mcmInstalled,
-					a_options.gameLoaded
-				}
-			};
-			if (!m_impl->mcmFixture.Register(mcmOptions, a_error))
-				return false;
-
-			if (a_options.includeNavigationComparisonFixtures &&
-				!DmuiTestFixtures::RegisterNavigationComparisonFixtures(
-					m_impl->navigationClients,
-					a_error))
-				return false;
-			if (a_options.includeSettingFeedbackFixtures &&
-				!m_impl->settingFeedback.Register(a_error))
-				return false;
-			if (a_options.includeTextViewFixture &&
-				!m_impl->textView.Register(a_error))
-				return false;
-			return true;
-		}
-		catch (const std::exception& a_exception)
-		{
-			a_error = "Preview fixture composition threw: ";
-			a_error += a_exception.what();
+			a_error = L"The requested preview scenario requires local fixtures.";
 			return false;
 		}
+		return true;
 	}
 
-	bool FixtureRunner::ActivatePresentationScenario(
-		DmuiTests::PresentationScenario a_scenario,
-		std::string& a_error) noexcept
-	{
-		return m_impl->testSuite.ActivatePresentationScenario(
-			a_scenario,
-			a_error);
-	}
-
-	uint64_t FixtureRunner::PresentationPage(
-		DmuiTests::PresentationScenario a_scenario) const noexcept
-	{
-		return m_impl->testSuite.PresentationPage(a_scenario);
-	}
-
-	bool FixtureRunner::ValidatePresentationCapture(std::string& a_error) const
-	{
-		return m_impl->testSuite.ValidatePresentationCapture(a_error);
-	}
-
-	bool FixtureRunner::ValidateTextViewCapture(std::string& a_error) const
-	{
-		return m_impl->textView.ValidateCapture(a_error);
-	}
-
-	void FixtureRunner::PrepareTextViewCapture(uint32_t a_frame)
-	{
-		m_impl->textView.PrepareCaptureFrame(a_frame);
-	}
+	bool FixtureRunner::ActivatePresentationScenario(std::wstring&) noexcept { return true; }
+	bool FixtureRunner::PresentationUsesMenu() const noexcept { return true; }
+	uint64_t FixtureRunner::PresentationPage() const noexcept { return 0; }
+	bool FixtureRunner::BeforeFrame(std::wstring&) const { return true; }
+	void FixtureRunner::PrepareInput(std::optional<uint32_t>) {}
+	void FixtureRunner::PrepareCaptureFrame(std::optional<uint32_t>) {}
+	bool FixtureRunner::BeforeDraw(std::wstring&) const { return true; }
+	bool FixtureRunner::ValidateCapture(std::wstring&) const { return true; }
+	void FixtureRunner::Stop() noexcept {}
 }

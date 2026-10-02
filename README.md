@@ -44,7 +44,7 @@ Preserve both files when upgrading.
 | **Host** | Shared menu, navigation, controls, rendering, input, fonts, and icons. |
 | **Client API** | Versioned C ABI with a header-only C++ wrapper for mods. |
 | **MCM bridge** | Optional companion that shows legacy MCM menus in the host. |
-| **Diagnostics** | Desktop preview and in-game test client for development. |
+| **Diagnostics** | Desktop host preview; optional local fixtures add an in-game test client. |
 
 ## Mod integration
 

@@ -292,16 +292,12 @@ namespace DearModdingUIPreview
 			else if (argument == L"--presentation")
 			{
 				const auto name = WideToUtf8(value);
-				const auto scenario = name ?
-					DmuiTests::ParsePresentationScenario(*name) :
-					std::nullopt;
-				if (!scenario)
+				if (!name || name->empty())
 				{
-					a_error =
-						L"Presentation must be overlay, notification, image, plot, dialog, modal, popup, or draw-list.";
+					a_error = L"Presentation scenario cannot be empty.";
 					return false;
 				}
-				a_options.presentationScenario = *scenario;
+				a_options.presentationScenario = *name;
 			}
 			else if (argument == L"--hotkey-state")
 			{

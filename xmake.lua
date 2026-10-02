@@ -7,9 +7,11 @@ local function project_dir(relative)
     return path.join(os.projectdir(), relative)
 end
 
+local local_fixtures = os.isdir(project_dir("fixtures"))
+
 -- Project-script OS access is read-only; build callbacks supply filesystem writes.
 local function copy_mcm_fixture_data(destination, build_os)
-    local source = project_dir("tools/shared/fixtures/mcm/data")
+    local source = project_dir("fixtures/mcm/data")
     for _, required in ipairs({
         "DMUITests.esp",
         "Scripts/DMUITestQuest.pex",
@@ -19,7 +21,7 @@ local function copy_mcm_fixture_data(destination, build_os)
         "MCM/Config/DMUITests/keybinds.json"
     }) do
         if not build_os.isfile(path.join(source, required)) then
-            raise("missing checked-in MCM test fixture: %s", path.join(source, required))
+            raise("missing local MCM test fixture: %s", path.join(source, required))
         end
     end
     build_os.mkdir(destination)
@@ -175,8 +177,8 @@ local source_sets = {
         "tools/preview/navigation/NavigationPreview.cpp"
     },
     diagnostic_client = {
-        "tests/fixtures/GeneralTestFixtures.cpp",
-        "tools/shared/GeneralTestSuite*.cpp"
+        "fixtures/tests/GeneralTestFixtures.cpp",
+        "fixtures/shared/GeneralTestSuite*.cpp"
     }
 }
 
@@ -358,13 +360,17 @@ target("dmui-tests", function()
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileTextView.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileVisualDecisions.cpp"
     )
+    if local_fixtures then
+        add_files("fixtures/tests/*.cpp")
+        add_includedirs("fixtures/tests")
+        add_defines("DMUI_LOCAL_FIXTURES")
+        add_ldflags("/EXPORT:DMUI_GetAPI", { force = true })
+    end
     add_includedirs(
         "tools/preview/include",
-        "tools/shared",
-        "tools/shared/include",
+        "tools/build-support/include",
         "mcm/runtime/include",
         "tests",
-        "tests/fixtures",
         "src",
         "include",
         "Depends",
@@ -375,10 +381,6 @@ target("dmui-tests", function()
     )
     add_defines("DMUI_UI_TESTING", "DMUI_PREVIEW")
     add_syslinks("bcrypt", "d3d11", "dxgi", "d3dcompiler", "shell32", "windowscodecs", "ole32")
-    add_ldflags(
-        "/EXPORT:DMUI_GetAPI",
-        { force = true }
-    )
 end)
 
 target("dmui-preview", function()
@@ -388,27 +390,31 @@ target("dmui-preview", function()
     set_exceptions("cxx")
     set_targetdir(project_dir(".Build/Preview"))
     add_defines('DMUI_VERSION="' .. plugin_version .. '"')
-    add_defines('DMUI_IMAGE_FIXTURES="' .. project_dir("tests/fixtures/images"):gsub("\\", "/") .. '"')
     set_objectdir(".LinkConf/xmake/dmui-preview")
     set_dependir(".LinkConf/xmake/dmui-preview/deps")
 
     add_deps("imgui", "dmui-mcm")
-    add_source_sets("core", "ui", "navigation_preview", "diagnostic_client")
+    add_source_sets("core", "ui", "navigation_preview")
     add_shaders()
     add_files(
         "tools/preview/*.cpp",
-        "tools/preview/fixtures/**.cpp",
         "mcm/runtime/src/Win32FileListingAdapter.cpp"
     )
+    if local_fixtures then
+        add_source_sets("diagnostic_client")
+        add_files("fixtures/preview/*.cpp")
+        add_includedirs("fixtures/preview", "fixtures/shared", "fixtures/tests")
+        add_defines("DMUI_PREVIEW_FIXTURES")
+        add_defines('DMUI_IMAGE_FIXTURES="' .. project_dir("fixtures/images"):gsub("\\", "/") .. '"')
+        remove_files("tools/preview/FixtureRunner.cpp")
+    end
     add_includedirs(
         "tools/preview/include",
         "tools/preview",
         "tools/preview/navigation",
-        "tools/shared",
-        "tools/shared/include",
+        "tools/build-support/include",
         "mcm/adapters/include",
         "mcm/runtime/include",
-        "tests/fixtures",
         "src",
         "include",
         "Depends",
@@ -436,7 +442,9 @@ target("dmui-preview", function()
             path.join(project_dir("data/F4SE/Plugins"), "*"),
             plugins
         )
-        copy_mcm_fixture_data(data_root, os)
+        if local_fixtures then
+            copy_mcm_fixture_data(data_root, os)
+        end
     end)
 end)
 
@@ -459,6 +467,9 @@ target(plugin_name, function()
     add_deps("commonlibf4")
 
     on_config(function(target)
+        if release_variant() == "test" and not local_fixtures then
+            raise("--test-release=y requires local fixtures in the gitignored fixtures/ folder")
+        end
         disable_commonlib_auto_install(target)
     end)
 
@@ -505,7 +516,7 @@ target("DearModdingUI-MCM", function()
     set_pcxxheader("Depends/commonlibf4/include/F4SE/Impl/PCH.h")
 end)
 
-if has_config("test-release") then
+if local_fixtures and has_config("test-release") then
 target("dmui-test-client", function()
     add_options("test-release")
     set_kind("shared")
@@ -538,16 +549,16 @@ target("dmui-test-client", function()
     end)
 
     add_source_sets("diagnostic_client")
-    add_files("tools/test-client/*.cpp")
-    add_headerfiles("tools/test-client/*.h")
+    add_files("fixtures/test-client/*.cpp")
+    add_headerfiles("fixtures/test-client/*.h")
     add_extrafiles(
-        "tools/test-client/README.md",
-        "tools/shared/fixtures/mcm/data/**",
-        "tests/fixtures/GeneralTestFixtures.h",
-        "tools/shared/GeneralTestSuite.h",
-        "tools/shared/TestHotkeyDescriptors.h"
+        "fixtures/test-client/README.md",
+        "fixtures/mcm/data/**",
+        "fixtures/tests/GeneralTestFixtures.h",
+        "fixtures/shared/GeneralTestSuite.h",
+        "fixtures/shared/TestHotkeyDescriptors.h"
     )
-    add_includedirs("tests/fixtures", "tools/shared")
+    add_includedirs("fixtures/tests", "fixtures/shared")
     add_syslinks("d3d11", "dxgi")
     set_pcxxheader("Depends/commonlibf4/include/F4SE/Impl/PCH.h")
 
@@ -689,7 +700,7 @@ task("package-release", function()
                     local image_data = path.join(plugins, "dmui-test-client/images")
                     os.mkdir(image_data)
                     for _, name in ipairs({ "Tiles.png", "Tiles.dds" }) do
-                        os.cp(project_dir(path.join("tests/fixtures/images", name)), image_data)
+                        os.cp(project_dir(path.join("fixtures/images", name)), image_data)
                     end
                 end
                 for _, source in ipairs(runtime_assets) do

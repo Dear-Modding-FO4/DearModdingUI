@@ -3,8 +3,6 @@
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/navigation/SidebarComparison.h>
 
-#include <GeneralTestSuite.h>
-
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -27,7 +25,7 @@ namespace DearModdingUIPreview
 		std::optional<DearModdingUI::NavigationPresentationKind>
 			navigationOverride;
 		std::optional<DMUI_ClientOrigin> navigationOrigin;
-		std::optional<DmuiTests::PresentationScenario> presentationScenario;
+		std::optional<std::string> presentationScenario;
 		bool syntheticHealth{};
 		bool menuClosed{};
 		bool controllerNavigation{};

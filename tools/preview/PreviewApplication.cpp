@@ -3,7 +3,6 @@
 #include "FixtureRunner.h"
 #include "PreviewRenderer.h"
 #include "PreviewWindow.h"
-#include "fixtures/HostHealthFixtures.h"
 
 #include <DearModdingUI/presentation/BackgroundBlur.h>
 #include <Platform/imgui/ImGuiWin32Integration.h>
@@ -19,7 +18,6 @@
 #include <DearModdingUI/navigation/SidebarComparison.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <Support/Runtime.h>
-#include <Support/SubsystemHealth.h>
 
 #include <Windows.h>
 
@@ -47,76 +45,6 @@
 namespace DearModdingUIPreview
 {
 	using namespace DearModdingUI;
-
-	namespace
-	{
-		class PreviewHealthReporter final : public HealthReporter
-		{
-		public:
-			void Report(
-				HealthEvent,
-				const HealthSnapshot&) noexcept override
-			{}
-		};
-
-		PreviewHealthReporter g_previewHealthReporter;
-
-		[[nodiscard]] bool VerifyTextViewDrawAccess(std::wstring& a_error)
-		{
-			const auto& pages = OrderedPages();
-			if (pages.empty())
-			{
-				a_error = L"The text-view access check requires a registered client.";
-				return false;
-			}
-			const auto owner = pages.front().client;
-			const size_t lineOffsets[]{ 0 };
-			const DMUI_TextViewDescriptor descriptor{
-				.id = "preview-access-check",
-				.lineOffsets = lineOffsets,
-				.lineCount = 1
-			};
-			DMUI_TextViewState state{  };
-			if (HostAPI().drawTextView(owner, &descriptor, &state) !=
-				DMUI_RESULT_WRONG_THREAD)
-			{
-				a_error = L"The text viewer accepted a call outside its render callback.";
-				return false;
-			}
-			RenderExecution::Guard execution{ RenderExecution::Phase::kFrameDraw };
-			RenderExecution::ClientGuard client{ owner, true };
-			auto* context = ImGui::GetCurrentContext();
-			ImGui::SetCurrentContext(nullptr);
-			const auto result = HostAPI().drawTextView(owner, &descriptor, &state);
-			ImGui::SetCurrentContext(context);
-			if (result != DMUI_RESULT_HOST_NOT_READY)
-			{
-				a_error = L"The text viewer accepted a call without a live ImGui context.";
-				return false;
-			}
-			return true;
-		}
-
-		[[nodiscard]] bool VerifyMonospaceFont(std::wstring& a_error)
-		{
-			if (!Theme::PushFont(Theme::FontRole::kMonospace))
-			{
-				a_error = L"The production monospace font role did not load.";
-				return false;
-			}
-			const auto narrow = ImGui::CalcTextSize("iiii").x;
-			const auto wide = ImGui::CalcTextSize("WWWW").x;
-			const auto digits = ImGui::CalcTextSize("0123").x;
-			Theme::PopFont();
-			if (narrow <= 0.0f || std::abs(narrow - wide) > 0.01f ||
-				std::abs(narrow - digits) > 0.01f)
-			{
-				a_error = L"The production monospace role has unequal glyph advances.";
-				return false;
-			}
-			return true;
-		}
-	}
 
 	struct PreviewApplication::Impl
 	{
@@ -157,11 +85,6 @@ namespace DearModdingUIPreview
 			return RunInteractive(error);
 		}
 
-		[[nodiscard]] bool IsTextViewScenario() const noexcept
-		{
-			return options.page && *options.page == "text-view/reader";
-		}
-
 		[[nodiscard]] bool Initialize(std::wstring& a_error)
 		{
 			ImGui_ImplWin32_EnableDpiAwareness();
@@ -197,68 +120,9 @@ namespace DearModdingUIPreview
 			HostSettings::Initialize();
 			DearModdingUI::Initialize();
 			fixtures = std::make_unique<FixtureRunner>();
-			std::string registrationError;
-			const auto* configOverride =
-				std::getenv("DMUI_PREVIEW_MCM_CONFIG");
-			const auto environmentFlag = [](const char* a_name, bool a_default) {
-				const auto* value = std::getenv(a_name);
-				return value ? std::string_view{ value } != "0" : a_default;
-			};
-			const auto runtimeDirectory =
-				Addictol::Support::GetRuntimeDirectory();
-			if (runtimeDirectory.empty())
-			{
-				a_error = L"Could not resolve the preview executable directory.";
+			if (!fixtures->Register(renderer.Device(), options, a_error))
 				return false;
-			}
-			const auto resourceRoot =
-				std::filesystem::path{ runtimeDirectory };
-			const auto dataRoot = resourceRoot / "Data";
-			const FixtureOptions fixtureOptions{
-				.mcmConfigPath = configOverride ?
-					std::filesystem::path{ configOverride } :
-					dataRoot / "MCM" / "Config" / "DMUITests" /
-						"config.json",
-				.dataRoot = configOverride ?
-					std::filesystem::current_path() / "Data" :
-					dataRoot,
-				.userKeybindsPath =
-					std::filesystem::current_path() /
-					"Data" / "MCM" / "Settings" / "Keybinds.json",
-				.mcmInstalled = environmentFlag(
-					"DMUI_PREVIEW_MCM_INSTALLED",
-					true),
-				.gameLoaded = environmentFlag(
-					"DMUI_PREVIEW_GAME_LOADED",
-					true),
-				.includeNavigationComparisonFixtures =
-					options.navigationOverride.has_value(),
-				.includeSettingFeedbackFixtures =
-					options.page && options.page->starts_with("setting-feedback/"),
-				.includeTextViewFixture = IsTextViewScenario()
-			};
-			if (!fixtures->Register(
-					renderer.Device(),
-					registrationError,
-					fixtureOptions))
-			{
-				a_error.assign(
-					registrationError.begin(),
-					registrationError.end());
-				return false;
-			}
-			if (options.screenshot && options.hostPage == HostPageKind::kSettings)
-			{
-				Hotkeys::InitializeOverrides({
-					{ "dmui.test.controller-bound",
-						options.hotkeyState == "conflict" ? "PadBack+PadLB+PadRB" : "PadLB+PadX" }
-				}, HotkeySlot::kGamepad);
-			}
 			Theme::Initialize(window.Handle());
-			if (options.syntheticHealth)
-				syntheticHealth = DmuiTestFixtures::CreateSyntheticHealth(
-					HostSubsystemHealthRegistry(),
-					g_previewHealthReporter);
 			CursorLoader::Initialize(window.Handle());
 			if (!ImGui_ImplWin32_Init(window.Handle()))
 			{
@@ -291,19 +155,8 @@ namespace DearModdingUIPreview
 					return false;
 				}
 				CompleteBackendInitialization(context);
-				if (options.presentationScenario)
-				{
-					std::string presentationError;
-					if (!fixtures->ActivatePresentationScenario(
-							*options.presentationScenario,
-							presentationError))
-					{
-						a_error.assign(
-							presentationError.begin(),
-							presentationError.end());
-						return false;
-					}
-				}
+				if (!fixtures->ActivatePresentationScenario(a_error))
+					return false;
 			}
 			if (!SelectInitialPage(a_error))
 				return false;
@@ -367,13 +220,12 @@ namespace DearModdingUIPreview
 		{
 			if (options.presentationScenario)
 			{
-				const auto scenario = *options.presentationScenario;
-				if (!DmuiTests::PresentationUsesMenu(scenario))
+				if (!fixtures->PresentationUsesMenu())
 				{
 					(void)SetMenuVisible(false);
 					return true;
 				}
-				const auto scenarioPage = fixtures->PresentationPage(scenario);
+				const auto scenarioPage = fixtures->PresentationPage();
 				const auto& pages = OrderedPages();
 				const auto page = std::ranges::find(
 					pages,
@@ -488,8 +340,7 @@ namespace DearModdingUIPreview
 			std::wstring& a_error,
 			std::optional<uint32_t> a_captureFrame = std::nullopt)
 		{
-			if (options.screenshot && IsTextViewScenario() &&
-				!VerifyTextViewDrawAccess(a_error))
+			if (!fixtures->BeforeFrame(a_error))
 				return false;
 			{
 				RenderExecution::Guard execution{
@@ -514,8 +365,7 @@ namespace DearModdingUIPreview
 					ImGui_ImplWin32_NewFrame();
 				else
 					ImGuiWin32Integration::NewFrameWithoutGamepad();
-				if (options.hotkeyState == "capture")
-					ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_HasGamepad;
+				fixtures->PrepareInput(a_captureFrame);
 				if (hadGamepad && !(ImGui::GetIO().BackendFlags & ImGuiBackendFlags_HasGamepad))
 				{
 					ControllerNavigation::Reset();
@@ -526,15 +376,6 @@ namespace DearModdingUIPreview
 					ControllerNavigation::UseNavigation();
 					options.controllerNavigation = false;
 				}
-				if (a_captureFrame && options.hotkeyState == "capture")
-				{
-					constexpr std::array sequence{ "PadRB", "PadDown", "PadDown", "PadLeft", "PadA" };
-					const auto frame = *a_captureFrame;
-					if (frame > 0 && frame <= sequence.size() * 2)
-						ControllerNavigation::QueueButton(
-							*KeyCatalog::Parse(sequence[(frame - 1) / 2]),
-							frame % 2 ? 1.0f : 0.0f);
-				}
 				if (ControllerNavigation::PrepareFrame(IsMenuVisible() && inputFocused, true) &&
 					SetMenuVisible(!IsMenuVisible()) != DMUI_RESULT_OK)
 				{
@@ -542,11 +383,9 @@ namespace DearModdingUIPreview
 					return false;
 				}
 				CursorLoader::PrepareFrame(IsMenuVisible());
-				if (a_captureFrame && IsTextViewScenario())
-					fixtures->PrepareTextViewCapture(*a_captureFrame);
+				fixtures->PrepareCaptureFrame(a_captureFrame);
 				ImGui::NewFrame();
-				if (options.screenshot && IsTextViewScenario() &&
-					!VerifyMonospaceFont(a_error))
+				if (!fixtures->BeforeDraw(a_error))
 				{
 					ImGui::EndFrame();
 					return false;
@@ -597,22 +436,8 @@ namespace DearModdingUIPreview
 				if (!RenderFrame(a_error, frame))
 					break;
 			}
-			if (a_error.empty() && options.presentationScenario)
-			{
-				std::string fixtureError;
-				if (PageFailed(fixtures->PresentationPage(*options.presentationScenario)))
-					a_error = L"The presentation page callback failed before capture.";
-				else if (!fixtures->ValidatePresentationCapture(fixtureError))
-					a_error.assign(fixtureError.begin(), fixtureError.end());
-			}
-			if (a_error.empty() && options.hotkeyState == "capture" && !Hotkeys::IsCapturing())
-				a_error = L"The controller fixture did not activate a binding capture.";
-			if (a_error.empty() && IsTextViewScenario())
-			{
-				std::string fixtureError;
-				if (!fixtures->ValidateTextViewCapture(fixtureError))
-					a_error.assign(fixtureError.begin(), fixtureError.end());
-			}
+			if (a_error.empty())
+				(void)fixtures->ValidateCapture(a_error);
 			if (a_error.empty())
 				(void)renderer.Capture(*options.screenshot, a_error);
 			if (!a_error.empty())
@@ -621,10 +446,6 @@ namespace DearModdingUIPreview
 				return 1;
 			}
 			std::wcout << L"Wrote " << options.screenshot->wstring() << L'\n';
-			if (IsTextViewScenario())
-				std::wcout << L"Verified text-view public draw, later reveal, overlapping "
-					L"highlights, clipping, monospace role, callback guards, and "
-					L"growable search typing/paste with same-frame changes.\n";
 			return 0;
 		}
 
@@ -654,7 +475,6 @@ namespace DearModdingUIPreview
 		PreviewWindow window;
 		ImGuiContext* context{};
 		std::unique_ptr<FixtureRunner> fixtures;
-		std::vector<std::unique_ptr<SubsystemHealth>> syntheticHealth;
 		std::string iniPath;
 		bool win32Initialized{};
 		bool dx11Initialized{};
