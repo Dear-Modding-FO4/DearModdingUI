@@ -17,6 +17,7 @@ namespace DearModdingUI::Theme
 			convert(colors::kMuted),
 			convert(a_accent),
 			convert(mutedAccent),
+			convert(kFullPalette[ImGuiCol_TableRowBgAlt]),
 			convert(kStatusPaletteDefaults.disable),
 			convert(kStatusPaletteDefaults.error),
 			convert(kStatusPaletteDefaults.warning),

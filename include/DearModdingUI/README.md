@@ -143,7 +143,7 @@ unchanged; zero still means no icon and they do not infer automatically.
 
 The host owns default page spacing and panel appearance. `ui::PanelScope`
 (or `BeginPanel` / `EndPanel`) provides a clipped child region using the theme's
-frame background, border, rounding, and panel padding. End only a panel whose
+`DMUI_ThemeColors::panel` surface, border, rounding, and panel padding. End only a panel whose
 begin returned true; the RAII scope handles this automatically.
 
 Size components above zero are fixed. Zero fills the available width or fits
@@ -561,6 +561,8 @@ toast notifications, annotated plots, and single-active
 submission-aware dialogs. See the [public API reference](https://github.com/Dear-Modding-FO4/DearModdingUI-API)
 for the stable UI schema, image formats, row extent, transactional updates, overlay coordinates, notification
 duration, dialog state, and per-call thread contracts.
+
+For managed overlays, persist placement offset and size and pass them back as options offset and size.
 
 ### Notifications
 

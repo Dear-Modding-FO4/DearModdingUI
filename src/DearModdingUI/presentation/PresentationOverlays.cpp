@@ -8,6 +8,7 @@
 #include <mutex>
 #include <new>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace DearModdingUI::PresentationServices
@@ -21,6 +22,8 @@ namespace DearModdingUI::PresentationServices
 			DMUI_ManagedOverlayOptions options{};
 			DMUI_ManagedOverlayPlacement placement{};
 			bool configured{};
+			bool positionPending{};
+			bool sizePending{};
 			bool arrangementInProgress{};
 		};
 
@@ -49,14 +52,13 @@ namespace DearModdingUI::PresentationServices
 			const DMUI_ManagedOverlayOptions& a_options,
 			float a_scale) noexcept
 		{
-			const auto scaled = [a_scale](float a_value) {
-				return a_value > 0.0f ? a_value * a_scale : 0.0f;
+			const auto resolve = [a_scale](float a_size, float a_minimum) {
+				return a_size > 0.0f ? a_size : a_minimum * a_scale;
 			};
-			if (a_options.structSize >= DMUI_MANAGED_OVERLAY_OPTIONS_INITIAL_SIZE_SIZE &&
-				(a_options.initialSize.x > 0.0f || a_options.initialSize.y > 0.0f))
-				return { a_options.initialSize.x, a_options.initialSize.y };
-			else
-				return { scaled(a_options.minimumSize.x), scaled(a_options.minimumSize.y) };
+			return {
+				resolve(a_options.size.x, a_options.minimumSize.x),
+				resolve(a_options.size.y, a_options.minimumSize.y)
+			};
 		}
 
 		[[nodiscard]] ImVec2 ResolveOverlayPosition(
@@ -97,6 +99,8 @@ namespace DearModdingUI::PresentationServices
 		if (a_options->anchor > DMUI_OVERLAY_ANCHOR_FREE ||
 			!std::isfinite(a_options->offset.x) ||
 			!std::isfinite(a_options->offset.y) ||
+			!std::isfinite(a_options->size.x) ||
+			!std::isfinite(a_options->size.y) ||
 			!std::isfinite(a_options->minimumSize.x) ||
 			!std::isfinite(a_options->minimumSize.y) ||
 			!std::isfinite(a_options->maximumSize.x) ||
@@ -107,17 +111,14 @@ namespace DearModdingUI::PresentationServices
 			a_options->opacity > 1.0f ||
 			a_options->contentScale < 0.5f ||
 			a_options->contentScale > 3.0f ||
+			a_options->size.x < 0.0f ||
+			a_options->size.y < 0.0f ||
 			a_options->minimumSize.x < 0.0f ||
 			a_options->minimumSize.y < 0.0f ||
 			(a_options->maximumSize.x > 0.0f &&
 				a_options->maximumSize.x < a_options->minimumSize.x) ||
 			(a_options->maximumSize.y > 0.0f &&
-				a_options->maximumSize.y < a_options->minimumSize.y) ||
-			(a_options->structSize >= DMUI_MANAGED_OVERLAY_OPTIONS_INITIAL_SIZE_SIZE &&
-				(!std::isfinite(a_options->initialSize.x) ||
-				!std::isfinite(a_options->initialSize.y) ||
-				a_options->initialSize.x < 0.0f ||
-				a_options->initialSize.y < 0.0f)))
+				a_options->maximumSize.y < a_options->minimumSize.y))
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		try
 		{
@@ -132,12 +133,19 @@ namespace DearModdingUI::PresentationServices
 				overlay = &service.overlays.back();
 				overlay->owner = a_client;
 				overlay->page = a_page;
-
 			}
+			overlay->positionPending |= !overlay->configured ||
+				overlay->options.anchor != a_options->anchor ||
+				overlay->options.offset.x != a_options->offset.x ||
+				overlay->options.offset.y != a_options->offset.y;
+			overlay->sizePending |= !overlay->configured ||
+				overlay->options.size.x != a_options->size.x ||
+				overlay->options.size.y != a_options->size.y;
 			overlay->options = *a_options;
 			overlay->configured = true;
 			overlay->placement.anchor = a_options->anchor;
-			overlay->placement.offset = a_options->offset;
+			if (overlay->positionPending)
+				overlay->placement.offset = a_options->offset;
 			return DMUI_RESULT_OK;
 		}
 		catch (...)
@@ -171,14 +179,18 @@ namespace DearModdingUI::PresentationServices
 	{
 		DMUI_ManagedOverlayOptions options{};
 		DMUI_ManagedOverlayPlacement previous{};
+		bool positionPending{};
+		bool sizePending{};
 		{
 			auto& service = GetOverlayService();
 			const std::scoped_lock lock{ service.mutex };
-			const auto* overlay = FindOverlay(service, a_page);
+			auto* overlay = FindOverlay(service, a_page);
 			if (!overlay || overlay->owner != a_client || !overlay->configured)
 				return ManagedOverlayBeginResult::kNotConfigured;
 			options = overlay->options;
 			previous = overlay->placement;
+			positionPending = std::exchange(overlay->positionPending, false);
+			sizePending = std::exchange(overlay->sizePending, false);
 		}
 
 		const auto& io = ImGui::GetIO();
@@ -187,23 +199,6 @@ namespace DearModdingUI::PresentationServices
 			1.0f;
 		const auto scale = hostScale * options.contentScale;
 		const auto viewport = io.DisplaySize;
-		auto expectedSize = ResolveOverlaySize(options, scale);
-		if (expectedSize.x <= 0.0f)
-			expectedSize.x = previous.size.x;
-		if (expectedSize.y <= 0.0f)
-			expectedSize.y = previous.size.y;
-		const auto position = ResolveOverlayPosition(
-			options,
-			viewport,
-			expectedSize,
-			hostScale);
-		const auto anchored = options.anchor != DMUI_OVERLAY_ANCHOR_FREE;
-		if (anchored || previous.changeGeneration == 0)
-			ImGui::SetNextWindowPos(position, ImGuiCond_Always);
-		if (options.minimumSize.x > 0.0f || options.minimumSize.y > 0.0f ||
-			(options.structSize >= DMUI_MANAGED_OVERLAY_OPTIONS_INITIAL_SIZE_SIZE &&
-			(options.initialSize.x > 0.0f || options.initialSize.y > 0.0f)))
-			ImGui::SetNextWindowSize(expectedSize, ImGuiCond_FirstUseEver);
 		const ImVec2 minimum{
 			options.minimumSize.x > 0.0f ?
 				options.minimumSize.x * scale :
@@ -220,6 +215,24 @@ namespace DearModdingUI::PresentationServices
 				options.maximumSize.y * scale :
 				(std::numeric_limits<float>::max)()
 		};
+		auto expectedSize = sizePending || previous.changeGeneration == 0 ?
+			ResolveOverlaySize(options, scale) :
+			ImVec2{ previous.size.x, previous.size.y };
+		const auto clamp = [](float a_value, float a_minimum, float a_maximum) {
+			return a_value > 0.0f ? std::clamp(a_value, a_minimum, a_maximum) : 0.0f;
+		};
+		expectedSize = {
+			clamp(expectedSize.x, minimum.x, maximum.x),
+			clamp(expectedSize.y, minimum.y, maximum.y)
+		};
+		const auto position = ResolveOverlayPosition(options, viewport, expectedSize, hostScale);
+		const auto anchored = options.anchor != DMUI_OVERLAY_ANCHOR_FREE;
+		if (anchored || positionPending || previous.changeGeneration == 0)
+			ImGui::SetNextWindowPos(position, ImGuiCond_Always);
+		if (sizePending && (options.size.x > 0.0f || options.size.y > 0.0f))
+			ImGui::SetNextWindowSize(expectedSize, ImGuiCond_Always);
+		else if (options.minimumSize.x > 0.0f || options.minimumSize.y > 0.0f)
+			ImGui::SetNextWindowSize(ResolveOverlaySize(options, scale), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSizeConstraints(minimum, maximum);
 		ImGui::SetNextWindowBgAlpha(options.opacity);
 		auto flags =
@@ -257,13 +270,17 @@ namespace DearModdingUI::PresentationServices
 				currentPosition.y
 			};
 			overlay->placement.size = { currentSize.x, currentSize.y };
+			if (!anchored)
+				overlay->placement.offset = {
+					currentPosition.x / hostScale,
+					currentPosition.y / hostScale
+				};
 			overlay->placement.visible = 1u;
 			if (changed)
 				++overlay->placement.changeGeneration;
 			const auto arrangementEnabled =
 				a_menuVisible &&
-				options.allowArrangement &&
-				!anchored;
+				options.allowArrangement;
 			if (arrangementEnabled && changed &&
 				ImGui::IsMouseDown(ImGuiMouseButton_Left))
 				overlay->arrangementInProgress = true;

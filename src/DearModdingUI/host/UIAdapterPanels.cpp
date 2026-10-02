@@ -2,6 +2,7 @@
 #include <DearModdingUI/UIBindings.generated.h>
 #include <DearModdingUI/host/UILayoutState.h>
 #include <DearModdingUI/presentation/ThemeLayout.h>
+#include <DearModdingUI/presentation/Theme.h>
 
 #include <imgui/imgui_internal.h>
 
@@ -233,7 +234,11 @@ namespace DearModdingUI::UI
 				windowFlags |= ImGuiWindowFlags_NoBackground;
 			ImGui::PushStyleVar(background ? ImGuiStyleVar_FramePadding : ImGuiStyleVar_WindowPadding,
 				Theme::Layout().panelPadding);
+			if (background)
+				ImGui::PushStyleColor(ImGuiCol_FrameBg, Native(Theme::ColorSnapshot().panel));
 			const auto visible = ImGui::BeginChild(a_id, Native(a_size), childFlags, windowFlags);
+			if (background)
+				ImGui::PopStyleColor();
 			ImGui::PopStyleVar();
 			if (!visible)
 			{

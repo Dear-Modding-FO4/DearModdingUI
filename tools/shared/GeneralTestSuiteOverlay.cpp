@@ -96,7 +96,12 @@ namespace DmuiTests::Detail
 		{
 			m_placement = *placement;
 			if (placement->arrangementCompleted)
+			{
 				++m_arrangementCompletions;
+				m_options.offset = placement->offset;
+				m_options.size = placement->size;
+				(void)Configure();
+			}
 		}
 		else
 		{
@@ -290,6 +295,7 @@ namespace DmuiTests::Detail
 	{
 		m_options.anchor = DMUI_OVERLAY_ANCHOR_TOP_RIGHT;
 		m_options.offset = { 24.0f, 24.0f };
+		m_options.size = {};
 		m_options.minimumSize = { 640.0f, 420.0f };
 		m_options.maximumSize = { 640.0f, 420.0f };
 		m_options.opacity = 0.82f;

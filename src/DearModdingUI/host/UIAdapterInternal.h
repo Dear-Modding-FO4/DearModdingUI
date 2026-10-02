@@ -30,6 +30,7 @@ namespace DearModdingUI::UI::AdapterInternal
 		const void* a_second,
 		uint32_t a_secondSize) noexcept;
 	[[nodiscard]] ImVec2 Native(DMUI_Vec2 a_value) noexcept;
+	[[nodiscard]] ImVec4 Native(DMUI_Vec4 a_value) noexcept;
 	[[nodiscard]] ImVec4 StableRGBA(uint32_t a_rgba) noexcept;
 	[[nodiscard]] DMUI_Vec2 Stable(ImVec2 a_value) noexcept;
 	[[nodiscard]] DMUI_Result TranslateInputFlags(

@@ -24,14 +24,14 @@ namespace vmm_tests
 			const DMUI_ManagedOverlayOptions options{
 				DMUI_OVERLAY_ANCHOR_TOP_RIGHT,
 				{ 10.0f, 10.0f },
+				{},
 				{ 440.0f, 40.0f },
 				{ 440.0f, 160.0f },
 				0.75f,
 				1.25f,
 				1,
 				1,
-				1,
-				0
+				1
 			};
 			require(PresentationServices::ConfigureOverlay(9, 11, &options) ==
 					DMUI_RESULT_OK,
@@ -59,6 +59,118 @@ namespace vmm_tests
 					std::abs(placement.position.x - 720.0f) < 1.0f &&
 					std::abs(placement.position.y - 10.0f) < 1.0f,
 				"managed overlay scaled dimensions or host-scale offset twice");
+		});
+
+		runner.test("managed overlay geometry restores once in placement units", [] {
+			support::ImGuiTestContext imgui;
+			ImGui::GetIO().FontGlobalScale = 1.5f;
+			DMUI_ManagedOverlayOptions options{
+				.anchor = DMUI_OVERLAY_ANCHOR_FREE,
+				.offset = { 60.0f, 80.0f },
+				.size = { 520.0f, 260.0f },
+				.minimumSize = { 80.0f, 80.0f },
+				.maximumSize = { 800.0f, 400.0f },
+				.opacity = 1.0f,
+				.contentScale = 1.25f,
+				.backgroundVisible = 1,
+				.borderVisible = 1,
+				.allowArrangement = 1
+			};
+			const auto configure = [&](DMUI_PageHandle a_page) {
+				require(PresentationServices::ConfigureOverlay(9, a_page, &options) ==
+						DMUI_RESULT_OK, "overlay reconfiguration failed");
+			};
+			const auto draw = [&](DMUI_PageHandle a_page, const char* a_label) {
+				require(PresentationServices::BeginManagedOverlay(9, a_page, a_label, true) ==
+						PresentationServices::ManagedOverlayBeginResult::kVisible,
+					"restored overlay did not open");
+				PresentationServices::EndManagedOverlay();
+				DMUI_ManagedOverlayPlacement placement{};
+				require(PresentationServices::QueryOverlay(9, a_page, &placement) == DMUI_RESULT_OK,
+					"restored overlay placement was unavailable");
+				return placement;
+			};
+			const auto sizeEquals = [](DMUI_Vec2 a_size, DMUI_Vec2 a_expected) {
+				return std::abs(a_size.x - a_expected.x) < 0.01f &&
+					std::abs(a_size.y - a_expected.y) < 0.01f;
+			};
+			configure(12);
+			for (int frame = 0; frame < 10; ++frame)
+			{
+				if (frame == 8 || frame == 9)
+					ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, frame == 8);
+				imgui.BeginWindow("##OverlayRestoreTest");
+				if (frame == 1)
+				{
+					ImGui::SetWindowSize("Restore overlay", { 560, 300 });
+					ImGui::SetWindowPos("Restore overlay", { 210, 180 });
+				}
+				if (frame == 2)
+					configure(12);
+				if (frame == 4)
+				{
+					options.size = { 640, 340 };
+					options.offset = { 100, 100 };
+					configure(12);
+				}
+				if (frame == 5)
+				{
+					options.size = { 20, 5000 };
+					configure(12);
+				}
+				if (frame == 6)
+				{
+					options.size = { 400, 0 };
+					configure(12);
+				}
+				if (frame == 7)
+				{
+					options.anchor = DMUI_OVERLAY_ANCHOR_TOP_RIGHT;
+					configure(12);
+				}
+				if (frame == 8)
+					ImGui::SetWindowSize("Restore overlay", { 460, 220 });
+				const auto placement = draw(12, "Restore overlay");
+				if (frame == 0)
+					require(sizeEquals(placement.size, options.size) &&
+							sizeEquals(placement.position, { 90, 120 }),
+						"restored size was scaled or initial offset was not host-scaled");
+				if (frame == 1 || frame == 2)
+					require(sizeEquals(placement.size, { 560, 300 }) &&
+							sizeEquals(placement.offset, { 140, 120 }),
+						"unchanged configuration snapped user geometry or failed to report free offset");
+				if (frame == 3)
+				{
+					options.size = placement.size;
+					options.offset = placement.offset;
+					configure(13);
+					const auto restored = draw(13, "Round-trip overlay");
+					require(sizeEquals(restored.size, placement.size) &&
+							sizeEquals(restored.position, placement.position),
+						"persisted geometry did not round-trip with content and host scaling");
+				}
+				if (frame == 4)
+					require(sizeEquals(placement.size, options.size) &&
+							sizeEquals(placement.position, { 150, 150 }),
+						"changed size or free offset was not applied on the next frame");
+				if (frame == 5)
+					require(sizeEquals(placement.size, { 150, 750 }),
+						"desired size bypassed scaled min/max constraints");
+				if (frame == 6)
+					require(sizeEquals(placement.size, { 400, 150 }),
+						"zero size component did not use its scaled minimum");
+				if (frame == 9)
+					require(sizeEquals(placement.size, { 460, 220 }) &&
+							placement.arrangementCompleted,
+						"anchored resize did not retain user size or report arrangement completion");
+				imgui.EndWindow();
+			}
+			options.size.x = -1;
+			require(PresentationServices::ConfigureOverlay(9, 12, &options) ==
+					DMUI_RESULT_INVALID_ARGUMENT, "negative desired size was accepted");
+			options.size.x = std::numeric_limits<float>::quiet_NaN();
+			require(PresentationServices::ConfigureOverlay(9, 12, &options) ==
+					DMUI_RESULT_INVALID_ARGUMENT, "non-finite desired size was accepted");
 		});
 
 		runner.test("toast expiry starts at presentation and hover pauses it", [] {

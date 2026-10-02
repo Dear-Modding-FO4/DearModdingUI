@@ -118,7 +118,29 @@ namespace vmm_tests
 				(void)ui::GetStyleMetrics(metrics);
 				const auto available = ui::GetContentRegionAvail().x;
 				if (const ui::PanelScope fit{ "Fit" })
+				{
+					auto* window = ImGui::GetCurrentWindow();
+					require(window->WindowBorderSize == metrics.frameBorderSize &&
+							window->WindowRounding == metrics.frameRounding &&
+							window->WindowPadding.x == metrics.panelPadding.x &&
+							window->WindowPadding.y == metrics.panelPadding.y,
+						"panel surface changed theme border, rounding, or padding");
+					if (frame == 2)
+					{
+						const auto expected = ui::GetColorU32(&DMUI_ThemeColors::panel);
+						const auto nativeColor = IM_COL32(expected >> 24, (expected >> 16) & 255,
+							(expected >> 8) & 255, expected & 255);
+						const auto hasSurface = [nativeColor](const ImDrawList* a_draw) {
+							for (const auto& vertex : a_draw->VtxBuffer)
+								if (vertex.col == nativeColor)
+									return true;
+							return false;
+						};
+						require(hasSurface(window->DrawList) || hasSurface(window->ParentWindow->DrawList),
+							"panel did not render the public theme surface role");
+					}
 					ui::Dummy({ 30, 40 });
+				}
 				if (frame == 2)
 					require(ImGui::GetItemRectSize().x == available &&
 							ImGui::GetItemRectSize().y == 40 + metrics.panelPadding.y * 2,
