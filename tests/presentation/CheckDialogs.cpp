@@ -10,6 +10,18 @@
 #include <string>
 #include <vector>
 
+namespace dmui::detail
+{
+	struct ClientTestAccess
+	{
+		static void Bind(Client& a_client, const DMUI_HostAPI& a_api, DMUI_ClientHandle a_handle)
+		{
+			a_client.api_ = &a_api;
+			a_client.clientHandle_ = a_handle;
+		}
+	};
+}
+
 namespace vmm_tests
 {
 	using namespace DearModdingUI;
@@ -18,6 +30,65 @@ namespace vmm_tests
 
 	void run_presentation_dialog_interaction_checks(Runner& runner)
 	{
+		runner.test("dialog session rejects completes cancels and isolates callbacks", [] {
+			RenderExecution::Guard execution{ RenderExecution::Phase::kFrameObservation };
+			(void)execution.NoteBinding(1);
+			const RenderExecution::ClientGuard callback{ 18, false };
+			static DMUI_DialogHandle requested{};
+			DMUI_HostAPI api{};
+			api.requestDialog = [](DMUI_ClientHandle a_client, const DMUI_DialogDescriptor* a_descriptor,
+				DMUI_DialogHandle* a_dialog) noexcept -> DMUI_Result {
+				const auto result = PresentationServices::RequestDialog(a_client, a_descriptor, a_dialog, true);
+				requested = *a_dialog;
+				return result;
+			};
+			api.pollDialogEvent = &PresentationServices::PollDialogEvent;
+			api.resolveDialogSubmission = &PresentationServices::ResolveDialogSubmission;
+			api.cancelDialog = &PresentationServices::CancelDialog;
+			dmui::Client client{ "dialogs.test", "Dialog tests", { 1, 0 } };
+			dmui::detail::ClientTestAccess::Bind(client, api, 18);
+			const std::string initial(100, 'x');
+			const DMUI_DialogDescriptor descriptor{
+				DMUI_DIALOG_KIND_TEXT_ENTRY, "Name", nullptr, "Save", "Cancel",
+				nullptr, initial.c_str(), 256
+			};
+			int submissions{};
+			dmui::DialogSession session;
+			const auto submit = [&](std::string_view a_text) -> std::optional<std::string> {
+				require(a_text == initial, "session truncated submission text");
+				return ++submissions == 1 ? std::optional<std::string>{ "Try again" } : std::nullopt;
+			};
+			require(session.Open(client, descriptor, submit), "session open failed");
+			require(!session.Open(client, descriptor, submit) && session.LastResult() == DMUI_RESULT_BUSY,
+				"session replaced an active dialog");
+			require(PresentationServices::SubmitDialog(requested) == DMUI_RESULT_OK, "session submit failed");
+			session.Poll();
+			require(session.Active() && session.LastResult() == DMUI_RESULT_OK && submissions == 1,
+				"rejected session did not remain open");
+			require(PresentationServices::SubmitDialog(requested) == DMUI_RESULT_OK, "session retry failed");
+			session.Poll();
+			require(!session.Active() && session.LastResult() == DMUI_RESULT_OK && submissions == 2,
+				"successful session did not drain completion");
+			require(session.Open(client, descriptor, submit), "completion retained host ownership");
+			require(PresentationServices::SubmitDialog(requested) == DMUI_RESULT_OK, "cancel submit failed");
+			session.Cancel();
+			require(!session.Active() && session.LastResult() == DMUI_RESULT_OK && submissions == 2,
+				"cancel did not reject unresolved work without invoking submit");
+			require(session.Open(client, descriptor,
+				[](std::string_view) -> std::optional<std::string> { throw 1; }), "exception session open failed");
+			require(PresentationServices::SubmitDialog(requested) == DMUI_RESULT_OK, "exception submit failed");
+			session.Poll();
+			require(!session.Active() && session.LastResult() == DMUI_RESULT_CALLBACK_FAILED,
+				"callback exception escaped or retained host ownership");
+			{
+				dmui::DialogSession scoped;
+				require(scoped.Open(client, descriptor, submit), "scoped session open failed");
+			}
+			require(session.Open(client, descriptor, submit), "destructor did not drain cancellation");
+			session.Cancel();
+			require(!session.Active(), "pending session cancel did not reset");
+		});
+
 		runner.test("declarative edits report live completion and multiline height", [] {
 			InteractiveImGui frame;
 			size_t textSets{};
