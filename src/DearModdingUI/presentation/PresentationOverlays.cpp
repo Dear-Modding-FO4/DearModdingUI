@@ -49,6 +49,7 @@ namespace DearModdingUI::PresentationServices
 		{
 			struct SavedPlacement
 			{
+				DMUI_OverlayAnchor anchor{ DMUI_OVERLAY_ANCHOR_TOP_LEFT };
 				DMUI_Vec2 offset{};
 				DMUI_Vec2 size{};
 				bool hasOffset{};
@@ -105,11 +106,17 @@ namespace DearModdingUI::PresentationServices
 		void ApplySavedPlacement(const OverlayService& a_service, OverlayEntry& a_overlay) noexcept
 		{
 			const auto saved = a_service.saved.find(a_overlay.key);
-			if (saved == a_service.saved.end() || !saved->second.hasOffset || !saved->second.hasSize)
+			if (saved == a_service.saved.end() || !saved->second.hasSize)
 				return;
-			a_overlay.placement.offset = saved->second.offset;
+			if (saved->second.anchor == DMUI_OVERLAY_ANCHOR_FREE &&
+				a_overlay.options.anchor == DMUI_OVERLAY_ANCHOR_FREE &&
+				saved->second.hasOffset)
+			{
+				a_overlay.placement.offset = saved->second.offset;
+				a_overlay.positionPending = true;
+			}
 			a_overlay.pendingSize = saved->second.size;
-			a_overlay.positionPending = a_overlay.sizePending = true;
+			a_overlay.sizePending = true;
 		}
 
 		[[nodiscard]] ImVec2 ResolveOverlaySize(
@@ -189,6 +196,9 @@ namespace DearModdingUI::PresentationServices
 		};
 		handler.ReadLineFn = [](ImGuiContext*, ImGuiSettingsHandler*, void* a_entry, const char* a_line) {
 			auto& entry = *static_cast<OverlayService::SavedPlacement*>(a_entry);
+			unsigned int anchor{};
+			if (sscanf_s(a_line, "Anchor=%u", &anchor) == 1 && anchor <= DMUI_OVERLAY_ANCHOR_FREE)
+				entry.anchor = anchor;
 			DMUI_Vec2 value{};
 			if (sscanf_s(a_line, "Offset=%f,%f", &value.x, &value.y) == 2 &&
 				std::isfinite(value.x) && std::isfinite(value.y))
@@ -207,9 +217,14 @@ namespace DearModdingUI::PresentationServices
 			auto& service = GetOverlayService();
 			const std::scoped_lock lock{ service.mutex };
 			for (const auto& [key, entry] : service.saved)
-				if (entry.hasOffset && entry.hasSize)
-					a_buffer->appendf("[DMUIOverlay][%s]\nOffset=%.9g,%.9g\nSize=%.9g,%.9g\n\n",
-						key.c_str(), entry.offset.x, entry.offset.y, entry.size.x, entry.size.y);
+				if (entry.hasSize)
+				{
+					a_buffer->appendf("[DMUIOverlay][%s]\nAnchor=%u\n",
+						key.c_str(), entry.anchor);
+					if (entry.anchor == DMUI_OVERLAY_ANCHOR_FREE && entry.hasOffset)
+						a_buffer->appendf("Offset=%.9g,%.9g\n", entry.offset.x, entry.offset.y);
+					a_buffer->appendf("Size=%.9g,%.9g\n\n", entry.size.x, entry.size.y);
+				}
 		};
 		handler.ApplyAllFn = [](ImGuiContext*, ImGuiSettingsHandler*) {
 			auto& service = GetOverlayService();
@@ -284,11 +299,12 @@ namespace DearModdingUI::PresentationServices
 				overlay->placement.offset = a_options->offset;
 			if (sizeChanged)
 				overlay->pendingSize = a_options->size;
-			if (!overlay->configured)
+			const auto firstConfigure = !overlay->configured;
+			overlay->options = *a_options;
+			if (firstConfigure)
 				ApplySavedPlacement(service, *overlay);
 			overlay->positionPending |= positionChanged;
 			overlay->sizePending |= sizeChanged;
-			overlay->options = *a_options;
 			overlay->configured = true;
 			overlay->placement.anchor = a_options->anchor;
 			return DMUI_RESULT_OK;
@@ -476,7 +492,8 @@ namespace DearModdingUI::PresentationServices
 					try
 					{
 						service.saved[overlay->key] = {
-							overlay->placement.offset, overlay->placement.size, true, true
+							options.anchor, anchored ? DMUI_Vec2{} : overlay->placement.offset,
+							overlay->placement.size, !anchored, true
 						};
 						ImGui::MarkIniSettingsDirty();
 					}

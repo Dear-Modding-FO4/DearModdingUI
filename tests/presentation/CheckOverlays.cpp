@@ -175,7 +175,7 @@ namespace vmm_tests
 
 		runner.test("managed overlay settings restore defaults reset and retain absent mods", [] {
 			constexpr auto settings =
-				"[DMUIOverlay][6d6f64/687564]\nOffset=140,120\nSize=560,300\n\n"
+				"[DMUIOverlay][6d6f64/687564]\nAnchor=4\nOffset=140,120\nSize=560,300\n\n"
 				"[DMUIOverlay][616273656e74/687564]\nOffset=20,30\nSize=200,100\n\n";
 			std::string written;
 			{
@@ -261,8 +261,53 @@ namespace vmm_tests
 			}
 			written = ImGui::SaveIniSettingsToMemory();
 			require(written.find("[DMUIOverlay][6d6f64/687564]") == std::string::npos &&
-				written.find("[DMUIOverlay][616273656e74/687564]\nOffset=20,30\nSize=200,100") != std::string::npos,
+				written.find("[DMUIOverlay][616273656e74/687564]\nAnchor=0\nSize=200,100") != std::string::npos,
 				"reset retained its record or write dropped an absent mod");
+		});
+
+		runner.test("saved overlay anchors never reinterpret offsets or freeze author insets", [] {
+			support::ImGuiTestContext imgui;
+			PresentationServices::RegisterOverlaySettings();
+			ImGui::LoadIniSettingsFromMemory(
+				"[DMUIOverlay][6d6f64/66726565]\nAnchor=4\nOffset=900,600\nSize=320,200\n\n"
+				"[DMUIOverlay][6d6f64/636f726e6572]\nAnchor=3\nOffset=400,300\nSize=320,200\n\n"
+				"[DMUIOverlay][6d6f64/6c6567616379]\nOffset=900,600\nSize=320,200\n\n");
+			const struct
+			{
+				const char* id;
+				DMUI_OverlayAnchor anchor;
+				DMUI_Vec2 expected;
+			} cases[]{
+				{ "free", DMUI_OVERLAY_ANCHOR_BOTTOM_RIGHT, { 935, 485 } },
+				{ "corner", DMUI_OVERLAY_ANCHOR_FREE, { 25, 35 } },
+				{ "corner", DMUI_OVERLAY_ANCHOR_BOTTOM_RIGHT, { 935, 485 } },
+				{ "legacy", DMUI_OVERLAY_ANCHOR_FREE, { 25, 35 } }
+			};
+			imgui.BeginWindow("##SavedAnchorTest");
+			for (size_t index = 0; index < std::size(cases); ++index)
+			{
+				const auto& test = cases[index];
+				const DMUI_ManagedOverlayOptions options{
+					.anchor = test.anchor,
+					.offset = { 25, 35 },
+					.size = { 200, 100 },
+					.opacity = 1,
+					.contentScale = 1
+				};
+				const auto page = static_cast<DMUI_PageHandle>(120 + index);
+				require(PresentationServices::ConfigureOverlay(90, page, &options, "mod", test.id) ==
+					DMUI_RESULT_OK, "anchor overlay configure failed");
+				const auto label = std::string{ "Anchor overlay " } + std::to_string(index);
+				(void)PresentationServices::BeginManagedOverlay(90, page, label, false);
+				PresentationServices::EndManagedOverlay();
+				DMUI_ManagedOverlayPlacement placement{};
+				require(PresentationServices::QueryOverlay(90, page, &placement) == DMUI_RESULT_OK &&
+					placement.size.x == 320 && placement.size.y == 200 &&
+					placement.position.x == test.expected.x && placement.position.y == test.expected.y &&
+					placement.offset.x == 25 && placement.offset.y == 35,
+					"saved anchor changed the author's inset or discarded arranged size");
+			}
+			imgui.EndWindow();
 		});
 
 		runner.test("anchored manual resize stays stable with a stationary mouse", [] {
@@ -325,7 +370,7 @@ namespace vmm_tests
 				imgui.EndWindow();
 			}
 			const std::string saved = ImGui::SaveIniSettingsToMemory();
-			require(saved.find("[DMUIOverlay][726573697a65/687564]") != std::string::npos,
+			require(saved.find("[DMUIOverlay][726573697a65/687564]\nAnchor=3\nSize=") != std::string::npos,
 				"completed resize was not written through ImGui settings");
 		});
 
