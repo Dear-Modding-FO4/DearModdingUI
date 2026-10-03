@@ -8,6 +8,19 @@
 
 #include <imgui/imgui.h>
 
+namespace dmui::detail
+{
+	struct ClientTestAccess
+	{
+		static void Bind(Client& a_client, const DMUI_HostAPI& a_api, DMUI_ClientHandle a_handle)
+		{
+			a_client.api_ = &a_api;
+			a_client.uiAPI_ = a_api.ui;
+			a_client.clientHandle_ = a_handle;
+		}
+	};
+}
+
 namespace vmm_tests::support::presentation
 {
 	[[nodiscard]] DMUI_Result AcceptUIClient(

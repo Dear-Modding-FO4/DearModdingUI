@@ -450,7 +450,7 @@ namespace DearModdingUI
 			action != actions.end() ?
 			action->client :
 			DMUI_INVALID_CLIENT_HANDLE,
-			false
+			true
 		};
 		return InvokeClientCallback(
 			identity,

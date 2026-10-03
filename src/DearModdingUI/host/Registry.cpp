@@ -314,13 +314,14 @@ namespace DearModdingUI
 			userData = action->userData;
 		}
 
-		if (RegistryCallbackDispatch::InvokeAction(callback, userData))
+		const auto result = RegistryCallbackDispatch::InvokeAction(callback, userData);
+		if (result == DMUI_RESULT_OK)
 			return DMUI_RESULT_OK;
 
 		const std::scoped_lock lock{ m_mutex };
 		if (auto* action = FindAction(a_action))
 			action->callbackFailed = true;
-		return DMUI_RESULT_CALLBACK_FAILED;
+		return result;
 	}
 
 	bool Registry::ActionFailed(DMUI_ActionHandle a_action) const noexcept
@@ -353,7 +354,7 @@ namespace DearModdingUI
 			userData = observer->userData;
 		}
 
-		if (RegistryCallbackDispatch::InvokeAction(callback, userData))
+		if (RegistryCallbackDispatch::InvokeFrame(callback, userData))
 			return DMUI_RESULT_OK;
 
 		MarkFrameObserverFailed(a_observer);

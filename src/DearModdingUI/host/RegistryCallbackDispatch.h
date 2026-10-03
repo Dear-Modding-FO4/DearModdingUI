@@ -15,8 +15,11 @@ namespace DearModdingUI::RegistryCallbackDispatch
 	[[nodiscard]] DMUI_Result InvokePage(
 		DMUI_PageDrawCallback a_callback,
 		void* a_userData) noexcept;
-	[[nodiscard]] bool InvokeAction(
+	[[nodiscard]] DMUI_Result InvokeAction(
 		DMUI_ActionCallback a_callback,
+		void* a_userData) noexcept;
+	[[nodiscard]] bool InvokeFrame(
+		DMUI_FrameCallback a_callback,
 		void* a_userData) noexcept;
 	[[nodiscard]] bool InvokePageActivity(
 		DMUI_PageActivityCallback a_callback,

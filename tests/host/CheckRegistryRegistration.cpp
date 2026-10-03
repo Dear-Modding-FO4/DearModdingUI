@@ -94,7 +94,7 @@ namespace vmm_tests
 			require(registry.RegisterAction(first, &action, &handle) ==
 					DMUI_RESULT_INVALID_DESCRIPTOR,
 				"null action callback was accepted");
-			action.callback = &Draw;
+			action.callback = &DrawPage;
 			action.id = "invalid action";
 			require(registry.RegisterAction(first, &action, &handle) ==
 					DMUI_RESULT_INVALID_DESCRIPTOR,

@@ -1,5 +1,7 @@
 #include "../support/DearModdingUITestSupport.h"
+#include "../support/PresentationTestSupport.h"
 #include <DearModdingUI/host/Registry.h>
+#include <DearModdingUI/host/RenderExecution.h>
 #include <algorithm>
 #include <array>
 #include <filesystem>
@@ -16,6 +18,59 @@ namespace vmm_tests
 
 	void run_registry_lifecycle_checks(Runner& runner)
 	{
+		runner.test("client actions have scoped UI authorization and propagate sticky failures", [] {
+			Registry registry;
+			CallbackState state;
+			const auto handle = AddClient(registry, "actions.mod", "Actions", state);
+			static Registry* activeRegistry;
+			activeRegistry = &registry;
+			DMUI_HostAPI api{};
+			api.ui = &UI::API();
+			api.registerAction = [](DMUI_ClientHandle a_client, const DMUI_ActionDescriptor* a_descriptor,
+				DMUI_ActionHandle* a_action) noexcept {
+				return activeRegistry->RegisterAction(a_client, a_descriptor, a_action);
+			};
+			api.reportDiagnostic = [](DMUI_ClientHandle, const DMUI_DiagnosticDescriptor*) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			dmui::Client client{ "actions.mod", "Actions", { 1, 0 } };
+			dmui::detail::ClientTestAccess::Bind(client, api, handle);
+			require(client.AddAction("copy", "Copy diagnostics", nullptr, nullptr,
+				[] { dmui::ui::SetClipboardText("Diagnostics"); }), "copy action registration failed");
+			require(client.AddAction("invalid", "Invalid clipboard", nullptr, nullptr,
+				[] { dmui::ui::SetClipboardText(std::string_view{ nullptr, 1 }); }),
+				"invalid action registration failed");
+			require(client.AddAction("throws", "Throwing action", nullptr, nullptr,
+				[] { throw 1; }), "throwing action registration failed");
+			support::ImGuiTestContext imgui;
+			std::string copied;
+			auto& platform = ImGui::GetPlatformIO();
+			platform.Platform_ClipboardUserData = &copied;
+			platform.Platform_SetClipboardTextFn = [](ImGuiContext*, const char* a_text) {
+				*static_cast<std::string*>(ImGui::GetPlatformIO().Platform_ClipboardUserData) = a_text;
+			};
+			imgui.BeginWindow("##ActionUIContext");
+			RenderExecution::Guard execution{ RenderExecution::Phase::kFrameDraw };
+			(void)execution.NoteBinding(1);
+			const RenderExecution::ClientGuard callback{ handle, true };
+			const auto& actions = registry.OrderedActions();
+			require(registry.InvokeAction(actions[0].handle) == DMUI_RESULT_OK &&
+				client.LastResult() == DMUI_RESULT_OK && copied == "Diagnostics",
+				"action could not copy through the real host UI adapter");
+			require(registry.InvokeAction(actions[1].handle) == DMUI_RESULT_INVALID_ARGUMENT &&
+				client.LastResult() == DMUI_RESULT_INVALID_ARGUMENT &&
+				registry.ActionFailed(actions[1].handle) &&
+				registry.InvokeAction(actions[1].handle) == DMUI_RESULT_CALLBACK_FAILED,
+				"action sticky UI failure did not cross the callback boundary");
+			require(registry.InvokeAction(actions[2].handle) == DMUI_RESULT_CALLBACK_FAILED &&
+				client.LastResult() == DMUI_RESULT_CALLBACK_FAILED &&
+				registry.ActionFailed(actions[2].handle),
+				"action exception was swallowed instead of isolated");
+			require(dmui::ui::detail::currentContext == nullptr && copied == "Diagnostics",
+				"action leaked its UI context or invalid text overwrote the clipboard");
+			imgui.EndWindow();
+		});
+
 		runner.test("registry freeze rejects late clients and pages", [] {
 			Registry registry;
 			CallbackState state;
@@ -111,7 +166,7 @@ namespace vmm_tests
 
 			auto drawActionDescriptor = Action(
 				"throw", "Throw", nullptr, 0, drawState);
-			drawActionDescriptor.callback = &ThrowDraw;
+			drawActionDescriptor.callback = &ThrowDrawPage;
 			DMUI_ActionHandle drawAction{};
 			require(drawRegistry.RegisterAction(
 						drawClient, &drawActionDescriptor, &drawAction) ==

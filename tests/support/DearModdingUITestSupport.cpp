@@ -309,7 +309,7 @@ DMUI_Result DMUI_CALL UnsupportedDrawPage(void*) noexcept
 		a_icon,
 		nullptr,
 		a_sort,
-		&Draw,
+		&DrawPage,
 		&a_state
 	};
 }

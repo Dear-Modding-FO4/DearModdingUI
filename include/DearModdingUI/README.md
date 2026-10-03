@@ -396,7 +396,9 @@ space for clients that register no actions.
 This toolbar contract is intentionally distinct from command-palette action
 inference.
 
-Action callbacks run only when the host-rendered control is pressed. The host contains C++ exceptions
+Action callbacks run inside the render-thread ImGui frame with scoped UI access when the host-rendered
+control is pressed. C callbacks return `DMUI_Result`; rebuild ABI 2 clients for this signature.
+The host contains C++ exceptions
 and Windows structured exceptions, recovers shared ImGui state, and permanently disables a faulting
 action. Clients must not draw their own header, footer, or action chrome.
 
@@ -452,7 +454,7 @@ The `registerFrameObserver` entry accepts a descriptor with a callback and user 
 calls each observer in a non-drawing execution scope after every successful non-test active-swapchain
 `Present`, regardless of menu visibility. The active attachment is revalidated after `Present`, so a
 retired or rebound swapchain does not dispatch stale observers. The scope permits render services such
-as image import before any UI frame is demanded, while drawing services still require a page draw
+as image import before any UI frame is demanded, while drawing services still require a page or action
 callback. Registration is permanent for the process lifetime. The host
 contains C++ and Windows structured exceptions, recovers shared ImGui state, and permanently disables a
 faulting observer. The C++ wrapper stores capturing callables in stable storage and returns the observer
@@ -551,7 +553,7 @@ retires the attachment, releases host-owned COM/resources, and requests immediat
 ## Stable UI and presentation services
 
 `DMUI_HostAPI::ui` points to the complete `DMUI_UIAPI`. `Client::Connect`
-checks the exact ABI before registration and binds this table during page callbacks.
+checks the exact ABI before registration and binds this table during page and action callbacks.
 Product versions and the host's internal Dear ImGui version are not compatibility gates.
 
 The API provides frame-demand and swapchain wrappers,
@@ -591,7 +593,7 @@ Stable `InputTextMultiline` and `IsItemDeactivatedAfterEdit` operations are
 declared by the checked-in UI schema. Declarative setting writes remain live through
 `binding.set`; `SettingDescriptor::onEdit` independently reports changed and
 completed state immediately after the widget. Image and plot draw calls
-are accepted only on the render thread during the owning page callback.
+are accepted only on the render thread during the owning page or action callback.
 Image import and CPU create/update require a ready backend and bound render
 thread, including frame observers, but no active draw callback. CPU calls
 synchronously consume decoded RGBA8 bytes and retain no caller pointer.
@@ -679,7 +681,7 @@ The host catches C++ exceptions and Windows structured exceptions around client 
 faulting page or action, recovers its internal UI stack state, and keeps the rest of the host usable.
 Stable UI drawing remains in-process and cannot provide process isolation.
 Familiar `dmui::ui` wrappers record the first operation error and the C++
-client page trampoline returns it at the callback boundary; explicit checked
+client page/action trampoline returns it at the callback boundary; explicit checked
 wrappers return `DMUI_Result` directly. Scope-end operations continue
 dispatching after a sticky error so balanced scopes unwind. The settings-table
 bracket additionally recovers abandoned bracket state at the

@@ -50,8 +50,8 @@ namespace DearModdingUI::RegistryCallbackDispatch
 			}
 		}
 
-		[[nodiscard]] bool InvokeActionCpp(
-			DMUI_ActionCallback a_callback,
+		[[nodiscard]] bool InvokeFrameCpp(
+			DMUI_FrameCallback a_callback,
 			void* a_userData) noexcept
 		{
 			try
@@ -138,21 +138,28 @@ namespace DearModdingUI::RegistryCallbackDispatch
 #endif
 	}
 
-	bool InvokeAction(
+	DMUI_Result InvokeAction(
 		DMUI_ActionCallback a_callback,
+		void* a_userData) noexcept
+	{
+		return InvokePage(a_callback, a_userData);
+	}
+
+	bool InvokeFrame(
+		DMUI_FrameCallback a_callback,
 		void* a_userData) noexcept
 	{
 #if defined(_MSC_VER)
 		__try
 		{
-			return InvokeActionCpp(a_callback, a_userData);
+			return InvokeFrameCpp(a_callback, a_userData);
 		}
 		__except (1)
 		{
 			return false;
 		}
 #else
-		return InvokeActionCpp(a_callback, a_userData);
+		return InvokeFrameCpp(a_callback, a_userData);
 #endif
 	}
 
