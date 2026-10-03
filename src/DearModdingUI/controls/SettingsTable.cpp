@@ -76,6 +76,9 @@ namespace DearModdingUI::SettingsTable
 			const char* a_description,
 			float a_wrapWidth) noexcept
 		{
+			// An empty label is still one line tall in ImGui; label-less rows reserve no header.
+			if ((!a_label || a_label[0] == '\0') && (!a_description || a_description[0] == '\0'))
+				return 0.0f;
 			float labelHeight{};
 			{
 				const Theme::FontGuard font{ Theme::FontRole::kSubheading };

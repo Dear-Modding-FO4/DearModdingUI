@@ -379,6 +379,7 @@ namespace vmm_tests
 				const auto table = SettingsTable::Begin(owner, "settings");
 				require(table.result == DMUI_RESULT_OK && table.visible,
 					"settings table did not begin");
+				const auto* settingsTable = ImGui::GetCurrentTable();
 				const auto row = SettingsTable::BeginRow(
 					owner,
 					"prose",
@@ -387,6 +388,9 @@ namespace vmm_tests
 					SettingsTable::RowLayout::kFullSpan);
 				require(row.result == DMUI_RESULT_OK && row.visible,
 					"full-span settings row did not begin");
+				require(ImGui::GetCurrentTable()->OuterRect.Min.y - settingsTable->RowPosY1 <
+						ImGui::GetFontSize() * 0.5f,
+					"label-less full-span row reserved an empty header line");
 				const auto controlsRect = ImGui::GetCurrentTable()->OuterRect;
 				ImGui::TextWrapped("Full-width prose");
 				bool resetPressed{};
