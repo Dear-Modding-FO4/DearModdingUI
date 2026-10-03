@@ -59,6 +59,7 @@ namespace DearModdingUI::HostAPIInternal
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryImage)> ApiQueryImage;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::configureOverlay)> ApiConfigureOverlay;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::queryOverlay)> ApiQueryOverlay;
+	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::resetOverlay)> ApiResetOverlay;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::postNotification)> ApiPostNotification;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::requestDialog)> ApiRequestDialog;
 	[[nodiscard]] remove_pointer_t<decltype(DMUI_HostAPI::pollDialogEvent)> ApiPollDialogEvent;

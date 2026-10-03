@@ -150,7 +150,9 @@ namespace DearModdingUI
 		[[nodiscard]] DMUI_Result ValidatePage(
 			DMUI_ClientHandle a_client,
 			DMUI_PageHandle a_page,
-			DMUI_PageKind a_kind) const noexcept;
+			DMUI_PageKind a_kind,
+			std::string* a_clientId = nullptr,
+			std::string* a_pageId = nullptr) const noexcept;
 		[[nodiscard]] DMUI_Result ValidateSwapChainClient(
 			DMUI_ClientHandle a_client) const noexcept;
 		[[nodiscard]] DMUI_Result ValidateClient(

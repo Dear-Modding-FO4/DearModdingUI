@@ -197,7 +197,9 @@ namespace DearModdingUI
 	DMUI_Result Registry::ValidatePage(
 		DMUI_ClientHandle a_client,
 		DMUI_PageHandle a_page,
-		DMUI_PageKind a_kind) const noexcept
+		DMUI_PageKind a_kind,
+		std::string* a_clientId,
+		std::string* a_pageId) const noexcept
 	{
 		const std::scoped_lock lock{ m_mutex };
 		if (!FindClient(a_client))
@@ -205,7 +207,20 @@ namespace DearModdingUI
 		const auto* page = FindPage(a_page);
 		if (!page || page->client != a_client)
 			return DMUI_RESULT_PAGE_NOT_FOUND;
-		return page->kind == a_kind ? DMUI_RESULT_OK : DMUI_RESULT_INVALID_PAGE_KIND;
+		if (page->kind != a_kind)
+			return DMUI_RESULT_INVALID_PAGE_KIND;
+		try
+		{
+			if (a_clientId)
+				*a_clientId = page->clientId;
+			if (a_pageId)
+				*a_pageId = page->id;
+			return DMUI_RESULT_OK;
+		}
+		catch (...)
+		{
+			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		}
 	}
 
 	DMUI_Result Registry::ValidateSwapChainClient(DMUI_ClientHandle a_client) const noexcept

@@ -26,6 +26,7 @@ namespace Addictol
 
 		void SetupHost(void* a_window) noexcept
 		{
+			DearModdingUI::PresentationServices::RegisterOverlaySettings();
 			DearModdingUI::Theme::Initialize(a_window);
 			REX::INFO("DearModdingUI: visuals configured"sv);
 		}

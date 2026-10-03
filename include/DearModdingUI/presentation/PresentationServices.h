@@ -58,7 +58,15 @@ namespace DearModdingUI::PresentationServices
 	[[nodiscard]] DMUI_Result ConfigureOverlay(
 		DMUI_ClientHandle a_client,
 		DMUI_PageHandle a_page,
-		const DMUI_ManagedOverlayOptions* a_options) noexcept;
+		const DMUI_ManagedOverlayOptions* a_options,
+		std::string_view a_clientId = {},
+		std::string_view a_pageId = {}) noexcept;
+	void RegisterOverlaySettings() noexcept;
+	[[nodiscard]] DMUI_Result ResetOverlay(
+		DMUI_ClientHandle a_client,
+		DMUI_PageHandle a_page,
+		std::string_view a_clientId = {},
+		std::string_view a_pageId = {}) noexcept;
 	[[nodiscard]] DMUI_Result QueryOverlay(
 		DMUI_ClientHandle a_client,
 		DMUI_PageHandle a_page,

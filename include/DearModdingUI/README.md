@@ -562,7 +562,11 @@ submission-aware dialogs. See the [public API reference](https://github.com/Dear
 for the stable UI schema, image formats, row extent, transactional updates, overlay coordinates, notification
 duration, dialog state, and per-call thread contracts.
 
-For managed overlays, persist placement offset and size and pass them back as options offset and size.
+Managed overlay offset and size are author defaults. The host persists completed
+arrangements in its `imgui.ini`, keyed by stable client and page IDs; clients do
+not persist placement. Changed defaults apply once. `Client::ResetOverlay(page)`
+discards the saved arrangement and reapplies defaults once. Offset is host-unscaled;
+size uses placement pixel units without content scaling.
 
 ### Notifications
 

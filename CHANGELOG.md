@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Managed overlay size restore**: Clients can restore persisted overlay sizes alongside position.
+- **Managed overlay placement**: The host persists arranged position and size by stable client/page ID; clients supply defaults and can reset placement.
 - **Themed panels**: Clipped client panels use the host section tint and provide default page gaps and inner padding, optional scrolling, scoped style-var overrides, and callback recovery.
 - **Custom drawing**: Immediate window, foreground, and background draw lists expose geometry, concave polygons, text, images, and callback-isolated clip scopes through ABI 2.
 - **File images**: Any-thread `loadImageFile` loads WIC formats and mipmapped DDS asynchronously, with queryable failures, bounded work, safe cancellation, and automatic device reload.

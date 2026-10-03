@@ -19,7 +19,7 @@ namespace vmm_tests
 
 	void run_presentation_overlay_notification_plot_checks(Runner& runner)
 	{
-		runner.test("managed overlays validate and report consumer-owned placement", [] {
+		runner.test("managed overlays validate and report host-owned placement", [] {
 			ImGuiFrame frame;
 			const DMUI_ManagedOverlayOptions options{
 				DMUI_OVERLAY_ANCHOR_TOP_RIGHT,
@@ -173,8 +173,101 @@ namespace vmm_tests
 					DMUI_RESULT_INVALID_ARGUMENT, "non-finite desired size was accepted");
 		});
 
+		runner.test("managed overlay settings restore defaults reset and retain absent mods", [] {
+			constexpr auto settings =
+				"[DMUIOverlay][6d6f64/687564]\nOffset=140,120\nSize=560,300\n\n"
+				"[DMUIOverlay][616273656e74/687564]\nOffset=20,30\nSize=200,100\n\n";
+			std::string written;
+			{
+				support::ImGuiTestContext imgui;
+				PresentationServices::RegisterOverlaySettings();
+				ImGui::LoadIniSettingsFromMemory(settings);
+				written = ImGui::SaveIniSettingsToMemory();
+			}
+			support::ImGuiTestContext imgui;
+			PresentationServices::RegisterOverlaySettings();
+			ImGui::LoadIniSettingsFromMemory(written.c_str());
+			ImGui::GetIO().FontGlobalScale = 1.5f;
+			DMUI_ManagedOverlayOptions options{
+				.anchor = DMUI_OVERLAY_ANCHOR_FREE,
+				.offset = { 60, 80 },
+				.size = { 520, 260 },
+				.minimumSize = { 80, 80 },
+				.opacity = 1,
+				.contentScale = 1.25f,
+				.backgroundVisible = 1,
+				.borderVisible = 1,
+				.allowArrangement = 1
+			};
+			const auto configure = [&] {
+				require(PresentationServices::ConfigureOverlay(90, 110, &options, "mod", "hud") ==
+					DMUI_RESULT_OK, "persisted overlay configure failed");
+			};
+			configure();
+			for (int frame = 0; frame < 6; ++frame)
+			{
+				imgui.BeginWindow("##SavedOverlayTest");
+				if (frame == 1)
+				{
+					options.offset = { 100, 100 };
+					options.size = { 640, 340 };
+					configure();
+					DMUI_ManagedOverlayPlacement beforeDraw{};
+					require(PresentationServices::QueryOverlay(90, 110, &beforeDraw) == DMUI_RESULT_OK &&
+						beforeDraw.size.x == 560 && beforeDraw.size.y == 300,
+						"configuration replaced reported geometry before presentation");
+				}
+				if (frame == 2)
+				{
+					ImGui::SetWindowPos("Saved overlay", { 240, 210 });
+					ImGui::SetWindowSize("Saved overlay", { 600, 320 });
+					configure();
+				}
+				if (frame == 3)
+				{
+					require(PresentationServices::ResetOverlay(91, 110) == DMUI_RESULT_PAGE_NOT_FOUND,
+						"foreign owner reset placement");
+					require(PresentationServices::ResetOverlay(90, 110) == DMUI_RESULT_OK,
+						"overlay reset failed");
+					require(GImGui->SettingsDirtyTimer > 0, "reset did not dirty settings");
+				}
+				if (frame == 4)
+				{
+					ImGui::SetWindowSize("Saved overlay", { 600, 320 });
+					configure();
+				}
+				if (frame == 5)
+				{
+					options.size = {};
+					configure();
+					require(PresentationServices::ResetOverlay(90, 110) == DMUI_RESULT_OK,
+						"automatic-size reset failed");
+				}
+				require(PresentationServices::BeginManagedOverlay(90, 110, "Saved overlay", true) ==
+					PresentationServices::ManagedOverlayBeginResult::kVisible, "saved overlay did not open");
+				PresentationServices::EndManagedOverlay();
+				DMUI_ManagedOverlayPlacement placement{};
+				require(PresentationServices::QueryOverlay(90, 110, &placement) == DMUI_RESULT_OK,
+					"saved overlay query failed");
+				const auto expectedPosition = frame == 0 ? DMUI_Vec2{ 210, 180 } :
+					frame == 2 ? DMUI_Vec2{ 240, 210 } : DMUI_Vec2{ 150, 150 };
+				const auto expectedSize = frame == 0 ? DMUI_Vec2{ 560, 300 } :
+					(frame == 2 || frame == 4) ? DMUI_Vec2{ 600, 320 } :
+					frame == 5 ? DMUI_Vec2{ 150, 150 } : options.size;
+				require(placement.position.x == expectedPosition.x && placement.position.y == expectedPosition.y &&
+					placement.size.x == expectedSize.x && placement.size.y == expectedSize.y,
+					"saved/default geometry did not apply once");
+				imgui.EndWindow();
+			}
+			written = ImGui::SaveIniSettingsToMemory();
+			require(written.find("[DMUIOverlay][6d6f64/687564]") == std::string::npos &&
+				written.find("[DMUIOverlay][616273656e74/687564]\nOffset=20,30\nSize=200,100") != std::string::npos,
+				"reset retained its record or write dropped an absent mod");
+		});
+
 		runner.test("anchored manual resize stays stable with a stationary mouse", [] {
 			support::ImGuiTestContext imgui{ { .disableInputTrickle = true } };
+			PresentationServices::RegisterOverlaySettings();
 			const DMUI_ManagedOverlayOptions options{
 				.anchor = DMUI_OVERLAY_ANCHOR_BOTTOM_RIGHT,
 				.offset = { 100, 100 },
@@ -186,7 +279,7 @@ namespace vmm_tests
 				.borderVisible = 1,
 				.allowArrangement = 1
 			};
-			require(PresentationServices::ConfigureOverlay(9, 14, &options) == DMUI_RESULT_OK,
+			require(PresentationServices::ConfigureOverlay(9, 14, &options, "resize", "hud") == DMUI_RESULT_OK,
 				"resize overlay configuration failed");
 			ImVec2 grip{};
 			DMUI_Vec2 resized{};
@@ -231,6 +324,9 @@ namespace vmm_tests
 						"resize release did not restore the final bottom-right anchor");
 				imgui.EndWindow();
 			}
+			const std::string saved = ImGui::SaveIniSettingsToMemory();
+			require(saved.find("[DMUIOverlay][726573697a65/687564]") != std::string::npos,
+				"completed resize was not written through ImGui settings");
 		});
 
 		runner.test("toast expiry starts at presentation and hover pauses it", [] {

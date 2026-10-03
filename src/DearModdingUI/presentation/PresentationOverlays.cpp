@@ -2,10 +2,13 @@
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
+#include <REX/REX.h>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
+#include <cstdio>
 #include <mutex>
 #include <new>
 #include <string>
@@ -30,10 +33,12 @@ namespace DearModdingUI::PresentationServices
 
 		struct OverlayEntry
 		{
+			std::string key;
 			DMUI_ClientHandle owner{ DMUI_INVALID_CLIENT_HANDLE };
 			DMUI_PageHandle page{ DMUI_INVALID_PAGE_HANDLE };
 			DMUI_ManagedOverlayOptions options{};
 			DMUI_ManagedOverlayPlacement placement{};
+			DMUI_Vec2 pendingSize{};
 			bool configured{};
 			bool positionPending{};
 			bool sizePending{};
@@ -42,8 +47,16 @@ namespace DearModdingUI::PresentationServices
 
 		struct OverlayService
 		{
+			struct SavedPlacement
+			{
+				DMUI_Vec2 offset{};
+				DMUI_Vec2 size{};
+				bool hasOffset{};
+				bool hasSize{};
+			};
 			std::mutex mutex;
 			std::vector<OverlayEntry> overlays;
+			std::map<std::string, SavedPlacement> saved;
 		};
 
 		[[nodiscard]] OverlayService& GetOverlayService() noexcept
@@ -59,6 +72,44 @@ namespace DearModdingUI::PresentationServices
 			const auto found = std::ranges::find(
 				a_service.overlays, a_page, &OverlayEntry::page);
 			return found == a_service.overlays.end() ? nullptr : &*found;
+		}
+
+		[[nodiscard]] std::string OverlayKey(std::string_view a_client, std::string_view a_page)
+		{
+			if (a_client.empty() || a_page.empty())
+				return {};
+			constexpr char hex[]{ "0123456789abcdef" };
+			std::string key;
+			for (const auto part : { a_client, a_page })
+			{
+				if (!key.empty())
+					key += '/';
+				for (const unsigned char byte : part)
+				{
+					key += hex[byte >> 4];
+					key += hex[byte & 15];
+				}
+			}
+			return key;
+		}
+
+		void ApplyOverlayDefaults(OverlayEntry& a_overlay) noexcept
+		{
+			a_overlay.placement.anchor = a_overlay.options.anchor;
+			a_overlay.placement.offset = a_overlay.options.offset;
+			a_overlay.pendingSize = a_overlay.options.size;
+			a_overlay.positionPending = a_overlay.sizePending = true;
+			a_overlay.arrangementInProgress = false;
+		}
+
+		void ApplySavedPlacement(const OverlayService& a_service, OverlayEntry& a_overlay) noexcept
+		{
+			const auto saved = a_service.saved.find(a_overlay.key);
+			if (saved == a_service.saved.end() || !saved->second.hasOffset || !saved->second.hasSize)
+				return;
+			a_overlay.placement.offset = saved->second.offset;
+			a_overlay.pendingSize = saved->second.size;
+			a_overlay.positionPending = a_overlay.sizePending = true;
 		}
 
 		[[nodiscard]] ImVec2 ResolveOverlaySize(
@@ -101,10 +152,83 @@ namespace DearModdingUI::PresentationServices
 		}
 	}
 
+	void RegisterOverlaySettings() noexcept
+	{
+		if (ImGui::FindSettingsHandler("DMUIOverlay"))
+			return;
+		auto& service = GetOverlayService();
+		{
+			const std::scoped_lock lock{ service.mutex };
+			service.saved.clear();
+			for (auto& overlay : service.overlays)
+			{
+				overlay.placement = {};
+				ApplyOverlayDefaults(overlay);
+			}
+		}
+		ImGuiSettingsHandler handler{};
+		handler.TypeName = "DMUIOverlay";
+		handler.TypeHash = ImHashStr(handler.TypeName);
+		handler.ReadInitFn = [](ImGuiContext*, ImGuiSettingsHandler*) {
+			auto& service = GetOverlayService();
+			const std::scoped_lock lock{ service.mutex };
+			service.saved.clear();
+		};
+		handler.ReadOpenFn = [](ImGuiContext*, ImGuiSettingsHandler*, const char* a_name) -> void* {
+			try
+			{
+				auto& service = GetOverlayService();
+				const std::scoped_lock lock{ service.mutex };
+				return &service.saved[a_name];
+			}
+			catch (...)
+			{
+				REX::ERROR("DearModdingUI: overlay settings could not be read");
+				return nullptr;
+			}
+		};
+		handler.ReadLineFn = [](ImGuiContext*, ImGuiSettingsHandler*, void* a_entry, const char* a_line) {
+			auto& entry = *static_cast<OverlayService::SavedPlacement*>(a_entry);
+			DMUI_Vec2 value{};
+			if (sscanf_s(a_line, "Offset=%f,%f", &value.x, &value.y) == 2 &&
+				std::isfinite(value.x) && std::isfinite(value.y))
+			{
+				entry.offset = value;
+				entry.hasOffset = true;
+			}
+			if (sscanf_s(a_line, "Size=%f,%f", &value.x, &value.y) == 2 &&
+				std::isfinite(value.x) && std::isfinite(value.y) && value.x > 0 && value.y > 0)
+			{
+				entry.size = value;
+				entry.hasSize = true;
+			}
+		};
+		handler.WriteAllFn = [](ImGuiContext*, ImGuiSettingsHandler*, ImGuiTextBuffer* a_buffer) {
+			auto& service = GetOverlayService();
+			const std::scoped_lock lock{ service.mutex };
+			for (const auto& [key, entry] : service.saved)
+				if (entry.hasOffset && entry.hasSize)
+					a_buffer->appendf("[DMUIOverlay][%s]\nOffset=%.9g,%.9g\nSize=%.9g,%.9g\n\n",
+						key.c_str(), entry.offset.x, entry.offset.y, entry.size.x, entry.size.y);
+		};
+		handler.ApplyAllFn = [](ImGuiContext*, ImGuiSettingsHandler*) {
+			auto& service = GetOverlayService();
+			const std::scoped_lock lock{ service.mutex };
+			for (auto& overlay : service.overlays)
+				ApplySavedPlacement(service, overlay);
+		};
+		ImGui::AddSettingsHandler(&handler);
+		// Ready callbacks configure overlays before ImGui's first NewFrame loads settings.
+		if (!GImGui->SettingsLoaded && ImGui::GetIO().IniFilename)
+			ImGui::LoadIniSettingsFromDisk(ImGui::GetIO().IniFilename);
+	}
+
 	DMUI_Result ConfigureOverlay(
 		DMUI_ClientHandle a_client,
 		DMUI_PageHandle a_page,
-		const DMUI_ManagedOverlayOptions* a_options) noexcept
+		const DMUI_ManagedOverlayOptions* a_options,
+		std::string_view a_clientId,
+		std::string_view a_pageId) noexcept
 	{
 		if (!a_options || a_client == DMUI_INVALID_CLIENT_HANDLE ||
 			a_page == DMUI_INVALID_PAGE_HANDLE)
@@ -142,23 +266,59 @@ namespace DearModdingUI::PresentationServices
 				return DMUI_RESULT_PAGE_NOT_FOUND;
 			if (!overlay)
 			{
+				const auto key = OverlayKey(a_clientId, a_pageId);
 				service.overlays.push_back({});
 				overlay = &service.overlays.back();
 				overlay->owner = a_client;
 				overlay->page = a_page;
+				overlay->key = key;
 			}
-			overlay->positionPending |= !overlay->configured ||
+			const auto positionChanged = !overlay->configured ||
 				overlay->options.anchor != a_options->anchor ||
 				overlay->options.offset.x != a_options->offset.x ||
 				overlay->options.offset.y != a_options->offset.y;
-			overlay->sizePending |= !overlay->configured ||
+			const auto sizeChanged = !overlay->configured ||
 				overlay->options.size.x != a_options->size.x ||
 				overlay->options.size.y != a_options->size.y;
+			if (positionChanged)
+				overlay->placement.offset = a_options->offset;
+			if (sizeChanged)
+				overlay->pendingSize = a_options->size;
+			if (!overlay->configured)
+				ApplySavedPlacement(service, *overlay);
+			overlay->positionPending |= positionChanged;
+			overlay->sizePending |= sizeChanged;
 			overlay->options = *a_options;
 			overlay->configured = true;
 			overlay->placement.anchor = a_options->anchor;
-			if (overlay->positionPending)
-				overlay->placement.offset = a_options->offset;
+			return DMUI_RESULT_OK;
+		}
+		catch (...)
+		{
+			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		}
+	}
+
+	DMUI_Result ResetOverlay(
+		DMUI_ClientHandle a_client,
+		DMUI_PageHandle a_page,
+		std::string_view a_clientId,
+		std::string_view a_pageId) noexcept
+	{
+		if (a_client == DMUI_INVALID_CLIENT_HANDLE || a_page == DMUI_INVALID_PAGE_HANDLE)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		try
+		{
+			auto& service = GetOverlayService();
+			const std::scoped_lock lock{ service.mutex };
+			auto* overlay = FindOverlay(service, a_page);
+			if (overlay && overlay->owner != a_client)
+				return DMUI_RESULT_PAGE_NOT_FOUND;
+			const auto key = overlay ? overlay->key : OverlayKey(a_clientId, a_pageId);
+			if (service.saved.erase(key) && ImGui::GetCurrentContext())
+				ImGui::MarkIniSettingsDirty();
+			if (overlay)
+				ApplyOverlayDefaults(*overlay);
 			return DMUI_RESULT_OK;
 		}
 		catch (...)
@@ -202,8 +362,11 @@ namespace DearModdingUI::PresentationServices
 				return ManagedOverlayBeginResult::kNotConfigured;
 			options = overlay->options;
 			previous = overlay->placement;
+			options.offset = previous.offset;
 			positionPending = std::exchange(overlay->positionPending, false);
 			sizePending = std::exchange(overlay->sizePending, false);
+			if (sizePending)
+				options.size = overlay->pendingSize;
 		}
 
 		const auto& io = ImGui::GetIO();
@@ -247,7 +410,7 @@ namespace DearModdingUI::PresentationServices
 		const auto resizing = IsResizingOverlay(ImGui::FindWindowByName(windowLabel.c_str()));
 		if ((anchored && !resizing) || (!anchored && positionPending) || previous.changeGeneration == 0)
 			ImGui::SetNextWindowPos(position, ImGuiCond_Always);
-		if (sizePending && (options.size.x > 0.0f || options.size.y > 0.0f))
+		if (sizePending)
 			ImGui::SetNextWindowSize(expectedSize, ImGuiCond_Always);
 		else if (options.minimumSize.x > 0.0f || options.minimumSize.y > 0.0f)
 			ImGui::SetNextWindowSize(ResolveOverlaySize(options, scale), ImGuiCond_FirstUseEver);
@@ -306,7 +469,23 @@ namespace DearModdingUI::PresentationServices
 				1u :
 				0u;
 			if (overlay->placement.arrangementCompleted)
+			{
 				overlay->arrangementInProgress = false;
+				if (!overlay->key.empty())
+				{
+					try
+					{
+						service.saved[overlay->key] = {
+							overlay->placement.offset, overlay->placement.size, true, true
+						};
+						ImGui::MarkIniSettingsDirty();
+					}
+					catch (...)
+					{
+						REX::ERROR("DearModdingUI: overlay arrangement could not be retained");
+					}
+				}
+			}
 		}
 		return opened ?
 			ManagedOverlayBeginResult::kVisible :

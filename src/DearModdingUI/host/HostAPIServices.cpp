@@ -71,10 +71,13 @@ namespace DearModdingUI::HostAPIInternal
 						const DMUI_ManagedOverlayOptions *a_options) noexcept
 	{
 		auto &registry = GetService().registry;
-		const auto validation = registry.ValidatePage(a_client, a_page, DMUI_PAGE_KIND_OVERLAY);
+		std::string clientId, pageId;
+		const auto validation = registry.ValidatePage(
+			a_client, a_page, DMUI_PAGE_KIND_OVERLAY, &clientId, &pageId);
 		if (validation != DMUI_RESULT_OK)
 			return validation;
-		return PresentationServices::ConfigureOverlay(a_client, a_page, a_options);
+		return PresentationServices::ConfigureOverlay(
+			a_client, a_page, a_options, clientId, pageId);
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL
@@ -86,6 +89,18 @@ namespace DearModdingUI::HostAPIInternal
 		if (validation != DMUI_RESULT_OK)
 			return validation;
 		return PresentationServices::QueryOverlay(a_client, a_page, a_placement);
+	}
+
+	[[nodiscard]] DMUI_Result DMUI_CALL
+	ApiResetOverlay(DMUI_ClientHandle a_client, DMUI_PageHandle a_page) noexcept
+	{
+		auto& registry = GetService().registry;
+		std::string clientId, pageId;
+		const auto validation = registry.ValidatePage(
+			a_client, a_page, DMUI_PAGE_KIND_OVERLAY, &clientId, &pageId);
+		if (validation != DMUI_RESULT_OK)
+			return validation;
+		return PresentationServices::ResetOverlay(a_client, a_page, clientId, pageId);
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiPostNotification(

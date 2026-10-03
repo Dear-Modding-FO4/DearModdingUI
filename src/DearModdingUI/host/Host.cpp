@@ -218,6 +218,7 @@ namespace DearModdingUI
 			&ApiQueryImage,
 			&ApiConfigureOverlay,
 			&ApiQueryOverlay,
+			&ApiResetOverlay,
 			&ApiPostNotification,
 
 			&ApiRequestDialog,
