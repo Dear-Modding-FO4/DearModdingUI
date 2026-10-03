@@ -52,10 +52,10 @@ namespace DearModdingUI::PresentationServices
 			const auto scaled = [a_scale](float a_value) {
 				return a_value > 0.0f ? a_value * a_scale : 0.0f;
 			};
-			return {
-				scaled(a_options.minimumSize.x),
-				scaled(a_options.minimumSize.y)
-			};
+			if (a_options.structSize >= DMUI_MANAGED_OVERLAY_OPTIONS_INITIAL_SIZE_SIZE)
+				return { a_options.initialSize.x, a_options.initialSize.y };
+			else
+				return { scaled(a_options.minimumSize.x), scaled(a_options.minimumSize.y) };
 		}
 
 		[[nodiscard]] ImVec2 ResolveOverlayPosition(
@@ -113,7 +113,12 @@ namespace DearModdingUI::PresentationServices
 			(a_options->maximumSize.x > 0.0f &&
 				a_options->maximumSize.x < a_options->minimumSize.x) ||
 			(a_options->maximumSize.y > 0.0f &&
-				a_options->maximumSize.y < a_options->minimumSize.y))
+				a_options->maximumSize.y < a_options->minimumSize.y) ||
+			(a_options->structSize >= DMUI_MANAGED_OVERLAY_OPTIONS_INITIAL_SIZE_SIZE &&
+				(!std::isfinite(a_options->initialSize.x) ||
+				!std::isfinite(a_options->initialSize.y) ||
+				a_options->initialSize.x < 0.0f ||
+				a_options->initialSize.y < 0.0f)))
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		try
 		{
@@ -199,7 +204,9 @@ namespace DearModdingUI::PresentationServices
 		const auto anchored = options.anchor != DMUI_OVERLAY_ANCHOR_FREE;
 		if (anchored || previous.changeGeneration == 0)
 			ImGui::SetNextWindowPos(position, ImGuiCond_Always);
-		if (options.minimumSize.x > 0.0f || options.minimumSize.y > 0.0f)
+		if (options.minimumSize.x > 0.0f || options.minimumSize.y > 0.0f ||
+			(options.structSize >= DMUI_MANAGED_OVERLAY_OPTIONS_INITIAL_SIZE_SIZE &&
+			(options.initialSize.x > 0.0f || options.initialSize.y > 0.0f)))
 			ImGui::SetNextWindowSize(expectedSize, ImGuiCond_FirstUseEver);
 		const ImVec2 minimum{
 			options.minimumSize.x > 0.0f ?
