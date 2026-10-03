@@ -13,12 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Custom drawing**: Immediate window, foreground, and background draw lists expose geometry, concave polygons, text, images, and callback-isolated clip scopes through ABI 2.
 - **File images**: Any-thread `loadImageFile` loads WIC formats and mipmapped DDS asynchronously, with queryable failures, bounded work, safe cancellation, and automatic device reload.
 - **Client popups and modals**: Page-scoped popup UI operations and RAII scopes share one modal owner with host dialogs, including nested modals and single-level Escape/controller-B dismissal.
+- **Dialog sessions**: `dmui::DialogSession` runs a host confirm or text-entry dialog from one `Open` call and a per-frame `Poll`, keeping it open while submission fails.
 - **Host title logo**: Added a resolution-independent Dear Modding vector logo with original colors or an accent-color appearance setting.
 - **Controller navigation**: Left-stick and D-pad focus by default; LS or RS toggles a cursor centered on the focused item, which the right stick moves as in the game while the left stick scrolls. A clicks, and the D-pad returns to navigation. Shared B/Escape dismissal, pane switching, scrolling, row reset, search, and compact controller hints are supported. Desktop preview uses XInput.
 - **Input bindings**: Host toggle and client hotkeys support keyboard/mouse and gamepad slots, up to three-key or three-button combos, and Ctrl/Alt/Shift modifiers for keyboard/mouse chords. The gamepad menu toggle defaults to LB+RB+View (Back).
 - **Shared read-only text viewer**: Added a host-owned, clipped text viewport with independent scrolling, monospace rendering, overlapping literal-match highlighting, wrap navigation helpers, and exact byte-offset reveal.
 
 ### Changed
+- **Actions**: `AddAction` callbacks run with the same UI context and failure isolation as page callbacks, so they can draw and use the clipboard. C action callbacks now return `DMUI_Result`.
 - **Notifications**: Replaced the single banner with attributed, severity-colored toast stacks, bounded queuing, duplicate counts, and hover-paused expiry. The notification descriptor now accepts an optional title.
 - **BREAKING: ABI 2**: One exact-match ABI covers all tables and descriptors; clients must rebuild. Replace `Client::DrawImage` with `ui::Image` and `Client::DrawAnnotatedPlot` with `ui::PlotAnnotated`. Removed descriptor sizes, table-prefix/revision negotiation, service bits, and minimum-version client options. The host table exposes its UI table directly.
 - **Growable search input**: Restored the three-argument C++ search helper with automatic growth during edits. An optional byte limit remains available; client-owned resize callbacks share the fixed-buffer input mechanism.
