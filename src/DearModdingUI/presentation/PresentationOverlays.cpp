@@ -52,7 +52,8 @@ namespace DearModdingUI::PresentationServices
 			const auto scaled = [a_scale](float a_value) {
 				return a_value > 0.0f ? a_value * a_scale : 0.0f;
 			};
-			if (a_options.structSize >= DMUI_MANAGED_OVERLAY_OPTIONS_INITIAL_SIZE_SIZE)
+			if (a_options.structSize >= DMUI_MANAGED_OVERLAY_OPTIONS_INITIAL_SIZE_SIZE &&
+				(a_options.initialSize.x > 0.0f || a_options.initialSize.y > 0.0f))
 				return { a_options.initialSize.x, a_options.initialSize.y };
 			else
 				return { scaled(a_options.minimumSize.x), scaled(a_options.minimumSize.y) };
