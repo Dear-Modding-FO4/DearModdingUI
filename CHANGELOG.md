@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-03
+
 ### Added
 - **Managed overlay placement**: The host persists arranged position and size by stable client/page ID; clients supply defaults and can reset placement.
 - **Themed panels**: Clipped client panels use the host section tint and provide default page gaps and inner padding, optional scrolling, scoped style-var overrides, and callback recovery.
@@ -104,7 +106,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional `DearModdingUI-MCM` bridge translating legacy MCM JSON configurations.
 - In-game diagnostic test client and standalone desktop UI preview (`dmui-preview`).
 
-[Unreleased]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.0...v0.1.1
