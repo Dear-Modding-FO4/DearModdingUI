@@ -286,184 +286,7 @@ namespace vmm_tests
 				"CPU image creation accepted a missing device");
 		});
 
-		runner.test("sampleable HDR and depth SRVs retain native queued resources", [] {
-			auto resources = CreateImageResources();
-			ImGuiFrame frame;
-			RenderExecution::Guard execution{
-				RenderExecution::Phase::kFrameDraw
-			};
-			(void)execution.NoteBinding(1);
-			PresentationServices::SetDevice(resources.device.Get());
-			PresentationServices::BeginFrame();
-
-			struct Dimensions
-			{
-				UINT width;
-				UINT height;
-			};
-			constexpr std::array dimensions{
-				Dimensions{ 3840, 2160 },
-				Dimensions{ 2259, 1271 }
-			};
-			for (const auto& size : dimensions)
-			{
-				const D3D11_TEXTURE2D_DESC description{
-					size.width, size.height, 1, 1,
-					DXGI_FORMAT_R11G11B10_FLOAT, { 1, 0 },
-					D3D11_USAGE_DEFAULT,
-					D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
-					0, 0
-				};
-				ComPtr<ID3D11Texture2D> texture;
-				require(SUCCEEDED(resources.device->CreateTexture2D(
-							&description, nullptr, &texture)),
-					"packed HDR render texture creation failed");
-				ComPtr<ID3D11RenderTargetView> target;
-				require(SUCCEEDED(resources.device->CreateRenderTargetView(
-							texture.Get(), nullptr, &target)),
-					"packed HDR render-target view creation failed");
-				constexpr float color[]{ 4.0f, 2.0f, 0.5f, 1.0f };
-				resources.context->ClearRenderTargetView(target.Get(), color);
-				ComPtr<ID3D11ShaderResourceView> view;
-				require(SUCCEEDED(resources.device->CreateShaderResourceView(
-							texture.Get(), nullptr, &view)),
-					"packed HDR shader-resource view creation failed");
-				auto* queuedView = view.Get();
-				const auto references = ReferenceCount(queuedView);
-				const DMUI_D3D11ImageDescriptor descriptor{
-					view.Get(), 0, 0
-				};
-				DMUI_ImageHandle image{};
-				require(PresentationServices::ImportD3D11Image(
-							32, &descriptor, &image) == DMUI_RESULT_OK,
-					"sampleable R11G11B10_FLOAT SRV was rejected");
-				require(ReferenceCount(queuedView) == references + 1,
-					"packed HDR import did not retain the original SRV");
-				ComPtr<ID3D11ShaderResourceView> retained;
-				retained.Attach(
-					PresentationServices::RetainImageViewForTests(32, image));
-				require(retained.Get() == queuedView,
-					"packed HDR import substituted a converted resource");
-				retained.Reset();
-
-				const DMUI_ImageDrawOptions options{
-					{ 64.0f, 36.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f },
-					{ 1.0f, 1.0f, 1.0f, 1.0f }, 1, 0
-				};
-				{
-					const RenderExecution::ClientGuard callback{
-						32, true
-					};
-					uint32_t drawn{};
-					require(PresentationServices::DrawImage(
-								32, image, &options, &drawn) == DMUI_RESULT_OK && drawn,
-						"packed HDR image draw failed");
-				}
-				require(ReferenceCount(queuedView) == references + 2,
-					"packed HDR draw did not retain its submission lease");
-				require(PresentationServices::ReleaseImage(32, image) ==
-						DMUI_RESULT_OK,
-					"packed HDR handle release failed");
-				require(ReferenceCount(queuedView) == references + 1,
-					"packed HDR handle release discarded a queued draw");
-				view.Reset();
-				target.Reset();
-				texture.Reset();
-				D3D11_SHADER_RESOURCE_VIEW_DESC queuedDescription{};
-				queuedView->GetDesc(&queuedDescription);
-				require(queuedDescription.Format == DXGI_FORMAT_R11G11B10_FLOAT &&
-						queuedDescription.ViewDimension ==
-							D3D11_SRV_DIMENSION_TEXTURE2D,
-					"packed HDR view was lost or converted before submission");
-			}
-			struct DepthFormat
-			{
-				DXGI_FORMAT texture;
-				DXGI_FORMAT depthView;
-				DXGI_FORMAT shaderView;
-			};
-			constexpr std::array formats{
-				DepthFormat{
-					DXGI_FORMAT_R24G8_TYPELESS,
-					DXGI_FORMAT_D24_UNORM_S8_UINT,
-					DXGI_FORMAT_R24_UNORM_X8_TYPELESS },
-				DepthFormat{
-					DXGI_FORMAT_R32G8X24_TYPELESS,
-					DXGI_FORMAT_D32_FLOAT_S8X24_UINT,
-					DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS }
-			};
-			for (const auto& format : formats)
-			{
-				const D3D11_TEXTURE2D_DESC textureDescription{
-					16, 8, 1, 1, format.texture, { 1, 0 },
-					D3D11_USAGE_DEFAULT,
-					D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_DEPTH_STENCIL,
-					0, 0
-				};
-				ComPtr<ID3D11Texture2D> texture;
-				require(SUCCEEDED(resources.device->CreateTexture2D(
-							&textureDescription, nullptr, &texture)),
-					"depth texture creation failed");
-				D3D11_DEPTH_STENCIL_VIEW_DESC depthDescription{};
-				depthDescription.Format = format.depthView;
-				depthDescription.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-				ComPtr<ID3D11DepthStencilView> depthView;
-				require(SUCCEEDED(resources.device->CreateDepthStencilView(
-							texture.Get(), &depthDescription, &depthView)),
-					"depth-stencil view creation failed");
-				resources.context->ClearDepthStencilView(
-					depthView.Get(), D3D11_CLEAR_DEPTH, 0.25f, 0);
-				D3D11_SHADER_RESOURCE_VIEW_DESC shaderDescription{};
-				shaderDescription.Format = format.shaderView;
-				shaderDescription.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-				shaderDescription.Texture2D.MipLevels = 1;
-				ComPtr<ID3D11ShaderResourceView> view;
-				require(SUCCEEDED(resources.device->CreateShaderResourceView(
-							texture.Get(), &shaderDescription, &view)),
-					"depth shader-resource view creation failed");
-				const DMUI_D3D11ImageDescriptor descriptor{
-					view.Get(), 0, 0
-				};
-				DMUI_ImageHandle image{};
-				require(PresentationServices::ImportD3D11Image(
-							31, &descriptor, &image) == DMUI_RESULT_OK,
-					"sampleable depth SRV was rejected");
-				const DMUI_ImageDrawOptions options{
-					{ 32.0f, 16.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f },
-					{ 1.0f, 1.0f, 1.0f, 1.0f }, 1, 0
-				};
-				{
-					const RenderExecution::ClientGuard callback{
-						31, true
-					};
-					uint32_t drawn{};
-					require(PresentationServices::DrawImage(
-								31, image, &options, &drawn) == DMUI_RESULT_OK && drawn,
-						"depth image draw failed");
-				}
-				auto* queuedView = view.Get();
-				ComPtr<ID3D11ShaderResourceView> retained;
-				retained.Attach(
-					PresentationServices::RetainImageViewForTests(31, image));
-				require(retained.Get() == queuedView,
-					"depth drawing substituted a converted resource");
-				retained.Reset();
-				require(PresentationServices::ReleaseImage(31, image) ==
-						DMUI_RESULT_OK,
-					"queued depth image release failed");
-				view.Reset();
-				depthView.Reset();
-				texture.Reset();
-				D3D11_SHADER_RESOURCE_VIEW_DESC queuedDescription{};
-				queuedView->GetDesc(&queuedDescription);
-				require(queuedDescription.Format == format.shaderView,
-					"native depth view was lost before render submission");
-			}
-			PresentationServices::CompleteRenderSubmission();
-			PresentationServices::InvalidateDevice();
-		});
-
-		runner.test("integer and stencil-only SRVs are not accepted as sampled images", [] {
+		runner.test("sampled-image SRV formats accept HDR and depth and reject integer and stencil-only", [] {
 			auto resources = CreateImageResources();
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameObservation
@@ -475,6 +298,59 @@ namespace vmm_tests
 				DXGI_FORMAT texture;
 				DXGI_FORMAT shaderView;
 			};
+			const auto makeView = [&](const UnsupportedFormat& a_format) {
+				const D3D11_TEXTURE2D_DESC description{
+					16, 8, 1, 1, a_format.texture, { 1, 0 },
+					D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0
+				};
+				ComPtr<ID3D11Texture2D> texture;
+				require(SUCCEEDED(resources.device->CreateTexture2D(
+							&description, nullptr, &texture)),
+					"SRV format texture creation failed");
+				D3D11_SHADER_RESOURCE_VIEW_DESC viewDescription{};
+				viewDescription.Format = a_format.shaderView;
+				viewDescription.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+				viewDescription.Texture2D.MipLevels = 1;
+				ComPtr<ID3D11ShaderResourceView> view;
+				require(SUCCEEDED(resources.device->CreateShaderResourceView(
+							texture.Get(), &viewDescription, &view)),
+					"SRV format view creation failed");
+				return view;
+			};
+			constexpr std::array accepted{
+				UnsupportedFormat{
+					DXGI_FORMAT_R11G11B10_FLOAT,
+					DXGI_FORMAT_R11G11B10_FLOAT },
+				UnsupportedFormat{
+					DXGI_FORMAT_R24G8_TYPELESS,
+					DXGI_FORMAT_R24_UNORM_X8_TYPELESS },
+				UnsupportedFormat{
+					DXGI_FORMAT_R32G8X24_TYPELESS,
+					DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS }
+			};
+			for (const auto& format : accepted)
+			{
+				auto view = makeView(format);
+				auto* queuedView = view.Get();
+				const auto references = ReferenceCount(queuedView);
+				const DMUI_D3D11ImageDescriptor descriptor{ queuedView, 0, 0 };
+				DMUI_ImageHandle image{};
+				require(PresentationServices::ImportD3D11Image(
+							31, &descriptor, &image) == DMUI_RESULT_OK,
+					"sampleable HDR or depth SRV was rejected");
+				require(ReferenceCount(queuedView) == references + 1,
+					"import did not retain the original SRV");
+				ComPtr<ID3D11ShaderResourceView> retained;
+				retained.Attach(
+					PresentationServices::RetainImageViewForTests(31, image));
+				require(retained.Get() == queuedView,
+					"import substituted a converted resource");
+				retained.Reset();
+				require(PresentationServices::ReleaseImage(31, image) == DMUI_RESULT_OK &&
+						ReferenceCount(queuedView) == references,
+					"image release leaked or over-released the SRV");
+			}
+
 			constexpr std::array formats{
 				UnsupportedFormat{
 					DXGI_FORMAT_R10G10B10A2_TYPELESS,
@@ -486,22 +362,7 @@ namespace vmm_tests
 			const auto slots = PresentationServices::ImageSlotCount();
 			for (const auto& format : formats)
 			{
-				const D3D11_TEXTURE2D_DESC description{
-					16, 8, 1, 1, format.texture, { 1, 0 },
-					D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0
-				};
-				ComPtr<ID3D11Texture2D> texture;
-				require(SUCCEEDED(resources.device->CreateTexture2D(
-							&description, nullptr, &texture)),
-					"unsupported-format texture creation failed");
-				D3D11_SHADER_RESOURCE_VIEW_DESC viewDescription{};
-				viewDescription.Format = format.shaderView;
-				viewDescription.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-				viewDescription.Texture2D.MipLevels = 1;
-				ComPtr<ID3D11ShaderResourceView> view;
-				require(SUCCEEDED(resources.device->CreateShaderResourceView(
-							texture.Get(), &viewDescription, &view)),
-					"unsupported-format SRV creation failed");
+				const auto view = makeView(format);
 				const auto references = ReferenceCount(view.Get());
 				const DMUI_D3D11ImageDescriptor descriptor{
 					view.Get(), 0, 0

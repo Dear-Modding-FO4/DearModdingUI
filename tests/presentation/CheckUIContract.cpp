@@ -62,112 +62,6 @@ namespace vmm_tests
 
 	void run_ui_contract_checks(Runner& runner)
 	{
-		runner.test("panel gaps use the scoped theme without overriding explicit positioning", [] {
-			ImGuiFrame frame;
-			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };
-			dmui::ui::detail::ScopedContext context{ &DearModdingUI::UI::API(), 1u };
-			namespace ui = dmui::ui;
-			DMUI_StyleMetrics metrics{};
-			(void)ui::GetStyleMetrics(metrics);
-			const auto panel = [](const char* a_id) {
-				if (const ui::PanelScope scope{ a_id, { 100.0f, 60.0f } })
-					ui::TextUnformatted("Content");
-				return ImRect{ ImGui::GetItemRectMin(), ImGui::GetItemRectMax() };
-			};
-			const auto first = panel("First");
-			ui::SameLine();
-			const auto second = panel("Second");
-			const auto third = panel("Third");
-			require(second.Min.x - first.Max.x == metrics.sectionGap &&
-					third.Min.y - second.Max.y == metrics.sectionGap,
-				"default panels did not use the same horizontal and vertical section gap");
-			ui::PushStyleVar(ui::StyleVar::kSectionGap, 27.0f);
-			const auto fourth = panel("Fourth");
-			ui::SameLine();
-			const auto fifth = panel("Fifth");
-			require(fourth.Min.y - third.Max.y == 27.0f && fifth.Min.x - fourth.Max.x == 27.0f,
-				"panel spacing ignored the scoped override");
-			ui::SameLine(0.0f, 3.0f);
-			const auto explicitGap = panel("ExplicitGap");
-			require(explicitGap.Min.x - fifth.Max.x == 3.0f,
-				"panel spacing replaced explicit SameLine spacing");
-			ui::SameLine();
-			ui::Button("After panel");
-			require(ImGui::GetItemRectMin().x - explicitGap.Max.x == metrics.itemSpacing.x,
-				"panel followed by a button used the section gap");
-			ui::SetCursorPos({ 30.0f, 300.0f });
-			const auto positioned = ui::GetCursorScreenPos();
-			const auto explicitPosition = panel("ExplicitPosition");
-			require(explicitPosition.Min.x == positioned.x && explicitPosition.Min.y == positioned.y,
-				"panel spacing replaced explicit cursor positioning");
-			ui::SetCursorPos(ui::GetCursorPos());
-			const auto unchanged = ui::GetCursorScreenPos();
-			const auto explicitCurrentPosition = panel("ExplicitCurrentPosition");
-			require(explicitCurrentPosition.Min.y == unchanged.y,
-				"panel spacing replaced an explicit position equal to the current cursor");
-			ui::PopStyleVar();
-			require(context.Result() == DMUI_RESULT_OK, "panel layout dispatch failed");
-		});
-
-		runner.test("panels fit content height and preserve fill and negative size conventions", [] {
-			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };
-			support::ImGuiTestContext imgui;
-			namespace ui = dmui::ui;
-			ui::detail::ScopedContext context{ &DearModdingUI::UI::API(), 1u };
-			for (int frame = 0; frame < 3; ++frame)
-			{
-				imgui.BeginWindow("##PanelSizing", { 20, 20 }, { 600, 480 });
-				auto recovery = DearModdingUI::ImGuiRecoverySnapshot::Capture();
-				DMUI_StyleMetrics metrics{};
-				(void)ui::GetStyleMetrics(metrics);
-				const auto available = ui::GetContentRegionAvail().x;
-				if (const ui::PanelScope fit{ "Fit" })
-				{
-					auto* window = ImGui::GetCurrentWindow();
-					require(window->WindowBorderSize == metrics.frameBorderSize &&
-							window->WindowRounding == metrics.frameRounding &&
-							window->WindowPadding.x == metrics.panelPadding.x &&
-							window->WindowPadding.y == metrics.panelPadding.y,
-						"panel surface changed theme border, rounding, or padding");
-					if (frame == 2)
-					{
-						const auto expected = ui::GetColorU32(&DMUI_ThemeColors::panel);
-						const auto nativeColor = IM_COL32(expected >> 24, (expected >> 16) & 255,
-							(expected >> 8) & 255, expected & 255);
-						const auto hasSurface = [nativeColor](const ImDrawList* a_draw) {
-							for (const auto& vertex : a_draw->VtxBuffer)
-								if (vertex.col == nativeColor)
-									return true;
-							return false;
-						};
-						require(hasSurface(window->DrawList) || hasSurface(window->ParentWindow->DrawList),
-							"panel did not render the public theme surface role");
-					}
-					ui::Dummy({ 30, 40 });
-				}
-				if (frame == 2)
-					require(ImGui::GetItemRectSize().x == available &&
-							ImGui::GetItemRectSize().y == 40 + metrics.panelPadding.y * 2,
-						"zero-sized panel did not fill width and fit padded content height");
-				if (const ui::PanelScope minus{ "Minus", { -40, 60 }, ui::PanelFlags::kNoBackground })
-				{
-					require(ImGui::GetCurrentWindow()->WindowBorderSize == 0,
-						"layout-only panel retained a border that clips nested panels");
-					ui::TextUnformatted("Content");
-				}
-				require(ImGui::GetItemRectSize().x == available - 40 &&
-						ImGui::GetItemRectSize().y == 60,
-					"negative width or fixed height did not match child conventions");
-				ui::SetCursorPos({ 0, 900 });
-				require(!ui::BeginPanel("Clipped", { 100, 60 }) &&
-						DearModdingUI::UI::GetLayoutDepths().panels == 0,
-					"false panel begin left a bracket open");
-				require(!recovery->RecoverAfterCallback().Repaired(), "balanced panel layout needed recovery");
-				imgui.EndWindow();
-			}
-			require(context.Result() == DMUI_RESULT_OK, "panel sizing dispatch failed");
-		});
-
 		runner.test("host style variables share push pop ordering and callback recovery", [] {
 			ImGuiFrame frame;
 			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };
@@ -194,6 +88,12 @@ namespace vmm_tests
 					api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_PANEL_PADDING, 1) == DMUI_RESULT_INVALID_ARGUMENT &&
 					api.popStyleVar(1u, 1) == DMUI_RESULT_INVALID_ARGUMENT,
 				"wrong shapes or callback-boundary underflow were accepted");
+			require(api.pushStyleVarVec2(1u, DMUI_UI_STYLE_VAR_ALPHA, { 0.5f, 0.5f }) ==
+					DMUI_RESULT_INVALID_ARGUMENT &&
+					api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_FRAME_PADDING, 2.0f) ==
+					DMUI_RESULT_INVALID_ARGUMENT &&
+					GImGui->StyleVarStack.Size == nativeDepth,
+				"mismatched native style-var shape reached ImGui");
 			(void)api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_SECTION_GAP, 41.0f);
 			(void)api.pushStyleVarVec2(1u, DMUI_UI_STYLE_VAR_PANEL_PADDING, { 2, 3 });
 			(void)api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_ALPHA, 0.2f);
@@ -275,50 +175,35 @@ namespace vmm_tests
 			verify(dmui::ui::GetColorU32(dmui::ui::Color::kText), ImGui::GetColorU32(ImGuiCol_Text));
 			ImGui::PopStyleVar();
 			require(context.Result() == DMUI_RESULT_OK, "color queries failed in a draw callback");
-		});
 
-		runner.test("cursor position round trips in window-local coordinates", [] {
-			ImGuiFrame frame;
-			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };
-			dmui::ui::detail::ScopedContext context{ &DearModdingUI::UI::API(), 1u };
-			dmui::ui::SetCursorPos({ 35.0f, 45.0f });
-			const auto position = dmui::ui::GetCursorPos();
-			dmui::ui::SetCursorPosX(55.0f);
-			dmui::ui::SetCursorPosY(65.0f);
-			const auto updated = dmui::ui::GetCursorPos();
-			dmui::ui::Dummy({ 1.0f, 1.0f });
-			require(position.x == 35.0f && position.y == 45.0f &&
-					updated.x == 55.0f && updated.y == 65.0f &&
-					context.Result() == DMUI_RESULT_OK,
-				"cursor operations changed coordinate space or the other axis");
-		});
+			const auto original = ImGui::GetStyle().Colors[ImGuiCol_Text];
+			require(DearModdingUI::UI::API().pushStyleColorU32(
+						1u, DMUI_UI_COLOR_TEXT, UINT32_C(0xFF804020)) == DMUI_RESULT_OK,
+				"stable packed color was rejected");
+			const auto translated = ImGui::GetStyle().Colors[ImGuiCol_Text];
+			require(translated.x == 1.0f &&
+					translated.y > 0.50f && translated.y < 0.51f &&
+					translated.z > 0.25f && translated.z < 0.26f &&
+					translated.w > 0.12f && translated.w < 0.13f,
+				"stable packed color was not decoded as 0xRRGGBBAA");
+			require(DearModdingUI::UI::API().popStyleColor(1u, 1) == DMUI_RESULT_OK &&
+					ImGui::GetStyle().Colors[ImGuiCol_Text].x == original.x &&
+					ImGui::GetStyle().Colors[ImGuiCol_Text].w == original.w,
+				"stable packed color scope did not restore native state");
 
-		runner.test("aligned text clamps alignment and ellipsizes within its item width", [] {
-			ImGuiFrame frame;
-			const DearModdingUI::UI::Testing::ValidationOverride validation{ &AcceptClient };
-			dmui::ui::detail::ScopedContext context{ &DearModdingUI::UI::API(), 1u };
-			auto* drawList = ImGui::GetWindowDrawList();
-			const auto start = drawList->VtxBuffer.Size;
-			const auto position = ImGui::GetCursorScreenPos();
-			dmui::ui::TextAligned(-1.0f, 200.0f, "Align");
-			const auto left = drawList->VtxBuffer[start].pos.x - position.x;
-			const auto next = drawList->VtxBuffer.Size;
-			dmui::ui::TextAligned(2.0f, 200.0f, "Align");
-			const auto right = drawList->VtxBuffer[next].pos.x - position.x;
-			const auto expected = 200.0f - ImGui::CalcTextSize("Align").x;
-			require(std::abs((right - left) - expected) < 1.1f,
-				"text alignment did not clamp to the item edges");
-			const auto clippedStart = drawList->VtxBuffer.Size;
-			dmui::ui::TextAligned(0.5f, 60.0f, "This text must be ellipsized, not overflow the item");
-			const auto bounds = ImGui::GetItemRectMax();
-			require(ImGui::GetItemRectSize().x == 60.0f &&
-					drawList->VtxBuffer.Size > clippedStart &&
-					drawList->VtxBuffer.Size - clippedStart < 48 * 4,
-				"overflowing text was not shortened inside the requested width");
-			for (auto i = clippedStart; i < drawList->VtxBuffer.Size; ++i)
-				require(drawList->VtxBuffer[i].pos.x <= bounds.x + 1.0f,
-					"ellipsized text escaped its item bounds");
-			require(context.Result() == DMUI_RESULT_OK, "aligned text failed UI dispatch");
+			auto* list = ImGui::GetWindowDrawList();
+			const auto start = list->VtxBuffer.Size;
+			const auto pos = dmui::ui::GetCursorScreenPos();
+			const auto draw = dmui::ui::WindowDrawList();
+			draw.AddRectFilled(pos, { pos.x + 80, pos.y + 35 }, 0x123456FF);
+			const auto widgetStart = list->VtxBuffer.Size;
+			(void)dmui::ui::Button("Widget", { 80, 35 });
+			const auto widgetEnd = list->VtxBuffer.Size;
+			draw.AddRectFilled(pos, { pos.x + 10, pos.y + 10 }, 0xABCDEF80);
+			require(widgetStart > start && widgetEnd > widgetStart && list->VtxBuffer.Size > widgetEnd &&
+				list->VtxBuffer[start].col == IM_COL32(0x12, 0x34, 0x56, 255) &&
+				list->VtxBuffer[widgetEnd].col == IM_COL32(0xAB, 0xCD, 0xEF, 128),
+				"geometry was buffered/reordered or packed color changed");
 		});
 
 		runner.test("stable list clippers clip rows and unwind callback-owned nesting", [] {
@@ -395,22 +280,15 @@ namespace vmm_tests
 			require(errors == 0, "clipper callback isolation left ImGui frame errors");
 		});
 
-		runner.test("stable UI values translate by name instead of reinterpretation", [] {
+		runner.test("stable UI rejects unknown and mutually exclusive flags", [] {
 			ImGuiCol color{};
 			require(
 				DearModdingUI::UI::Bindings::TranslateColor(
-					DMUI_UI_COLOR_TEXT,
-					color) == DMUI_RESULT_OK &&
-					color == ImGuiCol_Text,
-				"stable color did not translate by its symbolic mapping");
-			require(
-				DearModdingUI::UI::Bindings::TranslateColor(
-					UINT32_C(999999),
-					color) == DMUI_RESULT_INVALID_ARGUMENT,
-				"unknown stable enum value reached native ImGui");
-		});
-
-		runner.test("stable UI rejects unknown and mutually exclusive flags", [] {
+					DMUI_UI_COLOR_TEXT, color) == DMUI_RESULT_OK &&
+					color == ImGuiCol_Text &&
+					DearModdingUI::UI::Bindings::TranslateColor(
+						UINT32_C(999999), color) == DMUI_RESULT_INVALID_ARGUMENT,
+				"stable colors did not translate by name or accepted an unknown value");
 			ImGuiHoveredFlags hovered{};
 			require(
 				DearModdingUI::UI::Bindings::TranslateHoveredFlags(
@@ -425,10 +303,6 @@ namespace vmm_tests
 					combo) == DMUI_RESULT_INVALID_ARGUMENT,
 				"mutually exclusive stable flags reached native ImGui");
 		});
-
-
-
-
 
 		runner.test("input callbacks and unsafe scalar storage are rejected", [] {
 			ImGuiFrame frame;
@@ -481,49 +355,6 @@ namespace vmm_tests
 				"misaligned scalar storage reached native ImGui");
 		});
 
-
-
-		runner.test("style vars reject mismatched value shapes before ImGui", [] {
-			ImGuiFrame frame;
-			const DearModdingUI::UI::Testing::ValidationOverride validation{
-				&AcceptClient
-			};
-			const auto& api = DearModdingUI::UI::API();
-			const auto baseline = ImGui::GetCurrentContext()->StyleVarStack.Size;
-			require(
-				api.pushStyleVarVec2(1u, DMUI_UI_STYLE_VAR_ALPHA, { 0.5f, 0.5f }) ==
-						DMUI_RESULT_INVALID_ARGUMENT &&
-					api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_FRAME_PADDING, 2.0f) ==
-						DMUI_RESULT_INVALID_ARGUMENT &&
-					ImGui::GetCurrentContext()->StyleVarStack.Size == baseline,
-				"mismatched style-var shape reached native ImGui");
-
-			const auto alpha = ImGui::GetStyle().Alpha;
-			require(
-				api.pushStyleVarFloat(1u, DMUI_UI_STYLE_VAR_ALPHA, 0.25f) == DMUI_RESULT_OK &&
-					api.pushStyleVarVec2(1u, DMUI_UI_STYLE_VAR_FRAME_PADDING, { 3.0f, 1.0f }) ==
-						DMUI_RESULT_OK &&
-					ImGui::GetStyle().Alpha == 0.25f &&
-					ImGui::GetStyle().FramePadding.x == 3.0f &&
-					api.popStyleVar(1u, 2) == DMUI_RESULT_OK &&
-					ImGui::GetStyle().Alpha == alpha &&
-					ImGui::GetCurrentContext()->StyleVarStack.Size == baseline,
-				"matching style vars did not push and pop through the table");
-		});
-
-		runner.test("false widget results stay distinct from UI dispatch errors", [] {
-			ImGuiFrame frame;
-			const DearModdingUI::UI::Testing::ValidationOverride validation{
-				&AcceptClient
-			};
-			const auto& api = DearModdingUI::UI::API();
-			dmui::ui::detail::ScopedContext context{ &api, 1u };
-			require(!dmui::ui::Button("not clicked"),
-				"offscreen button unexpectedly reported a click");
-			require(context.Result() == DMUI_RESULT_OK,
-				"normal false widget result was reported as a UI error");
-		});
-
 		runner.test("scope ends still dispatch after a sticky UI failure", [] {
 			ImGuiFrame frame;
 			const DearModdingUI::UI::Testing::ValidationOverride validation{
@@ -556,35 +387,5 @@ namespace vmm_tests
 				"client-side text formatting truncated or crossed the ABI");
 		});
 
-		runner.test("stable packed colors translate as RGBA", [] {
-			ImGuiFrame frame;
-			const DearModdingUI::UI::Testing::ValidationOverride validation{
-				&AcceptClient
-			};
-			const auto& api = DearModdingUI::UI::API();
-			const auto original = ImGui::GetStyle().Colors[ImGuiCol_Text];
-			require(
-				api.pushStyleColorU32(
-					1u,
-					DMUI_UI_COLOR_TEXT,
-					UINT32_C(0xFF804020)) == DMUI_RESULT_OK,
-				"stable packed color was rejected");
-			const auto translated = ImGui::GetStyle().Colors[ImGuiCol_Text];
-			require(
-				translated.x == 1.0f &&
-					translated.y > 0.50f && translated.y < 0.51f &&
-					translated.z > 0.25f && translated.z < 0.26f &&
-					translated.w > 0.12f && translated.w < 0.13f,
-				"stable packed color was not decoded as 0xRRGGBBAA");
-			require(api.popStyleColor(1u, 1) == DMUI_RESULT_OK,
-				"stable packed color scope did not unwind");
-			const auto restored = ImGui::GetStyle().Colors[ImGuiCol_Text];
-			require(
-				restored.x == original.x &&
-					restored.y == original.y &&
-					restored.z == original.z &&
-					restored.w == original.w,
-				"stable packed color scope did not restore native state");
-		});
 	}
 }

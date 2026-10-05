@@ -62,7 +62,6 @@ namespace vmm_tests::support::presentation
 			bool a_mouseDown,
 			const char* a_input = nullptr);
 		void End();
-		void Key(ImGuiKey a_key, bool a_down);
 
 	private:
 		DearModdingUI::UI::Testing::ValidationOverride m_uiValidation{

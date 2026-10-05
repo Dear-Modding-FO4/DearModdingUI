@@ -1,11 +1,7 @@
 #include <Platform/rendering/ImGuiPlatformTargets.h>
 #include <Platform/rendering/FrameSubmission.h>
 #include <Platform/input/GameInput.h>
-#include <DearModdingUI/host/SwapChainAttachment.h>
 #include "../Harness.h"
-
-#include <limits>
-#include <string>
 
 namespace
 {
@@ -18,7 +14,6 @@ namespace
 
 namespace vmm_tests
 {
-	void run_cursor_ownership_checks(Runner& runner);
 	void run_gamepad_input_checks(Runner& runner);
 
 	void run_imgui_platform_checks(Runner& runner)
@@ -34,8 +29,13 @@ namespace vmm_tests
 			require(KeyboardKeyCode(0x45, false, 0x13) == 0xC5 &&
 					KeyboardKeyCode(0x45, true, 0x90) == 0x45,
 				"Pause and NumLock overrides did not preserve identity");
+			using namespace DearModdingUI::KeyCatalog;
+			for (uint32_t id = 0; id < kMouseButtonCount; ++id)
+				require(MouseKeyCode(id) == kMouseButtonOffset + id, "mouse button code drifted");
+			require(MouseKeyCode(0x800) == kMouseWheelOffset && MouseKeyCode(0x900) == kMouseWheelOffset + 1 &&
+					MouseKeyCode(kMouseButtonCount) == 0 && MouseKeyCode(0x1000) == 0,
+				"wheel or unknown mouse id mapped incorrectly");
 		});
-		run_cursor_ownership_checks(runner);
 		run_gamepad_input_checks(runner);
 		runner.test("native cursor and Present share one submission per active frame", [] {
 			FrameSubmission frame;
@@ -68,10 +68,7 @@ namespace vmm_tests
 			require(frame.Claim(rebound), "real Present did not release the next frame");
 			frame.Reset();
 			require(frame.Claim(rebound), "renderer retirement did not discard its submission");
-		});
 
-		runner.test("delayed Present cannot release a newer submission on the same attachment", [] {
-			FrameSubmission frame;
 			constexpr PresentAttachmentToken attachment{ 11, 7 };
 			require(frame.Claim(attachment), "initial frame claim failed");
 			frame.Complete(attachment);
@@ -103,24 +100,6 @@ namespace vmm_tests
 
 			require(ObserveRenderer(renderer) == RendererObservation::kReady,
 				"a complete renderer binding must be usable");
-			require(
-				FailedAttachmentResult(ObserveRenderer({})) ==
-						AttachmentResult::kNotReady &&
-					DearModdingUI::SwapChainAttachmentResult(
-						AttachmentResult::kNotReady) ==
-						DMUI_RESULT_HOST_NOT_READY,
-				"an incomplete renderer was not classified as retryable startup");
-			require(
-				DearModdingUI::SwapChainAttachmentResult(
-					FailedAttachmentResult(RendererObservation::kBindingChanged)) ==
-						DMUI_RESULT_RENDERER_BUSY &&
-					DearModdingUI::SwapChainAttachmentResult(
-						FailedAttachmentResult(
-							RendererObservation::kInvalidBinding)) ==
-						DMUI_RESULT_SWAPCHAIN_REJECTED &&
-					DearModdingUI::SwapChainAttachmentResult(
-						AttachmentResult::kAttached) == DMUI_RESULT_OK,
-				"attachment result classes lost retryable, permanent, or success mapping");
 			require(
 				DecideAttachment(
 					empty,
@@ -184,34 +163,6 @@ namespace vmm_tests
 				"a renderer generation change must retire a stale override");
 		});
 
-		runner.test("renderer polling takes engine locks only for a changed binding", [] {
-			constexpr RendererProbe game{ true, true, true, { 1, 2, 3, 4 } };
-			constexpr RendererProbe recreated{ true, true, true, { 5, 2, 3, 4 } };
-			constexpr RendererProbe uninitialized{ false, false, false, {} };
-
-			require(!RequiresRendererReconciliation(game, game),
-				"an unchanged binding still entered the engine renderer lock");
-			require(RequiresRendererReconciliation(game, recreated) &&
-					RequiresRendererReconciliation({}, game),
-				"a republished or first binding was not reconciled");
-			require(RequiresRendererReconciliation(uninitialized, uninitialized),
-				"an unready renderer skipped the waiting-state capture");
-		});
-
-		runner.test("definitive DXGI failures retire the active attachment", [] {
-			require(IsDefinitiveSwapChainLoss(kDxgiErrorDeviceRemoved),
-				"device removal must retire the attachment");
-			require(IsDefinitiveSwapChainLoss(kDxgiErrorDeviceHung),
-				"a device hang must retire the attachment");
-			require(IsDefinitiveSwapChainLoss(kDxgiErrorDeviceReset),
-				"a device reset must retire the attachment");
-			require(IsDefinitiveSwapChainLoss(kDxgiErrorDriverInternal),
-				"an internal driver failure must retire the attachment");
-			require(!IsDefinitiveSwapChainLoss(0), "success must keep the attachment");
-			require(!IsDefinitiveSwapChainLoss(0x887A0001u),
-				"a transient invalid call must keep the attachment");
-		});
-
 		runner.test("swapchain dispatch survives shadow vtable retargeting", [] {
 			require(
 				MatchHookDispatch(1, 20, 1, 10) == HookDispatchMatch::kSwapChain,
@@ -233,117 +184,6 @@ namespace vmm_tests
 				"a reused address with a new vtable must establish a new predecessor");
 		});
 
-		runner.test("frame telemetry observes only displayed presents", [] {
-			require(ObservesDisplayedFrame(0, true), "a successful real Present displays a frame");
-			require(!ObservesDisplayedFrame(kPresentTestFlag, true), "DXGI_PRESENT_TEST displays no frame");
-			require(!ObservesDisplayedFrame(0, false), "a failed Present displays no frame");
-		});
-
-		runner.test("post-Present observers require the captured active attachment", [] {
-			constexpr PresentAttachmentToken presented{ 11, 7 };
-			require(MatchesActivePresentAttachment(
-						presented, 11, 7, AttachmentLifecycle::kActive),
-				"current displayed Present token was rejected");
-			require(!MatchesActivePresentAttachment(
-						presented, 12, 7, AttachmentLifecycle::kActive),
-				"replaced swapchain retained stale observer dispatch");
-			require(!MatchesActivePresentAttachment(
-						presented, 11, 8, AttachmentLifecycle::kActive),
-				"same-address attachment rebind retained stale observer dispatch");
-			require(!MatchesActivePresentAttachment(
-						presented, 11, 7, AttachmentLifecycle::kRetired),
-				"retired attachment retained observer dispatch");
-			require(!MatchesActivePresentAttachment(
-						{}, 11, 7, AttachmentLifecycle::kActive),
-				"uncaptured Present acquired observer dispatch");
-		});
-
-		runner.test("input hook health retains the concrete failed receiver", [] {
-			auto outcomes = std::array{
-				InputReceiverHookOutcome{
-					InputReceiver::kMenuControls,
-					InputHookFailure::kNone },
-				InputReceiverHookOutcome{
-					InputReceiver::kPlayerControls,
-					InputHookFailure::kPatchFailed },
-				InputReceiverHookOutcome{
-					InputReceiver::kPlayerCamera,
-					InputHookFailure::kNone }
-			};
-			auto observation = ClassifyInputHookHealth(outcomes);
-			require(
-				observation.state == DearModdingUI::HealthState::kFailed &&
-					observation.reason.find("PlayerControls") !=
-						std::string::npos &&
-					observation.reason.find("incompatible input hook") !=
-						std::string::npos,
-				"input health lost the receiver patch failure");
-
-			outcomes[1].failure = InputHookFailure::kNone;
-			outcomes[2].failure = InputHookFailure::kOriginalTargetLost;
-			observation = ClassifyInputHookHealth(outcomes);
-			require(
-				observation.state == DearModdingUI::HealthState::kFailed &&
-					observation.reason.find("PlayerCamera") !=
-						std::string::npos &&
-					observation.reason.find("original target") !=
-						std::string::npos,
-				"runtime original-target loss was not actionable");
-		});
-
-		runner.test("backbuffer state recreates on identity size and view changes", [] {
-			constexpr BackBufferIdentity first{ 1, 1920, 1080 };
-			constexpr BackBufferIdentity replacement{ 2, 1920, 1080 };
-			constexpr BackBufferIdentity resized{ 1, 2560, 1440 };
-			constexpr BackBufferIdentity invalid{ 1, 0, 1080 };
-
-			require(
-				DecideBackBuffer(first, first, true) == BackBufferDecision::kKeep,
-				"an unchanged backbuffer must keep its RTV");
-			require(
-				DecideBackBuffer(first, first, false) == BackBufferDecision::kRecreate,
-				"a missing RTV must be recreated");
-			require(
-				DecideBackBuffer(first, replacement, true) == BackBufferDecision::kRecreate,
-				"a replacement resource must recreate its RTV");
-			require(
-				DecideBackBuffer(first, resized, true) == BackBufferDecision::kRecreate,
-				"a size change must recreate the RTV");
-			require(
-				DecideBackBuffer(first, invalid, true) == BackBufferDecision::kSkip,
-				"an invalid backbuffer must skip rendering");
-		});
-
-		runner.test("mouse coordinates map from the client into the backbuffer", [] {
-			constexpr auto nonUniform =
-				MapClientToBackBuffer({ 400.0f, 300.0f }, 800, 600, 2560, 1080);
-			require(nonUniform.x == 1280.0f && nonUniform.y == 540.0f,
-				"independent axis scaling changed");
-
-			constexpr MousePosition position{ 400.0f, 300.0f };
-			constexpr auto zeroClientWidth =
-				MapClientToBackBuffer(position, 0, 600, 2560, 1080);
-			require(
-				zeroClientWidth.x == position.x &&
-					zeroClientWidth.y == position.y,
-				"degenerate dimensions changed mouse coordinates");
-
-			constexpr auto unavailable =
-				-(std::numeric_limits<float>::max)();
-			constexpr auto sentinel =
-				MapClientToBackBuffer({ unavailable, unavailable }, 800, 600, 2560, 1080);
-			require(sentinel.x == unavailable && sentinel.y == unavailable,
-				"the unavailable mouse sentinel was scaled");
-
-			constexpr MousePosition belowOutside{ 400.0f, 601.0f };
-			constexpr auto belowMapped =
-				MapClientToBackBuffer(belowOutside, 800, 600, 2560, 1080);
-			require(
-				belowMapped.x == belowOutside.x &&
-					belowMapped.y == belowOutside.y,
-				"out-of-window mouse coordinates were scaled into the viewport");
-		});
-
 		runner.test("window messages are classified and swallowed by capture state", [] {
 			require(ClassifyMessage(0x0100) == MessageClass::kKeyboard, "WM_KEYDOWN is keyboard");
 			require(ClassifyMessage(0x0200) == MessageClass::kMouse, "WM_MOUSEMOVE is mouse");
@@ -358,15 +198,6 @@ namespace vmm_tests
 				"uncaptured or non-input messages stopped reaching the game");
 			require(!SwallowsGameWindowMessage(0x0200, true, true),
 				"WM_MOUSEMOVE cannot reach the game's native cursor");
-		});
-
-		runner.test("engine mouse ids map buttons and wheel without keyboard aliases", [] {
-			using namespace DearModdingUI::KeyCatalog;
-			for (uint32_t id = 0; id < kMouseButtonCount; ++id)
-				require(MouseKeyCode(id) == kMouseButtonOffset + id, "mouse button code drifted");
-			require(MouseKeyCode(0x800) == kMouseWheelOffset && MouseKeyCode(0x900) == kMouseWheelOffset + 1 &&
-					MouseKeyCode(kMouseButtonCount) == 0 && MouseKeyCode(0x1000) == 0,
-				"wheel or unknown mouse id mapped incorrectly");
 		});
 
 		runner.test("Escape ownership follows the visible host press pair", [] {

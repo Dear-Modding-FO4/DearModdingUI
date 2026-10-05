@@ -179,7 +179,7 @@ namespace DearModdingUI
 							DrawColorSettingControl(
 								a_color,
 								a_presets,
-								ControlWidth()).changed;
+								ControlWidth());
 					},
 					[&]() noexcept {
 						return a_color != a_defaultColor;

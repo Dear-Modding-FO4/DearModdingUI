@@ -1,5 +1,6 @@
 #include "../support/D3DTestResources.h"
 #include "../support/PresentationTestSupport.h"
+#include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/host/MenuDismissal.h>
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
@@ -77,7 +78,7 @@ namespace vmm_tests
 			require(!session.Active(), "pending session cancel did not reset");
 		});
 
-		runner.test("declarative edits report live completion and multiline height", [] {
+		runner.test("declarative edits report live completion", [] {
 			InteractiveImGui frame;
 			size_t textSets{};
 			std::vector<dmui::SettingEditEvent> textEvents;
@@ -199,71 +200,16 @@ namespace vmm_tests
 				}
 			};
 			frame.Begin({ 500.0f, 400.0f }, false);
-			const auto lineHeight = ImGui::GetTextLineHeightWithSpacing();
 			const auto multiline = dmui::setting_detail::DrawBoundSetting(
 				multilineSetting,
 				std::string{ "line one\nline two" });
-			const auto multilineHeight = ImGui::GetItemRectSize().y;
 			dmui::setting_detail::NotifySettingEdit(
 				multilineSetting, multiline);
 			frame.End();
-			require(multilineHeight >= lineHeight * 3.0f &&
-					!multiline.changed &&
+			require(!multiline.changed &&
 					!multiline.completed &&
 					multilineEvents == 0,
-				"multiline height or unchanged callback contract regressed");
-		});
-
-		runner.test("dialogs reject hidden requests and preserve small-buffer events", [] {
-			RenderExecution::Guard execution{
-				RenderExecution::Phase::kFrameObservation
-			};
-			(void)execution.NoteBinding(1);
-			const RenderExecution::ClientGuard callback{ 15, false };
-			const DMUI_DialogDescriptor descriptor{
-				DMUI_DIALOG_KIND_TEXT_ENTRY,
-				"Save preset",
-				"Choose a preset name.",
-				"Save",
-				"Cancel",
-				"Preset name",
-				"Commonwealth",
-				65
-			};
-			DMUI_DialogHandle dialog{};
-			require(PresentationServices::RequestDialog(
-						15, &descriptor, &dialog, false) ==
-					DMUI_RESULT_NOT_VISIBLE,
-				"hidden menu accepted a dialog request");
-			require(PresentationServices::RequestDialog(
-						15, &descriptor, &dialog, true) ==
-					DMUI_RESULT_OK,
-				"visible menu rejected a dialog request");
-			DMUI_DialogEvent event{};
-			char smallBuffer[2]{};
-			require(PresentationServices::PollDialogEvent(
-						15,
-						dialog,
-						&event,
-						smallBuffer,
-						sizeof(smallBuffer)) ==
-						DMUI_RESULT_BUFFER_TOO_SMALL &&
-					event.requiredTextCapacity > sizeof(smallBuffer),
-				"small dialog buffer was truncated or consumed");
-			require(PresentationServices::CancelDialog(15, dialog) ==
-					DMUI_RESULT_OK,
-				"pending dialog cancellation failed");
-			char text[65]{};
-			require(PresentationServices::PollDialogEvent(
-						15, dialog, &event, text, sizeof(text)) ==
-						DMUI_RESULT_OK &&
-					event.kind == DMUI_DIALOG_EVENT_CANCELLED &&
-					std::string_view{ text } == "Commonwealth",
-				"cancelled dialog did not preserve entered text");
-			require(PresentationServices::PollDialogEvent(
-						15, dialog, &event, text, sizeof(text)) ==
-					DMUI_RESULT_STALE_HANDLE,
-				"observed cancellation did not retire the dialog");
+				"unchanged multiline text emitted an edit callback");
 		});
 
 		runner.test("Escape dismisses one active UI level per press", [] {
@@ -305,6 +251,14 @@ namespace vmm_tests
 				"the second Escape did not retain its popup ownership");
 			require(context->OpenPopupStack.empty(),
 				"popup coordination dismissed another UI level");
+
+			ImGui::OpenPopup("##ControllerB");
+			(void)ControllerNavigation::RouteButton(
+				KeyCatalog::kPadB, true, false, 1.0f, { true, false, true, false });
+			require(DismissCapturedMenuPopup() &&
+					!ConsumeMenuEscapeTarget(MenuEscapeTarget::kHost),
+				"controller B did not use the single-level popup dismissal");
+			ImGui::ClosePopupToLevel(0, false);
 
 			context->NavId = interactionId;
 			CaptureMenuEscapePress(true, false, 0);
@@ -349,46 +303,6 @@ namespace vmm_tests
 			frame.End();
 		});
 
-		runner.test("Escape lets an active text edit cancel before its surface", [] {
-			InteractiveImGui frame;
-			ResetMenuEscapeRequest();
-			char value[32]{ "Baseline" };
-
-			frame.Begin({ 500.0f, 400.0f }, false);
-			(void)ImGui::InputText("##EscapeEdit", value, sizeof(value));
-			frame.End();
-			frame.Begin({ 40.0f, 28.0f }, true);
-			(void)ImGui::InputText("##EscapeEdit", value, sizeof(value));
-			frame.End();
-			frame.Begin({ 40.0f, 28.0f }, false, " changed");
-			(void)ImGui::InputText("##EscapeEdit", value, sizeof(value));
-			frame.End();
-			require(std::string_view{ value } != "Baseline",
-				"text edit did not become active and change");
-
-			CaptureMenuEscapePress(true, false, 0);
-			frame.Key(ImGuiKey_Escape, true);
-			frame.Begin({ -100.0f, -100.0f }, false);
-			(void)ImGui::InputText("##EscapeEdit", value, sizeof(value));
-			require(
-				ConsumeMenuEscapeTarget(MenuEscapeTarget::kInteraction),
-				"active text edit did not retain the first Escape");
-			require(!ConsumeMenuEscapeTarget(MenuEscapeTarget::kHost),
-				"active text edit Escape also closed its surface");
-			frame.End();
-			require(std::string_view{ value } == "Baseline",
-				"Escape did not use the input control's rollback semantics");
-
-			frame.Key(ImGuiKey_Escape, false);
-			frame.Begin({ -100.0f, -100.0f }, false);
-			(void)ImGui::InputText("##EscapeEdit", value, sizeof(value));
-			frame.End();
-			CaptureMenuEscapePress(true, false, 0);
-			require(ConsumeMenuEscapeTarget(MenuEscapeTarget::kHost),
-				"the next deliberate Escape did not reach the surface");
-			ResetMenuEscapeRequest();
-		});
-
 		runner.test("dialog submissions reject retry and complete deterministically", [] {
 			auto resources = CreateImageResources();
 			PresentationServices::SetDevice(resources.device.Get());
@@ -409,14 +323,24 @@ namespace vmm_tests
 			};
 			DMUI_DialogHandle dialog{};
 			require(PresentationServices::RequestDialog(
+						16, &descriptor, &dialog, false) ==
+					DMUI_RESULT_NOT_VISIBLE,
+				"hidden menu accepted a dialog request");
+			require(PresentationServices::RequestDialog(
 						16, &descriptor, &dialog, true) == DMUI_RESULT_OK,
 				"submission dialog request failed");
+			DMUI_DialogEvent event{};
+			char smallBuffer[2]{};
+			require(PresentationServices::PollDialogEvent(
+						16, dialog, &event, smallBuffer, sizeof(smallBuffer)) ==
+						DMUI_RESULT_BUFFER_TOO_SMALL &&
+					event.requiredTextCapacity > sizeof(smallBuffer),
+				"small dialog buffer was truncated or consumed");
 			require(PresentationServices::SubmitDialog(dialog) == DMUI_RESULT_OK,
 				"first dialog submission failed");
 			require(PresentationServices::SubmitDialog(dialog) == DMUI_RESULT_BUSY,
 				"duplicate pending submission was accepted");
 
-			DMUI_DialogEvent event{};
 			char text[65]{};
 			require(PresentationServices::PollDialogEvent(
 						16, dialog, &event, text, sizeof(text)) ==

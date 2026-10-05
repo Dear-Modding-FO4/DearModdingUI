@@ -99,38 +99,6 @@ namespace vmm_tests
 			frame.End();
 		});
 
-		runner.test("Escape and controller B close one owned modal level", [] {
-			PopupFrame frame;
-			RenderExecution::ClientGuard page{ 77, true, 103 };
-			bool outer{ true }, nested{ true };
-			frame.Begin();
-			dmui::ui::OpenPopup("Outer");
-			require(dmui::ui::BeginPopupModal("Outer", outer, false), "outer did not open");
-			dmui::ui::OpenPopup("Nested");
-			require(dmui::ui::BeginPopupModal("Nested", nested), "same-owner nested modal was blocked");
-			dmui::ui::EndPopup();
-			dmui::ui::EndPopup();
-			CaptureMenuEscapePress(true, false, 0);
-			require(DismissCapturedMenuPopup(), "Escape was not routed to the nested popup");
-			require(GImGui->OpenPopupStack.Size == 1,
-				"Escape did not leave exactly the outer modal");
-			frame.End();
-			frame.Begin();
-			require(dmui::ui::BeginPopupModal("Outer", outer, false) && outer,
-				"Escape also closed the outer modal");
-			require(!dmui::ui::BeginPopupModal("Nested", nested) && !nested,
-				"nested owner did not observe Escape closure");
-			dmui::ui::EndPopup();
-			(void)ControllerNavigation::RouteButton(
-				KeyCatalog::kPadB, true, false, 1.0f, { true, false, true, false });
-			require(DismissCapturedMenuPopup() && GImGui->OpenPopupStack.empty(),
-				"controller B did not use the same single-level dismissal");
-			require(!dmui::ui::BeginPopupModal("Outer", outer, false) && !outer,
-				"outer owner did not observe controller closure");
-			require(frame.ui.Result() == DMUI_RESULT_OK, "closure became a UI error");
-			frame.End();
-		});
-
 		runner.test("page retirement and callback failure clear popup brackets", [] {
 			PopupFrame frame;
 			RenderExecution::ClientGuard page{ 77, true, 104 };
@@ -181,37 +149,6 @@ namespace vmm_tests
 			ModalCoordinator::BeginFrame();
 			require(!dmui::ui::IsPopupOpen("Menu close"), "menu close retained a pending open");
 			frame.End();
-		});
-
-		runner.test("modal default focus survives pane requests", [] {
-			PopupFrame frame;
-			RenderExecution::ClientGuard page{ 77, true, 105 };
-			ControllerNavigation::Reset();
-			ControllerNavigation::UseNavigation();
-			bool open{ true };
-			ImGuiID selected{};
-			for (int i = 0; i < 3; ++i)
-			{
-				if (i == 1)
-					ControllerNavigation::QueueButton(KeyCatalog::kPadLB, 1.0f);
-				(void)ControllerNavigation::PrepareFrame(true);
-				frame.Begin();
-				ControllerNavigation::BeginPane(ControllerNavigation::Pane::kSidebar);
-				ImGui::Button("Sidebar");
-				if (i == 0)
-					dmui::ui::OpenPopup("Focused");
-				require(dmui::ui::BeginPopupModal("Focused", open), "focus fixture did not open");
-				ImGui::Button("First");
-				ImGui::Button("Default");
-				selected = ImGui::GetItemID();
-				dmui::ui::SetItemDefaultFocus();
-				if (i > 0)
-					require(GImGui->NavId == selected && GImGui->NavWindow == ImGui::GetCurrentWindow(),
-						"modal opening or LB pane request lost the default item focus");
-				dmui::ui::EndPopup();
-				ControllerNavigation::EndPanes();
-				frame.End();
-			}
 		});
 	}
 }

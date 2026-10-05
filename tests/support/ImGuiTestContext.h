@@ -7,7 +7,6 @@ namespace vmm_tests::support
 	struct ImGuiContextOptions
 	{
 		ImVec2 displaySize{ 1280.0f, 720.0f };
-		float deltaTime{ 1.0f / 60.0f };
 		bool disableInputTrickle{};
 		bool disableErrorRecovery{};
 	};
@@ -21,7 +20,7 @@ namespace vmm_tests::support
 			m_context = ImGui::CreateContext();
 			auto& io = ImGui::GetIO();
 			io.DisplaySize = a_options.displaySize;
-			io.DeltaTime = a_options.deltaTime;
+			io.DeltaTime = 1.0f / 60.0f;
 			io.IniFilename = nullptr;
 			io.ConfigInputTrickleEventQueue =
 				!a_options.disableInputTrickle;

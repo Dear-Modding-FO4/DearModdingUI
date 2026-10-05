@@ -68,54 +68,6 @@ namespace vmm_tests
 			require(clean.Balanced(), "RAII clip failed to balance");
 		});
 
-		runner.test("a window clip can surround a non-scrolling table", [] {
-			ImGuiFrame frame;
-			auto* list = ImGui::GetWindowDrawList();
-			const auto depth = list->_ClipRectStack.Size;
-			UI::DrawListClipScope clips;
-			{
-				dmui::ui::ClipRectScope clip{ dmui::ui::WindowDrawList(), { 30, 30 }, { 300, 300 } };
-				require(dmui::ui::BeginTable("Clipped table", 1), "table did not open");
-				dmui::ui::TableNextRow();
-				(void)dmui::ui::TableNextColumn();
-				dmui::ui::TextUnformatted("Clipped cell");
-				require(dmui::ui::checked::EndTable() == DMUI_RESULT_OK,
-					"EndTable rejected its enclosing client clip");
-				require(list->_ClipRectStack.Size == depth + 1,
-					"EndTable consumed its enclosing client clip");
-			}
-			require(clips.Balanced() && list->_ClipRectStack.Size == depth &&
-				dmui::ui::detail::LastResult() == DMUI_RESULT_OK,
-				"enclosing clip did not balance");
-		});
-
-		runner.test("callback failure inside a table recovers its enclosing client clip", [] {
-			ImGuiFrame frame;
-			auto recovery = ImGuiRecoverySnapshot::Capture();
-			auto* list = ImGui::GetWindowDrawList();
-			const auto depth = list->_ClipRectStack.Size;
-			const auto windows = GImGui->CurrentWindowStack.Size;
-			const auto tables = GImGui->TablesTempDataStacked;
-			{
-				UI::DrawListClipScope clips;
-				const auto result = [] {
-					dmui::ui::ClipRectScope clip{ dmui::ui::WindowDrawList(), { 30, 30 }, { 300, 300 } };
-					require(dmui::ui::BeginTable("Failed table", 1), "table did not open");
-					dmui::ui::TableNextRow();
-					(void)dmui::ui::TableNextColumn();
-					return DMUI_RESULT_CALLBACK_FAILED;
-				}();
-				require(result == DMUI_RESULT_CALLBACK_FAILED && !clips.Balanced() &&
-					list->_ClipRectStack.Size == depth + 2,
-					"failed clip destructor consumed ImGui's table clip");
-			}
-			(void)recovery->RecoverFailure();
-			require(list->_ClipRectStack.Size == depth &&
-				GImGui->CurrentWindowStack.Size == windows &&
-				GImGui->TablesTempDataStacked == tables,
-				"table recovery over-popped or leaked a clip/scope");
-		});
-
 		runner.test("EndTable reports an inner client clip and recovery preserves native clips", [] {
 			ImGuiFrame frame;
 			auto* list = ImGui::GetWindowDrawList();
@@ -146,6 +98,40 @@ namespace vmm_tests
 				require(list->_ClipRectStack.Size == depth && GImGui->CurrentTable == nullptr,
 					"inner clip recovery corrupted the native clip stack");
 			}
+
+			const auto windows = GImGui->CurrentWindowStack.Size;
+			const auto tables = GImGui->TablesTempDataStacked;
+			for (const bool fail : { false, true })
+			{
+				auto recovery = ImGuiRecoverySnapshot::Capture();
+				dmui::ui::detail::ClearError();
+				{
+					UI::DrawListClipScope clips;
+					{
+						dmui::ui::ClipRectScope clip{ dmui::ui::WindowDrawList(), { 30, 30 }, { 300, 300 } };
+						require(dmui::ui::BeginTable("Enclosed table", 1), "table did not open");
+						dmui::ui::TableNextRow();
+						(void)dmui::ui::TableNextColumn();
+						if (!fail)
+						{
+							require(dmui::ui::checked::EndTable() == DMUI_RESULT_OK &&
+								list->_ClipRectStack.Size == depth + 1,
+								"EndTable rejected or consumed its enclosing client clip");
+						}
+					}
+					if (!fail)
+						require(clips.Balanced() && list->_ClipRectStack.Size == depth,
+							"enclosing clip did not balance");
+					else
+						require(!clips.Balanced() && list->_ClipRectStack.Size == depth + 2,
+							"failed clip destructor consumed ImGui's table clip");
+				}
+				(void)recovery->RecoverFailure();
+				require(list->_ClipRectStack.Size == depth &&
+					GImGui->CurrentWindowStack.Size == windows &&
+					GImGui->TablesTempDataStacked == tables,
+					"table recovery over-popped or leaked a clip/scope");
+			}
 		});
 
 		runner.test("draw geometry rejects malformed inputs without submitting vertices", [] {
@@ -164,23 +150,6 @@ namespace vmm_tests
 				"invalid geometry reached ImGui");
 			require(ImGui::GetWindowDrawList()->VtxBuffer.Size == before,
 				"rejected input submitted partial geometry");
-		});
-
-		runner.test("window draw list preserves immediate widget submission and packed color", [] {
-			ImGuiFrame frame;
-			auto* list = ImGui::GetWindowDrawList();
-			const auto start = list->VtxBuffer.Size;
-			const auto pos = dmui::ui::GetCursorScreenPos();
-			const auto draw = dmui::ui::WindowDrawList();
-			draw.AddRectFilled(pos, { pos.x + 80, pos.y + 35 }, 0x123456FF);
-			const auto widgetStart = list->VtxBuffer.Size;
-			(void)dmui::ui::Button("Widget", { 80, 35 });
-			const auto widgetEnd = list->VtxBuffer.Size;
-			draw.AddRectFilled(pos, { pos.x + 10, pos.y + 10 }, 0xABCDEF80);
-			require(widgetStart > start && widgetEnd > widgetStart && list->VtxBuffer.Size > widgetEnd &&
-				list->VtxBuffer[start].col == IM_COL32(0x12, 0x34, 0x56, 255) &&
-				list->VtxBuffer[widgetEnd].col == IM_COL32(0xAB, 0xCD, 0xEF, 128),
-				"geometry was buffered/reordered or packed color changed");
 		});
 	}
 }

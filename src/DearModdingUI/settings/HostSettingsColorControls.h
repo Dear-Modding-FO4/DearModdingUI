@@ -15,19 +15,7 @@ namespace DearModdingUI::HostSettingsViewDetail
 		HostAccentColor color;
 	};
 
-	struct ColorSettingControlResult
-	{
-		bool changed{};
-		bool presetsInline{};
-		float pickerMinX{};
-		float pickerMaxX{};
-		float pickerHeight{};
-		float presetsMinX{};
-		float presetsMaxX{};
-		float presetHeight{};
-	};
-
-	[[nodiscard]] ColorSettingControlResult DrawColorSettingControl(
+	[[nodiscard]] bool DrawColorSettingControl(
 		HostAccentColor& a_color,
 		std::span<const ColorPreset> a_presets,
 		float a_width) noexcept;

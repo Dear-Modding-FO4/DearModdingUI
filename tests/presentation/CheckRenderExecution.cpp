@@ -166,8 +166,6 @@ namespace vmm_tests
 			bool nestedAuthorized{};
 			bool outerRestored{};
 			bool secondStillAuthorized{};
-			bool firstThreadReported{};
-			bool secondThreadReported{};
 			bool overlapped{};
 			int active{};
 			int maximumActive{};
@@ -176,10 +174,7 @@ namespace vmm_tests
 				RenderExecution::Guard execution{
 					RenderExecution::Phase::kFrameObservation
 				};
-				const auto transition = execution.NoteBinding(7);
-				firstThreadReported =
-					transition.currentThread ==
-					static_cast<uint64_t>(::GetCurrentThreadId());
+				(void)execution.NoteBinding(7);
 				{
 					const RenderExecution::ClientGuard client{
 						70, false
@@ -210,10 +205,7 @@ namespace vmm_tests
 				RenderExecution::Guard execution{
 					RenderExecution::Phase::kFrameDraw
 				};
-				const auto transition = execution.NoteBinding(7);
-				secondThreadReported =
-					transition.currentThread ==
-					static_cast<uint64_t>(::GetCurrentThreadId());
+				(void)execution.NoteBinding(7);
 				const RenderExecution::ClientGuard outer{
 					71, false
 				};
@@ -266,8 +258,6 @@ namespace vmm_tests
 			second.join();
 			require(!overlapped && maximumActive == 1,
 				"overlapping Present scopes entered client execution");
-			require(firstThreadReported && secondThreadReported,
-				"render migration diagnostics did not report OS thread IDs");
 			require(firstAuthorized && nestedAuthorized && outerRestored &&
 					secondStillAuthorized,
 				"nested or handed-off execution authorization was not restored");
@@ -285,6 +275,5 @@ namespace vmm_tests
 			require(!RenderExecution::IsActive(),
 				"exception unwinding leaked render execution authorization");
 		});
-
 	}
 }

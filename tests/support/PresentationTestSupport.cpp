@@ -45,9 +45,4 @@ namespace vmm_tests::support::presentation
 	{
 		m_imgui.EndWindow(true);
 	}
-
-	void InteractiveImGui::Key(ImGuiKey a_key, bool a_down)
-	{
-		ImGui::GetIO().AddKeyEvent(a_key, a_down);
-	}
 }

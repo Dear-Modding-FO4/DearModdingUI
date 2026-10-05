@@ -43,12 +43,12 @@ namespace DearModdingUI::HostSettingsViewDetail
 		return changed;
 	}
 
-	ColorSettingControlResult DrawColorSettingControl(
+	bool DrawColorSettingControl(
 		HostAccentColor& a_color,
 		std::span<const ColorPreset> a_presets,
 		float a_width) noexcept
 	{
-		ColorSettingControlResult result;
+		auto changed = false;
 		a_width = (std::max)(a_width, 1.0f);
 		const auto origin = ImGui::GetCursorScreenPos();
 		const auto targetRight = origin.x + a_width;
@@ -64,16 +64,11 @@ namespace DearModdingUI::HostSettingsViewDetail
 					ImGuiColorEditFlags_PickerHueBar))
 		{
 			a_color = HostAccentFromImVec4(color);
-			result.changed = true;
+			changed = true;
 		}
-		const auto pickerMin = ImGui::GetItemRectMin();
-		const auto pickerMax = ImGui::GetItemRectMax();
-		result.pickerMinX = pickerMin.x;
-		result.pickerMaxX = pickerMax.x;
-		result.pickerHeight = pickerMax.y - pickerMin.y;
 
 		if (a_presets.empty())
-			return result;
+			return changed;
 
 		constexpr const char* label{ "Color-vision-friendly presets" };
 		const auto& style = ImGui::GetStyle();
@@ -83,7 +78,7 @@ namespace DearModdingUI::HostSettingsViewDetail
 			swatchHeight * static_cast<float>(a_presets.size()) +
 			style.ItemSpacing.x *
 				static_cast<float>(a_presets.size() - 1);
-		result.presetsInline =
+		const auto presetsInline =
 			labelWidth + style.ItemSpacing.x + minimumSwatchesWidth <=
 				a_width;
 
@@ -92,7 +87,7 @@ namespace DearModdingUI::HostSettingsViewDetail
 			ImGui::GetCursorPosX() + a_width);
 		ImGui::TextUnformatted(label);
 		ImGui::PopTextWrapPos();
-		if (result.presetsInline)
+		if (presetsInline)
 			ImGui::SameLine();
 
 		auto swatchOrigin = ImGui::GetCursorScreenPos();
@@ -140,18 +135,12 @@ namespace DearModdingUI::HostSettingsViewDetail
 					{ swatchWidth, swatchHeight }))
 			{
 				a_color = preset.color;
-				result.changed = true;
+				changed = true;
 			}
-			const auto buttonMin = ImGui::GetItemRectMin();
-			const auto buttonMax = ImGui::GetItemRectMax();
-			if (index == 0)
-				result.presetsMinX = buttonMin.x;
-			result.presetsMaxX = buttonMax.x;
-			result.presetHeight = buttonMax.y - buttonMin.y;
 			if (ImGui::IsItemHovered())
 				ImGui::SetTooltip("%s", preset.description);
 			ImGui::PopID();
 		}
-		return result;
+		return changed;
 	}
 }

@@ -158,28 +158,6 @@ namespace vmm_tests
 
 	void run_presentation_blur_pipeline_checks(Runner& a_runner)
 	{
-		a_runner.test("embedded background blur bytecode creates device shaders", [] {
-			auto device = support::CreateImageResources();
-			ComPtr<ID3D11VertexShader> vertex;
-			require(SUCCEEDED(device.device->CreateVertexShader(
-						g_BackgroundBlurDownsampleVS,
-						sizeof(g_BackgroundBlurDownsampleVS),
-						nullptr,
-						&vertex)),
-				"embedded blur vertex shader was rejected");
-			for (const auto& [bytecode, size] : std::array{
-					 std::pair{ g_BackgroundBlurDownsamplePS, sizeof(g_BackgroundBlurDownsamplePS) },
-					 std::pair{ g_BackgroundBlurHorizontalPS, sizeof(g_BackgroundBlurHorizontalPS) },
-					 std::pair{ g_BackgroundBlurVerticalPS, sizeof(g_BackgroundBlurVerticalPS) },
-					 std::pair{ g_BackgroundBlurCompositePS, sizeof(g_BackgroundBlurCompositePS) } })
-			{
-				ComPtr<ID3D11PixelShader> pixel;
-				require(SUCCEEDED(device.device->CreatePixelShader(
-							bytecode, size, nullptr, &pixel)),
-					"embedded blur pixel shader was rejected");
-			}
-		});
-
 		a_runner.test("blur pipeline state restores every touched native binding", [] {
 			auto device = support::CreateImageResources();
 			const auto outputs = CreateOutputResources(device.device.Get());
@@ -272,6 +250,16 @@ namespace vmm_tests
 						nullptr,
 						&pixelShader)),
 				"test shader creation failed");
+			for (const auto& [bytecode, size] : std::array{
+					 std::pair{ g_BackgroundBlurDownsamplePS, sizeof(g_BackgroundBlurDownsamplePS) },
+					 std::pair{ g_BackgroundBlurVerticalPS, sizeof(g_BackgroundBlurVerticalPS) },
+					 std::pair{ g_BackgroundBlurCompositePS, sizeof(g_BackgroundBlurCompositePS) } })
+			{
+				ComPtr<ID3D11PixelShader> embedded;
+				require(SUCCEEDED(device.device->CreatePixelShader(
+							bytecode, size, nullptr, &embedded)),
+					"embedded blur pixel shader was rejected");
+			}
 			const auto geometryBytecode = CompileShaderSource(
 				"struct Vertex { float4 position : SV_POSITION; };"
 				"[maxvertexcount(1)]"

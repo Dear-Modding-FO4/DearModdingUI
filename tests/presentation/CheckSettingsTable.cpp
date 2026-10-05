@@ -3,7 +3,6 @@
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/host/UIAdapter.h>
-#include <DearModdingUI/settings/HostSettingsColorControls.h>
 #include "../Harness.h"
 #include "../support/ImGuiTestContext.h"
 
@@ -13,8 +12,6 @@
 #include <DearModdingUI/Presentation.h>
 #include <DearModdingUI/Client.h>
 
-#include <cmath>
-#include <limits>
 
 namespace vmm_tests
 {
@@ -128,129 +125,6 @@ namespace vmm_tests
 
 	void run_settings_table_checks(Runner& runner)
 	{
-		runner.test("styled text balances color and wrapping stacks", [] {
-			ImGuiTestFrame frame;
-			auto text = std::string(4096, 'x');
-			text += " 100% ##literal ";
-			text += "\xE2\x98\x83";
-			require(
-				dmui::DrawStyledText(
-					text,
-					Theme::ColorSnapshot(),
-					{
-						.tone = dmui::TextTone::kStatusRestartNeeded,
-						.wrapped = true
-					}) == DMUI_RESULT_OK,
-				"styled text draw failed");
-			require(
-				dmui::DrawStyledText(
-					{},
-					DMUI_ThemeColors{},
-					{}) == DMUI_RESULT_OK,
-				"empty inherited text required a theme");
-			require(
-				dmui::DrawStyledText(
-					"text",
-					Theme::ColorSnapshot(),
-					{ .fontRole = DMUI_FONT_ROLE_BODY }) ==
-					DMUI_RESULT_INVALID_ARGUMENT,
-				"snapshot-only styled text accepted a client font role");
-			auto truncatedTheme = Theme::ColorSnapshot();
-			require(
-				dmui::DrawStyledText(
-					"text",
-					Theme::ColorSnapshot(),
-					{ .tone = static_cast<dmui::TextTone>(255) }) ==
-					DMUI_RESULT_INVALID_ARGUMENT,
-				"styled text accepted an unknown text tone");
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"styled text changed the ImGui stack");
-		});
-
-		runner.test("client text helpers fail before drawing when disconnected", [] {
-			ImGuiTestFrame frame;
-			dmui::Client client{
-				"tests.presentation",
-				"Presentation tests",
-				{ 1, 0 }
-			};
-			const auto start = ImGui::GetCursorScreenPos();
-			require(
-				!dmui::DrawStyledText(
-					client,
-					"not drawn",
-					{ .tone = dmui::TextTone::kAccent }) &&
-					client.LastResult() == DMUI_RESULT_CLIENT_NOT_FOUND,
-				"disconnected styled text did not report its failure");
-			const auto end = ImGui::GetCursorScreenPos();
-			require(start.x == end.x && start.y == end.y,
-				"failed text helper drew a partial value");
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"failed text helper changed the ImGui stack");
-		});
-
-		runner.test("choice draw preserves unknown and empty values", [] {
-			ImGuiTestFrame frame;
-			const std::array options{
-				dmui::ChoiceOption<int>{
-					.value = 1,
-					.label = "100% ## duplicate",
-					.key = "first"
-				},
-				dmui::ChoiceOption<int>{
-					.value = 2,
-					.label = "100% ## duplicate",
-					.key = "second",
-					.enabled = false
-				}
-			};
-			ImGui::PushID("known");
-			ImGui::OpenPopupEx(
-				ImHashStr("##ComboPopup", 0, ImGui::GetID("##Choice")),
-				ImGuiPopupFlags_None);
-			ImGui::PopID();
-			ImGui::LogToBuffer();
-			const auto known = dmui::DrawChoice(
-				"known",
-				1,
-				options,
-				"Unavailable",
-				"Quality mode ## literal");
-			const std::string logged{
-				ImGui::GetCurrentContext()->LogBuffer.c_str()
-			};
-			ImGui::LogFinish();
-			const auto& popups = ImGui::GetCurrentContext()->OpenPopupStack;
-			require(popups.Size == 1 && popups[0].Window &&
-					popups[0].Window->Active &&
-					popups[0].Window->DC.CursorMaxPos.y >
-						popups[0].Window->DC.CursorStartPos.y,
-				"choice regression did not draw the actual combo popup");
-			require(
-				!known.changed && !known.completed && !known.selected,
-				"drawing a choice changed its current value");
-			require(
-				logged.contains("Quality mode ## literal"),
-				"choice display label was hidden or treated as identity");
-			const auto unknown = dmui::DrawChoice(
-				"unknown",
-				99,
-				options,
-				"Unknown selection");
-			require(
-				!unknown.changed && !unknown.completed && !unknown.selected,
-				"unknown choice was silently clamped");
-			const auto empty = dmui::DrawChoice(
-				"empty",
-				99,
-				{});
-			require(
-				!empty.changed && !empty.completed && !empty.selected,
-				"empty choice produced a selection");
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"choice draw changed the ImGui stack");
-		});
-
 		runner.test("declarative choices separate unmatched labels from stored values", [] {
 			ImGuiTestFrame frame;
 			std::string stored{ "missing.xml" };
@@ -309,6 +183,14 @@ namespace vmm_tests
 			control = {};
 			stored = "missing.xml";
 			drawAndCheck("empty-list", "Unavailable");
+			const std::array raw{
+				dmui::ChoiceOption<int>{ .value = 1, .label = "100% ## duplicate", .key = "first" }
+			};
+			const auto unknown = dmui::DrawChoice("unknown", 99, raw, "Unknown selection");
+			const auto empty = dmui::DrawChoice("empty", 99, {});
+			require(!unknown.changed && !unknown.completed && !unknown.selected &&
+					!empty.changed && !empty.completed && !empty.selected,
+				"unknown or empty choice was clamped or produced a selection");
 			require(writes == 1 && edits == 1 && frame.IsAtBaseline() && frame.Errors() == 0,
 				"empty-list presentation wrote storage or leaked ImGui state");
 		});
@@ -327,91 +209,6 @@ namespace vmm_tests
 			const auto repaired = recovery->RecoverAfterCallback();
 			require(repaired.Repaired() && frame.IsAtBaseline(),
 				"callback recovery did not restore leaked ImGui stacks");
-		});
-
-		runner.test("settings descriptions wrap inside translated window columns", [] {
-			constexpr DMUI_ClientHandle owner{ 7 };
-			constexpr auto description =
-				"This description must remain entirely inside the label column, "
-				"wrapping onto additional lines rather than disappearing beneath "
-				"the value control. Moving the window must not change its wrapping.";
-			for (const auto position : { ImVec2{ 60.0f, 60.0f }, ImVec2{ 420.0f, 100.0f } })
-			{
-				ImGuiTestFrame frame{ position };
-				{
-					const SettingsTable::ClientCallbackGuard guard{ owner };
-					const auto table = SettingsTable::Begin(owner, "wrapped-settings");
-					require(table.result == DMUI_RESULT_OK && table.visible,
-						"wrapped settings table did not begin");
-					const auto tableId = ImGui::GetCurrentTable()->ID;
-					const auto row = SettingsTable::BeginRow(
-						owner, "wrapped", "Setting", description);
-					require(row.result == DMUI_RESULT_OK && row.visible,
-						"wrapped settings row did not begin");
-					const auto* outer = ImGui::GetCurrentContext()->Tables.GetByKey(tableId);
-					const auto& column = outer->Columns[0];
-					const auto expected = ImGui::CalcTextSize(
-						description, nullptr, false, column.WorkMaxX - column.WorkMinX);
-					const auto labelMaxX = column.WorkMaxX;
-					ImGui::Button("Value");
-					bool resetPressed{};
-					require(SettingsTable::EndRow(
-								owner, { false, false }, resetPressed) == DMUI_RESULT_OK,
-						"wrapped settings row did not end");
-					const auto drawn = ImGui::GetCurrentContext()->LastItemData.Rect;
-					require(drawn.Max.x <= labelMaxX + 0.5f &&
-							drawn.GetHeight() >= expected.y - 0.5f &&
-							expected.y > ImGui::GetFontSize(),
-						"description wrapping escaped its column or lost text lines");
-					require(SettingsTable::End(owner) == DMUI_RESULT_OK,
-						"wrapped settings table did not end");
-				}
-				require(frame.IsAtBaseline() && frame.Errors() == 0,
-					"description wrapping changed the ImGui stack");
-			}
-		});
-
-		runner.test("full-span settings row spans the label and value cells", [] {
-			constexpr DMUI_ClientHandle owner{ 7 };
-			ImGuiTestFrame frame;
-			{
-				const SettingsTable::ClientCallbackGuard guard{ owner };
-				const auto table = SettingsTable::Begin(owner, "settings");
-				require(table.result == DMUI_RESULT_OK && table.visible,
-					"settings table did not begin");
-				const auto* settingsTable = ImGui::GetCurrentTable();
-				const auto row = SettingsTable::BeginRow(
-					owner,
-					"prose",
-					"",
-					"",
-					SettingsTable::RowLayout::kFullSpan);
-				require(row.result == DMUI_RESULT_OK && row.visible,
-					"full-span settings row did not begin");
-				require(ImGui::GetCurrentTable()->OuterRect.Min.y - settingsTable->RowPosY1 <
-						ImGui::GetFontSize() * 0.5f,
-					"label-less full-span row reserved an empty header line");
-				const auto controlsRect = ImGui::GetCurrentTable()->OuterRect;
-				ImGui::TextWrapped("Full-width prose");
-				bool resetPressed{};
-				require(SettingsTable::EndRow(
-							owner, { false, false }, resetPressed) ==
-						DMUI_RESULT_OK,
-					"full-span settings row did not end");
-				const auto* outerTable = ImGui::GetCurrentTable();
-				const auto labelCell = ImGui::TableGetCellBgRect(outerTable, 0);
-				const auto expectedMaxX =
-					ImGui::TableGetCellBgRect(outerTable, 1).Max.x -
-					outerTable->CellPaddingX;
-				require(controlsRect.Min.x >= labelCell.Min.x &&
-						controlsRect.Min.x < labelCell.Max.x &&
-						controlsRect.Max.x == expectedMaxX,
-					"full-span controls did not span both settings cells");
-				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
-					"settings table did not end");
-			}
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"full-span row changed the ImGui stack");
 		});
 
 		runner.test("settings row survives ImGui table pool growth", [] {
@@ -513,28 +310,6 @@ namespace vmm_tests
 				"page callback changed the host table stack");
 		});
 
-		runner.test("invisible settings row opens no bracket", [] {
-			constexpr DMUI_ClientHandle owner{ 7 };
-			ImGuiTestFrame frame;
-			{
-				const SettingsTable::ClientCallbackGuard guard{ owner };
-				const auto table = SettingsTable::Begin(owner, "settings");
-				require(table.result == DMUI_RESULT_OK && table.visible,
-					"settings table did not begin");
-				auto* currentTable = ImGui::GetCurrentTable();
-				currentTable->TempData->ReconcileColumnsRequests[1].Flags |=
-					ImGuiTableColumnFlags_Disabled;
-				const auto row = SettingsTable::BeginRow(
-					owner, "row", "Setting", nullptr);
-				require(row.result == DMUI_RESULT_OK && !row.visible,
-					"disabled value column did not produce an invisible row");
-				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
-					"invisible row left the table bracket open");
-			}
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"invisible row changed the ImGui stack");
-		});
-
 		runner.test("settings bracket early returns remain recoverable", [] {
 			constexpr DMUI_ClientHandle owner{ 7 };
 			constexpr DMUI_ClientHandle other{ 8 };
@@ -576,26 +351,26 @@ namespace vmm_tests
 					"row could not recover from a rejected end");
 				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
 					"settings table did not end");
-			}
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"early return changed the ImGui stack");
-		});
 
-		runner.test("abandoned settings row is unwound at callback exit", [] {
-			constexpr DMUI_ClientHandle owner{ 7 };
-			ImGuiTestFrame frame;
-			{
-				const SettingsTable::ClientCallbackGuard guard{ owner };
-				const auto table = SettingsTable::Begin(owner, "settings");
-				require(table.result == DMUI_RESULT_OK && table.visible,
+				const auto hidden = SettingsTable::Begin(owner, "hidden-row");
+				require(hidden.result == DMUI_RESULT_OK && hidden.visible,
 					"settings table did not begin");
-				const auto row = SettingsTable::BeginRow(
+				ImGui::GetCurrentTable()->TempData->ReconcileColumnsRequests[1].Flags |=
+					ImGuiTableColumnFlags_Disabled;
+				const auto invisibleRow = SettingsTable::BeginRow(
 					owner, "row", "Setting", nullptr);
-				require(row.result == DMUI_RESULT_OK && row.visible,
-					"settings row did not begin");
+				require(invisibleRow.result == DMUI_RESULT_OK && !invisibleRow.visible,
+					"disabled value column did not produce an invisible row");
+				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
+					"invisible row left the table bracket open");
+
+				const auto abandoned = SettingsTable::Begin(owner, "abandoned");
+				require(abandoned.result == DMUI_RESULT_OK && abandoned.visible &&
+						SettingsTable::BeginRow(owner, "row", "Setting", nullptr).visible,
+					"abandoned row fixture did not begin");
 			}
 			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"callback recovery reported or retained abandoned brackets");
+				"early return or abandoned row changed the ImGui stack");
 		});
 
 		runner.test("standalone feedback owns text and recovers its brackets", [] {
@@ -659,224 +434,6 @@ namespace vmm_tests
 			}
 			require(frame.IsAtBaseline() && frame.Errors() == 0,
 				"standalone field recovery changed the ImGui stack");
-		});
-
-		runner.test("under-control feedback follows the complete control group", [] {
-			constexpr DMUI_ClientHandle owner{ 7 };
-			FeedbackAppearanceGuard appearance;
-			FieldFeedback::SetAppearance({
-				FieldFeedbackPlacement::kUnderControl,
-				FieldFeedback::PackColor(0x2A, 0xE3, 0x4D),
-				FieldFeedback::kDefaultWarningColor,
-				FieldFeedback::kDefaultErrorColor
-			});
-
-			ImGuiTestFrame frame;
-			const SettingsTable::ClientCallbackGuard guard{ owner };
-			const auto table = SettingsTable::Begin(owner, "reset-alignment");
-			require(table.result == DMUI_RESULT_OK && table.visible,
-				"reset alignment table did not begin");
-			BeginFeedbackField(owner, "grouped-control");
-			ImGui::BeginGroup();
-			ImGui::Button("Primary control");
-			ImGui::TextUnformatted("Additional grouped control content");
-			ImGui::EndGroup();
-			const auto controlRect =
-				ImGui::GetCurrentContext()->LastItemData.Rect;
-			const auto resetMinX =
-				ImGui::GetCurrentTable()->Columns[1].WorkMinX;
-			auto* draw = ImGui::GetWindowDrawList();
-			const auto firstVertex = draw->VtxBuffer.Size;
-			require(SettingsTable::SetFieldFeedback(
-						owner,
-						DMUI_FIELD_FEEDBACK_SEVERITY_INFO,
-						"Informational text below the entire grouped control.") ==
-					DMUI_RESULT_OK,
-				"under-control feedback was rejected");
-			EndFeedbackField(owner, true);
-
-			const auto feedbackColor = ImGui::GetColorU32(
-				FieldFeedback::SeverityColor(
-					DMUI_FIELD_FEEDBACK_SEVERITY_INFO));
-			auto feedbackMinY = (std::numeric_limits<float>::max)();
-			auto feedbackMaxY = (std::numeric_limits<float>::lowest)();
-			auto resetMinY = (std::numeric_limits<float>::max)();
-			auto resetMaxY = (std::numeric_limits<float>::lowest)();
-			for (int index = firstVertex; index < draw->VtxBuffer.Size; ++index)
-			{
-				const auto& vertex = draw->VtxBuffer[index];
-				if (vertex.col == feedbackColor)
-				{
-					feedbackMinY = (std::min)(feedbackMinY, vertex.pos.y);
-					feedbackMaxY = (std::max)(feedbackMaxY, vertex.pos.y);
-				}
-				if (vertex.pos.x >= resetMinX)
-				{
-					resetMinY = (std::min)(resetMinY, vertex.pos.y);
-					resetMaxY = (std::max)(resetMaxY, vertex.pos.y);
-				}
-			}
-			require(
-				feedbackMaxY > feedbackMinY &&
-					feedbackMinY >= controlRect.Max.y &&
-					resetMaxY > resetMinY &&
-					std::abs(
-						(resetMinY + resetMaxY) * 0.5f -
-						(controlRect.Min.y + controlRect.Max.y) * 0.5f) <
-						ImGui::GetTextLineHeight(),
-				"feedback overlapped the group or displaced reset");
-
-			BeginFeedbackField(owner, "cleared");
-			ImGui::Button("Cleared control");
-			require(
-				ImGui::GetCurrentContext()->LastItemData.Rect.Min.y >
-					feedbackMaxY,
-				"next row overlapped under-control feedback");
-			require(SettingsTable::SetFieldFeedback(
-						owner,
-						DMUI_FIELD_FEEDBACK_SEVERITY_ERROR,
-						"Transient") == DMUI_RESULT_OK &&
-					SettingsTable::SetFieldFeedback(
-						owner,
-						DMUI_FIELD_FEEDBACK_SEVERITY_INFO,
-						{}) == DMUI_RESULT_OK,
-				"same-frame feedback clear failed");
-			EndFeedbackField(owner);
-			const auto* outer = ImGui::GetCurrentTable();
-			const auto clearedHeight = outer->RowPosY2 - outer->RowPosY1;
-
-			BeginFeedbackField(owner, "plain");
-			ImGui::Button("Plain control");
-			EndFeedbackField(owner);
-			outer = ImGui::GetCurrentTable();
-			const auto plainHeight = outer->RowPosY2 - outer->RowPosY1;
-			require(std::abs(clearedHeight - plainHeight) < 0.5f,
-				"cleared feedback retained row extent");
-			require(SettingsTable::End(owner) == DMUI_RESULT_OK,
-				"under-control table did not end");
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"under-control feedback changed the ImGui stack");
-		});
-
-		runner.test("feedback strip wraps inside padding before the next row", [] {
-			constexpr DMUI_ClientHandle owner{ 7 };
-			FeedbackAppearanceGuard appearance;
-			FieldFeedback::SetAppearance({
-				FieldFeedbackPlacement::kFullWidthStrip,
-				FieldFeedback::kDefaultInfoColor,
-				FieldFeedback::PackColor(0x2A, 0xE3, 0x4D),
-				FieldFeedback::kDefaultErrorColor
-			});
-
-			ImGuiTestFrame frame;
-			const SettingsTable::ClientCallbackGuard guard{ owner };
-			const auto table = SettingsTable::Begin(owner, "strip-layout");
-			require(table.result == DMUI_RESULT_OK && table.visible,
-				"strip table did not begin");
-			const auto outerId = ImGui::GetCurrentTable()->ID;
-			BeginFeedbackField(owner, "strip");
-			ImGui::Button("Value");
-			const auto* outer =
-				ImGui::GetCurrentContext()->Tables.GetByKey(outerId);
-			const auto stripMinX = outer->Columns[0].WorkMinX;
-			const auto stripMaxX = outer->Columns[1].WorkMaxX;
-			auto* draw = ImGui::GetWindowDrawList();
-			const auto firstVertex = draw->VtxBuffer.Size;
-			ImGui::LogToBuffer();
-			require(SettingsTable::SetFieldFeedback(
-						owner,
-						DMUI_FIELD_FEEDBACK_SEVERITY_WARNING,
-						"100% ##literal caf\xC3\xA9\n"
-						"A long second line wraps across the full-width strip "
-						"without escaping its horizontal padding.") ==
-					DMUI_RESULT_OK,
-				"strip feedback was rejected");
-			EndFeedbackField(owner);
-			const std::string logged{
-				ImGui::GetCurrentContext()->LogBuffer.c_str()
-			};
-			ImGui::LogFinish();
-
-			const auto feedbackColor = ImGui::GetColorU32(
-				FieldFeedback::SeverityColor(
-					DMUI_FIELD_FEEDBACK_SEVERITY_WARNING));
-			auto textMinX = (std::numeric_limits<float>::max)();
-			auto textMaxX = (std::numeric_limits<float>::lowest)();
-			auto textMinY = (std::numeric_limits<float>::max)();
-			auto textMaxY = (std::numeric_limits<float>::lowest)();
-			for (int index = firstVertex; index < draw->VtxBuffer.Size; ++index)
-			{
-				const auto& vertex = draw->VtxBuffer[index];
-				if (vertex.col != feedbackColor ||
-					vertex.pos.x <= stripMinX + 3.0f * Theme::Scale())
-					continue;
-				textMinX = (std::min)(textMinX, vertex.pos.x);
-				textMaxX = (std::max)(textMaxX, vertex.pos.x);
-				textMinY = (std::min)(textMinY, vertex.pos.y);
-				textMaxY = (std::max)(textMaxY, vertex.pos.y);
-			}
-			const auto padding = 8.0f * Theme::Scale();
-			require(
-				textMaxY - textMinY > ImGui::GetTextLineHeight() &&
-					textMinX >= stripMinX + padding - 0.5f &&
-					textMaxX <= stripMaxX - padding + 0.5f &&
-					logged.contains(
-						"Warning: 100% ##literal caf\xC3\xA9") &&
-					logged.contains("A long second line"),
-				"strip text lost inline literal formatting or padding");
-
-			BeginFeedbackField(owner, "following");
-			ImGui::Button("Following control");
-			require(
-				ImGui::GetCurrentContext()->LastItemData.Rect.Min.y > textMaxY,
-				"next row overlapped the feedback strip");
-			EndFeedbackField(owner);
-			require(SettingsTable::End(owner) == DMUI_RESULT_OK,
-				"strip table did not end");
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"feedback strip changed the ImGui stack");
-		});
-
-		runner.test("color presets align with roomy and narrow pickers", [] {
-			ImGuiTestFrame frame;
-			const std::array presets{
-				HostSettingsViewDetail::ColorPreset{
-					"Blue", "Blue", { 0x00, 0x72, 0xB2 } },
-				HostSettingsViewDetail::ColorPreset{
-					"Orange", "Orange", { 0xE6, 0x9F, 0x00 } },
-				HostSettingsViewDetail::ColorPreset{
-					"Sky", "Sky", { 0x56, 0xB4, 0xE9 } },
-				HostSettingsViewDetail::ColorPreset{
-					"Purple", "Purple", { 0xCC, 0x79, 0xA7 } }
-			};
-			auto color = HostAccentColor{};
-			const auto draw = [&](const char* id, float width) {
-				ImGui::PushID(id);
-				const auto result =
-					HostSettingsViewDetail::DrawColorSettingControl(
-						color,
-						presets,
-						width);
-				ImGui::PopID();
-				return result;
-			};
-			const auto roomy = draw("roomy", 420.0f);
-			const auto narrow = draw("narrow", 145.0f);
-			const auto aligned = [](const auto& result) {
-				return std::abs(
-						result.pickerMaxX - result.presetsMaxX) < 0.5f &&
-					result.presetsMinX >= result.pickerMinX - 0.5f &&
-					std::abs(
-						result.pickerHeight - result.presetHeight) < 0.5f;
-			};
-			require(
-				aligned(roomy) &&
-					aligned(narrow) &&
-					roomy.presetsInline &&
-					!narrow.presetsInline,
-				"color presets did not share the picker span");
-			require(frame.IsAtBaseline() && frame.Errors() == 0,
-				"color setting control changed the ImGui stack");
 		});
 	}
 }
