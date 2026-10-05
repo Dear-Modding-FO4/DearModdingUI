@@ -137,17 +137,6 @@ namespace vmm_tests
 			std::vector<Diagnostic> transient;
 		};
 
-		class ThrowingFiles final : public FileListingAdapter
-		{
-		public:
-			[[nodiscard]] FileListingResult List(
-				std::string_view,
-				std::string_view) override
-			{
-				throw std::runtime_error("adapter failure");
-			}
-		};
-
 		class StringSource final : public ValueSource
 		{
 		public:
@@ -261,30 +250,6 @@ namespace vmm_tests
 
 	void run_mcm_file_choice_checks(Runner& runner)
 	{
-		runner.test("MCM property dropdownFiles accepts an omitted mask", [] {
-			const auto property = ParseConfig(R"json({
-				"modName":"PropertyFiles",
-				"content":[
-					{"id":"propertyFile","type":"dropdownFiles",
-					 "valueOptions":{
-						"sourceType":"PropertyValueString",
-						"sourceForm":"Fixture.esp|1",
-						"propertyName":"SelectedFile",
-						"path":"Data/Interface/Files"
-					 }}
-				]
-			})json", "property-files.json");
-			const auto& propertyRow = property.pages.front().rows.front();
-			require(propertyRow.binding &&
-					propertyRow.binding->Family() == SourceFamily::kProperty &&
-					propertyRow.binding->valueKind == SourceValueKind::kString &&
-					propertyRow.fileChoices &&
-					propertyRow.fileChoices->path ==
-						std::optional<std::string>{ "Data/Interface/Files" } &&
-					propertyRow.fileChoices->mask == "*",
-				"property file dropdown lost its string binding or default mask");
-		});
-
 		runner.test("MCM dropdownFiles validates path and string source", [] {
 			const auto result = ParseConfig(R"json({
 				"modName":"InvalidFiles",
@@ -391,6 +356,17 @@ namespace vmm_tests
 						Choices(page).options.size() == 2 &&
 						Choices(page).options[1].value == "Gamma.xml",
 					"a later lifecycle refresh did not recover the file row");
+
+				files.onList = [] { throw std::runtime_error("adapter failure"); };
+				controller.Refresh();
+				scheduler.RunBackground();
+				page.settings.prepareView(page.settings);
+				require(!setting.isEnabled() &&
+						diagnostics.transient.back().message.find(
+							"adapter failure") != std::string::npos &&
+						setting.resolveDescription().find(
+							"adapter failure") != std::string::npos,
+					"adapter exception did not use the normal listing failure path");
 			});
 
 		runner.test(
@@ -429,39 +405,6 @@ namespace vmm_tests
 				controller.Refresh();
 				require(scheduler.background.size() == 1,
 					"a completed scan did not accept a new refresh");
-			});
-
-		runner.test(
-			"MCM dropdownFiles converts adapter exceptions to one failure path",
-			[] {
-				auto result = ParseConfig(kFileConfig, "file-config.json");
-				auto page = std::move(result.pages.front());
-				ThrowingFiles files;
-				FakeDiagnostics diagnostics;
-				QueuedScheduler scheduler;
-				StringSource source;
-				source.values.emplace(
-					"sPreset:Files",
-					std::string{});
-				auto controller = AttachFileChoices(
-					page,
-					files,
-					scheduler,
-					diagnostics,
-					"file-config.json");
-				BindPage(page, source);
-
-				controller.Refresh();
-				scheduler.RunBackground();
-				page.settings.prepareView(page.settings);
-				auto& setting = Descriptor(page);
-				require(setting.isEnabled && !setting.isEnabled() &&
-						diagnostics.transient.size() == 1 &&
-						diagnostics.transient.front().message.find(
-							"adapter failure") != std::string::npos &&
-						setting.resolveDescription().find(
-							"adapter failure") != std::string::npos,
-					"adapter exception did not use the normal listing failure path");
 			});
 
 		runner.test(

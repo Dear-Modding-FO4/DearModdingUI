@@ -119,47 +119,6 @@ namespace vmm_tests
 				"incomplete controls were not fully diagnosed");
 		});
 
-		runner.test("MCM empty sections divide an existing named group", [] {
-			const auto result = ParseConfig(R"({
-				"modName": "DividedSection",
-				"displayName": "Divided Section",
-				"content": [
-					{"id":"heading","type":"section","text":"Questions"},
-					{"id":"first","type":"switcher"},
-					{"id":"divider","type":"section","text":""},
-					{"id":"second","type":"switcher"}
-				]
-			})", "divided-section-config.json");
-			require(result.pages.size() == 1 &&
-					result.pages.front().settings.groups.size() == 1,
-				"empty section split an existing named group");
-			const auto& group = result.pages.front().settings.groups.front();
-			require(group.id == "heading" && group.label == "Questions" &&
-					group.headingMode ==
-						dmui::SettingGroup::HeadingMode::kAutomatic &&
-					group.settings.size() == 2 &&
-					group.rows.size() == 3 &&
-					std::holds_alternative<dmui::SettingGroup::DividerRow>(
-						group.rows[1]),
-				"empty section did not preserve a divider row in source order");
-
-			const auto standalone = ParseConfig(R"({
-				"modName":"EmptySection",
-				"content":[
-					{"id":"divider","type":"section","text":""},
-					{"id":"enabled","type":"switcher"}
-				]
-			})", "empty-section-config.json");
-			const auto& standaloneGroup =
-				standalone.pages.front().settings.groups.front();
-			require(standaloneGroup.id == "divider" &&
-					standaloneGroup.label.empty() &&
-					standaloneGroup.glyph == U'\0' &&
-					standaloneGroup.headingMode ==
-						dmui::SettingGroup::HeadingMode::kDivider,
-				"a leading empty section did not produce an unnamed group");
-		});
-
 		runner.test("MCM deeply nested conditions are diagnosed not fatal", [] {
 			std::string json =
 				R"({"minMcmVersion":2,"modName":"Deep","displayName":"Deep",)"

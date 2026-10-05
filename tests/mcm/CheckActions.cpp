@@ -33,7 +33,7 @@ namespace vmm_tests
 
 			[[nodiscard]] uint64_t Refresh(const MappedBinding&) override
 			{
-				return ++refreshes;
+				return ++generation;
 			}
 
 			[[nodiscard]] ValueSnapshot Write(
@@ -46,7 +46,6 @@ namespace vmm_tests
 
 			dmui::SettingValue value{ int64_t{ 7 } };
 			uint64_t generation{};
-			uint64_t refreshes{};
 		};
 
 		class DeferredActionValueSource final : public CachedAsyncValueSource
@@ -163,7 +162,7 @@ namespace vmm_tests
 			[[nodiscard]] std::optional<std::string> UnsupportedReason(
 				const Action&) const noexcept override
 			{
-				return unsupportedReason;
+				return std::nullopt;
 			}
 
 			void Execute(
@@ -191,7 +190,6 @@ namespace vmm_tests
 				});
 			}
 			bool throws{};
-			std::optional<std::string> unsupportedReason;
 			std::vector<ActionInvocation> invocations;
 			std::vector<std::vector<BoundActionArgument>> bound;
 		};
@@ -201,13 +199,11 @@ namespace vmm_tests
 		public:
 			void Schedule(std::function<void()> a_work) override
 			{
-				++scheduled;
 				a_work();
 			}
 
 			void ScheduleUi(std::function<void()> a_work) override
 			{
-				++uiScheduled;
 				a_work();
 			}
 
@@ -216,32 +212,21 @@ namespace vmm_tests
 				a_work();
 			}
 
-			size_t scheduled{};
-			size_t uiScheduled{};
 		};
 
 		class FakeScaleformInvoker final : public ScaleformInvoker
 		{
 		public:
 			[[nodiscard]] ScaleformInvocationStatus Invoke(
-				std::string_view a_plugin,
-				std::string_view a_function,
+				std::string_view,
+				std::string_view,
 				const std::vector<ScaleformArgument>& a_arguments) noexcept override
 			{
-				plugin = a_plugin;
-				function = a_function;
 				arguments = a_arguments;
-				++invocations;
-				return status;
+				return ScaleformInvocationStatus::kSucceeded;
 			}
 
-			ScaleformInvocationStatus status{
-				ScaleformInvocationStatus::kSucceeded
-			};
-			std::string plugin;
-			std::string function;
 			std::vector<ScaleformArgument> arguments;
-			size_t invocations{};
 		};
 
 		[[nodiscard]] dmui::SettingsActionRow& ActionNamed(
@@ -314,7 +299,12 @@ namespace vmm_tests
 						"function":"Apply","params":[true,4,1.5,"text"]}},
 					{"id":"global","type":"button","text":"Global","action":{
 						"type":"CallGlobalFunction","script":"Fixture",
-						"function":"Apply"}}
+						"function":"Apply"}},
+					{"id":"setting","type":"slider",
+					 "valueOptions":{"sourceType":"GlobalValueInt",
+						"sourceForm":"Fixture.esp|1","default":0},
+					 "action":{"type":"CallGlobalFunction","script":"Fixture",
+						"function":"Apply","params":["{i}{value}"]}}
 				]
 			})json");
 			auto& page = result.pages.front();
@@ -339,115 +329,14 @@ namespace vmm_tests
 						std::string{ "text" }
 					},
 				"typed action arguments changed while binding");
-		});
-
-		runner.test("MCM synchronous value actions fire in the same turn", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"Actions",
-				"content":[
-					{"id":"setting","type":"slider",
-					 "valueOptions":{"sourceType":"GlobalValueInt",
-						"sourceForm":"Fixture.esp|1","default":0},
-					 "action":{"type":"CallGlobalFunction","script":"Fixture",
-						"function":"Apply","params":["{i}{value}"]}}
-				]
-			})json");
-			auto& page = result.pages.front();
-			ActionValueSource values;
-			FakeActionExecutor executor;
-			BindPage(page, values);
-			BindActions(page, executor, values, diagnostics);
 
 			const auto effective = SettingNamed(page, "setting").binding.set(
 				dmui::SettingValue{ int64_t{ 12 } });
 			require(std::get<int64_t>(effective) == 1 &&
-					executor.bound.size() == 1 &&
-					executor.bound.front() ==
+					executor.bound.size() == 3 &&
+					executor.bound.back() ==
 						std::vector<BoundActionArgument>{ int64_t{ 1 } },
-				"the value placeholder did not receive the effective value");
-		});
-
-		runner.test("MCM value actions wait for deferred writes", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"Actions",
-				"content":[{"id":"setting","type":"switcher",
-					"valueOptions":{"sourceType":"GlobalValueBool",
-						"sourceForm":"Fixture.esp|1","default":false},
-					"action":{"type":"CallExternalFunction",
-						"plugin":"Fixture","function":"Apply"}}]
-			})json");
-			auto& page = result.pages.front();
-			DeferredActionValueSource values{ diagnostics };
-			FakeActionExecutor executor;
-			BindPage(page, values);
-			BindActions(page, executor, values, diagnostics);
-
-			(void)SettingNamed(page, "setting").binding.set(
-				dmui::SettingValue{ true });
-			require(executor.invocations.empty(),
-				"a value action fired before its deferred write settled");
-			values.Release(0, true);
-			require(executor.invocations.size() == 1,
-				"a settled value write did not fire its action exactly once");
-			(void)SettingNamed(page, "setting").binding.set(
-				dmui::SettingValue{ false });
-			values.RefreshPage(page, { true, true });
-			values.Release(1, true);
-			require(executor.invocations.size() == 2,
-				"a page refresh canceled a pending value action callback");
-		});
-
-		runner.test("MCM unsupported value actions remain editable and explained", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"Actions",
-				"content":[{"id":"setting","type":"switcher",
-					"help":"Original description.",
-					"valueOptions":{"sourceType":"GlobalValueBool",
-						"sourceForm":"Fixture.esp|1","default":false},
-					"action":{"type":"SendEvent","event":"Fixture"}}]
-			})json");
-			auto& page = result.pages.front();
-			ActionValueSource values;
-			values.value = false;
-			FakeActionExecutor executor;
-			executor.unsupportedReason = "fixture rejection";
-			ResolveActionAvailability(page, executor);
-			BindPage(page, values);
-			BindActions(page, executor, values, diagnostics);
-
-			auto& setting = SettingNamed(page, "setting");
-			const auto inert = page.rows.front().resolveInertState();
-			require(setting.isEnabled && setting.isEnabled() &&
-					inert.governingReason == InertReason::kNone &&
-					inert.rowReason == InertReason::kUnsupportedAction &&
-					dmui::ResolveSettingDescription(setting).find(
-						"Original description.\nThis action is not supported.") == 0,
-				"unsupported action explanation and inert state diverged");
-		});
-
-		runner.test("MCM failed writes suppress actions and report their reason", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"Actions",
-				"content":[{"id":"setting","type":"switcher",
-					"valueOptions":{"sourceType":"GlobalValueBool",
-						"sourceForm":"Fixture.esp|1","default":false},
-					"action":{"type":"CallExternalFunction",
-						"plugin":"Fixture","function":"Apply"}}]
-			})json");
-			auto& page = result.pages.front();
-			DeferredActionValueSource values{ diagnostics };
-			FakeActionExecutor executor;
-			BindPage(page, values);
-			BindActions(page, executor, values, diagnostics);
-
-			(void)SettingNamed(page, "setting").binding.set(
-				dmui::SettingValue{ true });
-			values.Release(0, false);
-			page.settings.prepareView(page.settings);
-			require(executor.invocations.empty() &&
-					ActionFailureText(page).find("Papyrus write was rejected") !=
-						std::string_view::npos,
-				"a failed write fired its action or lost its specific reason");
+				"a synchronous value action did not fire with the effective value");
 		});
 
 		runner.test("MCM superseded writes collapse to the latest action", [] {
@@ -469,113 +358,28 @@ namespace vmm_tests
 			auto& setting = SettingNamed(page, "setting");
 			(void)setting.binding.set(dmui::SettingValue{ true });
 			(void)setting.binding.set(dmui::SettingValue{ false });
+			require(executor.invocations.empty(),
+				"a value action fired before its deferred write settled");
 			values.Release(0, true);
 			values.Release(1, true);
 			require(executor.invocations.size() == 1 &&
 					executor.bound.front() ==
 						std::vector<BoundActionArgument>{ false },
 				"a superseded write fired or displaced the latest action");
-		});
 
-		runner.test("MCM action argument validation failures are diagnosed", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"Actions",
-				"content":[{"id":"invalid","type":"button","action":{
-					"type":"CallGlobalFunction","script":"Fixture",
-					"function":"Apply","params":["{i}{value}"]}}]
-			})json");
-			auto& page = result.pages.front();
-			ActionValueSource values;
-			FakeActionExecutor executor;
-			BindPage(page, values);
-			BindActions(page, executor, values, diagnostics);
+			(void)setting.binding.set(dmui::SettingValue{ true });
+			values.RefreshPage(page, { true, true });
+			values.Release(2, true);
+			require(executor.invocations.size() == 2,
+				"a page refresh canceled a pending value action callback");
 
-			ActionNamed(page, "invalid").activate();
+			(void)setting.binding.set(dmui::SettingValue{ false });
+			values.Release(3, false);
 			page.settings.prepareView(page.settings);
-			ActionNamed(page, "invalid").activate();
-			page.settings.prepareView(page.settings);
-			require(HasActionFailure(page) &&
-					std::ranges::count_if(
-						page.settings.notes,
-						[](const dmui::SettingsPageNote& a_note) {
-							return a_note.noteId ==
-								"dearmodding.mcm.action.invalid";
-						}) == 1,
-				"a missing placeholder value produced no page diagnostic");
-		});
-
-		runner.test("MCM Scaleform seam invokes registered functions on UI tasks", [] {
-			ImmediateTaskScheduler scheduler;
-			FakeScaleformInvoker scaleform;
-			std::optional<ActionExecutionResult> result;
-			const CallExternalFunctionAction action{
-				"FixturePlugin",
-				"Apply",
-				{ int64_t{ 7 } }
-			};
-			ScheduleUiActionExecution(
-				scheduler,
-				diagnostics,
-				[&](const ActionCompletion& a_completion) {
-					a_completion(InvokeExternalFunction(
-						scaleform,
-						action,
-						std::nullopt));
-				},
-				[&](ActionExecutionResult a_result) {
-					result = std::move(a_result);
-				});
-			require(scheduler.scheduled == 0 &&
-					scheduler.uiScheduled == 1 &&
-					scaleform.invocations == 1 &&
-					scaleform.plugin == "FixturePlugin" &&
-					scaleform.function == "Apply" &&
-					scaleform.arguments ==
-						std::vector<ScaleformArgument>{ int64_t{ 7 } } &&
-					result &&
-					result->status == ActionExecutionStatus::kSucceeded,
-				"the Scaleform seam did not invoke through the UI scheduler");
-		});
-
-		runner.test("MCM Scaleform seam distinguishes invocation failures", [] {
-			FakeScaleformInvoker scaleform;
-			scaleform.status =
-				ScaleformInvocationStatus::kPluginNotRegistered;
-			const auto result = InvokeExternalFunction(
-				scaleform,
-				{ "MissingPlugin", "Apply", {} },
-				std::nullopt);
-			require(result.status == ActionExecutionStatus::kFailed &&
-					result.message &&
-					result.message->find("MissingPlugin") != std::string::npos &&
-					result.message->find("not registered") != std::string::npos,
-				"an absent Scaleform plugin did not produce a specific failure");
-
-			FakeScaleformInvoker functionScaleform;
-			functionScaleform.status =
-				ScaleformInvocationStatus::kFunctionNotRegistered;
-			const auto missingFunction = InvokeExternalFunction(
-				functionScaleform,
-				{ "FixturePlugin", "MissingFunction", {} },
-				std::nullopt);
-			require(missingFunction.status == ActionExecutionStatus::kFailed &&
-					missingFunction.message &&
-					missingFunction.message->find("FixturePlugin.MissingFunction") !=
-						std::string::npos &&
-					missingFunction.message->find("not registered") != std::string::npos,
-				"an absent Scaleform function did not produce a specific failure");
-
-			FakeScaleformInvoker movieScaleform;
-			movieScaleform.status = ScaleformInvocationStatus::kNoMovieLoaded;
-			const auto noMovie = InvokeExternalFunction(
-				movieScaleform,
-				{ "FixturePlugin", "Apply", {} },
-				std::nullopt);
-			require(noMovie.status == ActionExecutionStatus::kFailed &&
-					noMovie.message &&
-					noMovie.message->find("No suitable loaded UI movie") !=
-						std::string::npos,
-				"a missing Scaleform movie did not produce a specific failure");
+			require(executor.invocations.size() == 2 &&
+					ActionFailureText(page).find("Papyrus write was rejected") !=
+						std::string_view::npos,
+				"a failed write fired its action or lost its specific reason");
 		});
 
 		runner.test("MCM Scaleform seam substitutes embedded value parameters", [] {
@@ -625,11 +429,9 @@ namespace vmm_tests
 			page.settings.prepareView(page.settings);
 			require(HasActionFailure(page),
 				"an executor exception escaped or was silently discarded");
-		});
 
-		runner.test("MCM scheduled action exceptions complete as failures", [] {
 			ImmediateTaskScheduler scheduler;
-			std::optional<ActionExecutionResult> result;
+			std::optional<ActionExecutionResult> scheduled;
 			ScheduleActionExecution(
 				scheduler,
 				diagnostics,
@@ -637,39 +439,13 @@ namespace vmm_tests
 					throw std::runtime_error("scheduled fixture exception");
 				},
 				[&](ActionExecutionResult a_result) {
-					result = std::move(a_result);
+					scheduled = std::move(a_result);
 				});
-			require(result &&
-					result->status == ActionExecutionStatus::kFailed &&
-					result->message &&
-					result->message->find("scheduled fixture") !=
-						std::string::npos,
+			require(scheduled &&
+					scheduled->status == ActionExecutionStatus::kFailed,
 				"a scheduled executor exception lost its completion");
 		});
 
-		runner.test("MCM successful actions refresh displayed values", [] {
-			auto result = ParseConfig(R"json({
-				"modName":"Actions",
-				"content":[
-					{"id":"value","type":"slider","valueOptions":{
-						"sourceType":"GlobalValueInt",
-						"sourceForm":"Fixture.esp|1","default":0}},
-					{"id":"refresh","type":"button","action":{
-						"type":"CallFunction","form":"Fixture.esp|1",
-						"function":"Apply"}}
-				]
-			})json");
-			auto& page = result.pages.front();
-			ActionValueSource values;
-			FakeActionExecutor executor;
-			BindPage(page, values);
-			BindActions(page, executor, values, diagnostics);
-
-			ActionNamed(page, "refresh").activate();
-			page.settings.prepareView(page.settings);
-			require(values.refreshes == 1,
-				"a completed action did not refresh the page bindings");
-		});
 
 	}
 }

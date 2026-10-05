@@ -34,9 +34,6 @@ namespace vmm_tests::support::mcm
 	[[nodiscard]] const Control& ControlNamed(
 		const Page& a_page,
 		std::string_view a_id);
-	[[nodiscard]] const GroupCondition& ConditionNamed(
-		const Page& a_page,
-		std::string_view a_id);
 	[[nodiscard]] size_t DescriptorCount(const MappedPage& a_page);
 	[[nodiscard]] bool HasDiagnostic(
 		const LoadResult& a_result,

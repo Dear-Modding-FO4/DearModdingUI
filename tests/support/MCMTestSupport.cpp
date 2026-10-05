@@ -67,16 +67,6 @@ TemporaryFileCleanup::~TemporaryFileCleanup()
 	return *control;
 }
 
-[[nodiscard]] const GroupCondition& ConditionNamed(
-	const Page& a_page,
-	std::string_view a_id)
-{
-	const auto& control = ControlNamed(a_page, a_id);
-	require(control.groupCondition.has_value(),
-		"group condition was not retained: " + std::string{ a_id });
-	return *control.groupCondition;
-}
-
 [[nodiscard]] size_t DescriptorCount(const MappedPage& a_page)
 {
 	auto count = size_t{};

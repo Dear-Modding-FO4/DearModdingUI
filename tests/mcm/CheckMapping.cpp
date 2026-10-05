@@ -60,6 +60,23 @@ namespace vmm_tests
 					result.pages[1].settings.groups.front().settings.front().id ==
 						"third",
 				"group identity leaked across page boundaries");
+
+			const auto divided = ParseConfig(R"json({
+				"modName":"Divided",
+				"content":[
+					{"id":"heading","type":"section","text":"Questions"},
+					{"id":"first","type":"switcher"},
+					{"id":"divider","type":"section","text":""},
+					{"id":"second","type":"switcher"}
+				]
+			})json", "divided-section.json");
+			const auto& dividedGroups = divided.pages.front().settings.groups;
+			require(dividedGroups.size() == 1 &&
+					dividedGroups[0].settings.size() == 2 &&
+					dividedGroups[0].rows.size() == 3 &&
+					std::holds_alternative<dmui::SettingGroup::DividerRow>(
+						dividedGroups[0].rows[1]),
+				"empty section did not divide the existing named group");
 		});
 
 		runner.test("MCM slider parameter edge cases stay explicit and safe", [] {
@@ -80,7 +97,13 @@ namespace vmm_tests
 						"min":0,"max":"ten","step":1}},
 					{"id":"fBackwards:S","type":"slider","valueOptions":{
 						"sourceType":"ModSettingFloat",
-						"min":10,"max":1,"step":1}}
+						"min":10,"max":1,"step":1}},
+					{"id":"iHuge:S","type":"slider","valueOptions":{
+						"sourceType":"ModSettingInt",
+						"min":1,"max":9223372036854775808,"step":1}},
+					{"id":"fHuge:S","type":"slider","valueOptions":{
+						"sourceType":"ModSettingFloat",
+						"min":0,"max":1e308,"step":1e-300}}
 				]
 			})json", "slider-edges.json");
 			const auto* nullMax = std::get_if<dmui::DoubleSettingControl>(
@@ -105,7 +128,9 @@ namespace vmm_tests
 			for (const auto id : {
 					"fMaxOnly:S",
 					"fBadMax:S",
-					"fBackwards:S" })
+					"fBackwards:S",
+					"iHuge:S",
+					"fHuge:S" })
 			{
 				const auto row = std::ranges::find(
 					result.pages.front().rows,

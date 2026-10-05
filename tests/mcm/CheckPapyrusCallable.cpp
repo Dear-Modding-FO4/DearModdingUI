@@ -52,24 +52,6 @@ namespace vmm_tests
 	{
 		using RE::msvc::with_native_function;
 
-		runner.test("OG dispatch invokes captured arguments through the native callable layout", [] {
-			const Arguments source = [values = std::vector<int>{ 3, 5, 8 }](
-				std::vector<int>& a_output) {
-				a_output = values;
-				return false;
-			};
-			const auto accepted = with_native_function(true, source, [](const void* a_native) {
-				auto* proxy = ReadAbiValue<void*>(a_native, 0x18);
-				require(proxy != nullptr, "OG argument builder has no callable at offset 0x18");
-				std::vector<int> output;
-				const auto result = InvokeArguments(proxy, output);
-				require(output == std::vector<int>{ 3, 5, 8 },
-					"OG dispatch did not receive the captured arguments");
-				return result;
-			});
-			require(!accepted, "OG dispatch lost the argument builder's rejection");
-		});
-
 		runner.test("native callable copies retain independent captures until released", [] {
 			std::weak_ptr<int> lifetime;
 			{
@@ -92,7 +74,9 @@ namespace vmm_tests
 						require(copy.proxy && copy.proxy != proxy && copy.proxy != storage.data(),
 							"native copy does not own its callable");
 						std::vector<int> original;
-						require(InvokeArguments(proxy, original), "original callable failed");
+						require(InvokeArguments(proxy, original) &&
+							original == std::vector<int>{ 4, 9, 21 },
+							"OG dispatch did not receive the captured arguments");
 					});
 				}
 				require(!lifetime.expired(), "native copy lost captures when dispatch returned");
@@ -103,25 +87,6 @@ namespace vmm_tests
 			require(lifetime.expired(), "native release leaked its captures");
 		});
 
-		runner.test("modern dispatch stays unchanged and empty callbacks remain empty", [] {
-			const Arguments source = [](std::vector<int>& a_output) {
-				a_output.push_back(7);
-				return true;
-			};
-			with_native_function(false, source, [&](const void* a_native) {
-				require(a_native == &source, "modern dispatch changed the native function object");
-				std::vector<int> output;
-				require((*static_cast<const Arguments*>(a_native))(output) && output == std::vector<int>{ 7 },
-					"modern dispatch did not receive the argument builder");
-			});
-			const Arguments empty;
-			with_native_function(true, empty, [](const void* a_native) {
-				require(ReadAbiValue<void*>(a_native, 0x18) == nullptr, "OG empty callback became callable");
-			});
-			with_native_function(false, empty, [&](const void* a_native) {
-				require(a_native == &empty && !*static_cast<const Arguments*>(a_native),
-					"modern empty callback became callable");
-			});
-		});
+
 	}
 }

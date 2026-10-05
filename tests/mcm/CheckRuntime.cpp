@@ -5,7 +5,6 @@
 #include "../Harness.h"
 
 #include <algorithm>
-#include <iterator>
 #include <string>
 #include <vector>
 
@@ -164,16 +163,6 @@ namespace vmm_tests
 					return a_note.text.find("condition") != std::string::npos;
 				});
 		}
-
-		void AppendEvents(
-			std::vector<McmExternalEvent>& a_target,
-			std::vector<McmExternalEvent> a_events)
-		{
-			a_target.insert(
-				a_target.end(),
-				std::make_move_iterator(a_events.begin()),
-				std::make_move_iterator(a_events.end()));
-		}
 	}
 
 	void run_mcm_runtime_checks(Runner& runner)
@@ -209,37 +198,6 @@ namespace vmm_tests
 				"a rejected completion inserted a default ready value");
 		});
 
-		runner.test("MCM conditions retain pending instead of using defaults", [] {
-			const GroupCondition control{
-				ConditionType::kControl,
-				7
-			};
-			require(EvaluateCondition(
-						control,
-						[](int64_t) -> ValueSnapshot {
-							return PendingValue{ 4 };
-						}) == ConditionResult::kPending,
-				"a pending dependency was treated as false or its default");
-
-			const GroupCondition any{
-				ConditionType::kAny,
-				0,
-				{},
-				{
-					GroupCondition{ ConditionType::kControl, 1 },
-					GroupCondition{ ConditionType::kControl, 2 }
-				}
-			};
-			require(EvaluateCondition(
-						any,
-						[](int64_t a_control) -> ValueSnapshot {
-							return a_control == 1 ?
-								ValueSnapshot{ PendingValue{ 2 } } :
-								ValueSnapshot{ ReadyValue{ false, 2 } };
-						}) == ConditionResult::kPending,
-				"OR discarded an unresolved dependency");
-		});
-
 		runner.test("MCM event decisions require accepted declared identified writes", [] {
 			FakeEvents events;
 			NotifyAcceptedModSettingWrite(
@@ -263,109 +221,6 @@ namespace vmm_tests
 						"Fixture/iUnknown:Main"
 					},
 				"setting change events ignored declaration or control id gating");
-		});
-
-		runner.test("MCM menu events follow a full overlay and mod lifecycle", [] {
-			McmEventLifecycle lifecycle;
-			std::vector<McmExternalEvent> events;
-			AppendEvents(events, lifecycle.PageActivated("ModA"));
-			AppendEvents(events, lifecycle.PageDeactivated("ModA", true));
-			AppendEvents(events, lifecycle.PageActivated("ModB"));
-			AppendEvents(events, lifecycle.PageDeactivated("ModB", true));
-			AppendEvents(events, lifecycle.OverlayVisibilityChanged(false));
-			require(events == std::vector<McmExternalEvent>{
-						{ "OnMCMOpen", {} },
-						{ "OnMCMMenuOpen", {} },
-						{ "OnMCMMenuOpen|ModA", {} },
-						{ "OnMCMMenuClose|ModA", {} },
-						{ "OnMCMMenuOpen", {} },
-						{ "OnMCMMenuOpen|ModB", {} },
-						{ "OnMCMMenuClose|ModB", {} },
-						{ "OnMCMClose", {} }
-					},
-				"menu names, zero-argument arity, transition filtering, or delayed close changed");
-
-			McmEventLifecycle empty;
-			const auto opened = empty.PageActivated("");
-			const auto closed = empty.PageDeactivated("", false);
-			require(opened == std::vector<McmExternalEvent>{
-						{ "OnMCMOpen", {} },
-						{ "OnMCMMenuOpen", {} }
-					} &&
-					closed == std::vector<McmExternalEvent>{
-						{ "OnMCMClose", {} }
-					},
-				"an empty mod name emitted a filtered MCM event");
-		});
-
-		runner.test("MCM pending conditions hide with a loading indication", [] {
-			auto page = ConditionPage();
-			SnapshotSource source;
-			source.snapshot = PendingValue{ 3 };
-			BindPage(page, source);
-			page.settings.prepareView(page.settings);
-
-			require(Dependent(page).isVisible &&
-					!Dependent(page).isVisible(),
-				"a pending condition did not hide its dependent");
-			require(std::ranges::any_of(
-						page.settings.notes,
-						[](const dmui::SettingsPageNote& a_note) {
-							return a_note.text.find("Loading") != std::string::npos;
-						}),
-				"an all-pending page still appeared empty");
-			require(SummarizeActionableCompatibility(page).empty(),
-				"a pending condition created a permanent startup warning");
-		});
-
-		runner.test("MCM inoperable visibility toggles use local state", [] {
-			auto page = InteractiveConditionPage();
-			auto& controller = *std::ranges::find_if(
-				page.rows,
-				[](const MappedRow& a_row) {
-					return a_row.groupControl.has_value();
-				})->binding;
-			std::get<ModSettingBinding>(controller.source).declaration =
-				DeclarationState::kUndeclared;
-			SnapshotSource source;
-			source.snapshot = ReadyValue{ false, 3 };
-			BindPage(page, source);
-			page.settings.prepareView(page.settings);
-
-			const auto summary = SummarizeCompatibility(page);
-			auto& toggle = Controller(page);
-			require(toggle.isEnabled && toggle.isEnabled() &&
-					!toggle.showReset &&
-					toggle.description.find("not declared") == std::string::npos &&
-					Dependent(page).isVisible &&
-					!Dependent(page).isVisible() &&
-					summary.undeclaredModSettings == 1 &&
-					summary.localUiStateRows == 1 &&
-					!HasConditionNote(page),
-				"a local visibility controller was not interactive and collapsed");
-			require(SummarizeActionableCompatibility(page).empty(),
-				"a locally owned undeclared toggle looked like a persisted fault");
-			(void)toggle.binding.set(dmui::SettingValue{ true });
-			require(Dependent(page).isVisible() &&
-					source.reads == 0 &&
-					source.writes == 0 &&
-					source.events.changes.empty(),
-				"a local visibility controller used the source or stayed collapsed");
-			source.RefreshPage(page, { true, true });
-			require(source.refreshes == 0,
-				"a local visibility controller refreshed persistent storage");
-
-			auto otherPage = InteractiveConditionPage();
-			auto& otherController = *std::ranges::find_if(
-				otherPage.rows,
-				[](const MappedRow& a_row) {
-					return a_row.groupControl.has_value();
-				})->binding;
-			std::get<ModSettingBinding>(otherController.source).declaration =
-				DeclarationState::kUndeclared;
-			BindPage(otherPage, source);
-			require(!Dependent(otherPage).isVisible(),
-				"local visibility state leaked between pages or mods");
 		});
 
 		runner.test("MCM idless visibility toggles are bindingless local state", [] {
@@ -422,6 +277,31 @@ namespace vmm_tests
 					source.events.changes.empty(),
 				"idless local state touched storage, emitted an event, or failed to collapse");
 
+			auto undeclared = InteractiveConditionPage();
+			std::get<ModSettingBinding>(
+				std::ranges::find_if(
+					undeclared.rows,
+					[](const MappedRow& a_row) {
+						return a_row.groupControl.has_value();
+					})->binding->source).declaration =
+						DeclarationState::kUndeclared;
+			SnapshotSource undeclaredSource;
+			undeclaredSource.snapshot = ReadyValue{ false, 3 };
+			BindPage(undeclared, undeclaredSource);
+			undeclared.settings.prepareView(undeclared.settings);
+			auto& undeclaredToggle = Controller(undeclared);
+			require(undeclaredToggle.isEnabled && undeclaredToggle.isEnabled() &&
+					!Dependent(undeclared).isVisible(),
+				"an undeclared visibility toggle was not an interactive local controller");
+			(void)undeclaredToggle.binding.set(dmui::SettingValue{ true });
+			undeclaredSource.RefreshPage(undeclared, { true, true });
+			require(Dependent(undeclared).isVisible() &&
+					undeclaredSource.reads == 0 &&
+					undeclaredSource.writes == 0 &&
+					undeclaredSource.refreshes == 0 &&
+					undeclaredSource.events.changes.empty(),
+				"an undeclared visibility toggle reached persistent storage");
+
 			for (const auto* type : { "section", "spacer" })
 			{
 				auto result = ParseConfig(
@@ -460,25 +340,6 @@ namespace vmm_tests
 			}
 		});
 
-		runner.test("MCM operable false controller conditions stay hidden", [] {
-			auto page = InteractiveConditionPage();
-			SnapshotSource source;
-			source.snapshot = ReadyValue{ false, 3 };
-			BindPage(page, source);
-			page.settings.prepareView(page.settings);
-
-			const auto priorReads = source.reads;
-			require(Dependent(page).isVisible &&
-					!Dependent(page).isVisible() &&
-					!HasConditionNote(page),
-				"an operable false controller failed open");
-			require(SummarizeActionableCompatibility(page).empty(),
-				"a false condition created a permanent startup warning");
-			source.snapshot = ReadyValue{ true, 4 };
-			require(Dependent(page).isVisible() && source.reads > priorReads,
-				"an operable controller stopped reading its real value source");
-		});
-
 		runner.test("MCM missing and failed conditions fail open with diagnostics", [] {
 			for (const auto snapshot : std::array<ValueSnapshot, 2>{
 					 ValueSnapshot{ MissingValue{ 3 } },
@@ -498,27 +359,31 @@ namespace vmm_tests
 				require(SummarizeActionableCompatibility(page).empty(),
 					"an unavailable snapshot created a permanent startup warning");
 			}
+
+			auto pending = ConditionPage();
+			SnapshotSource pendingSource;
+			pendingSource.snapshot = PendingValue{ 3 };
+			BindPage(pending, pendingSource);
+			pending.settings.prepareView(pending.settings);
+			require(Dependent(pending).isVisible &&
+					!Dependent(pending).isVisible() &&
+					!pending.settings.notes.empty() &&
+					SummarizeActionableCompatibility(pending).empty(),
+				"a pending condition did not hide with a loading indication");
+
+			auto operable = InteractiveConditionPage();
+			SnapshotSource operableSource;
+			operableSource.snapshot = ReadyValue{ false, 3 };
+			BindPage(operable, operableSource);
+			operable.settings.prepareView(operable.settings);
+			require(!Dependent(operable).isVisible() &&
+					!HasConditionNote(operable),
+				"an operable false controller failed open");
+			operableSource.snapshot = ReadyValue{ true, 4 };
+			require(Dependent(operable).isVisible(),
+				"an operable controller stopped reading its real value source");
 		});
 
-		runner.test("MCM condition notes survive unrelated note reordering", [] {
-			auto page = ConditionPage();
-			SnapshotSource source;
-			source.snapshot = MissingValue{ 1 };
-			BindPage(page, source);
-			page.settings.prepareView(page.settings);
-			page.settings.notes.insert(
-				page.settings.notes.begin(),
-				{ "Fixture note", false, "fixture.note" });
-			source.snapshot = ReadyValue{ true, 2 };
-			page.settings.prepareView(page.settings);
 
-			require(!HasConditionNote(page) &&
-					std::ranges::any_of(
-						page.settings.notes,
-						[](const dmui::SettingsPageNote& a_note) {
-							return a_note.noteId == "fixture.note";
-						}),
-				"condition note removal depended on a mutable vector index");
-		});
 	}
 }

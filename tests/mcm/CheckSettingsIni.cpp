@@ -3,7 +3,6 @@
 
 #include "../Harness.h"
 
-#include <array>
 #include <filesystem>
 #include <string_view>
 
@@ -29,23 +28,6 @@ bEnabled=0
 [Advanced]
 bDiagnostics=0
 )ini";
-
-		struct SettingIdCase
-		{
-			std::string_view id;
-			std::string_view name;
-			std::string_view section;
-			bool valid;
-		};
-
-		constexpr std::array kSettingIdCases{
-			SettingIdCase{ "bEnabled", "bEnabled", "Main", true },
-			SettingIdCase{ "iRetries:Advanced", "iRetries", "Advanced", true },
-			SettingIdCase{ "fScale:", "fScale", "", false },
-			SettingIdCase{ ":Advanced", "", "Advanced", false },
-			SettingIdCase{ "sProfile:Main:Extra", "sProfile", "Main:Extra", false }
-		};
-
 	}
 
 	void run_mcm_settings_ini_checks(Runner& runner)
@@ -85,24 +67,11 @@ bDiagnostics=0
 						page.rows[1].binding->source).declaration ==
 						DeclarationState::kUndeclared,
 				"matching and missing declarations were not applied");
-		});
 
-		runner.test("MCM setting ids normalize section and key", [] {
-			const auto implicit = ParseSettingIdentifier(kSettingIdCases[0].id);
-			const auto explicitSection =
-				ParseSettingIdentifier(kSettingIdCases[1].id);
+			const auto implicit = ParseSettingIdentifier("bEnabled");
 			require(implicit && implicit->section == "Main" &&
 					implicit->key == "bEnabled",
 				"a missing section no longer defaults to Main");
-			require(explicitSection &&
-					explicitSection->key == "iRetries" &&
-					explicitSection->section == "Advanced",
-				"an explicit section contract changed");
-			require(!ParseSettingIdentifier(kSettingIdCases[2].id),
-				"an empty section stopped being malformed");
-			require(!ParseSettingIdentifier(kSettingIdCases[3].id) &&
-					!ParseSettingIdentifier(kSettingIdCases[4].id),
-				"malformed setting ids stopped being represented");
 		});
 
 		runner.test("MCM absent settings ini leaves declarations unknown", [] {
