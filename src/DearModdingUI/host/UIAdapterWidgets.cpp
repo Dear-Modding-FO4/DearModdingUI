@@ -1,6 +1,7 @@
 #include "UIAdapterInternal.h"
 
 #include <DearModdingUI/UIBindings.generated.h>
+#include <DearModdingUI/controls/TextInput.h>
 
 #include <algorithm>
 #include <cmath>
@@ -289,6 +290,36 @@ namespace DearModdingUI::UI::Bindings
 			1u :
 			0u;
 		return DMUI_RESULT_OK;
+	}
+
+	DMUI_Result DMUI_CALL InputTextEditor(
+		DMUI_ClientHandle a_client,
+		const char* a_label,
+		const char* a_hint,
+		DMUI_TextBuffer* a_buffer,
+		DMUI_UIInputTextFlags a_flags,
+		DMUI_UITextEditFlags a_editFlags,
+		size_t a_cursor,
+		DMUI_TextEditState* a_state) noexcept
+	{
+		if (!a_buffer || !a_state)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		*a_state = {};
+		const auto validation = Validate(a_client);
+		if (validation != DMUI_RESULT_OK)
+			return validation;
+		ImGuiInputTextFlags flags{};
+		const auto translated = TranslateInputFlags(a_flags, flags);
+		if (translated != DMUI_RESULT_OK)
+			return translated;
+		return DrawTextEditor(
+			a_label,
+			a_hint,
+			*a_buffer,
+			flags,
+			a_editFlags,
+			a_cursor,
+			*a_state);
 	}
 
 	DMUI_Result DMUI_CALL ProgressBar(

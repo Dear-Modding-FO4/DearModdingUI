@@ -1268,6 +1268,20 @@ namespace DearModdingUI::UI::Bindings
 		uint32_t* a_visible) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL EndPanel(
 		DMUI_ClientHandle a_client) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL InputTextEditor(
+		DMUI_ClientHandle a_client,
+		const char* a_label,
+		const char* a_hint,
+		DMUI_TextBuffer* a_buffer,
+		DMUI_UIInputTextFlags a_flags,
+		DMUI_UITextEditFlags a_editFlags,
+		size_t a_cursor,
+		DMUI_TextEditState* a_state) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL BeginTooltipAt(
+		DMUI_ClientHandle a_client,
+		DMUI_Vec2 a_position,
+		DMUI_Vec2 a_pivot,
+		uint32_t* a_visible) noexcept;
 
 	[[nodiscard]] inline DMUI_UIAPI MakeAPI() noexcept
 	{
@@ -1368,7 +1382,9 @@ namespace DearModdingUI::UI::Bindings
 			&DrawListPopClipRect,
 			&GetThemeColors,
 			&BeginPanel,
-			&EndPanel
+			&EndPanel,
+			&InputTextEditor,
+			&BeginTooltipAt
 		};
 	}
 }

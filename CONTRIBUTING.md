@@ -119,8 +119,8 @@ With local fixtures present, for example:
 
 The API dependency owns `schema\ui-contract.json` and its baseline manifest,
 `schema\ui-contract.manifest.json`. They generate the stable C UI table and check
-that UI layout and enum changes have a matching `DMUI_ABI_VERSION` change.
-All public tables and structs use one exact-match ABI; clients rebuild on ABI changes.
+the UI table and `API.h` against the published ABI version: additions require a
+`DMUI_ABI_MINOR` bump, and changes or removals require a `DMUI_ABI_MAJOR` bump.
 
 To regenerate contract bindings after updating the schema:
 
@@ -134,8 +134,8 @@ python "$api/Tools/generate-ui-contract.py" `
   --host-bindings include/DearModdingUI/UIBindings.generated.h
 ```
 
-Use `--update-baseline` to refresh the manifest deliberately (including each
-unreleased ABI 2 development slice). Never edit
+Use `--update-baseline` to record a new version's manifest, or to refresh an
+unreleased minor during development. Never edit
 the generated headers directly: CI regenerates and compares them.
 
 ## Guidelines

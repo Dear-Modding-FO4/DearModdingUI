@@ -175,7 +175,7 @@ namespace DearModdingUI
 	{
 		// /EHsc SEH would bypass registry lock destructors, so entry points stay direct.
 		static const DMUI_HostAPI api{
-			DMUI_ABI_VERSION,
+			DMUI_ABI_MAJOR,
 			&UI::API(),
 			&ApiRegisterClient,
 			&ApiRegisterPage,
@@ -305,7 +305,7 @@ namespace DearModdingUI
 			return;
 
 		const DMUI_HostReadyInfo info{
-			DMUI_ABI_VERSION
+			DMUI_ABI_MAJOR
 		};
 		service.registry.NotifyReady(info);
 	}
@@ -592,11 +592,16 @@ namespace DearModdingUI
 }
 
 DMUI_EXPORT const DMUI_HostAPI* DMUI_CALL DMUI_GetAPI(
-	uint32_t a_requestedHostAbi) noexcept
+	uint32_t a_requestedAbiVersion) noexcept
 {
-	if (a_requestedHostAbi != DMUI_ABI_VERSION)
+	if (!DearModdingUI::ServesAbiVersion(a_requestedAbiVersion))
 	{
-		REX::WARN("DearModdingUI ABI mismatch: client={}, host={}", a_requestedHostAbi, DMUI_ABI_VERSION);
+		REX::WARN(
+			"DearModdingUI ABI mismatch: client requires {}.{}, host provides {}.{}",
+			DMUI_ABI_VERSION_MAJOR(a_requestedAbiVersion),
+			DMUI_ABI_VERSION_MINOR(a_requestedAbiVersion),
+			DMUI_ABI_MAJOR,
+			DMUI_ABI_MINOR);
 		return nullptr;
 	}
 	return &DearModdingUI::HostAPI();

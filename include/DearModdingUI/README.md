@@ -14,11 +14,11 @@ Windows, D3D, TOML, Dear ImGui, or C++ library types.
 ## Discovery and registration
 
 At F4SE `kPostPostLoad`, after every plugin `Load` has returned, locate the host DLL and resolve the
-single `DMUI_GetAPI` export. Call it with `DMUI_ABI_VERSION` (2), then validate the returned
-`abiVersion`. A mismatch returns null and logs the client and host ABI versions.
-One exact-match ABI covers the host table, its `ui` table pointer, and every public
-struct. There are no descriptor sizes, table-prefix gates, UI revisions, service
-bits, or minimum-version client options. External clients must rebuild for ABI 2.
+single `DMUI_GetAPI` export. Call it with `DMUI_ABI_VERSION`, then check that the returned
+`abiMajor` equals `DMUI_ABI_MAJOR`. The host serves any client of its major whose minor is
+at most its own; otherwise it returns null and logs both versions. Minor versions only
+append table slots and new types, so host updates never require client rebuilds; major
+versions batch breaking changes. See the API specification's ABI Versioning section.
 Discovery may succeed before the host plugin initializes; `queryState` and
 registration then return `DMUI_RESULT_HOST_NOT_INITIALIZED`. Export presence does not mean the
 renderer is ready: register at `kPostPostLoad` and wait for exactly one lifecycle callback.
@@ -659,12 +659,12 @@ copying, normalizing, or converting depth into another texture.
 
 Public clients never receive the host's Dear ImGui context, allocators, font
 pointers, enum values, or internal layouts. `DMUI_GetAPI(DMUI_ABI_VERSION)`
-exposes the host table only for an exact ABI match.
+exposes the host table to clients of the same major and an equal or older minor.
 
 `onHostReady`, `onHostUnavailable`, page draw, action, hotkey, and frame callbacks run on the render thread.
 `setStatus`, `postNotification`, image file loading/release/query, hotkey enablement, and dialog
 submission resolution are the any-thread exceptions. `DMUI_HostReadyInfo` contains
-`abiVersion`; the callback is a lifecycle notification, not a context handoff:
+`abiMajor`; the callback is a lifecycle notification, not a context handoff:
 
 ```cpp
 void DMUI_CALL Ready(const DMUI_HostReadyInfo* info, void*)
@@ -697,7 +697,7 @@ process lifetime; hotkey actions may be unregistered, but clients cannot unload 
 const auto getAPI = reinterpret_cast<decltype(&DMUI_GetAPI)>(
 	GetProcAddress(hostModule, "DMUI_GetAPI"));
 const auto* api = getAPI ? getAPI(DMUI_ABI_VERSION) : nullptr;
-if (!api || api->abiVersion != DMUI_ABI_VERSION)
+if (!api || api->abiMajor != DMUI_ABI_MAJOR)
 {
 	StartStandalone();
 	return;

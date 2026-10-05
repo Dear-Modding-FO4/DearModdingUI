@@ -367,6 +367,26 @@ namespace DearModdingUI::UI
 			return DMUI_RESULT_OK;
 		}
 
+		DMUI_Result DMUI_CALL BeginTooltipAt(
+			DMUI_ClientHandle a_client,
+			DMUI_Vec2 a_position,
+			DMUI_Vec2 a_pivot,
+			uint32_t* a_visible) noexcept
+		{
+			if (!a_visible)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_visible = 0u;
+			if (!std::isfinite(a_position.x) || !std::isfinite(a_position.y) ||
+				!std::isfinite(a_pivot.x) || !std::isfinite(a_pivot.y))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			ImGui::SetNextWindowPos(Native(a_position), ImGuiCond_Always, Native(a_pivot));
+			*a_visible = ImGui::BeginTooltip() ? 1u : 0u;
+			return DMUI_RESULT_OK;
+		}
+
 		DMUI_Result DMUI_CALL EndTooltip(DMUI_ClientHandle a_client) noexcept
 		{
 			return EndDrawWindow(a_client, &ImGui::EndTooltip);

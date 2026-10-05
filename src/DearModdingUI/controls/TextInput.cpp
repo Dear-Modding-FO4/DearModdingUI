@@ -1,4 +1,5 @@
 #include <DearModdingUI/controls/TextInput.h>
+#include <DearModdingUI/host/MenuDismissal.h>
 #include <DearModdingUI/host/RenderExecution.h>
 
 #include <imgui/imgui.h>
@@ -51,6 +52,7 @@ namespace DearModdingUI
 			char* deactivatedText{};
 			size_t deactivatedTextSize{};
 			DMUI_Result failure{ DMUI_RESULT_OK };
+			uint32_t keyEvents{};
 			bool activeEditedBefore{};
 			bool activeEditedThisFrame{};
 			bool anyEditedThisFrame{};
@@ -163,6 +165,18 @@ namespace DearModdingUI
 		int InputCallback(ImGuiInputTextCallbackData* a_data) noexcept
 		{
 			auto& call = *static_cast<InputCall*>(a_data->UserData);
+			if (a_data->EventFlag == ImGuiInputTextFlags_CallbackHistory)
+			{
+				call.keyEvents |= a_data->EventKey == ImGuiKey_UpArrow ?
+					DMUI_UI_TEXT_EDIT_EVENTS_HISTORY_PREVIOUS :
+					DMUI_UI_TEXT_EDIT_EVENTS_HISTORY_NEXT;
+				return 0;
+			}
+			if (a_data->EventFlag == ImGuiInputTextFlags_CallbackCompletion)
+			{
+				call.keyEvents |= DMUI_UI_TEXT_EDIT_EVENTS_COMPLETION;
+				return 0;
+			}
 			if (a_data->EventFlag == ImGuiInputTextFlags_CallbackCharFilter)
 			{
 				auto* state = ImGui::GetInputTextState(call.id);
@@ -241,13 +255,20 @@ namespace DearModdingUI
 			return 0;
 		}
 
+		struct InputOutcome
+		{
+			bool returned{};
+			uint32_t keyEvents{};
+		};
+
 		[[nodiscard]] DMUI_Result DrawTextInputImpl(
 			const char* a_label,
 			const char* a_hint,
 			DMUI_TextBuffer& a_buffer,
-			bool& a_changed)
+			ImGuiInputTextFlags a_flags,
+			InputOutcome& a_outcome)
 		{
-			a_changed = false;
+			a_outcome = {};
 			if (!a_label || !a_hint)
 				return DMUI_RESULT_INVALID_ARGUMENT;
 			if (!a_buffer.data || a_buffer.capacity == 0 ||
@@ -305,17 +326,20 @@ namespace DearModdingUI
 			if (state && !CaptureState(call, *state))
 				return DMUI_RESULT_INVALID_ARGUMENT;
 
-			ImGuiInputTextFlags flags{};
-			ImGuiInputTextCallback callback{};
-			void* userData{};
+			auto flags = a_flags;
 			if (a_buffer.resize)
 			{
-				flags =
+				flags |=
 					ImGuiInputTextFlags_CallbackResize |
 					ImGuiInputTextFlags_CallbackCharFilter;
-				callback = InputCallback;
-				userData = &call;
 			}
+			constexpr ImGuiInputTextFlags callbackFlags =
+				ImGuiInputTextFlags_CallbackResize |
+				ImGuiInputTextFlags_CallbackHistory |
+				ImGuiInputTextFlags_CallbackCompletion;
+			const auto callback =
+				(flags & callbackFlags) != 0 ? InputCallback : nullptr;
+			void* const userData = callback ? &call : nullptr;
 
 			const auto changed = ImGui::InputTextWithHint(
 				a_label,
@@ -346,7 +370,146 @@ namespace DearModdingUI
 				return call.failure;
 			}
 
-			a_changed = changed;
+			a_outcome = { changed, call.keyEvents };
+			return DMUI_RESULT_OK;
+		}
+
+		constexpr uint32_t kKnownEditFlags{
+			DMUI_UI_TEXT_EDIT_FLAGS_HISTORY_KEYS |
+			DMUI_UI_TEXT_EDIT_FLAGS_COMPLETION_KEY |
+			DMUI_UI_TEXT_EDIT_FLAGS_CAPTURE_CANCEL |
+			DMUI_UI_TEXT_EDIT_FLAGS_KEEP_FOCUS_ON_SUBMIT |
+			DMUI_UI_TEXT_EDIT_FLAGS_REQUEST_FOCUS |
+			DMUI_UI_TEXT_EDIT_FLAGS_RELOAD
+		};
+
+		[[nodiscard]] bool IsCharacterBoundary(
+			const DMUI_TextBuffer& a_buffer,
+			size_t a_offset) noexcept
+		{
+			const auto* terminator = static_cast<const char*>(
+				std::memchr(a_buffer.data, '\0', a_buffer.capacity));
+			const auto length = static_cast<size_t>(terminator - a_buffer.data);
+			return a_offset >= length ||
+				(static_cast<unsigned char>(a_buffer.data[a_offset]) & 0xC0u) != 0x80u;
+		}
+
+		[[nodiscard]] DMUI_Result DrawTextEditorImpl(
+			const char* a_label,
+			const char* a_hint,
+			DMUI_TextBuffer& a_buffer,
+			ImGuiInputTextFlags a_flags,
+			DMUI_UITextEditFlags a_editFlags,
+			size_t a_cursor,
+			DMUI_TextEditState& a_state)
+		{
+			a_state = {};
+			const auto has = [a_editFlags](uint32_t a_flag) {
+				return (a_editFlags & a_flag) != 0;
+			};
+			if (!a_label || !a_hint || (a_editFlags & ~kKnownEditFlags) != 0 ||
+				(has(DMUI_UI_TEXT_EDIT_FLAGS_COMPLETION_KEY) &&
+					(a_flags & ImGuiInputTextFlags_AllowTabInput) != 0))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			if (!a_buffer.data || a_buffer.capacity == 0 ||
+				a_buffer.capacity > static_cast<size_t>(INT_MAX) ||
+				!std::memchr(a_buffer.data, '\0', a_buffer.capacity))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			if (has(DMUI_UI_TEXT_EDIT_FLAGS_RELOAD) &&
+				!IsCharacterBoundary(a_buffer, a_cursor))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			if (!ImGui::GetCurrentContext())
+				return DMUI_RESULT_HOST_NOT_READY;
+
+			auto& context = *ImGui::GetCurrentContext();
+			const auto id = ImGui::GetID(a_label);
+			const auto wasActive = context.ActiveId == id;
+			if (has(DMUI_UI_TEXT_EDIT_FLAGS_REQUEST_FOCUS) && !wasActive)
+				ImGui::SetKeyboardFocusHere();
+			if (has(DMUI_UI_TEXT_EDIT_FLAGS_RELOAD) && wasActive)
+			{
+				if (auto* const state = ImGui::GetInputTextState(id))
+				{
+					// ImGui reloads before applying keys, so typing lands at the new cursor.
+					const auto cursor = static_cast<int>(
+						(std::min)(a_cursor, static_cast<size_t>(INT_MAX)));
+					state->WantReloadUserBuf = true;
+					state->ReloadSelectionStart = cursor;
+					state->ReloadSelectionEnd = cursor;
+				}
+			}
+
+			uint32_t events{};
+			if (has(DMUI_UI_TEXT_EDIT_FLAGS_CAPTURE_CANCEL) && wasActive &&
+				ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+			{
+				events |= DMUI_UI_TEXT_EDIT_EVENTS_CANCELED;
+				// The host would otherwise clear the active field after this frame.
+				(void)ConsumeMenuEscapeTarget(MenuEscapeTarget::kInteraction);
+				// A foreign lock keeps InputText from reverting or deactivating on Escape.
+				ImGui::SetKeyOwner(
+					ImGuiKey_Escape,
+					ImHashStr("DMUI_TextEditCancel"),
+					ImGuiInputFlags_LockThisFrame);
+			}
+
+			auto flags = a_flags | ImGuiInputTextFlags_EnterReturnsTrue;
+			if (has(DMUI_UI_TEXT_EDIT_FLAGS_HISTORY_KEYS))
+				flags |= ImGuiInputTextFlags_CallbackHistory;
+			if (has(DMUI_UI_TEXT_EDIT_FLAGS_COMPLETION_KEY))
+				flags |= ImGuiInputTextFlags_CallbackCompletion;
+
+			// The setting is process-wide, so it must be restored even when drawing throws.
+			struct KeepActiveScope
+			{
+				bool& value;
+				bool saved;
+				~KeepActiveScope() { value = saved; }
+			};
+			auto& io = ImGui::GetIO();
+			const KeepActiveScope keepActive{
+				io.ConfigInputTextEnterKeepActive,
+				io.ConfigInputTextEnterKeepActive
+			};
+			io.ConfigInputTextEnterKeepActive =
+				has(DMUI_UI_TEXT_EDIT_FLAGS_KEEP_FOCUS_ON_SUBMIT);
+			InputOutcome outcome;
+			const auto result = DrawTextInputImpl(
+				a_label, a_hint, a_buffer, flags, outcome);
+			if (result != DMUI_RESULT_OK)
+				return result;
+
+			events |= outcome.keyEvents;
+			if (outcome.returned)
+				events |= DMUI_UI_TEXT_EDIT_EVENTS_SUBMITTED;
+			if (ImGui::IsItemEdited())
+				events |= DMUI_UI_TEXT_EDIT_EVENTS_EDITED;
+			a_state.events = events;
+			if (context.ActiveId != id)
+				return DMUI_RESULT_OK;
+
+			// Owning Tab keeps keyboard tabbing from leaving the field on the next press.
+			if (has(DMUI_UI_TEXT_EDIT_FLAGS_COMPLETION_KEY))
+				ImGui::SetKeyOwner(ImGuiKey_Tab, id);
+			a_state.active = 1u;
+			if (const auto* state = ImGui::GetInputTextState(id); state && state->Stb)
+			{
+				const auto& stb = *state->Stb;
+				// stb leaves stale equal bounds when nothing is selected.
+				const auto selected = stb.select_start != stb.select_end;
+				const auto first = selected ? (std::min)(stb.select_start, stb.select_end) : stb.cursor;
+				const auto last = selected ? (std::max)(stb.select_start, stb.select_end) : stb.cursor;
+				a_state.cursor = static_cast<size_t>(stb.cursor);
+				a_state.selectionStart = static_cast<size_t>(first);
+				a_state.selectionEnd = static_cast<size_t>(last);
+			}
+			if (context.PlatformImeData.WantVisible)
+			{
+				// InputText reports the IME anchor one pixel left of the caret.
+				const auto& ime = context.PlatformImeData;
+				a_state.caretPosition = { ime.InputPos.x + 1.0f, ime.InputPos.y };
+				a_state.lineHeight = ime.InputLineHeight;
+			}
 			return DMUI_RESULT_OK;
 		}
 	}
@@ -359,15 +522,46 @@ namespace DearModdingUI
 	{
 		try
 		{
-			return DrawTextInputImpl(
+			InputOutcome outcome;
+			const auto result = DrawTextInputImpl(
 				a_label,
 				a_hint,
 				a_buffer,
-				a_changed);
+				ImGuiInputTextFlags_None,
+				outcome);
+			a_changed = outcome.returned;
+			return result;
 		}
 		catch (const std::bad_alloc&)
 		{
 			a_changed = false;
+			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		}
+	}
+
+	DMUI_Result DrawTextEditor(
+		const char* a_label,
+		const char* a_hint,
+		DMUI_TextBuffer& a_buffer,
+		ImGuiInputTextFlags a_flags,
+		DMUI_UITextEditFlags a_editFlags,
+		size_t a_cursor,
+		DMUI_TextEditState& a_state) noexcept
+	{
+		try
+		{
+			return DrawTextEditorImpl(
+				a_label,
+				a_hint,
+				a_buffer,
+				a_flags,
+				a_editFlags,
+				a_cursor,
+				a_state);
+		}
+		catch (const std::bad_alloc&)
+		{
+			a_state = {};
 			return DMUI_RESULT_RESOURCE_EXHAUSTED;
 		}
 	}

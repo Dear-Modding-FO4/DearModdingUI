@@ -2,6 +2,7 @@
 #include "../support/ImGuiTestContext.h"
 
 #include <DearModdingUI/controls/SettingsTable.h>
+#include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/HostAPIEntries.h>
 
 #include <imgui/imgui.h>
@@ -17,6 +18,16 @@ namespace DearModdingUI::HostInternal
 			DMUI_RESULT_OK;
 	}
 }
+
+// Released ABI 2.0 clients request the bare major; newer minors need a newer host.
+static_assert(DearModdingUI::ServesAbiVersion(2u));
+static_assert(DearModdingUI::ServesAbiVersion(DMUI_ABI_VERSION));
+static_assert(!DearModdingUI::ServesAbiVersion(
+	DMUI_MAKE_ABI_VERSION(DMUI_ABI_MAJOR, DMUI_ABI_MINOR + 1u)));
+static_assert(!DearModdingUI::ServesAbiVersion(
+	DMUI_MAKE_ABI_VERSION(DMUI_ABI_MAJOR + 1u, 0u)));
+static_assert(!DearModdingUI::ServesAbiVersion(
+	DMUI_MAKE_ABI_VERSION(DMUI_ABI_MAJOR - 1u, DMUI_ABI_MINOR)));
 
 namespace vmm_tests
 {

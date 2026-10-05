@@ -17,6 +17,13 @@ namespace DearModdingUI
 	inline constexpr std::string_view kHostDisplayName{ "Evil Modding" };
 	inline constexpr std::string_view kHostVersion{ DMUI_VERSION };
 
+	// Older minors of this major see a prefix of the current tables.
+	[[nodiscard]] constexpr bool ServesAbiVersion(uint32_t a_requested) noexcept
+	{
+		return DMUI_ABI_VERSION_MAJOR(a_requested) == DMUI_ABI_MAJOR &&
+			DMUI_ABI_VERSION_MINOR(a_requested) <= DMUI_ABI_MINOR;
+	}
+
 	[[nodiscard]] const DMUI_HostAPI& HostAPI() noexcept;
 
 	void Initialize() noexcept;

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Input text editor (ABI 2.1)**: `ui::InputTextEditor` reports per-frame history, completion, submit, cancel, and edit events, along with cursor, selection, and caret screen position. It can reload client-replaced text at a chosen cursor and keep focus after submit, which suits consoles and autocompleting fields. `ui::BeginTooltipAt` places a non-focusable popup, such as a suggestion list, at a screen position.
+
+### Changed
+- **ABI versioning**: The ABI is now versioned as major.minor. Minor versions only append table slots and new types, and the host serves every older minor of its major, so host updates no longer require client rebuilds. Breaking changes and removals are batched into major versions. Existing ABI 2 clients keep working unchanged as ABI 2.0. A client built for a newer minor than the installed host fails to connect, and the host logs both versions. `DMUI_HostAPI::abiVersion` and `DMUI_HostReadyInfo::abiVersion` are renamed `abiMajor`. Clients that compare them in source must compare against `DMUI_ABI_MAJOR`.
+
 ## [0.2.0] - 2026-10-03
 
 ### Added
