@@ -78,11 +78,19 @@ namespace DearModdingUI::PresentationServices
 		kVisible
 	};
 
+	enum class ManagedOverlayInput : uint32_t
+	{
+		kPassive,
+		kArrangement,
+		kFocused,
+		kFocusGranted
+	};
+
 	[[nodiscard]] ManagedOverlayBeginResult BeginManagedOverlay(
 		DMUI_ClientHandle a_client,
 		DMUI_PageHandle a_page,
 		std::string_view a_label,
-		bool a_menuVisible) noexcept;
+		ManagedOverlayInput a_input) noexcept;
 	void EndManagedOverlay() noexcept;
 
 	[[nodiscard]] DMUI_Result PostNotification(

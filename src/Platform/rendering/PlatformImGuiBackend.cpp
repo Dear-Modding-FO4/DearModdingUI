@@ -462,7 +462,7 @@ namespace Addictol::platformImguiDetail
 				NoteGameCursorUnavailableLocked("host typography could not prepare the frame");
 				return;
 			}
-			const auto modalVisible = DearModdingUI::IsMenuVisible();
+			const auto shellVisible = DearModdingUI::IsMenuVisible();
 			DearModdingUI::BackgroundBlur::BeginFrame();
 			DearModdingUI::PresentationServices::BeginFrame();
 
@@ -472,7 +472,7 @@ namespace Addictol::platformImguiDetail
 			DearModdingUI::ImGuiWin32Integration::NewFrameWithoutGamepad();
 			io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
 			ApplyBackBufferCoordinateSpaceLocked(a_nativePosition);
-			DearModdingUI::ControllerNavigation::PrepareFrame(modalVisible);
+			DearModdingUI::ControllerNavigation::PrepareFrame(DearModdingUI::CurrentInputMode());
 			if (a_nativePosition)
 				ApplyCursorWarpLocked();
 			ImGui::NewFrame();
@@ -480,7 +480,7 @@ namespace Addictol::platformImguiDetail
 			ImGui::Render();
 
 			const PipelineState previousState{ context.attachment.context.Get() };
-			if (modalVisible)
+			if (shellVisible)
 			{
 				DearModdingUI::BackgroundBlur::Render(
 					context.attachment.device.Get(),
@@ -572,7 +572,8 @@ namespace Addictol::platformImguiDetail
 			return;
 		}
 
-		const auto modalVisible = DearModdingUI::IsMenuVisible();
+		const auto modalVisible =
+			DearModdingUI::CurrentInputMode() != DearModdingUI::HostInputMode::kGameplay;
 		const auto overlayDemanded =
 			DearModdingUI::NeedsFrame() && !modalVisible;
 		ApplyDrawingRequestLocked(modalVisible);

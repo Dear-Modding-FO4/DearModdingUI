@@ -56,12 +56,8 @@ namespace Addictol::platformImguiDetail
 			uint32_t a_keyCode, uint32_t a_modifiers, bool a_pressed, bool a_repeat) noexcept
 		{
 			const auto* ui = RE::UI::GetSingleton();
-			DearModdingUI::Hotkeys::SetContext({
-				DearModdingUI::IsMenuVisible(),
-				DearModdingUI::PresentationServices::HasActiveDialog(),
-				DearModdingUI::IsMenuVisible(),
-				ui && ui->menuMode == 0
-			});
+			DearModdingUI::Hotkeys::SetContext(
+				DearModdingUI::CurrentHotkeyContext(ui && ui->menuMode == 0));
 			const auto result = DearModdingUI::Hotkeys::HandleKey(
 				a_keyCode, a_modifiers, a_pressed, a_repeat);
 			if (result == DearModdingUI::HotkeyMessageResult::kMenuToggle &&
@@ -217,7 +213,8 @@ namespace Addictol::platformImguiDetail
 					if (focusLost)
 						DearModdingUI::Hotkeys::ReleaseActiveKeys();
 					ApplyDrawingRequestLocked(
-						!focusLost && DearModdingUI::IsMenuVisible());
+						!focusLost &&
+						DearModdingUI::CurrentInputMode() != DearModdingUI::HostInputMode::kGameplay);
 					if (ImGui::GetCurrentContext())
 						ImGui::GetIO().AddFocusEvent(!focusLost);
 				}
@@ -241,14 +238,15 @@ namespace Addictol::platformImguiDetail
 				a_message,
 				static_cast<uint32_t>(a_wparam),
 				static_cast<uint64_t>(a_lparam),
-				inputFocused && DearModdingUI::IsMenuVisible(),
+				inputFocused &&
+					DearModdingUI::CurrentInputMode() != DearModdingUI::HostInputMode::kGameplay,
 				s_consumedEscape.load(std::memory_order_acquire));
 			if (escapeDecision == EscapeMessageDecision::kCapture)
 			{
 				s_consumedEscape.store(true, std::memory_order_release);
 				const ContextLock lock;
 				DearModdingUI::CaptureMenuEscapePress(
-					DearModdingUI::IsMenuVisible(),
+					DearModdingUI::CurrentInputMode(),
 					DearModdingUI::PresentationServices::
 						HasActiveDialog(),
 					DearModdingUI::PresentationServices::
@@ -467,6 +465,10 @@ namespace Addictol::platformImguiDetail
 	{
 		DearModdingUI::Hotkeys::ReleaseActiveKeys();
 		SetModalInputStateLocked(false);
+		DearModdingUI::EndOverlayFocus(
+			a_event == DearModdingUI::CarrierMenu::Event::kShutdown ?
+				DMUI_OVERLAY_FOCUS_END_HOST_UNAVAILABLE :
+				DMUI_OVERLAY_FOCUS_END_INTERRUPTED);
 		DearModdingUI::CloseMenu();
 		DearModdingUI::CarrierMenu::Handle(a_event);
 		if (ImGui::GetCurrentContext())
@@ -490,13 +492,11 @@ namespace Addictol::PlatformImgui
 			{
 				const platformImguiDetail::ContextLock lock;
 				const auto* ui = RE::UI::GetSingleton();
-				const auto visible = DearModdingUI::IsMenuVisible();
 				result = DearModdingUI::ControllerNavigation::RouteButton(
 					a_keyCode, a_pressed, a_repeat,
 					a_keyCode >= DearModdingUI::KeyCatalog::kPadLT ?
 						DearModdingUI::ControllerNavigation::AnalogValue(a_value) : a_value,
-					{ visible, DearModdingUI::PresentationServices::HasActiveDialog(),
-						visible, ui && ui->menuMode == 0 });
+					DearModdingUI::CurrentHotkeyContext(ui && ui->menuMode == 0));
 			}
 			// Toggle callbacks reacquire the platform lock.
 			if (result == DearModdingUI::HotkeyMessageResult::kMenuToggle &&

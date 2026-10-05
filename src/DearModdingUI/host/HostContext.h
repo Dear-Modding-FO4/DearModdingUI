@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/host/Diagnostics.h>
+#include <DearModdingUI/host/OverlayFocus.h>
 #include <DearModdingUI/host/Registry.h>
 #include <DearModdingUI/host/Status.h>
 
@@ -26,6 +27,7 @@ namespace DearModdingUI::HostInternal
 		std::atomic<DMUI_PageHandle> activePage{ DMUI_INVALID_PAGE_HANDLE };
 		StatusModel status;
 		DiagnosticStore diagnostics;
+		OverlayFocusState overlayFocus;
 	};
 
 	struct ClientFontPush

@@ -175,14 +175,14 @@ namespace DearModdingUIPreview
 				a_message,
 				static_cast<uint32_t>(a_wparam),
 				static_cast<uint64_t>(a_lparam),
-				IsMenuVisible(),
+				CurrentInputMode() != HostInputMode::kGameplay,
 				m_escapeConsumed);
 		if (escapeDecision ==
 			Addictol::ImguiPlatform::EscapeMessageDecision::kCapture)
 		{
 			m_escapeConsumed = true;
 			CaptureMenuEscapePress(
-				IsMenuVisible(),
+				CurrentInputMode(),
 				PresentationServices::HasActiveDialog(),
 				PresentationServices::ActiveDialogPopupId());
 		}

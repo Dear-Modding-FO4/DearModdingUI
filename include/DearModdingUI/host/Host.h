@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/API.h>
 #include <DearModdingUI/host/Diagnostics.h>
+#include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/host/Registry.h>
 #include <DearModdingUI/host/Status.h>
 
@@ -35,6 +36,9 @@ namespace DearModdingUI
 	[[nodiscard]] bool NeedsFrame() noexcept;
 	[[nodiscard]] bool HasSettingsPages() noexcept;
 	[[nodiscard]] bool IsMenuVisible() noexcept;
+	[[nodiscard]] HostInputMode CurrentInputMode() noexcept;
+	[[nodiscard]] HotkeyContextState CurrentHotkeyContext(bool a_gameplaySafe) noexcept;
+	void EndOverlayFocus(DMUI_OverlayFocusEndReason a_reason) noexcept;
 	[[nodiscard]] DMUI_Result SetMenuVisible(bool a_visible) noexcept;
 	void CloseMenu() noexcept;
 	[[nodiscard]] DMUI_PageHandle SelectedPage() noexcept;

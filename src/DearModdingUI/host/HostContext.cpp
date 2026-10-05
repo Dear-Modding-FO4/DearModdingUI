@@ -35,6 +35,8 @@ namespace DearModdingUI::HostInternal
 	void SetMenuVisibleState(Service& a_service, bool a_visible) noexcept
 	{
 		a_service.menuVisible.store(a_visible, std::memory_order_release);
+		if (a_visible)
+			a_service.overlayFocus.End(DMUI_OVERLAY_FOCUS_END_SHELL_OPENED);
 
 #if !defined(DMUI_PREVIEW)
 		auto main = RE::Main::GetSingleton();

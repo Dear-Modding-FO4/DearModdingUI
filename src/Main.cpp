@@ -43,7 +43,7 @@ namespace Addictol
 			DearModdingUI::PresentationServices::DrawNotifications(
 				DearModdingUI::IsMenuVisible() &&
 				!DearModdingUI::ControllerNavigation::IsNavigating());
-			if (DearModdingUI::IsMenuVisible())
+			if (DearModdingUI::CurrentInputMode() != DearModdingUI::HostInputMode::kGameplay)
 				DearModdingUI::ApplyMenuEscapeDismissal();
 			DearModdingUI::ModalCoordinator::FinishFrame();
 		}

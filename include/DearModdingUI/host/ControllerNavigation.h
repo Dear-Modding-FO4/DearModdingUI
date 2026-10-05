@@ -98,7 +98,7 @@ namespace DearModdingUI::ControllerNavigation
 	[[nodiscard]] std::optional<ImVec2> TakeCursorWarp() noexcept;
 	void Reset() noexcept;
 	void BeginDesktopInput() noexcept;
-	bool PrepareFrame(bool a_visible, bool a_desktop = false) noexcept;
+	bool PrepareFrame(HostInputMode a_inputMode, bool a_desktop = false) noexcept;
 	void BeginShell() noexcept;
 	void BeginPane(Pane a_pane) noexcept;
 	void EndPanes() noexcept;

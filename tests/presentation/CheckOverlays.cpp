@@ -38,7 +38,7 @@ namespace vmm_tests
 						DMUI_RESULT_OK, "overlay reconfiguration failed");
 			};
 			const auto draw = [&](DMUI_PageHandle a_page, const char* a_label) {
-				require(PresentationServices::BeginManagedOverlay(9, a_page, a_label, true) ==
+				require(PresentationServices::BeginManagedOverlay(9, a_page, a_label, PresentationServices::ManagedOverlayInput::kArrangement) ==
 						PresentationServices::ManagedOverlayBeginResult::kVisible,
 					"restored overlay did not open");
 				PresentationServices::EndManagedOverlay();
@@ -80,13 +80,13 @@ namespace vmm_tests
 			require(PresentationServices::QueryOverlay(10, 14, &foreign) == DMUI_RESULT_PAGE_NOT_FOUND,
 				"another owner queried managed placement");
 			imgui.BeginWindow("##OverlayPassiveTest");
-			require(PresentationServices::BeginManagedOverlay(9, 14, "Passive overlay", false) ==
+			require(PresentationServices::BeginManagedOverlay(9, 14, "Passive overlay", PresentationServices::ManagedOverlayInput::kPassive) ==
 					PresentationServices::ManagedOverlayBeginResult::kVisible,
 				"passive managed overlay did not open");
 			const auto flags = ImGui::GetCurrentWindow()->Flags;
 			PresentationServices::EndManagedOverlay();
 			imgui.EndWindow();
-			require((flags & ImGuiWindowFlags_NoInputs) != 0 && (flags & ImGuiWindowFlags_NoMove) != 0,
+			require((flags & ImGuiWindowFlags_NoMouseInputs) != 0 && (flags & ImGuiWindowFlags_NoMove) != 0,
 				"passive managed overlay accepted gameplay input");
 
 			options.size.x = -1;
@@ -131,7 +131,7 @@ namespace vmm_tests
 					require(PresentationServices::ConfigureOverlay(90, page, &options, "mod", test.id) ==
 						DMUI_RESULT_OK, "anchor overlay configure failed");
 					const auto label = std::string{ "Anchor overlay " } + std::to_string(index);
-					(void)PresentationServices::BeginManagedOverlay(90, page, label, false);
+					(void)PresentationServices::BeginManagedOverlay(90, page, label, PresentationServices::ManagedOverlayInput::kPassive);
 					PresentationServices::EndManagedOverlay();
 					DMUI_ManagedOverlayPlacement placement{};
 					require(PresentationServices::QueryOverlay(90, page, &placement) == DMUI_RESULT_OK &&
@@ -211,7 +211,7 @@ namespace vmm_tests
 					require(PresentationServices::ResetOverlay(90, 110) == DMUI_RESULT_OK,
 						"automatic-size reset failed");
 				}
-				require(PresentationServices::BeginManagedOverlay(90, 110, "Saved overlay", true) ==
+				require(PresentationServices::BeginManagedOverlay(90, 110, "Saved overlay", PresentationServices::ManagedOverlayInput::kArrangement) ==
 					PresentationServices::ManagedOverlayBeginResult::kVisible, "saved overlay did not open");
 				PresentationServices::EndManagedOverlay();
 				DMUI_ManagedOverlayPlacement placement{};

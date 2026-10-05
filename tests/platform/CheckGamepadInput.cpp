@@ -34,7 +34,7 @@ namespace vmm_tests
 			bool visible = false;
 			const auto route = [&](uint32_t a_code, bool a_pressed, bool a_repeat = false) {
 				const auto result = RouteButton(a_code, a_pressed, a_repeat, a_pressed ? 1.0f : 0.0f,
-					{ visible, false, visible, !visible });
+					{ visible ? HostInputMode::kShell : HostInputMode::kGameplay, false, !visible });
 				if (result == HotkeyMessageResult::kMenuToggle)
 					visible = !visible;
 				return result;
@@ -47,7 +47,7 @@ namespace vmm_tests
 			{
 				for (const auto code : chord)
 					(void)route(code, true, true);
-				if (PrepareFrame(visible))
+				if (PrepareFrame(visible ? HostInputMode::kShell : HostInputMode::kGameplay))
 					visible = !visible;
 				imgui.BeginWindow("routing-sidebar");
 				require(!ConsumeMenuEscapeTarget(MenuEscapeTarget::kHost),

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <DearModdingUI/host/Hotkeys.h>
+
 #include <cstddef>
 #include <cstdint>
 
@@ -12,12 +14,13 @@ namespace DearModdingUI
 		kInteraction,
 		kPopup,
 		kDialog,
-		kHost
+		kHost,
+		kOverlayFocus
 	};
 
 	struct MenuEscapeContext
 	{
-		bool menuVisible{ false };
+		HostInputMode inputMode{ HostInputMode::kGameplay };
 		bool activeInteraction{ false };
 		bool dialogActive{ false };
 		uint32_t topPopupId{ 0 };
@@ -28,7 +31,7 @@ namespace DearModdingUI
 	[[nodiscard]] constexpr MenuEscapeTarget DecideMenuEscapeTarget(
 		const MenuEscapeContext& a_context) noexcept
 	{
-		if (!a_context.menuVisible)
+		if (a_context.inputMode == HostInputMode::kGameplay)
 			return MenuEscapeTarget::kNone;
 		if (a_context.activeInteraction)
 			return MenuEscapeTarget::kInteraction;
@@ -40,11 +43,12 @@ namespace DearModdingUI
 				return MenuEscapeTarget::kDialog;
 			return MenuEscapeTarget::kPopup;
 		}
-		return MenuEscapeTarget::kHost;
+		return a_context.inputMode == HostInputMode::kShell ?
+			MenuEscapeTarget::kHost : MenuEscapeTarget::kOverlayFocus;
 	}
 
 	void CaptureMenuEscapePress(
-		bool a_menuVisible,
+		HostInputMode a_inputMode,
 		bool a_dialogActive,
 		uint32_t a_dialogPopupId) noexcept;
 	[[nodiscard]] bool ConsumeMenuEscapeTarget(

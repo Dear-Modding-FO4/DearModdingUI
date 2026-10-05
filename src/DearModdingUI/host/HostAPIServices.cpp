@@ -103,6 +103,54 @@ namespace DearModdingUI::HostAPIInternal
 		return PresentationServices::ResetOverlay(a_client, a_page, clientId, pageId);
 	}
 
+	[[nodiscard]] DMUI_Result DMUI_CALL
+	ApiRequestOverlayFocus(DMUI_ClientHandle a_client, DMUI_PageHandle a_page) noexcept
+	{
+		auto& service = GetService();
+		const auto validation =
+			service.registry.ValidatePage(a_client, a_page, DMUI_PAGE_KIND_OVERLAY);
+		if (validation != DMUI_RESULT_OK)
+			return validation;
+		DMUI_ManagedOverlayPlacement placement{};
+		if (PresentationServices::QueryOverlay(a_client, a_page, &placement) != DMUI_RESULT_OK)
+			return DMUI_RESULT_PAGE_NOT_FOUND;
+		return service.overlayFocus.Request(a_page, [&]() noexcept {
+			const auto state = service.state.load(std::memory_order_acquire);
+			if (state != DMUI_HOST_STATE_READY)
+				return StateResult(state);
+			if (service.registry.PageFailed(a_page))
+				return DMUI_RESULT_CALLBACK_FAILED;
+			if (!service.registry.IsFrameDemanded(a_page))
+				return DMUI_RESULT_NO_FRAME_DEMAND;
+			return service.menuVisible.load(std::memory_order_acquire) ?
+				DMUI_RESULT_BUSY : DMUI_RESULT_OK;
+		});
+	}
+
+	[[nodiscard]] DMUI_Result DMUI_CALL
+	ApiReleaseOverlayFocus(DMUI_ClientHandle a_client, DMUI_PageHandle a_page) noexcept
+	{
+		auto& service = GetService();
+		const auto validation =
+			service.registry.ValidatePage(a_client, a_page, DMUI_PAGE_KIND_OVERLAY);
+		if (validation == DMUI_RESULT_OK)
+			service.overlayFocus.EndPage(a_page, DMUI_OVERLAY_FOCUS_END_RELEASED);
+		return validation;
+	}
+
+	[[nodiscard]] DMUI_Result DMUI_CALL ApiQueryOverlayFocus(
+		DMUI_ClientHandle a_client, DMUI_PageHandle a_page, DMUI_OverlayFocusInfo* a_info) noexcept
+	{
+		if (!a_info)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		auto& service = GetService();
+		const auto validation =
+			service.registry.ValidatePage(a_client, a_page, DMUI_PAGE_KIND_OVERLAY);
+		if (validation == DMUI_RESULT_OK)
+			*a_info = service.overlayFocus.Query(a_page);
+		return validation;
+	}
+
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiPostNotification(
 		DMUI_ClientHandle a_client, const DMUI_NotificationDescriptor *a_descriptor) noexcept
 	{

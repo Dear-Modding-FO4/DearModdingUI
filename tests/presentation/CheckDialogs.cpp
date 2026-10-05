@@ -228,7 +228,7 @@ namespace vmm_tests
 			ImGui::SetActiveID(interactionId, window);
 
 			Hotkeys::BeginCapture();
-			CaptureMenuEscapePress(true, true, outerId);
+			CaptureMenuEscapePress(HostInputMode::kShell, true, outerId);
 			require(!DismissCapturedMenuDialog() && !DismissCapturedMenuPopup() &&
 					ConsumeMenuEscapeTarget(MenuEscapeTarget::kKeyCapture) &&
 					Hotkeys::CancelCapture() &&
@@ -236,7 +236,7 @@ namespace vmm_tests
 					!ConsumeMenuEscapeTarget(MenuEscapeTarget::kInteraction),
 				"capture Escape also reached a dialog, popup, interaction, or host");
 
-			CaptureMenuEscapePress(true, false, 0);
+			CaptureMenuEscapePress(HostInputMode::kShell, false, 0);
 			require(
 				ConsumeMenuEscapeTarget(MenuEscapeTarget::kInteraction),
 				"an active interaction did not own the first Escape");
@@ -245,7 +245,7 @@ namespace vmm_tests
 				"active-interaction Escape also dismissed a popup");
 
 			ImGui::ClearActiveID();
-			CaptureMenuEscapePress(true, false, 0);
+			CaptureMenuEscapePress(HostInputMode::kShell, false, 0);
 			ImGui::CloseCurrentPopup();
 			require(DismissCapturedMenuPopup(),
 				"the second Escape did not retain its popup ownership");
@@ -254,25 +254,25 @@ namespace vmm_tests
 
 			ImGui::OpenPopup("##ControllerB");
 			(void)ControllerNavigation::RouteButton(
-				KeyCatalog::kPadB, true, false, 1.0f, { true, false, true, false });
+				KeyCatalog::kPadB, true, false, 1.0f, { HostInputMode::kShell });
 			require(DismissCapturedMenuPopup() &&
 					!ConsumeMenuEscapeTarget(MenuEscapeTarget::kHost),
 				"controller B did not use the single-level popup dismissal");
 			ImGui::ClosePopupToLevel(0, false);
 
 			context->NavId = interactionId;
-			CaptureMenuEscapePress(true, false, 0);
+			CaptureMenuEscapePress(HostInputMode::kShell, false, 0);
 			require(ConsumeMenuEscapeTarget(MenuEscapeTarget::kHost),
 				"idle keyboard focus incorrectly trapped Escape");
 			require(!ConsumeMenuEscapeTarget(MenuEscapeTarget::kHost),
 				"one Escape generated more than one host dismissal");
 
-			CaptureMenuEscapePress(false, false, 0);
+			CaptureMenuEscapePress(HostInputMode::kGameplay, false, 0);
 			require(!ConsumeMenuEscapeTarget(MenuEscapeTarget::kHost),
 				"closed or overlay-only state captured Escape");
 			require(
 				DecideMenuEscapeTarget({
-					true,
+					HostInputMode::kShell,
 					false,
 					true,
 					0x22,
@@ -280,7 +280,7 @@ namespace vmm_tests
 					2
 				}) == MenuEscapeTarget::kPopup &&
 				DecideMenuEscapeTarget({
-					true,
+					HostInputMode::kShell,
 					false,
 					true,
 					0x11,
@@ -290,7 +290,7 @@ namespace vmm_tests
 				"a nested popup did not outrank its owning dialog");
 			require(
 				DecideMenuEscapeTarget({
-					true,
+					HostInputMode::kShell,
 					false,
 					true,
 					0,
@@ -437,7 +437,7 @@ namespace vmm_tests
 			PresentationServices::DrawDialog(true);
 			frame.End();
 			CaptureMenuEscapePress(
-				true,
+				HostInputMode::kShell,
 				PresentationServices::HasActiveDialog(),
 				PresentationServices::ActiveDialogPopupId());
 			frame.Begin({ -100.0f, -100.0f }, false);
@@ -462,7 +462,7 @@ namespace vmm_tests
 			PresentationServices::DrawDialog(true);
 			frame.End();
 			CaptureMenuEscapePress(
-				true,
+				HostInputMode::kShell,
 				PresentationServices::HasActiveDialog(),
 				PresentationServices::ActiveDialogPopupId());
 			frame.Begin({ -100.0f, -100.0f }, false);
@@ -486,7 +486,7 @@ namespace vmm_tests
 			const auto submissionId = event.submissionId;
 
 			CaptureMenuEscapePress(
-				true,
+				HostInputMode::kShell,
 				PresentationServices::HasActiveDialog(),
 				PresentationServices::ActiveDialogPopupId());
 			require(ConsumeMenuEscapeTarget(MenuEscapeTarget::kHost),
@@ -529,7 +529,7 @@ namespace vmm_tests
 				PresentationServices::ActiveDialogPopupId();
 			frame.End();
 			CaptureMenuEscapePress(
-				true,
+				HostInputMode::kShell,
 				PresentationServices::HasActiveDialog(),
 				completionPopupId);
 			event = {};

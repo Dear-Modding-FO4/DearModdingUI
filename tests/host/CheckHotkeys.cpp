@@ -79,7 +79,7 @@ namespace vmm_tests
 	{
 		runner.test("gamepad capture ignores the activation button already held", [] {
 			HotkeyRegistry registry;
-			registry.SetContext({ true, false, false, false });
+			registry.SetContext({ HostInputMode::kShell });
 			(void)registry.HandleKey(KeyCatalog::kPadA, 0, true, false);
 			registry.BeginCapture(HotkeySlot::kGamepad);
 			(void)registry.HandleKey(KeyCatalog::kPadA, 0, true, true);
@@ -139,7 +139,7 @@ namespace vmm_tests
 			HotkeyRegistry registry;
 			CallbackState state;
 			(void)Register(registry, 1, "Example.Capture", "Ctrl+F5", state);
-			registry.SetContext({ true, false, false, false });
+			registry.SetContext({ HostInputMode::kShell });
 			registry.BeginCapture();
 			require(registry.HandleKey(0x1D, kHotkeyModifierControl, true, false) ==
 					HotkeyMessageResult::kPassThrough && registry.IsCapturing(),
@@ -331,7 +331,7 @@ namespace vmm_tests
 		runner.test("capture accumulates only the selected slot and consumes remaining releases", [] {
 			HotkeyRegistry registry;
 			registry.SetReservedChord(ParseHotkeyChord("PadLB+PadRB+PadBack").chord, HotkeySlot::kGamepad);
-			registry.SetContext({ true });
+			registry.SetContext({ HostInputMode::kShell });
 			registry.BeginCapture(HotkeySlot::kGamepad);
 			for (const auto code : { 275u, 271u, 274u })
 				require(registry.HandleKey(code, 7, true, false) == HotkeyMessageResult::kConsumed &&
@@ -360,7 +360,7 @@ namespace vmm_tests
 			require(!registry.IsCapturing() && !registry.TakeCapture(),
 				"over-capacity capture silently bound a subset");
 			registry.ReleaseActiveKeys();
-			registry.SetContext({ true });
+			registry.SetContext({ HostInputMode::kShell });
 			registry.BeginCapture();
 			for (const auto code : { 0xD1u, 0xC9u, 0xCFu })
 				(void)registry.HandleKey(code, 7, true, false);
@@ -378,11 +378,11 @@ namespace vmm_tests
 			DMUI_HotkeyActionHandle action{};
 			require(registry.Register(1, &descriptor, &action) == DMUI_RESULT_OK,
 				"contextual hotkey registration failed");
-			registry.SetContext({ false, false, false, false });
+			registry.SetContext({});
 			require(registry.HandleKey(0x19, kHotkeyModifierControl, true, false) ==
 					HotkeyMessageResult::kPassThrough,
 				"unsafe gameplay context consumed a press");
-			registry.SetContext({ false, false, false, true });
+			registry.SetContext({ HostInputMode::kGameplay, false, true });
 			require(registry.HandleKey(0, kHotkeyModifierControl, true, false) ==
 					HotkeyMessageResult::kPassThrough,
 				"unknown scan code matched chord padding");
@@ -390,7 +390,7 @@ namespace vmm_tests
 			require(registry.HandleKey(0x19, kHotkeyModifierControl, true, false) ==
 					HotkeyMessageResult::kConsumed,
 				"safe gameplay context did not consume a press");
-			registry.SetContext({ true, false, false, false });
+			registry.SetContext({ HostInputMode::kShell });
 			require(registry.HandleKey(0x19, 0, false, false) ==
 					HotkeyMessageResult::kConsumed,
 				"an owned release was lost after the context changed");

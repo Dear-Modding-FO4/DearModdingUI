@@ -236,7 +236,10 @@ namespace DearModdingUI
 			&ApiEndField,
 			&ApiDrawTextView,
 			&ApiDrawSearchInputBuffer,
-			&ApiLoadImageFile
+			&ApiLoadImageFile,
+			&ApiRequestOverlayFocus,
+			&ApiReleaseOverlayFocus,
+			&ApiQueryOverlayFocus
 		};
 		return api;
 	}
@@ -262,6 +265,7 @@ namespace DearModdingUI
 			return;
 		service.unavailableReason.store(a_reason, std::memory_order_release);
 		service.state.store(DMUI_HOST_STATE_UNAVAILABLE, std::memory_order_release);
+		service.overlayFocus.End(DMUI_OVERLAY_FOCUS_END_HOST_UNAVAILABLE);
 		SetMenuVisibleState(service, false);
 	}
 
@@ -320,6 +324,7 @@ namespace DearModdingUI
 		service.unavailableReason.store(
 			DMUI_UNAVAILABLE_BACKEND_FAILED,
 			std::memory_order_release);
+		service.overlayFocus.End(DMUI_OVERLAY_FOCUS_END_HOST_UNAVAILABLE);
 		SetMenuVisibleState(service, false);
 		if (service.registry.IsOpen())
 			(void)service.registry.Freeze();
@@ -342,6 +347,23 @@ namespace DearModdingUI
 	bool IsMenuVisible() noexcept
 	{
 		return GetService().menuVisible.load(std::memory_order_acquire);
+	}
+
+	HostInputMode CurrentInputMode() noexcept
+	{
+		return IsMenuVisible() ? HostInputMode::kShell :
+			GetService().overlayFocus.IsActive() ? HostInputMode::kOverlayFocus :
+			HostInputMode::kGameplay;
+	}
+
+	HotkeyContextState CurrentHotkeyContext(bool a_gameplaySafe) noexcept
+	{
+		return { CurrentInputMode(), PresentationServices::HasActiveDialog(), a_gameplaySafe };
+	}
+
+	void EndOverlayFocus(DMUI_OverlayFocusEndReason a_reason) noexcept
+	{
+		GetService().overlayFocus.End(a_reason);
 	}
 
 	DMUI_Result SetMenuVisible(bool a_visible) noexcept
@@ -417,6 +439,7 @@ namespace DearModdingUI
 			},
 			[&]() noexcept {
 				service.registry.MarkPageFailed(a_page);
+				service.overlayFocus.EndPage(a_page, DMUI_OVERLAY_FOCUS_END_CALLBACK_FAILED);
 			});
 		if (!drawn)
 			ModalCoordinator::ClosePage(a_page);
@@ -512,18 +535,24 @@ namespace DearModdingUI
 
 	void DrawDemandedOverlays() noexcept
 	{
-		auto& registry = GetService().registry;
+		using enum PresentationServices::ManagedOverlayInput;
+		auto& service = GetService();
+		auto& registry = service.registry;
+		const auto unfocusedInput = IsMenuVisible() ? kArrangement : kPassive;
 		for (const auto& page : registry.OrderedPages())
 		{
 			if (page.kind == DMUI_PAGE_KIND_OVERLAY &&
 				registry.IsFrameDemanded(page.handle))
 			{
+				const auto focus = service.overlayFocus.Observe(page.handle);
 				const auto managed =
 					PresentationServices::BeginManagedOverlay(
 						page.client,
 						page.handle,
 						page.imguiLabel,
-						IsMenuVisible());
+						focus == OverlayPageFocus::kGranted ? kFocusGranted :
+						focus == OverlayPageFocus::kFocused ? kFocused :
+						unfocusedInput);
 				if (managed !=
 					PresentationServices::ManagedOverlayBeginResult::kNotConfigured)
 				{

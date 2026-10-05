@@ -340,7 +340,7 @@ namespace DearModdingUI
 	{
 		const std::scoped_lock lock{ m_mutex };
 		m_context = a_context;
-		if (!a_context.hostMenuVisible)
+		if (a_context.inputMode != HostInputMode::kShell)
 		{
 			m_capturing = false;
 			m_capture.reset();
@@ -582,13 +582,11 @@ namespace DearModdingUI
 			const auto contextAllowed =
 				a_action.contextPolicy == DMUI_HOTKEY_CONTEXT_ALWAYS ||
 				(a_action.contextPolicy == DMUI_HOTKEY_CONTEXT_HOST_INPUT_INACTIVE &&
-					!m_context.hostMenuVisible &&
-					!m_context.dialogVisible &&
-					!m_context.textEditing) ||
+					m_context.inputMode == HostInputMode::kGameplay &&
+					!m_context.dialogVisible) ||
 				(a_action.contextPolicy == DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED &&
-					!m_context.hostMenuVisible &&
+					m_context.inputMode == HostInputMode::kGameplay &&
 					!m_context.dialogVisible &&
-					!m_context.textEditing &&
 					m_context.gameplaySafe);
 			return a_action.live &&
 				a_action.enabled &&

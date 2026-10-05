@@ -816,6 +816,11 @@ namespace DearModdingUI
 		}
 		if (DismissCapturedMenuPopup())
 			return;
+		if (ConsumeMenuEscapeTarget(MenuEscapeTarget::kOverlayFocus))
+		{
+			EndOverlayFocus(DMUI_OVERLAY_FOCUS_END_CANCELED);
+			return;
+		}
 		if (!ConsumeMenuEscapeTarget(MenuEscapeTarget::kHost))
 			return;
 		CloseShellAndSaveLayout();

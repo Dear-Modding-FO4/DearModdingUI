@@ -87,11 +87,17 @@ namespace DearModdingUI
 		bool recognized{ false };
 	};
 
+	enum class HostInputMode : uint32_t
+	{
+		kGameplay,
+		kOverlayFocus,
+		kShell
+	};
+
 	struct HotkeyContextState
 	{
-		bool hostMenuVisible{};
+		HostInputMode inputMode{ HostInputMode::kGameplay };
 		bool dialogVisible{};
-		bool textEditing{};
 		// True only when the platform can affirm that no engine menu mode is active.
 		bool gameplaySafe{};
 	};

@@ -43,6 +43,7 @@ namespace DearModdingUI::PresentationServices
 			bool positionPending{};
 			bool sizePending{};
 			bool arrangementInProgress{};
+			bool focused{};
 		};
 
 		struct OverlayService
@@ -364,12 +365,15 @@ namespace DearModdingUI::PresentationServices
 		DMUI_ClientHandle a_client,
 		DMUI_PageHandle a_page,
 		std::string_view a_label,
-		bool a_menuVisible) noexcept
+		ManagedOverlayInput a_input) noexcept
 	{
 		DMUI_ManagedOverlayOptions options{};
 		DMUI_ManagedOverlayPlacement previous{};
 		bool positionPending{};
 		bool sizePending{};
+		bool wasFocused{};
+		const auto focused = a_input == ManagedOverlayInput::kFocused ||
+			a_input == ManagedOverlayInput::kFocusGranted;
 		{
 			auto& service = GetOverlayService();
 			const std::scoped_lock lock{ service.mutex };
@@ -383,6 +387,7 @@ namespace DearModdingUI::PresentationServices
 			sizePending = std::exchange(overlay->sizePending, false);
 			if (sizePending)
 				options.size = overlay->pendingSize;
+			wasFocused = std::exchange(overlay->focused, focused);
 		}
 
 		const auto& io = ImGui::GetIO();
@@ -432,12 +437,19 @@ namespace DearModdingUI::PresentationServices
 			ImGui::SetNextWindowSize(ResolveOverlaySize(options, scale), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSizeConstraints(minimum, maximum);
 		ImGui::SetNextWindowBgAlpha(options.opacity);
+		const auto arrangementEnabled =
+			a_input != ManagedOverlayInput::kPassive && options.allowArrangement;
 		auto flags =
 			ImGuiWindowFlags_NoSavedSettings |
 			ImGuiWindowFlags_NoFocusOnAppearing |
 			ImGuiWindowFlags_NoNav;
-		if (!a_menuVisible || !options.allowArrangement)
-			flags |= ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoMove;
+		if (!arrangementEnabled)
+			flags |= focused ?
+				ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize :
+				ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoMove;
+		// A click on empty space clears window focus; keep keyboard input with the focused overlay.
+		if (a_input == ManagedOverlayInput::kFocusGranted || (focused && !GImGui->NavWindow))
+			ImGui::SetNextWindowFocus();
 		if (anchored)
 			flags |= ImGuiWindowFlags_NoMove;
 		if (!options.backgroundVisible)
@@ -446,6 +458,15 @@ namespace DearModdingUI::PresentationServices
 			flags |= ImGuiWindowFlags_NoDecoration;
 		const auto opened = ImGui::Begin(windowLabel.c_str(), nullptr, flags);
 		ImGui::SetWindowFontScale(options.contentScale);
+		if (wasFocused && !focused)
+		{
+			// A shell opened over a lost focus must not keep typing into this overlay.
+			auto* window = ImGui::GetCurrentWindow();
+			if (GImGui->ActiveIdWindow && GImGui->ActiveIdWindow->RootWindow == window)
+				ImGui::ClearActiveID();
+			if (GImGui->NavWindow && GImGui->NavWindow->RootWindow == window)
+				ImGui::FocusWindow(nullptr);
+		}
 
 		const auto currentPosition = ImGui::GetWindowPos();
 		const auto currentSize = ImGui::GetWindowSize();
@@ -472,9 +493,6 @@ namespace DearModdingUI::PresentationServices
 			overlay->placement.visible = 1u;
 			if (changed)
 				++overlay->placement.changeGeneration;
-			const auto arrangementEnabled =
-				a_menuVisible &&
-				options.allowArrangement;
 			if (arrangementEnabled && changed &&
 				ImGui::IsMouseDown(ImGuiMouseButton_Left))
 				overlay->arrangementInProgress = true;

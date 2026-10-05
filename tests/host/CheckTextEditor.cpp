@@ -133,7 +133,7 @@ namespace vmm_tests
 			require(Has(submitted, DMUI_UI_TEXT_EDIT_EVENTS_SUBMITTED) && refocused.active != 0,
 				"submit was not reported or the editor lost focus");
 
-			CaptureMenuEscapePress(true, false, 0);
+			CaptureMenuEscapePress(HostInputMode::kShell, false, 0);
 			const auto canceled = editor.Press(ImGuiKey_Escape, flags);
 			require(!ConsumeMenuEscapeTarget(MenuEscapeTarget::kInteraction),
 				"captured Escape still reached the host interaction cancel");

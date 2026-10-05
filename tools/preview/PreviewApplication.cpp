@@ -376,7 +376,8 @@ namespace DearModdingUIPreview
 					ControllerNavigation::UseNavigation();
 					options.controllerNavigation = false;
 				}
-				if (ControllerNavigation::PrepareFrame(IsMenuVisible() && inputFocused, true) &&
+				if (ControllerNavigation::PrepareFrame(
+						inputFocused ? CurrentInputMode() : HostInputMode::kGameplay, true) &&
 					SetMenuVisible(!IsMenuVisible()) != DMUI_RESULT_OK)
 				{
 					a_error = L"Could not toggle the host menu.";
@@ -399,7 +400,7 @@ namespace DearModdingUIPreview
 				PresentationServices::DrawDialog(IsMenuVisible());
 				PresentationServices::DrawNotifications(
 					IsMenuVisible() && !ControllerNavigation::IsNavigating());
-				if (IsMenuVisible())
+				if (CurrentInputMode() != HostInputMode::kGameplay)
 					ApplyMenuEscapeDismissal();
 				ModalCoordinator::FinishFrame();
 				ImGui::Render();

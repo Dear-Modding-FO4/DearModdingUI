@@ -30,7 +30,7 @@ namespace DearModdingUI
 	}
 
 	void CaptureMenuEscapePress(
-		bool a_menuVisible,
+		HostInputMode a_inputMode,
 		bool a_dialogActive,
 		uint32_t a_dialogPopupId) noexcept
 	{
@@ -50,9 +50,9 @@ namespace DearModdingUI
 		s_popupId.store(topPopupId, std::memory_order_relaxed);
 		s_popupDepth.store(popupDepth, std::memory_order_relaxed);
 		s_target.store(
-			a_menuVisible && Hotkeys::IsCapturing() ?
+			a_inputMode == HostInputMode::kShell && Hotkeys::IsCapturing() ?
 				MenuEscapeTarget::kKeyCapture : DecideMenuEscapeTarget({
-				a_menuVisible,
+				a_inputMode,
 				activeInteraction,
 				a_dialogActive,
 				topPopupId,

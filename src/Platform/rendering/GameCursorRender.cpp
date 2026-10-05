@@ -40,7 +40,7 @@ namespace Addictol::platformImguiDetail
 			}
 			const auto accepted = previous(a_menu, a_reason, a_renderer);
 			if (a_reason != RE::MENU_RENDER_CONTEXT::kRenderScreenspace ||
-				!DearModdingUI::IsMenuVisible())
+				DearModdingUI::CurrentInputMode() == DearModdingUI::HostInputMode::kGameplay)
 				return accepted;
 
 			DearModdingUI::RenderExecution::Guard execution{
@@ -53,7 +53,8 @@ namespace Addictol::platformImguiDetail
 				!DearModdingUI::CursorLoader::HasFocus())
 				return accepted;
 
-			ApplyDrawingRequestLocked(DearModdingUI::IsMenuVisible());
+			ApplyDrawingRequestLocked(
+				DearModdingUI::CurrentInputMode() != DearModdingUI::HostInputMode::kGameplay);
 			if (!context.drawingEnabled.load(std::memory_order_acquire))
 				return accepted;
 			if (!DearModdingUI::CarrierMenu::IsOpen())

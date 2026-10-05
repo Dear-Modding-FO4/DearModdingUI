@@ -175,7 +175,12 @@ namespace DearModdingUI::HostAPIInternal
 		const auto state = service.state.load(std::memory_order_acquire);
 		if (state == DMUI_HOST_STATE_NOT_INITIALIZED || state == DMUI_HOST_STATE_UNAVAILABLE)
 			return StateResult(state);
-		return service.registry.ReleaseFrame(a_client, a_page);
+		const auto result = service.registry.ReleaseFrame(a_client, a_page);
+		if (result == DMUI_RESULT_OK)
+			service.overlayFocus.EndPageUnless(
+				a_page, DMUI_OVERLAY_FOCUS_END_RELEASED,
+				[&]() noexcept { return service.registry.IsFrameDemanded(a_page); });
+		return result;
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiIsMenuVisible(uint32_t *a_visible) noexcept

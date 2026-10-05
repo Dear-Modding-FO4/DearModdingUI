@@ -48,7 +48,9 @@ when no source label is supplied. Native clients must not provide a bridge sourc
 Settings pages draw only inside the common modal menu. Overlay pages draw without input capture while
 their reference-counted frame demand is nonzero. Balance every successful `requestFrame` with
 `releaseFrame`. Settings pages reject frame demand. The common toggle controls modal visibility and
-game-input suppression; overlay demand never suppresses input.
+game-input suppression; overlay demand alone never suppresses input. A focused managed overlay
+(`requestOverlayFocus`, ABI 2.1) takes keyboard and mouse input and suppresses game input with the
+shell closed, until it is released, loses its demand, or the shell opens.
 
 ## Shared menu
 

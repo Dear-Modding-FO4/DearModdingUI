@@ -64,9 +64,9 @@ namespace DearModdingUI::ControllerNavigation
 			}
 		}
 
-		void Back() noexcept
+		void Back(HostInputMode a_inputMode) noexcept
 		{
-			CaptureMenuEscapePress(true, PresentationServices::HasActiveDialog(),
+			CaptureMenuEscapePress(a_inputMode, PresentationServices::HasActiveDialog(),
 				PresentationServices::ActiveDialogPopupId());
 		}
 
@@ -114,24 +114,25 @@ namespace DearModdingUI::ControllerNavigation
 			return HotkeyMessageResult::kPassThrough;
 		Hotkeys::SetContext(a_context);
 		const auto capturing = Hotkeys::IsCapturing();
-		const auto back = a_code == KeyCatalog::kPadB && a_context.hostMenuVisible;
+		const auto shell = a_context.inputMode == HostInputMode::kShell;
+		const auto back = a_code == KeyCatalog::kPadB && a_context.inputMode != HostInputMode::kGameplay;
 		// Dismissal retires any gameplay-owned B before accepting a fresh press.
 		const auto result = Hotkeys::HandleKey(a_code, 0, a_pressed && !back, a_repeat);
 		if (result == HotkeyMessageResult::kConsumedPairDropped)
 			REX::WARN("DearModdingUI: hotkey event queue overflowed; one press/release pair was dropped");
 		if (!ImGui::GetCurrentContext())
 			return result;
-		if (result == HotkeyMessageResult::kMenuToggle && !a_context.hostMenuVisible)
+		if (result == HotkeyMessageResult::kMenuToggle && !shell)
 			UseNavigation();
 		auto& forwarded = s_forwarded[a_code - KeyCatalog::kGamepadButtonOffset];
-		const auto down = a_pressed && a_context.hostMenuVisible && !capturing &&
+		const auto down = a_pressed && shell && !capturing &&
 			result == HotkeyMessageResult::kPassThrough && (forwarded || !a_repeat);
 		if (back)
 		{
 			if (a_pressed && !a_repeat && result == HotkeyMessageResult::kPassThrough)
 			{
 				SetMode(DecideControllerMode(s_mode, false, a_code));
-				Back();
+				Back(a_context.inputMode);
 			}
 		}
 		else if (down || forwarded)
@@ -252,8 +253,9 @@ namespace DearModdingUI::ControllerNavigation
 		SeedLeftStick();
 	}
 
-	bool PrepareFrame(bool a_visible, bool a_desktop) noexcept
+	bool PrepareFrame(HostInputMode a_inputMode, bool a_desktop) noexcept
 	{
+		auto inputMode = a_inputMode;
 		auto& g = *ImGui::GetCurrentContext();
 		auto& io = g.IO;
 		bool toggle = false;
@@ -289,17 +291,20 @@ namespace DearModdingUI::ControllerNavigation
 				const auto result = RouteButton(
 					static_cast<uint32_t>(slot) + KeyCatalog::kGamepadButtonOffset,
 					event.Key.Down, repeat, event.Key.AnalogValue,
-					{ a_visible, PresentationServices::HasActiveDialog(), a_visible, false });
+					{ inputMode, PresentationServices::HasActiveDialog(), false });
 				if (result == HotkeyMessageResult::kMenuToggle)
 				{
 					toggle = !toggle;
-					a_visible = !a_visible;
+					inputMode = inputMode == HostInputMode::kShell ?
+						HostInputMode::kGameplay : HostInputMode::kShell;
 				}
 			}
 		}
-		if (!a_visible)
+		if (inputMode != HostInputMode::kShell)
 		{
-			Reset();
+			// Reset queues a mouse release, which would cancel every click on a focused overlay.
+			if (inputMode == HostInputMode::kGameplay)
+				Reset();
 			return toggle;
 		}
 		s_reset = false;
