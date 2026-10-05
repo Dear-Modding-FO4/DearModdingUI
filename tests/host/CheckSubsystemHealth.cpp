@@ -70,24 +70,22 @@ namespace vmm_tests
 						HealthEvent::kDeadlineRecovery &&
 					health.Snapshot().state == HealthState::kReady,
 				"deadline progress was reported as full recovery");
-		});
 
-		runner.test("unhealthy subsystems recover only when ready", [start] {
-			CapturingHealthReporter reporter;
-			SubsystemHealth health{ "fixture", reporter, start };
-			health.Observe(HealthState::kDegraded, "using fallback", start);
-			health.Observe(HealthState::kProgressing, "rebuilding", start + 1s);
-			require(reporter.records.back().event == HealthEvent::kTransition,
+			CapturingHealthReporter recoveryReporter;
+			SubsystemHealth recovering{ "fixture", recoveryReporter, start };
+			recovering.Observe(HealthState::kDegraded, "using fallback", start);
+			recovering.Observe(HealthState::kProgressing, "rebuilding", start + 1s);
+			require(recoveryReporter.records.back().event == HealthEvent::kTransition,
 				"an intervening rebuild claimed full recovery");
-			health.Observe(HealthState::kReady, "rebuild complete", start + 2s);
-			require(reporter.records.size() == 3 &&
-					reporter.records.back().event == HealthEvent::kRecovery,
+			recovering.Observe(HealthState::kReady, "rebuild complete", start + 2s);
+			require(recoveryReporter.records.size() == 3 &&
+					recoveryReporter.records.back().event == HealthEvent::kRecovery,
 				"a rebuilt subsystem did not report full recovery");
 
-			health.Observe(HealthState::kFailed, "capability absent", start + 3s);
-			health.Observe(HealthState::kReady, "capability restored", start + 4s);
-			require(reporter.records.size() == 5 &&
-					reporter.records.back().event == HealthEvent::kRecovery,
+			recovering.Observe(HealthState::kFailed, "capability absent", start + 3s);
+			recovering.Observe(HealthState::kReady, "capability restored", start + 4s);
+			require(recoveryReporter.records.size() == 5 &&
+					recoveryReporter.records.back().event == HealthEvent::kRecovery,
 				"a failed subsystem did not report full recovery");
 		});
 

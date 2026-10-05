@@ -83,20 +83,6 @@ namespace vmm_tests::support::host
 		const ExternalOpenRequest& a_request,
 		uint32_t* a_nativeError) noexcept;
 
-	class SilentHealthReporter final : public HealthReporter
-	{
-	public:
-		void Report(
-			HealthEvent a_event,
-			const HealthSnapshot& a_snapshot) noexcept override;
-	};
-
-	[[nodiscard]] bool SameColor(
-		const ImVec4& a_left,
-		const ImVec4& a_right) noexcept;
-	[[nodiscard]] std::string Sha256(
-		const std::filesystem::path& a_path);
-
 	void DMUI_CALL Ready(
 		const DMUI_HostReadyInfo* a_info,
 		void* a_userData) noexcept;

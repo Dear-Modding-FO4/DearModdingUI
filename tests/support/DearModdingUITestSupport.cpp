@@ -1,10 +1,6 @@
 #include "DearModdingUITestSupport.h"
 
-#include <bcrypt.h>
-
 #include <fstream>
-#include <iomanip>
-#include <sstream>
 #include <stdexcept>
 #include <vector>
 
@@ -108,94 +104,6 @@ DMUI_Result FakeExternalOpen(
 	if (a_nativeError)
 		*a_nativeError = s_externalNativeError;
 	return s_externalResult;
-}
-
-	void SilentHealthReporter::Report(
-		HealthEvent,
-		const HealthSnapshot&) noexcept
-	{}
-
-[[nodiscard]] bool SameColor(
-	const ImVec4& a_left,
-	const ImVec4& a_right) noexcept
-{
-	return a_left.x == a_right.x &&
-		a_left.y == a_right.y &&
-		a_left.z == a_right.z &&
-		a_left.w == a_right.w;
-}
-
-[[nodiscard]] std::string Sha256(const std::filesystem::path& a_path)
-{
-	std::ifstream stream{ a_path, std::ios::binary };
-	if (!stream)
-		throw std::runtime_error("could not open file for SHA-256");
-	const std::vector<unsigned char> bytes{
-		std::istreambuf_iterator<char>{ stream },
-		std::istreambuf_iterator<char>{}
-	};
-
-	BCRYPT_ALG_HANDLE algorithm{};
-	BCRYPT_HASH_HANDLE hash{};
-	DWORD objectSize{};
-	DWORD hashSize{};
-	DWORD resultSize{};
-	if (BCryptOpenAlgorithmProvider(
-			&algorithm,
-			BCRYPT_SHA256_ALGORITHM,
-			nullptr,
-			0) < 0 ||
-		BCryptGetProperty(
-			algorithm,
-			BCRYPT_OBJECT_LENGTH,
-			reinterpret_cast<PUCHAR>(&objectSize),
-			sizeof(objectSize),
-			&resultSize,
-			0) < 0 ||
-		BCryptGetProperty(
-			algorithm,
-			BCRYPT_HASH_LENGTH,
-			reinterpret_cast<PUCHAR>(&hashSize),
-			sizeof(hashSize),
-			&resultSize,
-			0) < 0)
-	{
-		if (algorithm)
-			BCryptCloseAlgorithmProvider(algorithm, 0);
-		throw std::runtime_error("could not initialize SHA-256");
-	}
-
-	std::vector<unsigned char> object(objectSize);
-	std::vector<unsigned char> digest(hashSize);
-	const auto created = BCryptCreateHash(
-		algorithm,
-		&hash,
-		object.data(),
-		objectSize,
-		nullptr,
-		0,
-		0);
-	const auto hashed = created >= 0 ?
-		BCryptHashData(
-			hash,
-			const_cast<PUCHAR>(bytes.data()),
-			static_cast<ULONG>(bytes.size()),
-			0) :
-		created;
-	const auto finished = hashed >= 0 ?
-		BCryptFinishHash(hash, digest.data(), hashSize, 0) :
-		hashed;
-	if (hash)
-		BCryptDestroyHash(hash);
-	BCryptCloseAlgorithmProvider(algorithm, 0);
-	if (finished < 0)
-		throw std::runtime_error("could not calculate SHA-256");
-
-	std::ostringstream result;
-	result << std::hex << std::setfill('0');
-	for (const auto byte : digest)
-		result << std::setw(2) << static_cast<unsigned>(byte);
-	return result.str();
 }
 
 void DMUI_CALL Ready(const DMUI_HostReadyInfo* a_info, void* a_userData) noexcept
@@ -402,4 +310,13 @@ void AddCategory(
 		"action registration failed");
 	return handle;
 }
+}
+
+namespace DearModdingUI
+{
+	bool PageFailed(DMUI_PageHandle) noexcept
+	{
+		// SidebarView links without Host.cpp, so it needs a host-free stand-in.
+		return false;
+	}
 }

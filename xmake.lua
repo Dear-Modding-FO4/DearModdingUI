@@ -380,7 +380,7 @@ target("dmui-tests", function()
         "Depends/commonlibf4/lib/dearmoddingui-api/include"
     )
     add_defines("DMUI_UI_TESTING", "DMUI_PREVIEW")
-    add_syslinks("bcrypt", "d3d11", "dxgi", "d3dcompiler", "shell32", "windowscodecs", "ole32")
+    add_syslinks("d3d11", "dxgi", "d3dcompiler", "shell32", "windowscodecs", "ole32")
 end)
 
 target("dmui-preview", function()

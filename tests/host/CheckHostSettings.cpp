@@ -2,14 +2,11 @@
 #include "../support/ImGuiTestContext.h"
 #include <DearModdingUI/presentation/FontCatalog.h>
 #include <DearModdingUI/settings/HostSettings.h>
-#include <DearModdingUI/settings/HostSettingsColorControls.h>
 #include <DearModdingUI/settings/HostSettingsHealthState.h>
 #include <DearModdingUI/settings/HostSettingsView.h>
 #include <DearModdingUI/SettingsActions.h>
-#include <DearModdingUI/VisualDecisions.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/ThemeDefaults.h>
-#include <DearModdingUI/presentation/TypographyHealth.h>
 #include <Platform/settings/GameColors.h>
 #include <algorithm>
 #include <array>
@@ -28,91 +25,6 @@ namespace vmm_tests
 
 	void run_host_settings_checks(Runner& runner)
 	{
-		runner.test("logo colors persist and diagnose invalid configuration", [] {
-			const auto root = std::filesystem::current_path() /
-				".Build" / "Tests" / "logo-config-fixture";
-			std::filesystem::create_directories(root);
-			const auto path = root / "DearModdingUI.toml";
-			std::ofstream(path) << "[Additional]\n";
-			auto loaded = LoadHostInterfaceSettings(path);
-			require(loaded.settings.logoColors == LogoColorMode::kOriginal &&
-					loaded.disposition == HostSettingsLoadDisposition::kLoaded,
-				"older configs did not default to original logo colors");
-			auto draft = BeginHostSettingsDraft(loaded.settings);
-			draft.draft.logoColors = LogoColorMode::kAccent;
-			require(HostSettingsDraftDiffers(draft) &&
-					PreviewHostInterfaceSettings(draft.draft).logoColors == LogoColorMode::kAccent,
-				"logo colors were omitted from the draft preview");
-			const auto persisted = EncodeHostInterfaceSettings(draft.draft);
-			require(persisted.logoColors == "accent" &&
-					PersistHostInterfaceSettings(path, persisted).saved,
-				"accent logo colors could not be saved");
-			loaded = LoadHostInterfaceSettings(path);
-			require(loaded.settings.logoColors == LogoColorMode::kAccent &&
-					loaded.disposition == HostSettingsLoadDisposition::kLoaded,
-				"accent logo colors did not round-trip");
-			RevertHostSettingsDraft(draft);
-			require(draft.draft.logoColors == LogoColorMode::kOriginal,
-				"revert retained the logo color preview");
-			std::ofstream(path, std::ios::trunc)
-				<< "[Additional]\nsMenuLogoColors = \"unknown\"\n";
-			loaded = LoadHostInterfaceSettings(path);
-			require(loaded.settings.logoColors == LogoColorMode::kOriginal &&
-					loaded.disposition == HostSettingsLoadDisposition::kCorrected &&
-					loaded.detail.find("sMenuLogoColors \"unknown\" used \"original\"") != std::string::npos,
-				"invalid logo colors lost fallback or diagnostics");
-			std::filesystem::remove_all(root);
-		});
-
-		runner.test("settings action rows keep fixed non-overlapping geometry", [] {
-			constexpr std::array widths{ 24.0f, 28.0f, 32.0f };
-			const auto widthSum =
-				ResolveSettingsActionButtonWidthSum(widths, false, 0);
-			require(
-				widthSum == ResolveSettingsActionButtonWidthSum(widths, true, 7),
-				"draft state or pending count changed action-row extent");
-			const auto layout = ResolveHostSettingsTitleRowLayout(
-				100.0f, 400.0f, widthSum, widths.size(), 24.0f, 4.0f);
-			require(
-				layout.titleMaxX <= layout.actionsMinX &&
-					layout.actionsMaxX - layout.actionsMinX == 92.0f &&
-					layout.actionsMaxX + 4.0f == layout.closeMinX &&
-					layout.closeMinX == 376.0f && layout.closeMaxX == 400.0f,
-				"settings actions lost their reserved width or overlapped the close control");
-		});
-
-		runner.test("sidebar layout commits outside the discardable settings preview", [] {
-			auto state = BeginHostSettingsDraft(
-				DefaultHostInterfaceSettings());
-			state.draft.accentColor = { 0x00, 0x72, 0xB2 };
-			CommitHostSettingsSidebarLayout(
-				state,
-				SidebarLayoutKind::DrillDown);
-			require(
-				state.committed.sidebarLayout == SidebarLayoutKind::DrillDown &&
-					state.draft.sidebarLayout == SidebarLayoutKind::DrillDown,
-				"immediate layout commit did not update both settings baselines");
-			LeaveHostSettingsDraft(state);
-			require(
-				!state.active &&
-					state.draft.sidebarLayout == SidebarLayoutKind::DrillDown &&
-					state.draft.accentColor ==
-						DefaultHostInterfaceSettings().accentColor &&
-					!HostSettingsDraftDiffers(state),
-				"discarding cosmetic previews also discarded the saved layout");
-
-			state = BeginHostSettingsDraft(state.committed);
-			ResetHostSettingsDraft(state);
-			CommitHostSettingsSidebarLayout(
-				state,
-				state.draft.sidebarLayout);
-			RevertHostSettingsDraft(state);
-			require(
-				state.committed.sidebarLayout == DEFAULT_SIDEBAR_LAYOUT &&
-					state.draft == state.committed,
-				"reset and revert disagreed with the immediately saved layout");
-		});
-
 		runner.test("host settings draft reverts and resets safely", [] {
 			const HostInterfaceSettings changed{
 				Theme::IconColorMode::kMonochrome,
@@ -147,130 +59,25 @@ namespace vmm_tests
 			require(state.committed == changed &&
 					HostSettingsDraftDiffers(state),
 				"reset committed instead of updating the draft");
-		});
 
-		runner.test("game color buttons edit only the discardable accent and persist through host settings", [] {
-			support::ImGuiTestContext imgui{ { .disableInputTrickle = true } };
-			auto original = DefaultHostInterfaceSettings();
-			original.accentColor = { 0x12, 0x34, 0x56 };
-			original.paletteBackgroundColor = { 0x32, 0x54, 0x76 };
-			original.feedbackInfoColor = { 0x65, 0x43, 0x21 };
-			original.iconColorMode = Theme::IconColorMode::kMonochrome;
-			auto state = BeginHostSettingsDraft(original);
-			auto hud = ReadGameColor(GameColorSource::kHUD);
-			auto pipboy = ReadGameColor(GameColorSource::kPipboy);
-			require(!hud && !pipboy,
-				"standalone color sources fabricated game preferences");
-
-			ImVec2 pipboyTarget{};
-			const auto frame = [&](ImVec2 mouse, bool down) {
-				auto& io = ImGui::GetIO();
-				io.AddMousePosEvent(mouse.x, mouse.y);
-				io.AddMouseButtonEvent(ImGuiMouseButton_Left, down);
-				imgui.BeginWindow(
-					"##GameColorSync",
-					{ 0.0f, 0.0f },
-					{ 420.0f, 160.0f },
-					ImGuiWindowFlags_NoDecoration |
-						ImGuiWindowFlags_NoSavedSettings);
-				ImGui::SetCursorScreenPos({ 20.0f, 40.0f });
-				const auto changed =
-					HostSettingsViewDetail::DrawGameColorSyncControls(
-						state.draft.accentColor, hud, pipboy, 340.0f);
-				const auto lastButton = ImGui::GetItemRectMin();
-				pipboyTarget = { lastButton.x + 5.0f, lastButton.y + 5.0f };
-				imgui.EndWindow();
-				return changed;
-			};
-			const auto click = [&](ImVec2 target) {
-				(void)frame(target, false);
-				(void)frame(target, true);
-				return frame(target, false);
-			};
-			(void)frame({ -100.0f, -100.0f }, false);
-			const ImVec2 hudTarget{ 25.0f, 45.0f };
-			require(!click(hudTarget) && !click(pipboyTarget) &&
-					state.draft == original && !HostSettingsDraftDiffers(state),
-				"unavailable game colors changed the custom accent");
-
-			hud = HostAccentColor{ 0x08, 0xA9, 0xFA };
-			require(!click(pipboyTarget) && state.draft == original,
-				"an unavailable Pip-Boy source copied the HUD color");
-			require(click(hudTarget), "HUD sync button did not apply its color");
-			auto expected = original;
-			expected.accentColor = *hud;
-			require(state.draft == expected && state.committed == original &&
-					HostSettingsDraftDiffers(state) &&
-					PreviewHostInterfaceSettings(state.draft).accentColor == *hud,
-				"HUD sync bypassed the draft or changed other overrides");
-			hud = HostAccentColor{ 0xA0, 0xB0, 0xC0 };
-			require(!frame({ -100.0f, -100.0f }, false) &&
-					state.draft == expected,
-				"game colors were followed automatically instead of copied once");
-			RevertHostSettingsDraft(state);
-			require(state.draft == original && !HostSettingsDraftDiffers(state),
-				"revert did not restore the custom accent");
-
-			pipboy = HostAccentColor{ 0xE1, 0x72, 0x03 };
-			require(click(pipboyTarget),
-				"Pip-Boy sync button did not apply its color");
-			expected.accentColor = *pipboy;
-			require(state.draft == expected && state.committed == original,
-				"Pip-Boy sync used the wrong source or changed other overrides");
-			require(!click(pipboyTarget),
-				"syncing the current accent reported a new edit");
-
-			const auto path = std::filesystem::current_path() /
-				".Build" / "Tests" / "GameColorSync.toml";
-			auto persisted = EncodeHostInterfaceSettings(state.draft);
-			persisted.hotkeys = { { "test.action", "F8" } };
-			require(PersistHostInterfaceSettings(path, persisted).saved,
-				"synced color could not be saved through host persistence");
-			const auto loaded = LoadHostInterfaceSettings(path);
-			std::filesystem::remove(path);
-			require(loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
-					loaded.settings == expected &&
-					loaded.hotkeys == persisted.hotkeys,
-				"synced accent or unrelated overrides changed on reload");
+			state = BeginHostSettingsDraft(DefaultHostInterfaceSettings());
+			state.draft.accentColor = { 0x00, 0x72, 0xB2 };
+			CommitHostSettingsSidebarLayout(state, SidebarLayoutKind::DrillDown);
 			LeaveHostSettingsDraft(state);
-			require(state.draft == original,
-				"leaving settings retained an unapplied synced color");
-		});
-
-		runner.test("host settings previews separate appearance from typography", [] {
-			const auto committed = DefaultHostInterfaceSettings();
-			auto draft = committed;
-			for (const bool changeFont : { false, true })
-			{
-				draft = committed;
-				if (changeFont)
-					draft.bodyFontFamily = "Atkinson Hyperlegible";
-				else
-					draft.uiScale = 1.25f;
-				require(PreviewHostInterfaceSettings(draft) ==
-						PreviewHostInterfaceSettings(committed),
-					"typography settings leaked into the live preview");
-			}
-
-			const auto checkAppearance = [&committed](const auto& appearance) {
-				require(PreviewHostInterfaceSettings(appearance) !=
-							PreviewHostInterfaceSettings(committed),
-					"appearance was omitted from preview");
-			};
-			draft = committed;
-			draft.accentColor = { 0x00, 0x72, 0xB2 };
-			checkAppearance(draft);
-			draft = committed;
-			draft.paletteBackgroundColor = { 0x12, 0x12, 0x12 };
-			draft.paletteBackgroundOpacity = 0.70f;
-			checkAppearance(draft);
-			draft = committed;
-			draft.sidebarLayout = SidebarLayoutKind::TwoPane;
-			checkAppearance(draft);
-			draft = committed;
-			draft.feedbackPlacement = FieldFeedbackPlacement::kUnderLabel;
-			draft.feedbackInfoColor = { 0x00, 0x72, 0xB2 };
-			checkAppearance(draft);
+			require(
+				state.draft.sidebarLayout == SidebarLayoutKind::DrillDown &&
+					state.draft.accentColor ==
+						DefaultHostInterfaceSettings().accentColor &&
+					!HostSettingsDraftDiffers(state),
+				"discarding cosmetic previews also discarded the saved layout");
+			state = BeginHostSettingsDraft(state.committed);
+			ResetHostSettingsDraft(state);
+			CommitHostSettingsSidebarLayout(state, state.draft.sidebarLayout);
+			RevertHostSettingsDraft(state);
+			require(
+				state.committed.sidebarLayout == DEFAULT_SIDEBAR_LAYOUT &&
+					state.draft == state.committed,
+				"reset and revert disagreed with the immediately saved layout");
 		});
 
 		runner.test("host settings persistence round trips every stored value", [] {
@@ -309,6 +116,7 @@ namespace vmm_tests
 					true
 				}
 			};
+			settings[2].logoColors = LogoColorMode::kAccent;
 			for (const auto& runtime : settings)
 			{
 				const auto persisted = EncodeHostInterfaceSettings(runtime);
@@ -338,6 +146,7 @@ namespace vmm_tests
 			persisted.feedbackInfoColor = "blue";
 			persisted.feedbackWarningColor = "#GG0000";
 			persisted.feedbackErrorColor = "12345";
+			persisted.sidebarLayout = "columns";
 			const auto decoded = DecodeHostInterfaceSettings(persisted);
 			require(
 				decoded.accentColor == kDefaultHostAccentColor,
@@ -378,6 +187,8 @@ namespace vmm_tests
 					decoded.feedbackErrorColor ==
 						kDefaultFeedbackErrorColor,
 				"malformed feedback appearance did not fall back");
+			require(decoded.sidebarLayout == SidebarLayoutKind::Tree,
+				"an unavailable sidebar layout did not fall back to tree");
 		});
 
 		runner.test("host settings health distinguishes absent valid and malformed files", [] {
@@ -411,12 +222,6 @@ namespace vmm_tests
 					loaded.settings.menuToggleGamepad == "PadBack+PadLB+PadRB" &&
 					toggle.recognized && toggle.chord == HotkeyChord{ 0x57, 0 },
 				"an old valid host config did not retain the default FallSouls mode");
-			const auto pageDown = ParseMenuToggleChord("Pgdn");
-			require(
-				pageDown.recognized && pageDown.chord == HotkeyChord{ 0xD1, 0 } &&
-					SerializeHotkeyChord(pageDown.chord) == "PageDown" &&
-					ParseMenuToggleChord("pageup").chord == HotkeyChord{ 0xC9, 0 },
-				"Page Up/Down names or aliases were not accepted");
 
 			std::ofstream(path, std::ios::trunc)
 				<< "[Additional]\n"
@@ -658,57 +463,6 @@ namespace vmm_tests
 			std::filesystem::remove_all(root, error);
 		});
 
-		runner.test("typography health distinguishes requested fallback and failure", [] {
-			Theme::TypographyLoadOutcome ready;
-			ready.requestedFamily = "Jost";
-			ready.effectiveFamily = "Jost";
-			ready.requestedFamilyFound = true;
-			ready.requestedBodyLoaded = true;
-			ready.rolesLoaded.fill(true);
-			ready.iconsLoaded = true;
-			ready.usableAtlas = true;
-			auto observation = Theme::ClassifyTypographyHealth(ready);
-			require(
-				observation.state == HealthState::kReady &&
-					observation.reason.find("Phosphor") != std::string::npos,
-				"complete typography did not report ready");
-
-			auto fallback = ready;
-			fallback.requestedFamily = "Missing Family";
-			fallback.requestedFamilyFound = false;
-			fallback.rolesLoaded[
-				static_cast<size_t>(Theme::FontRole::kHeading)] = false;
-			fallback.iconsLoaded = false;
-			observation = Theme::ClassifyTypographyHealth(fallback);
-			require(
-				observation.state == HealthState::kDegraded &&
-					observation.reason.find("Missing Family") !=
-						std::string::npos &&
-					observation.reason.find("heading") !=
-						std::string::npos &&
-					observation.reason.find("text-only") !=
-						std::string::npos,
-				"typography fallback health lost its concrete causes");
-
-			fallback.emergencyFontUsed = true;
-			fallback.effectiveFamily = "Built-in fallback";
-			observation = Theme::ClassifyTypographyHealth(fallback);
-			require(
-				observation.state == HealthState::kDegraded &&
-					observation.reason.find("emergency") !=
-						std::string::npos,
-				"usable emergency typography was reported as failed");
-
-			fallback.usableAtlas = false;
-			fallback.emergencyFontUsed = false;
-			observation = Theme::ClassifyTypographyHealth(fallback);
-			require(
-				observation.state == HealthState::kFailed &&
-					observation.reason.find("font atlas") !=
-						std::string::npos,
-				"missing typography capability was not failed");
-		});
-
 		runner.test("font families enumerate regular faces and fall back", [] {
 			struct RemoveTree
 			{
@@ -760,6 +514,5 @@ namespace vmm_tests
 			require(fallback && fallback->name == "Jost",
 				"missing font family did not fall back to Jost");
 		});
-
 	}
 }

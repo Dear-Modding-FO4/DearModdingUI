@@ -271,7 +271,12 @@ namespace vmm_tests
 			(void)AddPage(
 				registry, client, "diagnostics-b", "Diagnostics B", "Diagnostics11", 0,
 				DMUI_PAGE_KIND_SETTINGS, state);
+			const auto overlay = AddPage(
+				registry, client, "overlay", "Overlay", "alpha", 0,
+				DMUI_PAGE_KIND_OVERLAY, state);
 			require(registry.Freeze(), "ordered category registry did not freeze");
+			require(registry.Navigation().FindPage(overlay) == nullptr,
+				"overlay page entered settings navigation");
 			const auto& categories = registry.Navigation().clients.front().categories;
 			require(
 				categories.size() == 5 &&
@@ -314,13 +319,16 @@ namespace vmm_tests
 			CallbackState state;
 			char clientId[] = "copy.mod";
 			char clientName[] = "Copy";
+			char clientIcon[] = "gauge";
 			auto clientDescriptor = Client(clientId, clientName, state);
+			clientDescriptor.iconName = clientIcon;
 			DMUI_ClientHandle client{};
 			require(registry.RegisterClient(
 						&clientDescriptor, &client) == DMUI_RESULT_OK,
 				"copy client failed");
 			clientId[0] = 'x';
 			clientName[0] = 'X';
+			clientIcon[0] = 'x';
 			char actionId[] = "copy";
 			char actionLabel[] = "Copy diagnostics";
 			char actionIcon[] = "clipboard-text";
@@ -349,12 +357,46 @@ namespace vmm_tests
 				(void)AddPage(registry, client, id.c_str(), name.c_str(), "general",
 					static_cast<int32_t>(index), DMUI_PAGE_KIND_SETTINGS, state);
 			}
+			char sourceLabel[]{ "MCM" };
+			auto bridged = Client("bridged.mod", "Bridged", state);
+			bridged.origin = DMUI_CLIENT_ORIGIN_BRIDGED;
+			bridged.bridgeSourceLabel = sourceLabel;
+			DMUI_ClientHandle bridgedHandle{};
+			require(registry.RegisterClient(&bridged, &bridgedHandle) ==
+					DMUI_RESULT_OK,
+				"a bridged client was rejected");
+			sourceLabel[0] = 'X';
+			auto contradictory = Client("native.source", "Native Source", state);
+			contradictory.bridgeSourceLabel = "MCM";
+			DMUI_ClientHandle contradictoryHandle{};
+			require(
+				registry.RegisterClient(&contradictory, &contradictoryHandle) ==
+					DMUI_RESULT_INVALID_DESCRIPTOR,
+				"a native client carried a bridge source label");
 			require(registry.Freeze(), "registry did not freeze");
 			require(registry.PageCount() == 32, "dynamic registry retained a fixed capacity");
 			require(registry.OrderedPages().front().clientId == "copy.mod",
 				"client ID was not copied");
 			require(registry.OrderedPages().front().clientDisplayName == "Copy",
 				"client name was not copied");
+			const auto& registered = registry.RegisteredClients();
+			const auto bridgedClient = std::ranges::find(
+				registered,
+				"bridged.mod",
+				&RegisteredClient::id);
+			require(
+				bridgedClient != registered.end() &&
+					bridgedClient->origin == DMUI_CLIENT_ORIGIN_BRIDGED &&
+					bridgedClient->bridgeSourceLabel == "MCM",
+				"the bridge source label was not copied");
+			const auto navigationClient = std::ranges::find(
+				registry.Navigation().clients,
+				"copy.mod",
+				&NavigationClient::id);
+			require(
+				navigationClient != registry.Navigation().clients.end() &&
+					navigationClient->iconName == "gauge",
+				"the client icon name was not deep-copied");
 			const auto& actions = registry.OrderedActions();
 			require(
 					actions.size() == 4 &&
@@ -377,6 +419,5 @@ namespace vmm_tests
 							"Copy a summary.",
 					"action descriptor strings were not copied");
 		});
-
 	}
 }

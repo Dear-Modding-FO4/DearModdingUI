@@ -59,35 +59,6 @@ namespace vmm_tests
 				"null page callback was accepted");
 		});
 
-		runner.test("client registration copies icon metadata", [] {
-			CallbackState state;
-
-			Registry registry;
-			DMUI_ClientHandle handle{};
-
-			char iconName[]{ "gauge" };
-			auto client = Client("owned.mod", "Owned", state);
-			client.iconName = iconName;
-			require(registry.RegisterClient(&client, &handle) == DMUI_RESULT_OK,
-				"client icon registration failed");
-			iconName[0] = 'x';
-			AddCategory(registry, handle, "general", "General");
-			(void)AddPage(
-				registry,
-				handle,
-				"settings",
-				"Settings",
-				"general",
-				0,
-				DMUI_PAGE_KIND_SETTINGS,
-				state);
-			require(registry.Freeze(), "registry with a client icon did not freeze");
-			require(
-				registry.Navigation().clients.size() == 1 &&
-					registry.Navigation().clients.front().iconName == "gauge",
-				"the client icon name was not deep-copied");
-		});
-
 		runner.test("navigation icons validate and copy descriptor metadata", [] {
 			Registry registry;
 			CallbackState state;
@@ -215,45 +186,5 @@ namespace vmm_tests
 						"sliders-horizontal",
 				"navigation model dropped copied icon metadata");
 		});
-
-
-
-
-
-
-
-
-
-
-
-
-
-		runner.test("bridged clients carry copied source labels", [] {
-			Registry registry;
-			CallbackState state;
-			char sourceLabel[]{ "MCM" };
-			auto client = Client("bridged.mod", "Bridged", state);
-			client.origin = DMUI_CLIENT_ORIGIN_BRIDGED;
-			client.bridgeSourceLabel = sourceLabel;
-			DMUI_ClientHandle handle{};
-
-			require(registry.RegisterClient(&client, &handle) == DMUI_RESULT_OK,
-				"a bridged client was rejected");
-			sourceLabel[0] = 'X';
-			const auto& registered = registry.RegisteredClients().front();
-			require(
-				registered.origin == DMUI_CLIENT_ORIGIN_BRIDGED &&
-					registered.bridgeSourceLabel == "MCM",
-				"the bridge source label was not copied");
-
-			auto contradictory =
-				Client("native.source", "Native Source", state);
-			contradictory.bridgeSourceLabel = "MCM";
-			require(
-				registry.RegisterClient(&contradictory, &handle) ==
-					DMUI_RESULT_INVALID_DESCRIPTOR,
-				"a native client carried a bridge source label");
-		});
-
 	}
 }

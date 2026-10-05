@@ -163,6 +163,22 @@ namespace vmm_tests
 				"a faulted page was invoked again");
 			require(drawRegistry.PageFailed(drawPage) && drawRegistry.HasSettingsPages(),
 				"faulting a page removed the host's settings shell");
+			require(drawRegistry.InvokePage(drawPage + 1000) ==
+						DMUI_RESULT_PAGE_NOT_FOUND &&
+					drawRegistry.InvokeAction(DMUI_ActionHandle{ 1000 }) ==
+						DMUI_RESULT_ACTION_NOT_FOUND,
+				"an unknown handle was invoked");
+			auto uiErrorDescriptor = Page(
+				"ui-error", "UI error", "general", 1, DMUI_PAGE_KIND_SETTINGS, drawState);
+			uiErrorDescriptor.draw = &UnsupportedDrawPage;
+			DMUI_PageHandle uiErrorPage{};
+			require(
+				drawRegistry.RegisterPage(
+					drawClient, &uiErrorDescriptor, &uiErrorPage) == DMUI_RESULT_OK &&
+					drawRegistry.InvokePage(uiErrorPage) == DMUI_RESULT_UNSUPPORTED_ABI &&
+					drawRegistry.PageFailed(uiErrorPage) &&
+					drawRegistry.InvokePage(uiErrorPage) == DMUI_RESULT_CALLBACK_FAILED,
+				"UI error was not surfaced and isolated at the callback boundary");
 
 			auto drawActionDescriptor = Action(
 				"throw", "Throw", nullptr, 0, drawState);
@@ -226,48 +242,6 @@ namespace vmm_tests
 			require(registry.ReleaseFrame(client, overlay) == DMUI_RESULT_NO_FRAME_DEMAND,
 				"unbalanced release was accepted");
 			require(registry.HasSettingsPages(), "overlay behavior hid modal settings");
-		});
-
-		runner.test("page callbacks receive userdata and failed lookups stay isolated", [] {
-			Registry registry;
-			CallbackState state;
-			const auto client = AddClient(registry, "draw.mod", "Draw", state);
-			AddCategory(registry, client, "general", "General");
-			const auto page = AddPage(registry, client, "draw", "Draw", "general", 0,
-				DMUI_PAGE_KIND_SETTINGS, state);
-			require(registry.InvokePage(page) == DMUI_RESULT_OK, "draw callback failed");
-			require(state.draws == 1, "draw callback did not receive userdata");
-			require(registry.InvokePage(page + 1) == DMUI_RESULT_PAGE_NOT_FOUND,
-				"unknown page was invoked");
-			const auto action = AddAction(
-				registry, client, "draw", "Draw", nullptr, 0, state);
-			require(registry.InvokeAction(action) == DMUI_RESULT_OK,
-				"action callback failed");
-			require(state.draws == 2, "action callback did not receive userdata");
-			require(registry.InvokeAction(action + 1) == DMUI_RESULT_ACTION_NOT_FOUND,
-				"unknown action was invoked");
-		});
-
-		runner.test("page UI errors cross the callback boundary without becoming false draws", [] {
-			Registry registry;
-			CallbackState state;
-			const auto client =
-				AddClient(registry, "ui-error.mod", "UI error", state);
-			AddCategory(registry, client, "general", "General");
-			auto descriptor =
-				Page("ui-error", "UI error", "general", 0,
-					DMUI_PAGE_KIND_SETTINGS, state);
-			descriptor.draw = &UnsupportedDrawPage;
-			DMUI_PageHandle page{};
-			require(
-				registry.RegisterPage(client, &descriptor, &page) ==
-					DMUI_RESULT_OK,
-				"UI-error page registration failed");
-			require(
-				registry.InvokePage(page) == DMUI_RESULT_UNSUPPORTED_ABI &&
-					registry.PageFailed(page) &&
-					registry.InvokePage(page) == DMUI_RESULT_CALLBACK_FAILED,
-				"UI error was not surfaced and isolated at the callback boundary");
 		});
 	}
 }

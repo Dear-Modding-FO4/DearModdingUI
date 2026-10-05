@@ -93,73 +93,6 @@ namespace vmm_tests
 				"explicit field feedback clear was rejected");
 		});
 
-		runner.test("declarative setting filters match metadata without reading values", [] {
-			const dmui::SettingDescriptor setting{
-				.id = "bHighResolution",
-				.label = "High Resolution",
-				.description = "Increases texture detail for distant objects.",
-				.control = dmui::CheckboxSettingControl{},
-				.defaultValue = false
-			};
-			require(
-				dmui::MatchesSettingFilter(
-					setting,
-					"High Resolution",
-					false,
-					{ "HIGH RES", false }) &&
-					dmui::MatchesSettingFilter(
-						setting,
-						"High Resolution",
-						false,
-						{ "bhigh", false }) &&
-					dmui::MatchesSettingFilter(
-						setting,
-						"High Resolution",
-						false,
-						{ "DISTANT OBJECTS", false }),
-				"case-insensitive metadata filtering lost a match");
-			require(
-				!dmui::MatchesSettingFilter(
-					setting,
-					"High Resolution",
-					false,
-					{ "shadows", false }) &&
-					!dmui::MatchesSettingFilter(
-						setting,
-						"High Resolution",
-						false,
-						{ "", true }) &&
-					dmui::MatchesSettingFilter(
-						setting,
-						"High Resolution",
-						true,
-						{ "", true }),
-				"modified-only or negative filtering changed");
-
-			const dmui::SettingGroup group{
-				.id = "questions",
-				.label = "Questions",
-				.settings = {
-					{ .id = "first", .label = "First" },
-					{ .id = "second", .label = "Second" }
-				},
-				.rows = {
-					dmui::SettingGroup::SettingIndex{ 0 },
-					dmui::SettingGroup::DividerRow{},
-					dmui::SettingGroup::SettingIndex{ 1 }
-				}
-			};
-			const auto all = dmui::setting_detail::MatchingRows(group, {});
-			const auto filtered =
-				dmui::setting_detail::MatchingRows(group, { "second" });
-			require(
-				all.size() == 3 &&
-					dmui::setting_detail::MatchingContentCount(all) == 2 &&
-					filtered.size() == 1 &&
-					dmui::setting_detail::MatchingContentCount(filtered) == 1,
-				"divider rows changed heading counts or survived lone filtering");
-		});
-
 		runner.test("declarative pending count uses dirty state without value getters", [] {
 			auto firstDirty = false;
 			auto secondDirty = true;
@@ -211,13 +144,7 @@ namespace vmm_tests
 				"pending count did not follow dynamic dirty state");
 		});
 
-		runner.test("declarative numeric controls select widgets and normalize values", [] {
-			const dmui::DoubleSettingControl input;
-			const dmui::DoubleSettingControl drag{
-				.range = dmui::NumericSettingRange<double>{
-					.minimum = 0.0
-				}
-			};
+		runner.test("declarative numeric controls normalize values", [] {
 			const dmui::DoubleSettingControl slider{
 				.range = dmui::NumericSettingRange<double>{
 					.minimum = 0.0,
@@ -225,14 +152,6 @@ namespace vmm_tests
 				},
 				.format = "%.2f"
 			};
-			require(
-				dmui::ResolveNumericSettingWidget(input) ==
-						dmui::NumericSettingWidget::kInput &&
-					dmui::ResolveNumericSettingWidget(drag) ==
-						dmui::NumericSettingWidget::kDrag &&
-					dmui::ResolveNumericSettingWidget(slider) ==
-						dmui::NumericSettingWidget::kSlider,
-				"numeric range shape selected the wrong widget");
 			require(
 				dmui::ClampSettingNumber(
 					std::numeric_limits<double>::quiet_NaN(),

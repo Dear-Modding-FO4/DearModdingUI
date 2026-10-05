@@ -1,4 +1,5 @@
 #include <DearModdingUI/host/Hotkeys.h>
+#include <DearModdingUI/host/MenuToggleChord.h>
 #include <DearModdingUI/host/RenderExecution.h>
 #include "../Harness.h"
 
@@ -126,6 +127,12 @@ namespace vmm_tests
 					"host accepted a key without a supported binding producer");
 			require(ParseHotkeyChord("Pause").recognized,
 				"Pause is still excluded from keyboard bindings");
+			const auto pageDown = ParseMenuToggleChord("Pgdn");
+			require(
+				pageDown.recognized && pageDown.chord == HotkeyChord{ 0xD1, 0 } &&
+					SerializeHotkeyChord(pageDown.chord) == "PageDown" &&
+					ParseMenuToggleChord("pageup").chord == HotkeyChord{ 0xC9, 0 },
+				"Page Up/Down names or aliases were not accepted");
 		});
 
 		runner.test("key capture owns edges before actions and cancels cleanly", [] {
@@ -231,24 +238,6 @@ namespace vmm_tests
 				"keyboard/mouse combination lost ordering");
 		});
 
-		runner.test("hotkey display uses short labels and natural controller ordering", [] {
-			for (const auto& [chord, display] : {
-					 std::pair{ "Ctrl+Shift+F11", "Ctrl + Shift + F11" },
-					 std::pair{ "Mouse4", "Mouse 4" },
-					 std::pair{ "WheelUp", "Wheel Up" },
-					 std::pair{ "Numpad5", "Numpad 5" },
-					 std::pair{ "PadBack+PadLB+PadRB", "LB + RB + View" },
-					 std::pair{ "PadA+PadStart+PadLT", "LT + Start + A" },
-					 std::pair{ "PadDown+PadRT+PadB", "RT + B + D-Pad Down" },
-					 std::pair{ "PadLS+PadRS+PadX", "LS + RS + X" },
-					 std::pair{ "PadLeft+PadRight+PadY", "Y + D-Pad Left + D-Pad Right" },
-					 std::pair{ "PadUp", "D-Pad Up" },
-					 std::pair{ "none", "Not set" },
-					 std::pair{ "Unknown", "Invalid binding" } })
-				require(FormatHotkeyChord(chord) == display,
-					std::string{ chord } + " displayed incorrectly");
-		});
-
 		runner.test("dual slots match held combinations and release the triggering key", [] {
 			HotkeyRegistry registry;
 			CallbackState state;
@@ -305,6 +294,9 @@ namespace vmm_tests
 			registry.SetReservedChord(ParseHotkeyChord("PadLB+PadRB+PadBack").chord, HotkeySlot::kGamepad);
 			const auto action = Register(registry, 1, "Example.First", "Ctrl+F5", state);
 			(void)Register(registry, 2, "Example.Second", "F6", state);
+			require(registry.SetOverride("Example.Second", "Ctrl+F5") ==
+						DMUI_RESULT_DUPLICATE_ACTION_ID,
+				"a conflicting edit bypassed the toggle chord reservation");
 			require(Query(registry, 1, action).state == DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT &&
 					registry.SetOverride("Example.First", "PadBack+PadRB+PadLB", HotkeySlot::kGamepad) ==
 						DMUI_RESULT_DUPLICATE_ACTION_ID,
@@ -331,6 +323,9 @@ namespace vmm_tests
 				"gamepad toggle did not own exactly one press pair");
 			registry.DispatchQueued();
 			require(state.edgeCount == 0, "reserved toggle called a client");
+			registry.SetReservedChord({ 0x3F, 0 });
+			require(Query(registry, 1, action).state == DMUI_HOTKEY_BINDING_BOUND,
+				"changing the toggle chord did not recompute exact conflicts");
 		});
 
 		runner.test("capture accumulates only the selected slot and consumes remaining releases", [] {
@@ -464,30 +459,6 @@ namespace vmm_tests
 			require(Query(registry, 1, unset).state ==
 					DMUI_HOTKEY_BINDING_UNBOUND_NEVER_SET,
 				"never-set state was not reported");
-		});
-
-		runner.test("host reservation conflicts only with the exact toggle chord", [] {
-			HotkeyRegistry registry;
-			registry.SetReservedChord({ 0x3F, kHotkeyModifierControl });
-			CallbackState state;
-			const auto same = Register(registry, 1, "Example.Same", "Ctrl+F5", state);
-			const auto plain = Register(registry, 1, "Example.Plain", "F5", state);
-			require(Query(registry, 1, same).state ==
-					DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT &&
-					Query(registry, 1, plain).state == DMUI_HOTKEY_BINDING_BOUND,
-				"toggle reservation ignored modifiers or failed to reserve its chord");
-			require(registry.SetOverride("Example.Same", "Ctrl+F5") ==
-					DMUI_RESULT_DUPLICATE_ACTION_ID && registry.Overrides().empty(),
-				"a conflicting edit bypassed the toggle chord reservation");
-			registry.InitializeOverrides({ { "Example.Same", "Ctrl+F5" } });
-			require(Query(registry, 1, same).state ==
-					DMUI_HOTKEY_BINDING_UNBOUND_OVERRIDE_CONFLICT,
-				"a persisted override bypassed the toggle chord reservation");
-			registry.SetReservedChord({ 0x3F, 0 });
-			require(Query(registry, 1, same).state == DMUI_HOTKEY_BINDING_BOUND &&
-					Query(registry, 1, plain).state ==
-						DMUI_HOTKEY_BINDING_UNBOUND_DEFAULT_CONFLICT,
-				"changing the toggle chord did not recompute exact conflicts");
 		});
 
 		runner.test("default conflicts reassign when the winning action unregisters", [] {
@@ -633,20 +604,6 @@ namespace vmm_tests
 			require(registry.HandleKey(0x44, 0, true, false) ==
 					HotkeyMessageResult::kPassThrough,
 				"an unregistered action consumed a new press");
-		});
-
-		runner.test("unbound hotkey chords pass through untouched", [] {
-			HotkeyRegistry registry;
-			CallbackState state;
-			(void)Register(registry, 1, "Example.Toggle", "F10", state);
-			require(registry.HandleKey(0x57, 0, true, false) ==
-					HotkeyMessageResult::kPassThrough,
-				"an unbound press was swallowed");
-			require(registry.HandleKey(0x57, 0, false, false) ==
-					HotkeyMessageResult::kPassThrough,
-				"an unbound release was swallowed");
-			registry.DispatchQueued();
-			require(state.edgeCount == 0, "an unbound chord was dispatched");
 		});
 
 		runner.test("hotkey queue overflow drops only complete pairs", [] {

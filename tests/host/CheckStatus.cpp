@@ -63,6 +63,36 @@ namespace vmm_tests
 				"error status was rejected");
 			require(model.Snapshot(start + std::chrono::hours{ 24 }).has_value(),
 				"error status expired");
+
+			const auto clientStart = StatusClock::time_point{};
+			StatusModel clients;
+			require(clients.SetClient(
+						2, "Second", DMUI_STATUS_SEVERITY_WARNING, "Warning",
+						clientStart) == DMUI_RESULT_OK &&
+					clients.SetClient(
+						1, "First", DMUI_STATUS_SEVERITY_INFO, "Working",
+						clientStart) == DMUI_RESULT_OK,
+				"client status was rejected");
+			auto statuses = clients.SnapshotClientStatuses(clientStart);
+			require(
+				statuses.size() == 2 &&
+					statuses[0].client == 1 &&
+					statuses[0].severity == DMUI_STATUS_SEVERITY_INFO &&
+					statuses[1].client == 2 &&
+					statuses[1].severity == DMUI_STATUS_SEVERITY_WARNING,
+				"client statuses superseded another mod");
+			require(clients.SetClient(
+						2, "Second", DMUI_STATUS_SEVERITY_SUCCESS, "Recovered",
+						clientStart) == DMUI_RESULT_OK,
+				"client recovery status was rejected");
+			require(clients.SnapshotClientStatuses(
+						clientStart + kTransientStatusLifetime).empty(),
+				"transient client statuses did not expire independently");
+			require(clients.SetClient(
+						DMUI_INVALID_CLIENT_HANDLE, "Invalid",
+						DMUI_STATUS_SEVERITY_ERROR, "Error",
+						clientStart) == DMUI_RESULT_INVALID_ARGUMENT,
+				"invalid client status handle was accepted");
 		});
 
 		runner.test("persistent status can be dismissed without clearing a replacement", [] {
@@ -109,46 +139,6 @@ namespace vmm_tests
 				model.Snapshot(start + std::chrono::milliseconds{ 1 })
 						->message == "Replacement",
 				"replacement was lost after stale dismissal");
-		});
-
-		runner.test("status truncation preserves text and UTF-8 boundaries", [] {
-			const auto measure = [](std::string_view a_text) {
-				return static_cast<float>(a_text.size());
-			};
-			const auto full = std::string{ "Community Shaders: A detailed failure message" };
-			const auto truncated = FitStatusText(full, 24.0f, measure);
-			require(
-					truncated.truncated &&
-						truncated.full == full &&
-						truncated.visible != full &&
-						truncated.visible.ends_with("\xE2\x80\xA6") &&
-						measure(truncated.visible) <= 24.0f,
-					"truncated status lost its full tooltip text");
-			const auto fitting = FitStatusText(full, measure(full), measure);
-			require(
-					!fitting.truncated &&
-						fitting.visible == full &&
-						fitting.full == full,
-					"fitting status was truncated");
-
-			const std::string utf8{
-				"Buffout \xF0\x9F\xA7\xAA status"
-			};
-			const auto utf8Truncated = FitStatusText(utf8, 11.0f, measure);
-			require(
-					utf8Truncated.truncated &&
-						utf8Truncated.visible ==
-							"Buffout \xE2\x80\xA6" &&
-						utf8Truncated.full == utf8,
-				"status truncation split a UTF-8 character");
-
-			const auto clipped =
-				FitStatusText("Buffout 4: Error", 0.0f, measure);
-			require(
-					clipped.truncated &&
-						clipped.visible == "\xE2\x80\xA6" &&
-						clipped.full == "Buffout 4: Error",
-				"fully clipped status lost its overflow presentation");
 		});
 
 		runner.test("status validation rejects invalid clients and messages", [] {

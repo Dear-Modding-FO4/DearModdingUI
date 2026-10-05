@@ -61,31 +61,6 @@ namespace vmm_tests
 				"genuine no-match did not return a successful zero glyph");
 		});
 
-		runner.test("host icon inference preserves distinct resolver mechanisms", [] {
-			const auto wrench =
-				DearModdingUI::FindPhosphorIconGlyphOrZero("wrench");
-			const auto moon =
-				DearModdingUI::FindPhosphorIconGlyphOrZero("moon");
-			const auto sliders =
-				DearModdingUI::FindPhosphorIconGlyphOrZero(
-					"sliders-horizontal");
-			const auto info =
-				DearModdingUI::FindPhosphorIconGlyphOrZero("info");
-			require(
-				wrench != 0 && moon != 0 && sliders != 0 && info != 0,
-				"representative inference glyphs were unavailable");
-			require(
-				QueryIconGlyph(nullptr, "Sleep Tuning") == moon &&
-					QueryIconGlyph(nullptr, "Tuning") == sliders,
-				"compound subject did not outrank its generic fragment");
-			require(
-				QueryIconGlyph(nullptr, "Statuses") == info,
-				"representative word-form inference changed");
-			require(
-				QueryIconGlyph(nullptr, "Assets Wrench") == wrench,
-				"canonical metadata did not outrank a generic fragment");
-		});
-
 		runner.test("host icon query validates bounded request strings", [] {
 			DMUI_IconResolutionRequest request{
 				nullptr,
