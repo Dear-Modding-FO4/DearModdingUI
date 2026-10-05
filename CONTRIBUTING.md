@@ -88,10 +88,6 @@ xmake build -P "$projectRoot" -y dmui-tests
 .\.Build\Tests\dmui-tests.exe
 ```
 
-The optional `python tests\RunMutations.py` command checks that tests catch the
-regressions listed in `tests\Mutations.json`. It temporarily edits and rebuilds
-sources, so run it only when nothing else is editing or building.
-
 ## Standalone preview
 
 The standalone preview runs the host UI in a desktop window without launching

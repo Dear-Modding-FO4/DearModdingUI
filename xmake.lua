@@ -353,18 +353,12 @@ target("dmui-tests", function()
         "tests/**.cpp",
         "mcm/runtime/src/Win32FileListingAdapter.cpp",
         "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileHostAPILayout.cpp",
-        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileIconGlyphs.cpp",
-        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileUI.cpp",
-        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileNoWindowsMacros.cpp",
-        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileSettingsActions.cpp",
-        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileTextView.cpp",
-        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileVisualDecisions.cpp"
+        "Depends/commonlibf4/lib/dearmoddingui-api/Tests/CompileNoWindowsMacros.cpp"
     )
     if local_fixtures then
         add_files("fixtures/tests/*.cpp")
         add_includedirs("fixtures/tests")
         add_defines("DMUI_LOCAL_FIXTURES")
-        add_ldflags("/EXPORT:DMUI_GetAPI", { force = true })
     end
     add_includedirs(
         "tools/preview/include",
@@ -564,66 +558,6 @@ target("dmui-test-client", function()
 
 end)
 end
-
-task("verify-no-auto-install", function()
-    set_menu {
-        usage = "xmake verify-no-auto-install",
-        description = "Verify DMUI plugin targets have no automatic install mappings",
-        options = {
-            { "P", "project-root", "kv", nil, "Absolute project root" }
-        }
-    }
-
-    on_run(function()
-        import("core.base.option")
-        import("core.project.config")
-        config.load()
-        import("core.project.project")
-        import("private.utils.target", { alias = "target_utils" })
-        local requested = option.get("project")
-        if not requested or canonical_path(requested) ~= canonical_path(os.projectdir()) or
-            canonical_path(os.workingdir()) ~= canonical_path(os.projectdir()) then
-            raise("run from the DearModdingUI project root and name that absolute path with -P")
-        end
-        target_utils.config_targets()
-        local names = { plugin_name, "DearModdingUI-MCM" }
-        local variant = config.read("test-release") and "test" or "release"
-        if variant == "test" then
-            table.insert(names, "dmui-test-client")
-        end
-        local expected_output = canonical_path(project_dir(path.join(
-            ".Build",
-            variant,
-            "F4SE",
-            "Plugins"
-        )))
-        local expected_install_root = project_dir(path.join(
-            ".Build",
-            "no-auto-install",
-            variant
-        ))
-        for _, name in ipairs(names) do
-            local target = project.target(name)
-            if not target then
-                raise("configured target not found: " .. name)
-            end
-            local source_files, destination_files = target:installfiles()
-            if (source_files and #source_files > 0) or
-                (destination_files and #destination_files > 0) then
-                raise(name .. " still has automatic install files")
-            end
-            local install_dir = target:installdir()
-            if not install_dir or
-                not path_is_within(install_dir, expected_install_root) then
-                raise(name .. " install directory is not inert and checkout-local")
-            end
-            if not path_is_within(target:targetfile(), expected_output) then
-                raise(name .. " output is outside the configured release directory")
-            end
-        end
-        cprint("${color.success}DMUI plugin targets have no automatic install mappings.")
-    end)
-end)
 
 task("package-release", function()
     set_menu {

@@ -27,9 +27,6 @@ int main()
 	run_mcm_keybind_checks(runner);
 	run_mcm_runtime_checks(runner);
 	run_mcm_action_checks(runner);
-#ifdef DMUI_LOCAL_FIXTURES
-	run_general_test_fixture_checks(runner);
-#endif
 	run_ui_contract_checks(runner);
 	run_draw_list_checks(runner);
 

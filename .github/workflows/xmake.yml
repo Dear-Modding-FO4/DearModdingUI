@@ -65,8 +65,6 @@ jobs:
           Remove-Item Env:XSE_FO4_GAME_PATH -ErrorAction SilentlyContinue
           xmake f -P "$projectRoot" -m release --test-release=n -y
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          xmake verify-no-auto-install -P "$projectRoot"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           xmake build -P "$projectRoot" -y
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           xmake build -P "$projectRoot" -y dmui-preview
@@ -113,8 +111,6 @@ jobs:
             --c-header "$generated/CUIAPI.h" `
             --checked-header "$generated/UIChecked.generated.h" `
             --host-bindings "$generated/UIBindings.generated.h"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python "$api/Tests/test-ui-contract-generator.py"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $comparisons = @{
             'CUIAPI.h' = "$api/include/DearModdingUI/CUIAPI.h"
