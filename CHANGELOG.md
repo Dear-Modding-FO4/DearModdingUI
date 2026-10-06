@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-05
+
 ### Added
 - **Input text editor (ABI 2.1)**: `ui::InputTextEditor` reports per-frame history, completion, submit, cancel, and edit events, along with cursor, selection, and caret screen position. It can reload client-replaced text at a chosen cursor and keep focus after submit, which suits consoles and autocompleting fields. `ui::BeginTooltipAt` places a non-focusable popup, such as a suggestion list, at a screen position.
 - **Focused overlays (ABI 2.1)**: `requestOverlayFocus` makes a demanded managed overlay interactive while the shell stays closed, for consoles, palettes, and inspectors. The host blocks game input, pauses unless Fall Souls mode is enabled, and routes keyboard, mouse, and wheel input to the overlay. Escape and controller B leave an active widget, close a client popup, and then end focus, unless an input text editor captures the cancel. One overlay holds focus at a time, and a second request returns `BUSY`. `queryOverlayFocus` reports whether the overlay is still focused and why focus ended: release, cancel, the shell opening, a game interruption, host unavailability, or a failed callback.
@@ -113,7 +115,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional `DearModdingUI-MCM` bridge translating legacy MCM JSON configurations.
 - In-game diagnostic test client and standalone desktop UI preview (`dmui-preview`).
 
-[Unreleased]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.1...v0.1.2
