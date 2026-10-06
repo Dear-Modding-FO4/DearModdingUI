@@ -12,11 +12,22 @@ namespace dmui::detail
 {
 	struct ClientTestAccess
 	{
-		static void Bind(Client& a_client, const DMUI_HostAPI& a_api, DMUI_ClientHandle a_handle)
+		static void Bind(
+			Client& a_client,
+			const DMUI_HostAPI& a_api,
+			DMUI_ClientHandle a_handle,
+			uint32_t a_abiMinor = DMUI_ABI_MINOR)
 		{
 			a_client.api_ = &a_api;
 			a_client.uiAPI_ = a_api.ui;
 			a_client.clientHandle_ = a_handle;
+			a_client.abiMinor_ = a_abiMinor;
+		}
+
+		static DMUI_Result Draw(Client& a_client, std::function<void()> a_callback)
+		{
+			Client::PageRegistration registration{ 1u, &a_client, std::move(a_callback) };
+			return Client::InvokeDrawingCallback<Client::PageRegistration>(&registration);
 		}
 	};
 }
