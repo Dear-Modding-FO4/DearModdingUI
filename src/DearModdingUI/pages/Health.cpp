@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/host/Registry.h>
+#include <DearModdingUI/host/LocalizationStrings.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -23,7 +24,7 @@ namespace DearModdingUI
 		{
 			std::string label{ HealthStateLabel(a_snapshot.state) };
 			if (HealthDeadlineExceeded(a_snapshot, a_now))
-				label.append(" (deadline exceeded)");
+				label.append(" ").append(lsDeadlineExceeded.GetValue());
 			return label;
 		}
 
@@ -64,10 +65,11 @@ namespace DearModdingUI
 						a_singular :
 						a_plural);
 				};
-			append(a_errors, "error", "errors");
-			append(a_warnings, "warning", "warnings");
-			append(a_successes, "success", "successes");
-			append(a_info, "info", "info");
+			append(a_errors, lsError, lsErrors);
+			append(a_warnings, lsWarning, lsWarnings);
+			append(a_successes, lsSuccess, lsSuccesses);
+			append(a_info, lsInfo, lsInfo);
+
 			return summary;
 		}
 
@@ -86,11 +88,11 @@ namespace DearModdingUI
 
 		[[nodiscard]] std::string DroppedReportLabel(size_t a_count)
 		{
-			return std::format(
-				"{} further diagnostic report{} {} not retained.",
+			return std::format("{} {}",
 				a_count,
-				a_count == 1 ? "" : "s",
-				a_count == 1 ? "was" : "were");
+				a_count == 1 ? 
+					lsFurtherDiagnosticReport.GetValue() :
+					lsFurtherDiagnosticReports.GetValue());
 		}
 
 		[[nodiscard]] std::string DiagnosticDescription(
@@ -100,7 +102,7 @@ namespace DearModdingUI
 			std::string description;
 			if (!a_scope.empty())
 			{
-				description.append("Scope: ");
+				description.append(lsScope.GetValue()).append(": ");
 				description.append(a_scope);
 			}
 			if (!a_detail.empty())
@@ -122,26 +124,30 @@ namespace DearModdingUI
 			char label[64]{};
 			if (seconds < 60)
 			{
-				std::snprintf(label, sizeof(label), "%llds",
-					static_cast<long long>(seconds));
+				std::snprintf(label, sizeof(label), "%lld%s",
+					static_cast<long long>(seconds), lsSecondShort.GetValue().c_str());
 			}
 			else if (seconds < 3600)
 			{
 				std::snprintf(
 					label,
 					sizeof(label),
-					"%lldm %llds",
+					"%lld%s %lld%s",
 					static_cast<long long>(seconds / 60),
-					static_cast<long long>(seconds % 60));
+					lsMinuteShort.GetValue().c_str(),
+					static_cast<long long>(seconds % 60),
+					lsSecondShort.GetValue().c_str());
 			}
 			else
 			{
 				std::snprintf(
 					label,
 					sizeof(label),
-					"%lldh %lldm",
+					"%lld%s %lld%s",
 					static_cast<long long>(seconds / 3600),
-					static_cast<long long>((seconds % 3600) / 60));
+					lsHourShort.GetValue().c_str(),
+					static_cast<long long>((seconds % 3600) / 60),
+					lsMinuteShort.GetValue().c_str());
 			}
 			return label;
 		}
@@ -162,7 +168,7 @@ namespace DearModdingUI
 			});
 
 		HealthClientSection native{
-			"Registered mods",
+			lsRegisteredMods.GetValue().c_str(),
 			PhosphorGlyph::kPuzzlePiece,
 			{}
 		};
@@ -183,8 +189,8 @@ namespace DearModdingUI
 		{
 			sections.push_back({
 				sourceLabel.empty() ?
-					"Bridged mods" :
-					sourceLabel + " mods",
+					lsBridgedMods.GetValue() :
+					sourceLabel + " " + lsMods.GetValue(),
 				bridgeGlyph,
 				std::move(clients)
 			});
@@ -341,11 +347,12 @@ namespace DearModdingUI
 		HealthClock::time_point a_now)
 	{
 		std::string report;
-		report.append("DearModdingUI diagnostics report\n\nHost: ");
+		report.append(std::format("DearModdingUI {}\n\n{}: ",
+			lsDiagnosticsReport.GetValue(), lsHost.GetValue()));
 		report.append(a_hostName);
 		report.push_back(' ');
 		report.append(a_hostVersion);
-		report.append("\n\nHost subsystems\n");
+		report.append(std::format("\n\n{}\n", lsHostSubsystems.GetValue()));
 
 		std::vector<const HealthSnapshot*> subsystems;
 		subsystems.reserve(a_subsystems.size());
@@ -359,7 +366,7 @@ namespace DearModdingUI
 			});
 		if (subsystems.empty())
 		{
-			report.append("- No observations\n");
+			report.append(std::format("- {}\n", lsNoObservations.GetValue()));
 		}
 		else
 		{
@@ -378,7 +385,7 @@ namespace DearModdingUI
 			}
 		}
 
-		report.append("\nRegistered mods\n");
+		report.append(std::format("\n{}\n", lsRegisteredMods.GetValue()));
 		std::vector<const RegisteredClient*> clients;
 		clients.reserve(a_clients.size());
 		for (const auto& client : a_clients)
@@ -392,7 +399,7 @@ namespace DearModdingUI
 			});
 		if (clients.empty())
 		{
-			report.append("- None\n");
+			report.append(std::format("- {}\n", lsNone.GetValue()));
 		}
 		else
 		{
@@ -409,12 +416,12 @@ namespace DearModdingUI
 			}
 		}
 
-		report.append("\nReported diagnostics\n");
+		report.append(std::format("\n{}\n", lsReportedDiagnostics.GetValue()));
 		const auto sections =
 			BuildHealthDiagnosticSections(a_clients, a_diagnostics);
 		if (sections.empty())
 		{
-			report.append("- None\n");
+			report.append(std::format("- {}\n", lsNone.GetValue()));
 		}
 		else
 		{

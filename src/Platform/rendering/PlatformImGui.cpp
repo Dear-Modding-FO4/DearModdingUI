@@ -2,9 +2,14 @@
 
 #include <DearModdingUI/host/Host.h>
 #include <Support/ProcessLifetime.h>
-#include <Support/Runtime.h>
+#include <Support/Localization.h>
+
+#undef MAX_SIZE
+#undef MEM_RELEASE
+#undef ERROR
 
 #include <REX/REX.h>
+#include <RE/S/Setting.h>
 
 #include <memory>
 
@@ -122,6 +127,44 @@ namespace Addictol
 			context.windowReady.load(std::memory_order_acquire) &&
 			context.backend.load(std::memory_order_acquire) == Backend::kReady;
 		ApplyDrawingRequestLocked(enable);
+	}
+
+	void PlatformImgui::InitializeLocalization() noexcept
+	{
+		std::string lfile = Addictol::Support::GetRuntimeDirectory() + 
+			"Data/F4SE/Plugins/DearModdingUI/Translations/DearModdingUI.txt";
+
+		// Retrieve the global collection of INI settings
+		auto settings = RE::INISettingCollection::GetSingleton();
+		if (!settings)
+			REX::WARN("DearModdingUI: RE::INISettingCollection::GetSingleton return nullptr"sv);
+		else
+		{
+			auto setting = settings->GetSetting("SLanguage:General");
+			if (!setting)
+				setting = settings->GetSetting("sLanguage:General");
+
+			if (setting && (setting->GetType() == RE::Setting::SETTING_TYPE::kString))
+			{
+				std::string lang = setting->GetString().data();
+				lang.insert(0, "_");
+
+				auto it = lfile.find_last_of('.');
+				if (it != std::string::npos)
+					lfile.insert(it, lang);
+				else
+					lfile += lang;
+			}
+			else
+				REX::WARN("DearModdingUI: RE::INISettingCollection::GetSetting no found \"SLanguage:General\" or \"sLanguage:General\" setting"sv);
+		}
+
+		auto LocalizationManager = DearModdingUI::LocalizationManager::GetSingleton();
+		if (LocalizationManager->Init(lfile) && LocalizationManager->Exists())
+		{
+			LocalizationManager->Load();
+			REX::INFO("DearModdingUI: localizations configured"sv);
+		}
 	}
 
 	void PlatformImgui::HandleGameTransition() noexcept

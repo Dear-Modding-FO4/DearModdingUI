@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/host/Host.h>
+#include <DearModdingUI/host/LocalizationStrings.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/presentation/Theme.h>
@@ -231,11 +232,11 @@ namespace DearModdingUI
 						ImGuiTableFlags_BordersInnerV))
 			{
 				ImGui::TableSetupColumn(
-					"Mods",
+					lsModsHi,
 					ImGuiTableColumnFlags_WidthStretch,
 					1.0f);
 				ImGui::TableSetupColumn(
-					"Pages",
+					lsPages,
 					ImGuiTableColumnFlags_WidthStretch,
 					1.0f);
 				ImGui::TableNextColumn();
@@ -254,15 +255,14 @@ namespace DearModdingUI
 						"##DearModdingPagesPane",
 						{ 0.0f, -FLT_MIN }))
 				{
-					DrawSectionHeader("Pages", PhosphorGlyph::kFiles);
+					DrawSectionHeader(lsPages, PhosphorGlyph::kFiles);
 					ImGui::Spacing();
 					if (const auto* client =
 							a_context.model.FindClient(
 								a_context.selection.activeClient))
 						DrawSidebarPageList(a_context, *client);
 					else
-						ImGui::TextDisabled(
-							"Select a mod to browse its pages.");
+						ImGui::TextDisabled(lsMessageSelectModToBrowse);
 				}
 				ImGui::EndChild();
 				ImGui::EndTable();
@@ -319,7 +319,7 @@ namespace DearModdingUI
 					DrawSidebarPageList(a_context, *client);
 				}
 				else
-					ImGui::TextDisabled("Select a mod to browse its pages.");
+					ImGui::TextDisabled(lsMessageSelectModToBrowse);
 			}
 			ImGui::EndChild();
 		}
@@ -366,7 +366,7 @@ namespace DearModdingUI
 				const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
 				const auto row = DrawSelectableRow({
 					.id = "##DearModdingDrillDownBack",
-					.label = "All Mods",
+					.label = lsAllMods,
 					.leadingAffordance = RowLeadingAffordance::kBack,
 					.textColor = textColor,
 					.hoveredTextColor = textColor
@@ -401,7 +401,7 @@ namespace DearModdingUI
 				ImGui::PushID(page.id.data());
 				const auto row = DrawSelectableRow({
 					.id = "##DearModdingHostPage",
-					.label = page.displayName.data(),
+					.label = page.displayName,
 					.selected = a_selection.activeHostPage == page.kind,
 					.leadingAffordance = RowLeadingAffordance::kIcon,
 					.glyph = FindPhosphorIconGlyphOrZero(page.iconName),
@@ -456,8 +456,8 @@ namespace DearModdingUI
 				IconColor(
 					ImGui::GetColorU32(ImGuiCol_Text),
 					Theme::kSearchIconAlpha));
-			constexpr auto hint = "Search mods, pages, and actions...";
-			const auto textSize = ImGui::CalcTextSize(hint);
+			auto hint = std::format("{}...", lsCommandPalettePopup.GetValue());
+			const auto textSize = ImGui::CalcTextSize(hint.c_str());
 			ImGui::RenderTextEllipsis(
 				ImGui::GetWindowDrawList(),
 				{
@@ -472,7 +472,7 @@ namespace DearModdingUI
 				},
 				position.x + size.x -
 					ImGui::GetStyle().FramePadding.x,
-				hint,
+				hint.c_str(),
 				nullptr,
 				&textSize);
 			return pressed;
@@ -650,10 +650,10 @@ namespace DearModdingUI
 				{ -FLT_MIN, -FLT_MIN }))
 		{
 			ControllerNavigation::BeginPane(ControllerNavigation::Pane::kSidebar);
-			DrawSectionHeader("Host", PhosphorGlyph::kAppWindow);
+			DrawSectionHeader(lsHost, PhosphorGlyph::kAppWindow);
 			DrawHostRows(a_selection, intent);
 			ImGui::Spacing();
-			DrawSectionHeader("Mods", PhosphorGlyph::kSquaresFour);
+			DrawSectionHeader(lsModsHi, PhosphorGlyph::kSquaresFour);
 			openPalette = DrawPaletteAffordance();
 			ImGui::Spacing();
 

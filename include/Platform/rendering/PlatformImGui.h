@@ -33,6 +33,7 @@ namespace Addictol
 			IDXGISwapChain* a_swapChain) noexcept;
 
 		void SetDrawingEnabled(bool a_enabled) noexcept;
+		void InitializeLocalization() noexcept;
 		void HandleGameTransition() noexcept;
 		// True when DMUI acted on the button, so the game must not see it.
 		[[nodiscard]] bool ObserveButton(uint32_t a_keyCode, bool a_pressed, bool a_repeat,

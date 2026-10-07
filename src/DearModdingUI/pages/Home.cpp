@@ -1,4 +1,5 @@
 #include <DearModdingUI/pages/Home.h>
+#include <DearModdingUI/host/LocalizationStrings.h>
 
 #include <array>
 #include <cstdio>
@@ -26,10 +27,7 @@ namespace DearModdingUI
 
 	std::string_view HomeAboutText() noexcept
 	{
-		return "DearModdingUI is a shared settings menu for Fallout 4. "
-			"Mods register their own pages in one overlay instead of each "
-			"shipping a separate menu, and mods that were never built for it "
-			"can appear here too.";
+		return lsHomeAboutText;
 	}
 
 	std::span<const HomeQuickLink> HomeQuickLinks() noexcept
@@ -40,30 +38,22 @@ namespace DearModdingUI
 	std::vector<HomeFaqEntry> BuildHomeFaq(
 		std::string_view a_toggleKeyName)
 	{
-		std::string toggleAnswer{ "Press " };
-		toggleAnswer.append(a_toggleKeyName);
-		toggleAnswer.append(
-			" to open or close DearModdingUI. You can change this key on "
-			"the Settings page.");
+		std::string toggleAnswer{ lsPress.GetValue() };
+		toggleAnswer.append(" ").append(a_toggleKeyName);
+		toggleAnswer.append(" ").append(lsFaqA1.GetValue());
 		return {
 			{
-				"How do I open the menu?",
+				lsFaq1,
 				std::move(toggleAnswer)
 			},
 			{
-				"Where are settings stored?",
-				"Host settings are stored in "
-				"Data/F4SE/Plugins/DearModdingUI.toml."
+				lsFaq2, lsFaqA2
 			},
 			{
-				"Why is a mod page missing or grayed out?",
-				"Open the Health page to see whether the host or that mod "
-				"reported a problem."
+				lsFaq3, lsFaqA3
 			},
 			{
-				"Does this replace a mod's own menu?",
-				"No. Mods register pages and DearModdingUI draws them in the "
-				"shared overlay."
+				lsFaq4, lsFaqA4
 			}
 		};
 	}
@@ -74,7 +64,7 @@ namespace DearModdingUI
 		HealthClock::time_point a_now)
 	{
 		if (a_subsystems.empty() && a_clientsNeedingAttention == 0)
-			return "Host health not observed yet";
+			return lsHostHealthNotObservedYet;
 
 		size_t subsystemsNeedingAttention{};
 		size_t subsystemsStarting{};
@@ -88,7 +78,7 @@ namespace DearModdingUI
 		if (subsystemsNeedingAttention == 0 &&
 			subsystemsStarting == 0 &&
 			a_clientsNeedingAttention == 0)
-			return "All systems ready";
+			return lsAllSystemsReady;
 
 		char summary[192]{};
 		if (subsystemsNeedingAttention != 0 &&
@@ -97,11 +87,11 @@ namespace DearModdingUI
 			std::snprintf(
 				summary,
 				sizeof(summary),
-				"%zu host subsystem%s and %zu mod%s need attention",
+				"%zu %s %zu %s",
 				subsystemsNeedingAttention,
-				subsystemsNeedingAttention == 1 ? "" : "s",
+				subsystemsNeedingAttention == 1 ? lsSystemsPartMsgFailed1_1.GetValue().c_str() : lsSystemsPartMsgFailed1_2.GetValue().c_str(),
 				a_clientsNeedingAttention,
-				a_clientsNeedingAttention == 1 ? "" : "s");
+				a_clientsNeedingAttention == 1 ? lsSystemsPartMsgFailed2_1.GetValue().c_str() : lsSystemsPartMsgFailed2_2.GetValue().c_str());
 		}
 		else if (subsystemsStarting != 0 &&
 			a_clientsNeedingAttention != 0)
@@ -109,41 +99,38 @@ namespace DearModdingUI
 			std::snprintf(
 				summary,
 				sizeof(summary),
-				"%zu host subsystem%s starting; %zu mod%s need%s attention",
+				"%zu %s %zu %s",
 				subsystemsStarting,
-				subsystemsStarting == 1 ? "" : "s",
+				subsystemsStarting == 1 ? lsSystemsPartMsgFailed3_1.GetValue().c_str() : lsSystemsPartMsgFailed4_1.GetValue().c_str(),
 				a_clientsNeedingAttention,
-				a_clientsNeedingAttention == 1 ? "" : "s",
-				a_clientsNeedingAttention == 1 ? "s" : "");
+				a_clientsNeedingAttention == 1 ? lsSystemsPartMsgFailed2_1.GetValue().c_str() : lsSystemsPartMsgFailed2_2.GetValue().c_str());
 		}
 		else if (subsystemsNeedingAttention != 0)
 		{
 			std::snprintf(
 				summary,
 				sizeof(summary),
-				"%zu host subsystem%s need%s attention",
+				"%zu %s",
 				subsystemsNeedingAttention,
-				subsystemsNeedingAttention == 1 ? "" : "s",
-				subsystemsNeedingAttention == 1 ? "s" : "");
+				subsystemsNeedingAttention == 1 ? lsSystemsPartMsgFailed5_1.GetValue().c_str() : lsSystemsPartMsgFailed6_1.GetValue().c_str());
 		}
 		else if (subsystemsStarting != 0)
 		{
 			std::snprintf(
 				summary,
 				sizeof(summary),
-				"%zu host subsystem%s starting",
+				"%zu %s",
 				subsystemsStarting,
-				subsystemsStarting == 1 ? "" : "s");
+				subsystemsStarting == 1 ? lsSystemsPartMsgFailed3_1.GetValue().c_str() : lsSystemsPartMsgFailed4_1.GetValue().c_str());
 		}
 		else
 		{
 			std::snprintf(
 				summary,
 				sizeof(summary),
-				"%zu mod%s need%s attention",
+				"%zu %s",
 				a_clientsNeedingAttention,
-				a_clientsNeedingAttention == 1 ? "" : "s",
-				a_clientsNeedingAttention == 1 ? "s" : "");
+				a_clientsNeedingAttention == 1 ? lsSystemsPartMsgFailed2_1.GetValue().c_str() : lsSystemsPartMsgFailed2_2.GetValue().c_str());
 		}
 		return summary;
 	}

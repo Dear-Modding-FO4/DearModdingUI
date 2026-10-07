@@ -1,9 +1,11 @@
 #include <DearModdingUI/navigation/CommandPalette.h>
 
+
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/host/MenuDismissal.h>
 #include <DearModdingUI/presentation/Theme.h>
+#include <DearModdingUI/host/LocalizationStrings.h>
 
 #include <REX/REX.h>
 #include <imgui/imgui.h>
@@ -19,7 +21,7 @@ namespace DearModdingUI
 	namespace
 	{
 		inline constexpr char kCommandPalettePopupId[] =
-			"Search mods, pages, and actions###DearModdingPalette";
+			"{}###DearModdingPalette";
 
 		[[nodiscard]] std::vector<NavigationSearchHit> BuildResults(
 			const NavigationModel& a_model,
@@ -53,14 +55,14 @@ namespace DearModdingUI
 			std::string label{ a_entry.displayName };
 			if (a_entry.kind == NavigationItemKind::kClient)
 			{
-				label.append(" \xE2\x80\x94 Mod");
+				label.append(" \xE2\x80\x94 "); label.append(lsMod.GetValue());
 				return label;
 			}
 			label.append(" \xE2\x80\x94 ");
 			label.append(a_entry.clientDisplayName);
 			label.append(" \xE2\x80\xBA ");
 			label.append(
-				a_entry.category.empty() ? "Actions" : a_entry.category);
+				a_entry.category.empty() ? lsActions : a_entry.category);
 			return label;
 		}
 
@@ -97,7 +99,8 @@ namespace DearModdingUI
 			a_state.query.clear();
 			a_state.selection = 0;
 			a_state.focusRequested = true;
-			ImGui::OpenPopup(kCommandPalettePopupId);
+			ImGui::OpenPopup(std::format(kCommandPalettePopupId,
+				lsCommandPalettePopup.GetValue()).c_str());
 			a_state.openRequested = false;
 		}
 
@@ -113,7 +116,7 @@ namespace DearModdingUI
 			ImGuiCond_Appearing);
 		auto open = true;
 		if (!BeginPopupModalWithRoundedTitleBarButtons(
-				kCommandPalettePopupId,
+				std::format(kCommandPalettePopupId, lsCommandPalettePopup.GetValue()).c_str(),
 				&open,
 				ImGuiWindowFlags_NoSavedSettings))
 		{
@@ -130,13 +133,13 @@ namespace DearModdingUI
 		const auto previousQuery = a_state.query;
 		const auto searchResult = DrawSearchInput(
 			"NavigationPaletteSearch",
-			"Search mods, pages, and actions...",
+			std::format("{}...", lsCommandPalettePopup.GetValue()).c_str(),
 			a_state.query);
 		if (searchResult != DMUI_RESULT_OK)
 		{
 			REX::ERROR("DearModdingUI: command palette search failed ({})"sv,
 				static_cast<uint32_t>(searchResult));
-			ImGui::TextUnformatted("Search input unavailable.");
+			ImGui::TextUnformatted(lsSearchInputUnavailable);
 		}
 		auto results = BuildResults(a_model, a_selection, a_state);
 		a_state.selection = ResolvePaletteSelectionIndex(
@@ -170,17 +173,15 @@ namespace DearModdingUI
 		{
 			const Theme::FontGuard font{ Theme::FontRole::kHeading };
 			ImGui::TextUnformatted(
-				a_state.query.empty() ? "Recent pages" : "Results");
+				a_state.query.empty() ? lsRecentPages : lsResults);
 		}
 		ImGui::Separator();
 		if (results.empty())
 		{
 			ImGui::TextDisabled(
-				"%s",
-				a_state.query.empty() ?
-					"No recent pages yet." :
-					"No matching mods, pages, or actions.");
+				a_state.query.empty() ? lsNoRecentPagesYet : lsNoMatchingMods);
 		}
+
 		for (size_t index = 0; index < results.size(); ++index)
 		{
 			const auto& entry = results[index].Entry();

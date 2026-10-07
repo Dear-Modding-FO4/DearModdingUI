@@ -1,0 +1,96 @@
+$Host	Host
+$Mod	Mod
+$Version	Version
+$StatusDetailsPopup	Status details
+$NavRequestRejected	Navigation request was rejected
+$Close	Close
+$CloseMenu	Close menu
+$ErrorFrom	Error from
+$CopyDetails	Copy details
+$MessagePleaseSelectPage	Please select a page from the left.
+$MessageActionDisabledAfterCallbacks	Action disabled after its callback failed.
+$MessageFailedCallbackPages	The mod's page callback failed and has been disabled for this session. Other pages remain available.
+$CouldNotBeDisplayed	could not be displayed
+$Settings	Settings
+$Dismiss	Dismiss
+$DismissStatus	Dismiss status
+$InterfaceSettings	Interface settings
+$CommandPalettePopup	Search mods, pages, and actions
+$Actions	Actions
+$SearchInputUnavailable	Search input unavailable.
+$RecentPages	Recent pages
+$Results	Results
+$NoRecentPagesYet	No recent pages yet.
+$NoMatchingMods	No matching mods, pages, or actions.
+$DeadlineExceeded	(deadline exceeded)	
+$Error	error
+$Errors	errors
+$Warning	warning
+$Warnings	warnings
+$Success	success
+$Successes	successes
+$Info	info
+$FurtherDiagnosticReport	further diagnostic report was not retained
+$FurtherDiagnosticReports	further diagnostic reports were not retained
+$Scope	Scope
+$SecondShort	s
+$MinuteShort	m
+$HourShort	h
+$RegisteredMods	Registered mods
+$BridgedMods	Bridged mods
+$Mods	mods
+$ModsHi	Mods
+$DiagnosticsReport	diagnostics report
+$HostSubsystems	Host subsystems
+$NoObservations	No observations
+$ReportedDiagnostics	Reported diagnostics
+$None	None
+$Waiting	Waiting
+$Progressing	Progressing
+$Ready	Ready
+$Degraded	Degraded
+$Failed	Failed
+$Unknown	Unknown
+$HomeHi	Home
+$HomeSummary	At-a-glance status for the shared menu host.
+$HealthHi	Health
+$HealthSummary	Detailed host subsystem and registered mod status.
+$SettingsHi	Settings
+$SettingsSummary	Configure the shared menu interface, readability, and input.
+$Pages	Pages
+$MessageSelectModToBrowse	Select a mod to browse its pages.
+$AllMods	All Mods
+$MessageNoHostSubsystem	No host subsystem observations are available.
+$About	About
+$Overview	Overview
+$PagesSm	pages
+$ActionsSm	actions
+$QuickLinks	Quick Links
+$Faq	FAQ
+$CopyReport	Copy report
+$CopyReportMessage	Copy a diagnostics report to the clipboard.
+$NoClientModsMessage	No client mods registered this session.
+$Status	Status
+$InState	in state
+$NoClientDiagnosticsMessage	No client diagnostics have been reported.
+$HomeAboutText	DearModdingUI is a shared settings menu for Fallout 4. Mods register their own pages in one overlay instead of each shipping a separate menu, and mods that were never built for it can appear here too.
+$Press	Press
+$Faq1	How do I open the menu?
+$FaqA1	to open or close DearModdingUI. You can change this key on the Settings page.
+$Faq2	Where are settings stored?
+$FaqA2	Host settings are stored in Data/F4SE/Plugins/DearModdingUI.toml.
+$Faq3	Why is a mod page missing or grayed out?
+$FaqA3	Open the Health page to see whether the host or that mod reported a problem.
+$Faq4	Does this replace a mod's own menu?
+$FaqA4	No. Mods register pages and DearModdingUI draws them in the shared overlay.
+$AllSystemsReady	All systems ready
+$SystemsPartMsgFailed1_1	host subsystem and
+$SystemsPartMsgFailed2_1	host subsystems and
+$SystemsPartMsgFailed1_2	mod needs attention
+$SystemsPartMsgFailed2_2	mods need attention
+$SystemsPartMsgFailed3_1	host subsystem starting
+$SystemsPartMsgFailed4_1	host subsystems starting
+$SystemsPartMsgFailed5_1	host subsystem needs attention
+$SystemsPartMsgFailed6_1	host subsystems need attention
+$HostHealthNotObservedYet	Host health not observed yet
+$ReportedProblems	Reported problems

@@ -3,6 +3,8 @@
 #include <DearModdingUI/API.h>
 #include <DearModdingUI/IconGlyphs.h>
 
+#include <Support/Localization.h>
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -168,36 +170,36 @@ namespace DearModdingUI
 	{
 		HostPageKind kind{ HostPageKind::kHome };
 		std::string_view id;
-		std::string_view displayName;
+		LocalizeString displayName;
 		std::string_view iconName;
-		std::string_view summary;
+		LocalizeString summary;
 	};
 
-	inline constexpr HostNavigationPage kHostHomePage{
+	inline HostNavigationPage kHostHomePage{
 		HostPageKind::kHome,
 		"home",
-		"Home",
+		{ "$HomeHi", "Home" },
 		"house",
-		"At-a-glance status for the shared menu host."
+		{ "$HomeSummary", "At-a-glance status for the shared menu host." }
 	};
 
-	inline constexpr HostNavigationPage kHostHealthPage{
+	inline HostNavigationPage kHostHealthPage{
 		HostPageKind::kHealth,
 		"health",
-		"Health",
+		{ "$HealthHi", "Health" },
 		"stethoscope",
-		"Detailed host subsystem and registered mod status."
+		{ "$HealthSummary", "Detailed host subsystem and registered mod status." },
 	};
 
-	inline constexpr HostNavigationPage kHostSettingsPage{
+	inline HostNavigationPage kHostSettingsPage{
 		HostPageKind::kSettings,
 		"settings",
-		"Settings",
+		{ "$SettingsHi", "Settings" },
 		"sliders-horizontal",
-		"Configure the shared menu interface, readability, and input."
+		{ "$SettingsSummary", "Configure the shared menu interface, readability, and input." },
 	};
 
-	inline constexpr std::array kHostNavigationPages{
+	inline std::array kHostNavigationPages{
 		kHostHomePage,
 		kHostHealthPage,
 		kHostSettingsPage

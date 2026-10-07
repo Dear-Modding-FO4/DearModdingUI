@@ -5,6 +5,7 @@
 #include <DearModdingUI/pages/Health.h>
 #include <DearModdingUI/pages/Home.h>
 #include <DearModdingUI/host/Host.h>
+#include <DearModdingUI/host/LocalizationStrings.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/settings/HostSettingsView.h>
 #include <DearModdingUI/IconGlyphs.h>
@@ -24,7 +25,7 @@
 #include <vector>
 
 namespace DearModdingUI
-{
+{	
 	namespace
 	{
 		struct HostSettingsTitleButton
@@ -76,9 +77,9 @@ namespace DearModdingUI
 		void DrawHome() noexcept
 		{
 			(void)DrawTitleRow({
-				.title = kHostHomePage.displayName.data(),
+				.title = kHostHomePage.displayName,
 				.titleScale = Theme::kFeatureTitleScale,
-				.summary = kHostHomePage.summary.data()
+				.summary = kHostHomePage.summary
 			});
 			const auto& clients = RegisteredClients();
 			const auto& pages = OrderedPages();
@@ -95,7 +96,7 @@ namespace DearModdingUI
 				HomeHealthSeverity(health, attention, now));
 
 			DrawSectionHeader(
-				"About",
+				lsAbout,
 				FindPhosphorIconGlyphOrZero("info"));
 			{
 				const Theme::FontGuard font{ Theme::FontRole::kSubtext };
@@ -103,7 +104,7 @@ namespace DearModdingUI
 			}
 			Theme::SectionSpacing();
 			DrawSectionHeader(
-				"Overview",
+				lsOverview,
 				FindPhosphorIconGlyphOrZero(kHostHomePage.iconName));
 			char identity[128]{};
 			std::snprintf(
@@ -119,10 +120,13 @@ namespace DearModdingUI
 			std::snprintf(
 				registry,
 				sizeof(registry),
-				"%zu mods | %zu pages | %zu actions",
+				"%zu %s | %zu %s | %zu %s",
 				clients.size(),
+				lsMods.GetValue().c_str(),
 				pages.size(),
-				actions.size());
+				lsPagesSm.GetValue().c_str(),
+				actions.size(),
+				lsActionsSm.GetValue().c_str());
 			DrawBulletText(registry);
 			ImGui::PushStyleColor(ImGuiCol_Text, Theme::StatusTextColor(severity));
 			DrawBulletText(summary.c_str());
@@ -130,7 +134,7 @@ namespace DearModdingUI
 
 			Theme::SectionSpacing();
 			DrawSectionHeader(
-				"Quick Links",
+				lsQuickLinks,
 				FindPhosphorIconGlyphOrZero("link"));
 			std::vector<LinkRowEntry> quickLinks;
 			for (const auto& link : HomeQuickLinks())
@@ -151,7 +155,7 @@ namespace DearModdingUI
 
 			Theme::SectionSpacing();
 			DrawSectionHeader(
-				"FAQ",
+				lsFaq,
 				FindPhosphorIconGlyphOrZero("question"));
 			const auto faq = BuildHomeFaq(
 				FormatHotkeyChord(HostSettings::Current().menuToggleKey));
@@ -183,16 +187,16 @@ namespace DearModdingUI
 					"##DearModdingUI.CopyHealthReport",
 					extent,
 					FindPhosphorIconGlyphOrZero("clipboard-text"),
-					"Copy report",
-					"Copy a diagnostics report to the clipboard."
+					lsCopyReport,
+					lsCopyReportMessage
 				}
 			};
 			if (DrawTitleRow({
-					.title = kHostHealthPage.displayName.data(),
+					.title = kHostHealthPage.displayName,
 					.titleScale = Theme::kFeatureTitleScale,
 					.buttons = buttons,
 					.buttonExtentPolicy = extentPolicy,
-					.summary = kHostHealthPage.summary.data()
+					.summary = kHostHealthPage.summary
 				}))
 			{
 				const auto report = BuildHealthDiagnosticsReport(
@@ -207,11 +211,11 @@ namespace DearModdingUI
 			}
 
 			DrawSectionHeader(
-				"Host subsystems",
+				lsHostSubsystems,
 				FindPhosphorIconGlyphOrZero(kHostHealthPage.iconName));
 			const auto subsystemRows = BuildHealthSubsystemRows(health, now);
 			if (subsystemRows.empty())
-				DrawBulletText("No host subsystem observations are available.");
+				DrawBulletText(lsMessageNoHostSubsystem);
 			else if (const auto table = SettingsTable::Begin(
 					DMUI_INVALID_CLIENT_HANDLE,
 					"##DearModdingUI.HostHealthSubsystems");
@@ -228,9 +232,11 @@ namespace DearModdingUI
 							ImGui::TextColored(
 								Theme::StatusTextColor(
 									HealthStatusSeverity(row.severity)),
-								"Status: %s | %s in state",
+								"%s: %s | %s %s",
+								lsStatus.GetValue().c_str(),
 								row.stateLabel.c_str(),
-								row.durationLabel.c_str());
+								row.durationLabel.c_str(),
+								lsInState.GetValue().c_str());
 						});
 				}
 				(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
@@ -246,7 +252,7 @@ namespace DearModdingUI
 				DrawSectionHeader(section.heading.c_str(), section.glyph);
 				if (section.clients.empty())
 				{
-					DrawBulletText("No client mods registered this session.");
+					DrawBulletText(lsNoClientModsMessage);
 					continue;
 				}
 				ImGui::PushID(static_cast<int>(sectionIndex));
@@ -266,12 +272,15 @@ namespace DearModdingUI
 							client->handle,
 							&RegisteredAction::client);
 						const auto description = std::format(
-							"{} | {} pages | {} actions",
+							"{} | {} {} | {} {}",
 							client->id,
 							pageCount,
-							actionCount);
+							lsPagesSm.GetValue(),
+							actionCount,
+							lsActionsSm.GetValue());
 						const auto version = std::format(
-							"Version {}.{}",
+							"{} {}.{}",
+							lsVersion.GetValue(),
 							client->version >> 16,
 							client->version & 0xFFFFu);
 						const auto* status =
@@ -289,7 +298,8 @@ namespace DearModdingUI
 										EffectiveClientStatusSeverity(
 											client->callbackFailed,
 											status)),
-									"Status: %s",
+									"%s: %s",
+									lsStatus.GetValue().c_str(),
 									ClientStatusLabel(
 										client->callbackFailed,
 										status));
@@ -302,13 +312,13 @@ namespace DearModdingUI
 
 			Theme::SectionSpacing();
 			DrawSectionHeader(
-				"Reported problems",
+				lsReportedProblems,
 				FindPhosphorIconGlyphOrZero("warning-circle"));
 			const auto diagnosticSections =
 				BuildHealthDiagnosticSections(clients, diagnostics);
 			if (diagnosticSections.empty())
 			{
-				DrawBulletText("No client diagnostics have been reported.");
+				DrawBulletText(lsNoClientDiagnosticsMessage);
 				return;
 			}
 			ImGui::Indent();
@@ -430,11 +440,11 @@ namespace DearModdingUI
 				};
 			}
 			const auto pressed = DrawTitleRow({
-				.title = kHostSettingsPage.displayName.data(),
+				.title = kHostSettingsPage.displayName,
 				.titleScale = Theme::kFeatureTitleScale,
 				.buttons = buttons,
 				.buttonExtentPolicy = extentPolicy,
-				.summary = kHostSettingsPage.summary.data()
+				.summary = kHostSettingsPage.summary
 			});
 			if (pressed)
 				InvokeHostSettingsTitleAction(actions[*pressed].action);
