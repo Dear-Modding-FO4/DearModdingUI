@@ -1,5 +1,5 @@
 #include <DearModdingUI/controls/LinkRow.h>
-
+#include <DearModdingUI/host/LocalizationStrings.h>
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/VisualDecisions.h>
 
@@ -102,20 +102,19 @@ namespace DearModdingUI
 			if (ImGui::IsItemHovered(hoverFlags) && ImGui::BeginTooltip())
 			{
 				if (link.action == DMUI_LINK_ACTION_COPY_TARGET)
-					ImGui::TextUnformatted("Copy target");
+					ImGui::TextUnformatted(lsCopyTarget);
 				else
 				{
 					if (link.external.targetKind ==
 						DMUI_EXTERNAL_TARGET_VIRTUAL_FILE)
-						ImGui::TextUnformatted("Open physical backing file");
+						ImGui::TextUnformatted(lsOpenPhysicalBackingFile);
 					else if (link.external.targetKind ==
 						DMUI_EXTERNAL_TARGET_VIRTUAL_FILE_PARENT)
-						ImGui::TextUnformatted(
-							"Open physical containing folder");
+						ImGui::TextUnformatted(lsOpenPhysicalContainingFolder);
 					ImGui::TextUnformatted(
 						link.external.application.empty() ?
-							"Open with system default" :
-							"Open with selected application");
+							lsOpenWithSysDef :
+							lsOpenWithSelApp);
 				}
 				const auto detail = link.note.empty() ?
 					std::string_view{ link.external.target } :

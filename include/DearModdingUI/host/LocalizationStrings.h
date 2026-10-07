@@ -95,4 +95,9 @@ namespace DearModdingUI
 	inline static LocalizeString lsSystemsPartMsgFailed5_1("$SystemsPartMsgFailed5_1", "host subsystem needs attention");
 	inline static LocalizeString lsSystemsPartMsgFailed6_1("$SystemsPartMsgFailed6_1", "host subsystems need attention");
 	inline static LocalizeString lsHostHealthNotObservedYet("$HostHealthNotObservedYet", "Host health not observed yet");
+	inline static LocalizeString lsCopyTarget("$CopyTarget", "Copy target.");
+	inline static LocalizeString lsOpenPhysicalBackingFile("$OpenPhysicalBackingFile", "Open physical backing file");
+	inline static LocalizeString lsOpenPhysicalContainingFolder("$OpenPhysicalContainingFolder", "Open physical containing folder");
+	inline static LocalizeString lsOpenWithSysDef("$OpenWithSysDef", "Open with system default");
+	inline static LocalizeString lsOpenWithSelApp("$OpenWithSelApp", "Open with selected application");
 }

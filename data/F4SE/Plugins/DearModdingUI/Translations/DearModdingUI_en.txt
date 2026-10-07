@@ -94,3 +94,8 @@ $SystemsPartMsgFailed5_1	host subsystem needs attention
 $SystemsPartMsgFailed6_1	host subsystems need attention
 $HostHealthNotObservedYet	Host health not observed yet
 $ReportedProblems	Reported problems
+$CopyTarget  Copy target
+$OpenPhysicalBackingFile    Open physical backing file
+$OpenPhysicalContainingFolder   Open physical containing folder
+$OpenWithSysDef Open with system default
+$OpenWithSelApp Open with selected application
