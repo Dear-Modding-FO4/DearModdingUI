@@ -398,19 +398,19 @@ namespace DearModdingUI
 			const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
 			for (const auto& page : kHostNavigationPages)
 			{
-				ImGui::PushID(page.id.data());
+				ImGui::PushID(page->id.data());
 				const auto row = DrawSelectableRow({
 					.id = "##DearModdingHostPage",
-					.label = page.displayName,
-					.selected = a_selection.activeHostPage == page.kind,
+					.label = page->displayName,
+					.selected = a_selection.activeHostPage == page->kind,
 					.leadingAffordance = RowLeadingAffordance::kIcon,
-					.glyph = FindPhosphorIconGlyphOrZero(page.iconName),
+					.glyph = FindPhosphorIconGlyphOrZero(page->iconName),
 					.textColor = textColor,
 					.hoveredTextColor = textColor
 				});
 				ImGui::PopID();
 				if (row.pressed)
-					a_intent.Offer(NavigationRequest::Host(page.kind));
+					a_intent.Offer(NavigationRequest::Host(page->kind));
 			}
 		}
 

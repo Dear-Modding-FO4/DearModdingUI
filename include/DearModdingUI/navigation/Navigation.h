@@ -175,7 +175,7 @@ namespace DearModdingUI
 		LocalizeString summary;
 	};
 
-	inline HostNavigationPage kHostHomePage{
+	inline constinit HostNavigationPage kHostHomePage{
 		HostPageKind::kHome,
 		"home",
 		{ "$HomeHi", "Home" },
@@ -183,7 +183,7 @@ namespace DearModdingUI
 		{ "$HomeSummary", "At-a-glance status for the shared menu host." }
 	};
 
-	inline HostNavigationPage kHostHealthPage{
+	inline constinit HostNavigationPage kHostHealthPage{
 		HostPageKind::kHealth,
 		"health",
 		{ "$HealthHi", "Health" },
@@ -191,7 +191,7 @@ namespace DearModdingUI
 		{ "$HealthSummary", "Detailed host subsystem and registered mod status." },
 	};
 
-	inline HostNavigationPage kHostSettingsPage{
+	inline constinit HostNavigationPage kHostSettingsPage{
 		HostPageKind::kSettings,
 		"settings",
 		{ "$SettingsHi", "Settings" },
@@ -200,9 +200,9 @@ namespace DearModdingUI
 	};
 
 	inline std::array kHostNavigationPages{
-		kHostHomePage,
-		kHostHealthPage,
-		kHostSettingsPage
+		std::addressof(kHostHomePage),
+		std::addressof(kHostHealthPage),
+		std::addressof(kHostSettingsPage)
 	};
 
 	[[nodiscard]] constexpr const HostNavigationPage* FindHostNavigationPage(
@@ -210,8 +210,8 @@ namespace DearModdingUI
 	{
 		for (const auto& page : kHostNavigationPages)
 		{
-			if (page.kind == a_kind)
-				return &page;
+			if (page->kind == a_kind)
+				return page;
 		}
 		return nullptr;
 	}

@@ -1,5 +1,5 @@
 #include "PlatformImGuiInternal.h"
-
+#include <DearModdingUI/navigation/Navigation.h>
 #include <DearModdingUI/host/Host.h>
 #include <Support/ProcessLifetime.h>
 #include <Support/Localization.h>
@@ -131,6 +131,13 @@ namespace Addictol
 
 	void PlatformImgui::InitializeLocalization() noexcept
 	{
+		// Register nav
+		for (auto& nav : DearModdingUI::kHostNavigationPages)
+		{
+			nav->displayName.Register();
+			nav->summary.Register();
+		}
+
 		std::string lfile = Addictol::Support::GetRuntimeDirectory() + 
 			"Data/F4SE/Plugins/DearModdingUI/Translations/DearModdingUI.txt";
 

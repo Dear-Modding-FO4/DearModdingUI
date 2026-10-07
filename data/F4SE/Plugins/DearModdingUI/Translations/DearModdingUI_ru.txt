@@ -94,7 +94,7 @@ $SystemsPartMsgFailed5_1	подсистема хоста требует вним
 $SystemsPartMsgFailed6_1	подсистемы хоста требуют внимания
 $HostHealthNotObservedYet	Состояние хоста ещё не проверено
 $ReportedProblems Сообщенные проблемы
-$CopyTarget Скопировать целевой объект
+$CopyTarget Скопировать ссылку
 $OpenPhysicalBackingFile Открыть физический резервный файл
 $OpenPhysicalContainingFolder Открыть физическую папку, содержащую
 $OpenWithSysDef Открыть с помощью системного по умолчанию

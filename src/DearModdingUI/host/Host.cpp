@@ -248,9 +248,6 @@ namespace DearModdingUI
 	{
 		auto& service = GetService();
 		auto expected = DMUI_HOST_STATE_NOT_INITIALIZED;
-
-		
-
 		service.state.compare_exchange_strong(
 			expected,
 			DMUI_HOST_STATE_WAITING_FOR_PRESENT,

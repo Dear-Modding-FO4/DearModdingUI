@@ -112,23 +112,29 @@ namespace DearModdingUI
 			public ILocalizeString
 		{
 		protected:
-			std::string value{};
-			std::string valueDefault{};
+			// mutable: allows runtime modification even on a const/constexpr object.
+			// Initialized empty so constexpr construction does not leak allocations.
+			mutable std::string value{};
+			// const char* instead of std::string — literal type, constexpr-friendly.
+			const char* valueDefault{};
 		public:
 			BaseLocalizeString() = delete;
-			BaseLocalizeString(const std::string& a_default) noexcept :
-				value(a_default),
+
+			// constexpr constructor: only initializes pointers and an empty string.
+			// No heap allocation, no side effects.
+			constexpr BaseLocalizeString(const char* a_default) noexcept :
+				value{},
 				valueDefault(a_default)
 			{}
 
-			inline std::string GetValue() const noexcept { return value; }
-			inline std::string GetValueDefault() const noexcept { return valueDefault; }
-			inline void        SetValue(const std::string& a_value) noexcept { value = a_value; }
+			inline std::string       GetValue() const noexcept { return value; }
+			inline std::string       GetValueDefault() const noexcept { return valueDefault; }
+			inline void              SetValue(const std::string& a_value) noexcept { value = a_value; }
 
 			inline operator std::string& () noexcept { return value; }
 			inline operator const std::string& () const noexcept { return value; }
 			inline operator std::string_view () noexcept { return value; }
-			inline operator const std::string_view () const noexcept { return value; }
+			inline operator std::string_view () const noexcept { return value; }
 			inline operator char* () noexcept { return value.data(); }
 			inline operator const char* () const noexcept { return value.c_str(); }
 		};
@@ -346,8 +352,10 @@ namespace DearModdingUI
 
 	namespace detail
 	{
-		static void LocalizeLoad(void* a_data, const std::string& a_key,
-			std::string& a_value, const std::string& a_valueDefault) noexcept
+		// Accepts const char* — works with constexpr-constructed LocalizeString.
+		// std::string temporaries are created here at runtime (in Load), not at constexpr construction.
+		static void LocalizeLoad(void* a_data, const char* a_key,
+			std::string& a_value, const char* a_valueDefault) noexcept
 		{
 			const auto data = static_cast<Codecvt::LocalizationFileLoader*>(a_data);
 			data->Get(a_key, a_valueDefault, a_value);
@@ -386,12 +394,21 @@ namespace DearModdingUI
 	class LocalizeString :
 		public Codecvt::BaseLocalizeString
 	{
-		std::string key;
+		// const char* — literal type, constexpr-friendly.
+		const char* key;
 	public:
-		LocalizeString(const std::string& a_key, const std::string& a_default) noexcept :
+		// constexpr constructor: initializes only pointers and an empty string.
+		// No runtime side effects — registration is deferred to Register().
+		constexpr LocalizeString(const char* a_key, const char* a_default) noexcept :
 			BaseLocalizeString(a_default),
 			key(a_key)
+		{}
+
+		// Runtime registration — call once during dynamic initialization.
+		// Sets the default value and adds this object to the Store.
+		void Register() noexcept
 		{
+			value = valueDefault;
 			LocalizationManager::GetSingleton()->Add(this);
 		}
 
@@ -401,5 +418,9 @@ namespace DearModdingUI
 		}
 	};
 }
+
+#define LOCALIZE_STRING(name, key, def)                \
+    constinit static ::DearModdingUI::LocalizeString name(key, def); \
+    inline static auto name##_reg = (name.Register(), 0)
 
 #undef _W32_IMPORT
