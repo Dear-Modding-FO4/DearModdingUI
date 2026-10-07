@@ -50,7 +50,6 @@ namespace Addictol::platformImguiDetail
 
 		constexpr size_t kWindowHookCapacity = 4;
 		std::array<WindowHookRecord, kWindowHookCapacity> s_windowHooks{};
-		std::atomic<bool> s_consumedEscape{ false };
 
 		[[nodiscard]] DearModdingUI::HotkeyMessageResult HandleHotkey(
 			uint32_t a_keyCode, uint32_t a_modifiers, bool a_pressed, bool a_repeat) noexcept
@@ -182,9 +181,13 @@ namespace Addictol::platformImguiDetail
 				bool& value;
 			};
 
+			const auto keyPressed =
+				a_message == WM_KEYDOWN || a_message == WM_SYSKEYDOWN;
+			const auto keyReleased =
+				a_message == WM_KEYUP || a_message == WM_SYSKEYUP;
 			uint32_t keyCode{};
-			if (a_message == WM_KEYDOWN || a_message == WM_SYSKEYDOWN ||
-				a_message == WM_KEYUP || a_message == WM_SYSKEYUP)
+			uint32_t engineCode{};
+			if (keyPressed || keyReleased)
 			{
 				auto scanCode = static_cast<uint8_t>(
 					(static_cast<uint64_t>(a_lparam) >> 16) & 0xFFu);
@@ -200,7 +203,29 @@ namespace Addictol::platformImguiDetail
 				}
 				keyCode = KeyboardKeyCode(
 					scanCode, extended, static_cast<uint32_t>(a_wparam));
+				// The engine resolves Shift to a side from the scan code.
+				engineCode = GameInput::EngineKeyboardCode(
+					a_wparam == VK_SHIFT ?
+						MapVirtualKeyW(scanCode, MAPVK_VSC_TO_VK_EX) :
+						static_cast<uint32_t>(a_wparam),
+					extended);
 			}
+			// The engine polls this edge next; record whether DMUI acted on it.
+			struct EdgeNote
+			{
+				~EdgeNote() noexcept
+				{
+					if (active)
+						GameInput::NoteKeyboardEdge(code, pressed, consumed);
+				}
+
+				uint32_t code;
+				bool pressed;
+				bool active;
+				bool consumed{ false };
+			} edgeNote{ engineCode, keyPressed,
+				// Bit 30 marks a repeat only on keydown; every keyup sets it.
+				keyReleased || (keyPressed && !IsKeyRepeat(static_cast<uint64_t>(a_lparam))) };
 			const auto focusLost = a_message == WM_KILLFOCUS ||
 				(a_message == WM_ACTIVATEAPP && !a_wparam);
 			const auto focusGained = a_message == WM_SETFOCUS ||
@@ -220,10 +245,6 @@ namespace Addictol::platformImguiDetail
 				}
 				inputFocused = !focusLost && DearModdingUI::CursorLoader::HasFocus();
 			}
-			const auto keyPressed =
-				a_message == WM_KEYDOWN || a_message == WM_SYSKEYDOWN;
-			const auto keyReleased =
-				a_message == WM_KEYUP || a_message == WM_SYSKEYUP;
 			uint32_t modifiers{ 0 };
 			if (keyPressed || keyReleased)
 			{
@@ -240,10 +261,11 @@ namespace Addictol::platformImguiDetail
 				static_cast<uint64_t>(a_lparam),
 				inputFocused &&
 					DearModdingUI::CurrentInputMode() != DearModdingUI::HostInputMode::kGameplay,
-				s_consumedEscape.load(std::memory_order_acquire));
+				a_wparam == VK_ESCAPE && (keyPressed || keyReleased) &&
+					DearModdingUI::Hotkeys::OwnsKey(keyCode));
 			if (escapeDecision == EscapeMessageDecision::kCapture)
 			{
-				s_consumedEscape.store(true, std::memory_order_release);
+				DearModdingUI::Hotkeys::Claim(keyCode);
 				const ContextLock lock;
 				DearModdingUI::CaptureMenuEscapePress(
 					DearModdingUI::CurrentInputMode(),
@@ -252,21 +274,14 @@ namespace Addictol::platformImguiDetail
 					DearModdingUI::PresentationServices::
 						ActiveDialogPopupId());
 			}
-			else if (
-				escapeDecision ==
-					EscapeMessageDecision::kConsumeAndRelease ||
-				escapeDecision ==
-					EscapeMessageDecision::kReleaseAndForward)
-			{
-				s_consumedEscape.store(false, std::memory_order_release);
-			}
+			else if (escapeDecision == EscapeMessageDecision::kReleaseAndForward)
+				(void)DearModdingUI::Hotkeys::HandleKey(keyCode, 0, false, false);
 			const auto escapeConsumed =
 				escapeDecision != EscapeMessageDecision::kForward &&
 				escapeDecision !=
 					EscapeMessageDecision::kReleaseAndForward;
 
-			if (!escapeConsumed &&
-				((inputFocused && keyPressed) || keyReleased))
+			if (keyReleased || (!escapeConsumed && inputFocused && keyPressed))
 			{
 				if ((a_wparam == VK_F4) &&
 					(modifiers &
@@ -292,10 +307,17 @@ namespace Addictol::platformImguiDetail
 						keyPressed,
 						(static_cast<uint64_t>(a_lparam) &
 							kKeyRepeatBit) != 0);
-				if (hotkeyResult !=
-					DearModdingUI::HotkeyMessageResult::
-						kPassThrough)
+				// A released Escape claim still reaches ImGui below.
+				if (hotkeyResult != DearModdingUI::HotkeyMessageResult::kPassThrough && !escapeConsumed)
+				{
+					// TranslateMessage already queued this keydown's char.
+					MSG pending;
+					while (keyPressed && (PeekMessageW(&pending, a_window, WM_CHAR, WM_DEADCHAR, PM_REMOVE) ||
+						PeekMessageW(&pending, a_window, WM_SYSCHAR, WM_SYSDEADCHAR, PM_REMOVE)))
+					{}
+					edgeNote.consumed = true;
 					return 0;
+				}
 			}
 
 			{
@@ -313,6 +335,7 @@ namespace Addictol::platformImguiDetail
 				context.backend.load(std::memory_order_acquire) !=
 					Backend::kReady)
 			{
+				edgeNote.consumed = escapeConsumed;
 				return escapeConsumed ?
 					0 :
 					CallPreviousWindowProc(
@@ -333,7 +356,8 @@ namespace Addictol::platformImguiDetail
 					a_lparam,
 					escapeConsumed);
 			}
-			return backendResult.handled && backendResult.swallow ?
+			edgeNote.consumed = backendResult.handled && backendResult.swallow;
+			return edgeNote.consumed ?
 				backendResult.result :
 				CallPreviousWindowProc(
 					a_window,
@@ -479,12 +503,12 @@ namespace Addictol::platformImguiDetail
 
 namespace Addictol::PlatformImgui
 {
-	void ObserveButton(uint32_t a_keyCode, bool a_pressed, bool a_repeat, bool a_pulse, float a_value) noexcept
+	bool ObserveButton(uint32_t a_keyCode, bool a_pressed, bool a_repeat, bool a_pulse, float a_value) noexcept
 	{
 		{
 			const platformImguiDetail::ContextLock lock;
 			if (a_pressed && !DearModdingUI::CursorLoader::HasFocus())
-				return;
+				return false;
 		}
 		if (DearModdingUI::ControllerNavigation::ButtonKey(a_keyCode) != ImGuiKey_None)
 		{
@@ -502,7 +526,9 @@ namespace Addictol::PlatformImgui
 			if (result == DearModdingUI::HotkeyMessageResult::kMenuToggle &&
 				platformImguiDetail::Context().callbacks.toggle)
 				platformImguiDetail::Context().callbacks.toggle();
-			return;
+			// Dismissal claims B without a hotkey result.
+			return result != DearModdingUI::HotkeyMessageResult::kPassThrough ||
+				DearModdingUI::Hotkeys::OwnsKey(a_keyCode);
 		}
 		uint32_t modifiers = 0;
 		if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
@@ -511,9 +537,12 @@ namespace Addictol::PlatformImgui
 			modifiers |= DearModdingUI::kHotkeyModifierControl;
 		if ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0)
 			modifiers |= DearModdingUI::kHotkeyModifierAlt;
-		(void)platformImguiDetail::HandleHotkey(a_keyCode, modifiers, a_pressed, a_repeat);
+		auto consumed = platformImguiDetail::HandleHotkey(a_keyCode, modifiers, a_pressed, a_repeat) !=
+			DearModdingUI::HotkeyMessageResult::kPassThrough;
 		if (a_pulse && a_pressed)
-			(void)platformImguiDetail::HandleHotkey(a_keyCode, modifiers, false, false);
+			consumed = platformImguiDetail::HandleHotkey(a_keyCode, modifiers, false, false) !=
+				DearModdingUI::HotkeyMessageResult::kPassThrough || consumed;
+		return consumed;
 	}
 
 	void ObserveMouseMove() noexcept

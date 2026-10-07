@@ -391,12 +391,34 @@ namespace DearModdingUI
 			ReleaseKeyLocked(active);
 	}
 
-	bool HotkeyRegistry::IsToggleChordHeld() const noexcept
+	void HotkeyRegistry::Claim(uint32_t a_keyCode) noexcept
+	{
+		if (a_keyCode >= m_activeKeys.size())
+			return;
+		const std::scoped_lock lock{ m_mutex };
+		auto& active = m_activeKeys[a_keyCode];
+		active.claimed = true;
+		active.slot = HotkeySlotForKey(a_keyCode);
+		m_heldKeys[a_keyCode] = true;
+	}
+
+	bool HotkeyRegistry::OwnsKey(uint32_t a_keyCode) const noexcept
 	{
 		const std::scoped_lock lock{ m_mutex };
+		return a_keyCode < m_activeKeys.size() && m_activeKeys[a_keyCode].IsOwned();
+	}
+
+	bool HotkeyRegistry::ToggleChordHeldLocked() const noexcept
+	{
 		return std::ranges::any_of(m_heldToggleChords, [](const auto& a_chord) {
 			return !a_chord.IsNone();
 		});
+	}
+
+	bool HotkeyRegistry::IsToggleChordHeld() const noexcept
+	{
+		const std::scoped_lock lock{ m_mutex };
+		return ToggleChordHeldLocked();
 	}
 
 	void HotkeyRegistry::ReleaseKeyLocked(ActiveKey& a_active) noexcept
@@ -600,14 +622,14 @@ namespace DearModdingUI
 			return HotkeyMessageResult::kPassThrough;
 		if (m_eventCount + m_reservedReleaseCount + 2 > m_events.size())
 		{
-			active = { found->handle, false, false, false, slot };
+			active = { found->handle, false, false, false, false, slot };
 			return HotkeyMessageResult::kConsumedPairDropped;
 		}
 		const auto tail = (m_eventHead + m_eventCount) % m_events.size();
 		m_events[tail] = { found->handle, true };
 		++m_eventCount;
 		++m_reservedReleaseCount;
-		active = { found->handle, true, false, false, slot };
+		active = { found->handle, true, false, false, false, slot };
 		return HotkeyMessageResult::kConsumed;
 	}
 
@@ -819,6 +841,16 @@ namespace DearModdingUI
 		void ReleaseActiveKeys() noexcept
 		{
 			RegistryInstance().ReleaseActiveKeys();
+		}
+
+		void Claim(uint32_t a_keyCode) noexcept
+		{
+			RegistryInstance().Claim(a_keyCode);
+		}
+
+		bool OwnsKey(uint32_t a_keyCode) noexcept
+		{
+			return RegistryInstance().OwnsKey(a_keyCode);
 		}
 
 		bool IsToggleChordHeld() noexcept

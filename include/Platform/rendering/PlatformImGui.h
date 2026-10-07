@@ -34,7 +34,8 @@ namespace Addictol
 
 		void SetDrawingEnabled(bool a_enabled) noexcept;
 		void HandleGameTransition() noexcept;
-		void ObserveButton(uint32_t a_keyCode, bool a_pressed, bool a_repeat,
+		// True when DMUI acted on the button, so the game must not see it.
+		[[nodiscard]] bool ObserveButton(uint32_t a_keyCode, bool a_pressed, bool a_repeat,
 			bool a_pulse = false, float a_value = 1.0f) noexcept;
 		void ObserveStick(bool a_left, float a_x, float a_y) noexcept;
 		void ObserveMouseMove() noexcept;

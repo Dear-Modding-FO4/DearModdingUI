@@ -72,44 +72,35 @@ namespace vmm_tests
 			HotkeyRegistry registry;
 			registry.SetReservedChord(kMenuDefaultGamepadToggleChord, HotkeySlot::kGamepad);
 			bool blocked = false;
-			auto frame = InputQueueDecision::kForward;
-			const auto decide = [&](InputQueueDecision a_previous = InputQueueDecision::kForward) {
-				return DecideInputQueue(
-					blocked, kMenuInputSuppression, registry.IsToggleChordHeld(), a_previous);
+			const auto decide = [&] {
+				return DecideInputQueue(blocked, kMenuInputSuppression, registry.IsToggleChordHeld());
 			};
 			const auto route = [&](uint32_t a_code, bool a_pressed, bool a_repeat = false) {
 				if (registry.HandleKey(a_code, 0, a_pressed, a_repeat) == HotkeyMessageResult::kMenuToggle)
 					blocked = !blocked;
-				frame = decide(frame);
 			};
-			frame = decide();
 			for (const auto code : { kPadLB, kPadRB, kPadBack })
 				route(code, true);
-			require(blocked && frame == InputQueueDecision::kDiscard,
-				"opening chord leaked its queue to later receivers");
+			require(blocked && decide() == InputQueueDecision::kDiscard,
+				"opening chord did not block game input");
 			for (const auto code : { kPadLB, kPadRB, kPadBack })
 				route(code, false);
 
-			frame = decide();
 			for (const auto code : { kPadLB, kPadRB, kPadBack })
 				route(code, true);
-			require(!blocked && registry.IsToggleChordHeld() &&
-					frame == InputQueueDecision::kDiscard && decide() == InputQueueDecision::kDiscard,
-				"closing chord leaked the closing queue or following held frame");
-			frame = decide();
+			require(!blocked && registry.IsToggleChordHeld() && decide() == InputQueueDecision::kDiscard,
+				"closing chord leaked into gameplay");
 			route(kPadBack, false);
 			route(kPadLB, true, true);
 			route(kPadRB, false);
 			require(registry.IsToggleChordHeld() && decide() == InputQueueDecision::kDiscard,
 				"trigger release allowed a remaining shoulder hold into gameplay");
 			route(kPadLB, false);
-			require(!registry.IsToggleChordHeld() && frame == InputQueueDecision::kDiscard &&
-					decide() == InputQueueDecision::kForward,
-				"final release escaped its queue or kept the next queue blocked");
+			require(!registry.IsToggleChordHeld() && decide() == InputQueueDecision::kForward,
+				"final release kept gameplay blocked");
 
-			frame = decide();
 			route(kPadLB, true);
-			require(frame == InputQueueDecision::kForward,
+			require(decide() == InputQueueDecision::kForward,
 				"an old toggle activation blocked a fresh partial chord");
 			route(kPadRB, true);
 			route(kPadBack, true);
@@ -122,15 +113,14 @@ namespace vmm_tests
 
 			registry.SetReservedChord(ParseHotkeyChord("Mouse3+Mouse4").chord);
 			blocked = true;
-			frame = decide();
 			route(kMouseButtonOffset + 2, true);
 			route(kMouseButtonOffset + 3, true);
 			require(!blocked && decide() == InputQueueDecision::kDiscard,
 				"keyboard-slot mouse toggle did not retain its hold");
 			route(kMouseButtonOffset + 3, false);
 			route(kMouseButtonOffset + 2, false);
-			require(frame == InputQueueDecision::kDiscard && decide() == InputQueueDecision::kForward,
-				"mouse toggle release did not preserve the frame boundary");
+			require(decide() == InputQueueDecision::kForward,
+				"mouse toggle release kept gameplay blocked");
 			RequireHeldOpeningChordIsSuppressed();
 		});
 		runner.test("engine gamepad masks and Orbis ids retain catalog identity", [] {

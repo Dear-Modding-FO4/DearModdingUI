@@ -176,11 +176,11 @@ namespace DearModdingUIPreview
 				static_cast<uint32_t>(a_wparam),
 				static_cast<uint64_t>(a_lparam),
 				CurrentInputMode() != HostInputMode::kGameplay,
-				m_escapeConsumed);
+				Hotkeys::OwnsKey(Addictol::ImguiPlatform::kEscapeKeyCode));
 		if (escapeDecision ==
 			Addictol::ImguiPlatform::EscapeMessageDecision::kCapture)
 		{
-			m_escapeConsumed = true;
+			Hotkeys::Claim(Addictol::ImguiPlatform::kEscapeKeyCode);
 			CaptureMenuEscapePress(
 				CurrentInputMode(),
 				PresentationServices::HasActiveDialog(),
@@ -192,9 +192,7 @@ namespace DearModdingUIPreview
 			escapeDecision ==
 				Addictol::ImguiPlatform::EscapeMessageDecision::
 					kReleaseAndForward)
-		{
-			m_escapeConsumed = false;
-		}
+			(void)Hotkeys::HandleKey(Addictol::ImguiPlatform::kEscapeKeyCode, 0, false, false);
 
 		const auto imguiHandled =
 			m_imguiBackendReady &&

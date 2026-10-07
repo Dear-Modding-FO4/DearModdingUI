@@ -431,6 +431,7 @@ namespace Addictol::ImguiPlatform
 	}
 
 	inline constexpr uint32_t kEscapeVirtualKey = 0x1B;
+	inline constexpr uint32_t kEscapeKeyCode = 0x01;
 
 	enum class EscapeMessageDecision : uint32_t
 	{

@@ -46,6 +46,5 @@ namespace DearModdingUIPreview
 		HINSTANCE m_instance{};
 		HWND m_window{};
 		bool m_imguiBackendReady{};
-		bool m_escapeConsumed{};
 	};
 }

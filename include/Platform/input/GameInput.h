@@ -7,6 +7,7 @@
 #include <format>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace Addictol::GameInput
 {
@@ -128,13 +129,30 @@ namespace Addictol::GameInput
 	[[nodiscard]] constexpr InputQueueDecision DecideInputQueue(
 		bool a_menuVisible,
 		InputSuppressionPolicy a_policy = kMenuInputSuppression,
-		bool a_toggleChordHeld = false,
-		InputQueueDecision a_frameDecision = InputQueueDecision::kForward) noexcept
+		bool a_hostInputBlock = false) noexcept
 	{
-		return a_frameDecision == InputQueueDecision::kDiscard ||
-			((a_menuVisible || a_toggleChordHeld) && a_policy == InputSuppressionPolicy::kAllDevices) ?
+		return (a_menuVisible || a_hostInputBlock) && a_policy == InputSuppressionPolicy::kAllDevices ?
 			InputQueueDecision::kDiscard :
 			InputQueueDecision::kForward;
+	}
+
+	// Non-extended navigation keys arrive from the numpad.
+	inline constexpr std::array<std::pair<uint32_t, uint32_t>, 11> kNumpadNavigation{ {
+		{ 0x0C, 0x65 }, { 0x21, 0x69 }, { 0x22, 0x63 }, { 0x23, 0x61 },
+		{ 0x24, 0x67 }, { 0x25, 0x64 }, { 0x26, 0x68 }, { 0x27, 0x66 },
+		{ 0x28, 0x62 }, { 0x2D, 0x60 }, { 0x2E, 0x6E },
+	} };
+
+	// The engine keys keyboard state by virtual key after its own remaps.
+	[[nodiscard]] constexpr uint32_t EngineKeyboardCode(uint32_t a_virtualKey, bool a_extended) noexcept
+	{
+		if (a_virtualKey == 0x11 || a_virtualKey == 0x12)
+			return (a_virtualKey == 0x11 ? 0xA2u : 0xA4u) + (a_extended ? 1u : 0u);
+		if (!a_extended)
+			for (const auto [navigation, numpad] : kNumpadNavigation)
+				if (navigation == a_virtualKey)
+					return numpad;
+		return a_virtualKey;
 	}
 
 	[[nodiscard]] constexpr bool MatchesReceiverOffset(
@@ -150,4 +168,5 @@ namespace Addictol::GameInput
 	[[nodiscard]] bool InstallHooks() noexcept;
 	void InitializeHealth() noexcept;
 	void SetBlocked(bool a_blocked) noexcept;
+	void NoteKeyboardEdge(uint32_t a_engineCode, bool a_pressed, bool a_consumed) noexcept;
 }

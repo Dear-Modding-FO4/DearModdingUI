@@ -116,8 +116,9 @@ namespace DearModdingUI::ControllerNavigation
 		const auto capturing = Hotkeys::IsCapturing();
 		const auto shell = a_context.inputMode == HostInputMode::kShell;
 		const auto back = a_code == KeyCatalog::kPadB && a_context.inputMode != HostInputMode::kGameplay;
-		// Dismissal retires any gameplay-owned B before accepting a fresh press.
-		const auto result = Hotkeys::HandleKey(a_code, 0, a_pressed && !back, a_repeat);
+		// A fresh B press retires any gameplay-owned B; holds keep the claim.
+		const auto result = back && a_pressed && a_repeat ? HotkeyMessageResult::kPassThrough :
+			Hotkeys::HandleKey(a_code, 0, a_pressed && !back, a_repeat);
 		if (result == HotkeyMessageResult::kConsumedPairDropped)
 			REX::WARN("DearModdingUI: hotkey event queue overflowed; one press/release pair was dropped");
 		if (!ImGui::GetCurrentContext())
@@ -133,6 +134,7 @@ namespace DearModdingUI::ControllerNavigation
 			{
 				SetMode(DecideControllerMode(s_mode, false, a_code));
 				Back(a_context.inputMode);
+				Hotkeys::Claim(a_code);
 			}
 		}
 		else if (down || forwarded)

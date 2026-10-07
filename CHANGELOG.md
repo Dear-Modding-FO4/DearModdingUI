@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Clients built with newer headers connect to older hosts of the same major; newer-minor operations report `UNSUPPORTED_ABI`.
+- Keys DMUI acts on (hotkeys, Escape, controller B) no longer reach the game or type into text fields, and held game actions release when DMUI takes input.
 
 ## [0.2.1] - 2026-10-05
 
