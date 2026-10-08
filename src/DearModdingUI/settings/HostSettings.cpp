@@ -4,6 +4,7 @@
 #include <DearModdingUI/settings/HostSettingsHealthState.h>
 #include <DearModdingUI/settings/HostSettingsPersistence.h>
 #include <DearModdingUI/host/Hotkeys.h>
+#include <DearModdingUI/localization/Localization.h>
 #include <Support/Runtime.h>
 #include <Support/SubsystemHealth.h>
 
@@ -26,6 +27,8 @@ namespace DearModdingUI::HostSettings
 
 	namespace
 	{
+		constexpr Localization::Phrase kSettingsSavedText{ "$DMUI_Settings_SettingsSaved", "Settings saved." };
+
 		std::atomic<bool> s_pageActive{ false };
 		std::atomic<uint64_t> s_pageRevision{ 0 };
 		std::mutex s_previewMutex;
@@ -338,7 +341,7 @@ namespace DearModdingUI::HostSettings
 			{
 				(void)SetHostStatus(
 					DMUI_STATUS_SEVERITY_SUCCESS,
-					"Settings saved.");
+					Localization::Text(kSettingsSavedText));
 				return true;
 			}
 			if (!SaveSettings(a_settings, s_hotkeyOverrides, error))
@@ -354,7 +357,7 @@ namespace DearModdingUI::HostSettings
 		}
 		(void)SetHostStatus(
 			DMUI_STATUS_SEVERITY_SUCCESS,
-			"Settings saved.");
+			Localization::Text(kSettingsSavedText));
 		return true;
 	}
 

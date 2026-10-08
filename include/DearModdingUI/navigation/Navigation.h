@@ -3,8 +3,6 @@
 #include <DearModdingUI/API.h>
 #include <DearModdingUI/IconGlyphs.h>
 
-#include <Support/Localization.h>
-
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -170,48 +168,43 @@ namespace DearModdingUI
 	{
 		HostPageKind kind{ HostPageKind::kHome };
 		std::string_view id;
-		LocalizeString displayName;
 		std::string_view iconName;
-		LocalizeString summary;
 	};
 
-	inline constinit HostNavigationPage kHostHomePage{
+	inline constexpr HostNavigationPage kHostHomePage{
 		HostPageKind::kHome,
 		"home",
-		{ "$HomeHi", "Home" },
-		"house",
-		{ "$HomeSummary", "At-a-glance status for the shared menu host." }
+		"house"
 	};
 
-	inline constinit HostNavigationPage kHostHealthPage{
+	inline constexpr HostNavigationPage kHostHealthPage{
 		HostPageKind::kHealth,
 		"health",
-		{ "$HealthHi", "Health" },
-		"stethoscope",
-		{ "$HealthSummary", "Detailed host subsystem and registered mod status." },
+		"stethoscope"
 	};
 
-	inline constinit HostNavigationPage kHostSettingsPage{
+	inline constexpr HostNavigationPage kHostSettingsPage{
 		HostPageKind::kSettings,
 		"settings",
-		{ "$SettingsHi", "Settings" },
-		"sliders-horizontal",
-		{ "$SettingsSummary", "Configure the shared menu interface, readability, and input." },
+		"sliders-horizontal"
 	};
 
-	inline std::array kHostNavigationPages{
-		std::addressof(kHostHomePage),
-		std::addressof(kHostHealthPage),
-		std::addressof(kHostSettingsPage)
+	inline constexpr std::array kHostNavigationPages{
+		kHostHomePage,
+		kHostHealthPage,
+		kHostSettingsPage
 	};
+
+	[[nodiscard]] const char* HostPageName(HostPageKind a_kind) noexcept;
+	[[nodiscard]] const char* HostPageSummary(HostPageKind a_kind) noexcept;
 
 	[[nodiscard]] constexpr const HostNavigationPage* FindHostNavigationPage(
 		HostPageKind a_kind) noexcept
 	{
 		for (const auto& page : kHostNavigationPages)
 		{
-			if (page->kind == a_kind)
-				return page;
+			if (page.kind == a_kind)
+				return &page;
 		}
 		return nullptr;
 	}

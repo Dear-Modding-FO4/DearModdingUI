@@ -14,11 +14,11 @@
 #include <DearModdingUI/navigation/SidebarComparison.h>
 #endif
 #include <DearModdingUI/host/Status.h>
+#include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/VisualDecisions.h>
 #include <DearModdingUI/navigation/CommandPalette.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
-#include <DearModdingUI/host/LocalizationStrings.h>
 #include <DearModdingUI/pages/HostPageViews.h>
 #include <DearModdingUI/controls/ChromeGeometry.h>
 #include <DearModdingUI/navigation/SidebarView.h>
@@ -40,8 +40,16 @@ namespace DearModdingUI
 {
 	namespace
 	{
-		inline constexpr char kStatusDetailsPopupId[] =
-			"{}###DearModdingUIStatusDetails";
+		constexpr Localization::Phrase kCloseText{ "$DMUI_Shell_Close", "Close" };
+
+		[[nodiscard]] std::string StatusDetailsPopupId()
+		{
+			return std::format(
+				"{}###DearModdingUIStatusDetails",
+				Localization::Text(
+					"$DMUI_Shell_StatusDetailsTitle",
+					"Status details"));
+		}
 
 		struct ShellState : ClientSelectionState
 		{
@@ -93,7 +101,9 @@ namespace DearModdingUI
 			{
 				(void)SetHostStatus(
 					DMUI_STATUS_SEVERITY_WARNING,
-					std::format("{}.", lsNavRequestRejected.GetValue()));
+					Localization::Text(
+						"$DMUI_Shell_NavigationRejected",
+						"Navigation request was rejected."));
 				return result;
 			}
 			HostSettings::SetPageActive(
@@ -172,7 +182,7 @@ namespace DearModdingUI
 			const auto breadcrumb = BuildHostBreadcrumb(
 				"Evil Modding",
 				hostPage ?
-					hostPage->displayName :
+					std::string_view{ HostPageName(hostPage->kind) } :
 					client ?
 						std::string_view{ client->displayName } :
 						std::string_view{});
@@ -183,17 +193,17 @@ namespace DearModdingUI
 				ImGui::GetFontSize(),
 				TitleBarButtonPadding());
 			const auto hasGlyph = HasIconGlyph(PhosphorGlyph::kX);
-			const auto closeLabel = lsClose.GetValue();
+			const auto* const closeLabel = Localization::Text(kCloseText);
 			const TitleRowButton closeButton{
 				"##DearModdingUI.HostCloseButton",
 				ActionButtonWidth(
 					hasGlyph,
-					ImGui::CalcTextSize(closeLabel.c_str()).x,
+					ImGui::CalcTextSize(closeLabel).x,
 					extent,
 					ImGui::GetStyle().FramePadding.x),
 				hasGlyph ? PhosphorGlyph::kX : char32_t{},
-				closeLabel.c_str(),
-				lsCloseMenu
+				closeLabel,
+				Localization::Text("$DMUI_Shell_CloseMenu", "Close menu")
 			};
 			return DrawTitleRow({
 				.title = breadcrumb.c_str(),
@@ -220,14 +230,22 @@ namespace DearModdingUI
 		{
 			{
 				const Theme::FontGuard font{ Theme::FontRole::kHeading };
+				const auto title = Localization::Format(
+					"$DMUI_Shell_PageFailedTitle",
+					"{} could not be displayed",
+					a_page.displayName);
 				ImGui::TextColored(
 					Theme::kStatusPaletteDefaults.error,
-					"%s %s",
-					a_page.displayName.c_str(),
-					lsCouldNotBeDisplayed.GetValue().c_str());
+					"%s",
+					title.c_str());
 			}
 			ImGui::Spacing();
-			ImGui::TextWrapped(lsMessageFailedCallbackPage);
+			ImGui::TextWrapped(
+				"%s",
+				Localization::Text(
+					"$DMUI_Shell_PageFailedBody",
+					"The mod's page callback failed and has been disabled for "
+					"this session. Other pages remain available."));
 		}
 
 		[[nodiscard]] bool ActionHasGlyph(
@@ -266,7 +284,9 @@ namespace DearModdingUI
 					hasGlyph ? glyph : char32_t{},
 					action.displayLabel.c_str(),
 					failed ?
-						lsMessageActionDisabledAfterCallbacks.GetValue().c_str() :
+						Localization::Text(
+							"$DMUI_Shell_ActionFailedTooltip",
+							"Action disabled after its callback failed.") :
 						(action.tooltip.empty() ?
 							action.displayLabel.c_str() :
 							action.tooltip.c_str()),
@@ -318,7 +338,11 @@ namespace DearModdingUI
 			const auto* page = a_model.FindPage(a_state.activePage);
 			if (!page)
 			{
-				ImGui::TextDisabled(lsMessagePleaseSelectPage);
+				ImGui::TextDisabled(
+					"%s",
+					Localization::Text(
+						"$DMUI_Shell_SelectPage",
+						"Please select a page from the left."));
 				ImGui::EndChild();
 				return;
 			}
@@ -395,23 +419,36 @@ namespace DearModdingUI
 				ImGuiCond_Appearing);
 			auto open = true;
 			auto closeRequested = false;
+			const auto popupId = StatusDetailsPopupId();
 			if (BeginPopupModalWithRoundedTitleBarButtons(
-					std::format(kStatusDetailsPopupId, lsStatusDetailsPopup.GetValue()).c_str(), 
+					popupId.c_str(),
 					&open,
 					ImGuiWindowFlags_AlwaysAutoResize |
 						ImGuiWindowFlags_NoSavedSettings))
 			{
 				const auto& status = *a_state.statusDetails;
-				ImGui::TextDisabled("%s %s", lsErrorFrom.GetValue().c_str(), status.owner.c_str());
+				const auto errorFrom = Localization::Format(
+					"$DMUI_Shell_ErrorFrom",
+					"Error from {}",
+					status.owner);
+				ImGui::TextDisabled("%s", errorFrom.c_str());
 				ImGui::Spacing();
 				ImGui::TextWrapped("%s", status.message.c_str());
 				ImGui::Spacing();
 				ImGui::Separator();
 				ImGui::Spacing();
-				if (ImGui::Button(lsCopyDetails))
+				const auto copyLabel = std::format(
+					"{}###DearModdingUI.StatusDetailsCopy",
+					Localization::Text(
+						"$DMUI_Shell_CopyDetails",
+						"Copy details"));
+				if (ImGui::Button(copyLabel.c_str()))
 					ImGui::SetClipboardText(status.attributedText.c_str());
 				ImGui::SameLine();
-				if (ImGui::Button(lsClose))
+				const auto closeLabel = std::format(
+					"{}###DearModdingUI.StatusDetailsClose",
+					Localization::Text(kCloseText));
+				if (ImGui::Button(closeLabel.c_str()))
 				{
 					ImGui::CloseCurrentPopup();
 					closeRequested = true;
@@ -439,18 +476,22 @@ namespace DearModdingUI
 			const auto rowHeight =
 				(std::max)(ImGui::GetFrameHeight(), settingsExtent);
 			const auto hasGear = HasIconGlyph(PhosphorGlyph::kGear);
-			const auto settingsLabel = lsSettings.GetValue();
+			const auto* const settingsLabel = Localization::Text(
+				"$DMUI_Shell_Settings",
+				"Settings");
 			const auto settingsWidth = ActionButtonWidth(
 				hasGear,
-				ImGui::CalcTextSize(settingsLabel.c_str()).x,
+				ImGui::CalcTextSize(settingsLabel).x,
 				settingsExtent,
 				ImGui::GetStyle().FramePadding.x);
 			const auto persistent = status && status->persistent;
 			const auto hasDismiss = HasIconGlyph(PhosphorGlyph::kX);
-			const auto dismissLabel = lsDismiss.GetValue();
+			const auto* const dismissLabel = Localization::Text(
+				"$DMUI_Shell_Dismiss",
+				"Dismiss");
 			const auto dismissWidth = ActionButtonWidth(
 				hasDismiss,
-				ImGui::CalcTextSize(dismissLabel.c_str()).x,
+				ImGui::CalcTextSize(dismissLabel).x,
 				dismissExtent,
 				ImGui::GetStyle().FramePadding.x);
 			const auto controls = ResolveFooterControlsLayout(
@@ -473,17 +514,23 @@ namespace DearModdingUI
 				start.x,
 				RowContentY(start.y, rowHeight, ImGui::GetTextLineHeight())
 			});
-
-			DrawBulletText(std::format("{}: Evil Modding", lsHost.GetValue()).c_str());
+			const auto host = Localization::Format(
+				"$DMUI_Shell_HostFooter",
+				"Host: {}",
+				"Evil Modding");
+			DrawBulletText(host.c_str());
 			if (const auto* client = a_model.FindClient(a_state.activeClient))
 			{
 				ImGui::SameLine();
-				const auto mod = lsMod.GetValue() + ": " + client->displayName;
+				const auto mod = Localization::Format(
+					"$DMUI_Shell_ModFooter",
+					"Mod: {}",
+					client->displayName);
 				DrawBulletText(mod.c_str());
 				ImGui::SameLine();
-				const auto version = std::format(
-					"{}: {}.{}",
-					lsVersion.GetValue(),
+				const auto version = Localization::Format(
+					"$DMUI_Shell_VersionFooter",
+					"Version: {}.{}",
 					client->version >> 16,
 					client->version & 0xFFFFu);
 				DrawBulletText(version.c_str());
@@ -494,8 +541,7 @@ namespace DearModdingUI
 				if (DrawFooterStatus(*status, statusMaxX))
 				{
 					a_state.statusDetails = *status;
-					ImGui::OpenPopup(std::format(kStatusDetailsPopupId,
-						lsStatusDetailsPopup.GetValue()).c_str());
+					ImGui::OpenPopup(StatusDetailsPopupId().c_str());
 				}
 			}
 			ImGui::PopClipRect();
@@ -523,8 +569,8 @@ namespace DearModdingUI
 						dismissExtent
 					},
 					hasDismiss ? PhosphorGlyph::kX : char32_t{},
-					hasDismiss ? nullptr : dismissLabel.c_str(),
-					lsDismissStatus.GetValue().c_str(),
+					hasDismiss ? nullptr : dismissLabel,
+					Localization::Text("$DMUI_Shell_DismissStatus", "Dismiss status"),
 					hasDismiss ?
 						IconColor(ImGui::GetColorU32(ImGuiCol_Text)) :
 						ImGui::GetColorU32(ImGuiCol_Text)))
@@ -539,8 +585,8 @@ namespace DearModdingUI
 					},
 					{ settingsWidth, settingsExtent },
 					hasGear ? PhosphorGlyph::kGear : char32_t{},
-					hasGear ? nullptr : settingsLabel.c_str(),
-					lsInterfaceSettings.GetValue().c_str(),
+					hasGear ? nullptr : settingsLabel,
+					Localization::Text("$DMUI_Shell_InterfaceSettings", "Interface settings"),
 					hasGear ?
 						IconColor(ImGui::GetColorU32(ImGuiCol_Text)) :
 						ImGui::GetColorU32(ImGuiCol_Text),

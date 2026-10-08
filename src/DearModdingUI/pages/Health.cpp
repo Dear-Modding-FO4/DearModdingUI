@@ -2,10 +2,9 @@
 
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/host/Registry.h>
-#include <DearModdingUI/host/LocalizationStrings.h>
+#include <DearModdingUI/localization/Localization.h>
 
 #include <algorithm>
-#include <cstdio>
 #include <format>
 #include <map>
 #include <memory>
@@ -18,13 +17,39 @@ namespace DearModdingUI
 {
 	namespace
 	{
+		[[nodiscard]] Localization::Phrase StatePhrase(HealthState a_state) noexcept
+		{
+			const auto english = HealthStateLabel(a_state).data();
+			switch (a_state)
+			{
+			case HealthState::kWaiting:
+				return { "$DMUI_Health_StateWaiting", english };
+			case HealthState::kProgressing:
+				return { "$DMUI_Health_StateProgressing", english };
+			case HealthState::kReady:
+				return { "$DMUI_Health_StateReady", english };
+			case HealthState::kDegraded:
+				return { "$DMUI_Health_StateDegraded", english };
+			case HealthState::kFailed:
+				return { "$DMUI_Health_StateFailed", english };
+			default:
+				return { "$DMUI_Health_StateUnknown", english };
+			}
+		}
+
 		[[nodiscard]] std::string SubsystemStateLabel(
 			const HealthSnapshot& a_snapshot,
-			HealthClock::time_point a_now)
+			HealthClock::time_point a_now,
+			bool a_localized)
 		{
-			std::string label{ HealthStateLabel(a_snapshot.state) };
+			std::string label = Localization::Text(StatePhrase(a_snapshot.state), a_localized);
 			if (HealthDeadlineExceeded(a_snapshot, a_now))
-				label.append(" ").append(lsDeadlineExceeded.GetValue());
+			{
+				label.push_back(' ');
+				label.append(Localization::Text(
+					{ "$DMUI_Health_DeadlineExceeded", "(deadline exceeded)" },
+					a_localized));
+			}
 			return label;
 		}
 
@@ -51,25 +76,43 @@ namespace DearModdingUI
 			uint64_t a_info)
 		{
 			std::string summary;
-			const auto append =
-				[&](uint64_t a_count,
-					std::string_view a_singular,
-					std::string_view a_plural) {
-					if (a_count == 0)
-						return;
-					if (!summary.empty())
-						summary.append(", ");
-					summary.append(std::to_string(a_count));
-					summary.push_back(' ');
-					summary.append(a_count == 1 ?
-						a_singular :
-						a_plural);
-				};
-			append(a_errors, lsError, lsErrors);
-			append(a_warnings, lsWarning, lsWarnings);
-			append(a_successes, lsSuccess, lsSuccesses);
-			append(a_info, lsInfo, lsInfo);
-
+			const auto append = [&](const std::string& a_part) {
+				if (!summary.empty())
+					summary.append(", ");
+				summary.append(a_part);
+			};
+			if (a_errors == 1)
+				append(Localization::Text(
+					"$DMUI_Health_ErrorCountOne",
+					"1 error"));
+			else if (a_errors != 0)
+				append(Localization::Format(
+					"$DMUI_Health_ErrorCountOther",
+					"{} errors",
+					a_errors));
+			if (a_warnings == 1)
+				append(Localization::Text(
+					"$DMUI_Health_WarningCountOne",
+					"1 warning"));
+			else if (a_warnings != 0)
+				append(Localization::Format(
+					"$DMUI_Health_WarningCountOther",
+					"{} warnings",
+					a_warnings));
+			if (a_successes == 1)
+				append(Localization::Text(
+					"$DMUI_Health_SuccessCountOne",
+					"1 success"));
+			else if (a_successes != 0)
+				append(Localization::Format(
+					"$DMUI_Health_SuccessCountOther",
+					"{} successes",
+					a_successes));
+			if (a_info != 0)
+				append(Localization::Format(
+					"$DMUI_Health_InfoCount",
+					"{} info",
+					a_info));
 			return summary;
 		}
 
@@ -86,13 +129,16 @@ namespace DearModdingUI
 				std::to_address(client);
 		}
 
-		[[nodiscard]] std::string DroppedReportLabel(size_t a_count)
+		[[nodiscard]] std::string DroppedReportLabel(size_t a_count, bool a_localized)
 		{
-			return std::format("{} {}",
-				a_count,
-				a_count == 1 ? 
-					lsFurtherDiagnosticReport.GetValue() :
-					lsFurtherDiagnosticReports.GetValue());
+			if (a_count == 1)
+				return Localization::Text(
+					{ "$DMUI_Health_DroppedReportOne", "1 further diagnostic report was not retained." },
+					a_localized);
+			return Localization::Format(
+				{ "$DMUI_Health_DroppedReportOther", "{} further diagnostic reports were not retained." },
+				a_localized,
+				a_count);
 		}
 
 		[[nodiscard]] std::string DiagnosticDescription(
@@ -102,8 +148,10 @@ namespace DearModdingUI
 			std::string description;
 			if (!a_scope.empty())
 			{
-				description.append(lsScope.GetValue()).append(": ");
-				description.append(a_scope);
+				description = Localization::Format(
+					"$DMUI_Health_ScopeLabel",
+					"Scope: {}",
+					a_scope);
 			}
 			if (!a_detail.empty())
 			{
@@ -121,35 +169,26 @@ namespace DearModdingUI
 				int64_t{},
 				std::chrono::duration_cast<std::chrono::seconds>(
 					a_duration).count());
-			char label[64]{};
 			if (seconds < 60)
 			{
-				std::snprintf(label, sizeof(label), "%lld%s",
-					static_cast<long long>(seconds), lsSecondShort.GetValue().c_str());
+				return Localization::Format(
+					"$DMUI_Health_DurationSeconds",
+					"{}s",
+					seconds);
 			}
-			else if (seconds < 3600)
+			if (seconds < 3600)
 			{
-				std::snprintf(
-					label,
-					sizeof(label),
-					"%lld%s %lld%s",
-					static_cast<long long>(seconds / 60),
-					lsMinuteShort.GetValue().c_str(),
-					static_cast<long long>(seconds % 60),
-					lsSecondShort.GetValue().c_str());
+				return Localization::Format(
+					"$DMUI_Health_DurationMinutes",
+					"{}m {}s",
+					seconds / 60,
+					seconds % 60);
 			}
-			else
-			{
-				std::snprintf(
-					label,
-					sizeof(label),
-					"%lld%s %lld%s",
-					static_cast<long long>(seconds / 3600),
-					lsHourShort.GetValue().c_str(),
-					static_cast<long long>((seconds % 3600) / 60),
-					lsMinuteShort.GetValue().c_str());
-			}
-			return label;
+			return Localization::Format(
+				"$DMUI_Health_DurationHours",
+				"{}h {}m",
+				seconds / 3600,
+				(seconds % 3600) / 60);
 		}
 	}
 
@@ -168,7 +207,9 @@ namespace DearModdingUI
 			});
 
 		HealthClientSection native{
-			lsRegisteredMods.GetValue().c_str(),
+			Localization::Text(
+				"$DMUI_Health_RegisteredMods",
+				"Registered mods"),
 			PhosphorGlyph::kPuzzlePiece,
 			{}
 		};
@@ -189,8 +230,13 @@ namespace DearModdingUI
 		{
 			sections.push_back({
 				sourceLabel.empty() ?
-					lsBridgedMods.GetValue() :
-					sourceLabel + " " + lsMods.GetValue(),
+					std::string{ Localization::Text(
+						"$DMUI_Health_BridgedMods",
+						"Bridged mods") } :
+					Localization::Format(
+						"$DMUI_Health_SourceMods",
+						"{} mods",
+						sourceLabel),
 				bridgeGlyph,
 				std::move(clients)
 			});
@@ -209,7 +255,7 @@ namespace DearModdingUI
 			rows.push_back({
 				std::string{ snapshot.identity },
 				snapshot.state,
-				SubsystemStateLabel(snapshot, a_now),
+				SubsystemStateLabel(snapshot, a_now, true),
 				FormatHealthDuration(a_now - snapshot.enteredAt),
 				std::string{ snapshot.reason },
 				HealthSnapshotSeverity(snapshot, a_now)
@@ -246,7 +292,8 @@ namespace DearModdingUI
 				.droppedReportLabel = diagnostic.droppedReportCount == 0 ?
 					std::string{} :
 					DroppedReportLabel(
-						diagnostic.droppedReportCount)
+						diagnostic.droppedReportCount,
+						true)
 			};
 			section.rows.reserve(diagnostic.records.size());
 			uint64_t errors{};
@@ -278,7 +325,7 @@ namespace DearModdingUI
 					DiagnosticDescription(record.scope, record.detail),
 					std::format(
 						"{} \xC3\x97{}",
-						StatusSeverityLabel(record.severity),
+						StatusSeverityLabel(record.severity, true),
 						record.occurrenceCount),
 					record.occurrenceCount
 				});
@@ -347,12 +394,11 @@ namespace DearModdingUI
 		HealthClock::time_point a_now)
 	{
 		std::string report;
-		report.append(std::format("DearModdingUI {}\n\n{}: ",
-			lsDiagnosticsReport.GetValue(), lsHost.GetValue()));
+		report.append("DearModdingUI diagnostics report\n\nHost: ");
 		report.append(a_hostName);
 		report.push_back(' ');
 		report.append(a_hostVersion);
-		report.append(std::format("\n\n{}\n", lsHostSubsystems.GetValue()));
+		report.append("\n\nHost subsystems\n");
 
 		std::vector<const HealthSnapshot*> subsystems;
 		subsystems.reserve(a_subsystems.size());
@@ -366,7 +412,7 @@ namespace DearModdingUI
 			});
 		if (subsystems.empty())
 		{
-			report.append(std::format("- {}\n", lsNoObservations.GetValue()));
+			report.append("- No observations\n");
 		}
 		else
 		{
@@ -375,7 +421,7 @@ namespace DearModdingUI
 				report.append("- ");
 				report.append(subsystem->identity);
 				report.append(": ");
-				report.append(SubsystemStateLabel(*subsystem, a_now));
+				report.append(SubsystemStateLabel(*subsystem, a_now, false));
 				if (!subsystem->reason.empty())
 				{
 					report.append(" - ");
@@ -385,7 +431,7 @@ namespace DearModdingUI
 			}
 		}
 
-		report.append(std::format("\n{}\n", lsRegisteredMods.GetValue()));
+		report.append("\nRegistered mods\n");
 		std::vector<const RegisteredClient*> clients;
 		clients.reserve(a_clients.size());
 		for (const auto& client : a_clients)
@@ -399,7 +445,7 @@ namespace DearModdingUI
 			});
 		if (clients.empty())
 		{
-			report.append(std::format("- {}\n", lsNone.GetValue()));
+			report.append("- None\n");
 		}
 		else
 		{
@@ -412,16 +458,16 @@ namespace DearModdingUI
 					client->displayName,
 					client->version >> 16,
 					client->version & 0xFFFFu,
-					ClientStatusLabel(client->callbackFailed, status)));
+					ClientStatusLabel(client->callbackFailed, status, false)));
 			}
 		}
 
-		report.append(std::format("\n{}\n", lsReportedDiagnostics.GetValue()));
+		report.append("\nReported diagnostics\n");
 		const auto sections =
 			BuildHealthDiagnosticSections(a_clients, a_diagnostics);
 		if (sections.empty())
 		{
-			report.append(std::format("- {}\n", lsNone.GetValue()));
+			report.append("- None\n");
 		}
 		else
 		{
@@ -434,7 +480,7 @@ namespace DearModdingUI
 				for (const auto& row : section.rows)
 				{
 					report.append("- [");
-					report.append(StatusSeverityLabel(row.severity));
+					report.append(StatusSeverityLabel(row.severity, false));
 					report.append("] ");
 					if (!row.scope.empty())
 					{
@@ -456,7 +502,9 @@ namespace DearModdingUI
 				if (section.droppedReportCount != 0)
 				{
 					report.append("- ");
-					report.append(section.droppedReportLabel);
+					report.append(DroppedReportLabel(
+						section.droppedReportCount,
+						false));
 					report.push_back('\n');
 				}
 			}

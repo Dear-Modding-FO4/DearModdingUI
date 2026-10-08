@@ -10,6 +10,7 @@
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/host/MenuDismissal.h>
+#include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/host/ModalCoordinator.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
@@ -122,6 +123,8 @@ namespace DearModdingUIPreview
 			fixtures = std::make_unique<FixtureRunner>();
 			if (!fixtures->Register(renderer.Device(), options, a_error))
 				return false;
+			if (!options.language.empty())
+				Localization::SetLanguage(options.language);
 			Theme::Initialize(window.Handle());
 			CursorLoader::Initialize(window.Handle());
 			if (!ImGui_ImplWin32_Init(window.Handle()))

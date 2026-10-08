@@ -115,7 +115,8 @@ namespace DearModdingUIPreview
 			<< L"  --collapse-all            Collapse the tree or show the drill-down root\n"
 			<< L"  --controller-navigation   Start with controller focus and hints\n"
 			<< L"  --hotkey-state <capture|conflict>  Exercise controller binding UI\n"
-			<< L"  --help                    Show this help\n";
+			<< L"  --language <code>        Load <code> translation files\n"
+			<< L"  --help                   Show this help\n";
 	}
 
 	bool ParsePreviewOptions(
@@ -203,6 +204,16 @@ namespace DearModdingUIPreview
 					return false;
 				}
 				a_options.page = *page;
+			}
+			else if (argument == L"--language")
+			{
+				const auto language = WideToUtf8(value);
+				if (!language || language->empty())
+				{
+					a_error = L"Language must be a nonempty code such as ru.";
+					return false;
+				}
+				a_options.language = *language;
 			}
 			else if (argument == L"--host-page")
 			{

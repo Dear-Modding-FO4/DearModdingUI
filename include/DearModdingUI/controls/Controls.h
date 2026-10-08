@@ -200,7 +200,8 @@ namespace DearModdingUI
 		std::string& a_search,
 		std::optional<size_t> a_maximumBytes = std::nullopt) noexcept;
 	void DrawSectionHeader(const char* a_text, char32_t a_glyph) noexcept;
-	void DrawSectionHeader(const char* a_text);
+	// The icon comes from the English text so it stays the same in every language.
+	void DrawSectionHeader(std::string_view a_key, const char* a_english) noexcept;
 	void DrawBulletText(const char* a_text) noexcept;
 	void DrawCollapsingSectionHeader(
 		const char* a_key,

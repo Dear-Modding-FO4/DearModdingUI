@@ -1,6 +1,7 @@
 #include <DearModdingUI/navigation/Navigation.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/host/Registry.h>
+#include <DearModdingUI/localization/Localization.h>
 
 #include <algorithm>
 #include <cassert>
@@ -157,6 +158,38 @@ namespace DearModdingUI
 		return DMUI_INVALID_PAGE_HANDLE;
 	}
 
+	const char* HostPageName(HostPageKind a_kind) noexcept
+	{
+		switch (a_kind)
+		{
+		case HostPageKind::kHealth:
+			return Localization::Text("$DMUI_Nav_HealthPage", "Health");
+		case HostPageKind::kSettings:
+			return Localization::Text("$DMUI_Nav_SettingsPage", "Settings");
+		default:
+			return Localization::Text("$DMUI_Nav_HomePage", "Home");
+		}
+	}
+
+	const char* HostPageSummary(HostPageKind a_kind) noexcept
+	{
+		switch (a_kind)
+		{
+		case HostPageKind::kHealth:
+			return Localization::Text(
+				"$DMUI_Nav_HealthPageSummary",
+				"Detailed host subsystem and registered mod status.");
+		case HostPageKind::kSettings:
+			return Localization::Text(
+				"$DMUI_Nav_SettingsPageSummary",
+				"Configure the shared menu interface, readability, and input.");
+		default:
+			return Localization::Text(
+				"$DMUI_Nav_HomePageSummary",
+				"At-a-glance status for the shared menu host.");
+		}
+	}
+
 	std::string PageRowLabel(
 		const NavigationClient& a_client,
 		const NavigationPage& a_page)
@@ -237,7 +270,7 @@ namespace DearModdingUI
 					page->iconName,
 					ResolveIconSelection(
 						page->iconName,
-						page->displayName)
+						page->iconMetadata)
 				});
 			}
 			if (!uncategorized.pages.empty())
@@ -261,6 +294,8 @@ namespace DearModdingUI
 							a_right->displayName,
 							a_right->id);
 				});
+			std::vector<std::string_view> categoryLabels;
+			categoryLabels.reserve(orderedCategories.size());
 			for (const auto* category : orderedCategories)
 			{
 				NavigationCategory navigationCategory{
@@ -271,7 +306,7 @@ namespace DearModdingUI
 					category->iconName,
 					ResolveIconSelection(
 						category->iconName,
-						category->displayName)
+						category->iconMetadata)
 				};
 				for (const auto* page : orderedPages)
 				{
@@ -289,26 +324,22 @@ namespace DearModdingUI
 						page->iconName,
 						ResolveIconSelection(
 							page->iconName,
-							page->displayName,
-							category->displayName)
+							page->iconMetadata,
+							category->iconMetadata)
 					});
 				}
-				if (!navigationCategory.pages.empty())
-					navigationClient.categories.push_back(
-						std::move(navigationCategory));
+				if (navigationCategory.pages.empty())
+					continue;
+				if (!category->iconMetadata.empty())
+					categoryLabels.push_back(category->iconMetadata);
+				navigationClient.categories.push_back(std::move(navigationCategory));
 			}
-			std::vector<std::string_view> categoryLabels;
-			categoryLabels.reserve(navigationClient.categories.size());
-			for (const auto& category : navigationClient.categories)
-			{
-				if (!category.displayName.empty())
-					categoryLabels.push_back(category.displayName);
-			}
-			const std::array primary{ std::string_view{
-				navigationClient.displayName } };
+			const std::array primary{ std::string_view{ client->iconMetadata } };
 			navigationClient.iconSelection = IconResolver::Resolve({
 				.explicitName = navigationClient.iconName,
-				.primaryMetadata = primary,
+				.primaryMetadata = client->iconMetadata.empty() ?
+					std::span<const std::string_view>{} :
+					std::span<const std::string_view>{ primary },
 				.secondaryMetadata = categoryLabels
 			});
 			model.clients.push_back(std::move(navigationClient));
@@ -365,9 +396,9 @@ namespace DearModdingUI
 		std::string_view a_bridgeSourceLabel)
 	{
 		if (a_origin == DMUI_CLIENT_ORIGIN_NATIVE)
-			return "Native";
+			return Localization::Text("$DMUI_Nav_Native", "Native");
 		return a_bridgeSourceLabel.empty() ?
-			"Bridged" :
+			std::string{ Localization::Text("$DMUI_Nav_Bridged", "Bridged") } :
 			std::string{ a_bridgeSourceLabel };
 	}
 

@@ -4,6 +4,7 @@
 #include <DearModdingUI/controls/TextInput.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/controls/SettingsTable.h>
 #include <DearModdingUI/VisualDecisions.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
@@ -45,8 +46,13 @@ namespace DearModdingUI
 		const auto origin = ImGui::GetCursorScreenPos();
 		const auto display = FormatHotkeyChord(a_binding ? a_binding : "");
 		const auto text = capturing ?
-			(a_slot == HotkeySlot::kGamepad ? "Press buttons..." : "Press keys...") :
-			(bound ? display.c_str() : a_warning ? "Check binding" : "Not set");
+			(a_slot == HotkeySlot::kGamepad ?
+					Localization::Text("$DMUI_Controls_PressButtons", "Press buttons...") :
+					Localization::Text("$DMUI_Controls_PressKeys", "Press keys...")) :
+			(bound ? display.c_str() :
+					a_warning ?
+				Localization::Text("$DMUI_Controls_CheckBinding", "Check binding") :
+				HotkeyNotSetText());
 		ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
 		ImGui::PushStyleColor(ImGuiCol_Text, a_warning && !capturing ?
 			Theme::StatusTextColor(DMUI_STATUS_SEVERITY_WARNING) : ImGui::GetStyleColorVec4(
@@ -69,16 +75,22 @@ namespace DearModdingUI
 				ImGui::GetStyle().FrameRounding, 0, 1.5f);
 		}
 		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) || ImGui::IsItemFocused())
-			ImGui::SetTooltip("%s%s%s%s%s%s",
+			ImGui::SetTooltip("%s%s%s%s%s%s%s",
 				a_details ? a_details : "", a_details ? "\n" : "", text,
 				a_warning ? "\n" : "", a_warning ? a_warning : "",
-				a_captureEnabled ? "\nRelease to bind. Esc / B cancels." : "");
+				a_captureEnabled ? "\n" : "",
+				a_captureEnabled ?
+					Localization::Text(
+						"$DMUI_Controls_ReleaseToBind",
+						"Release to bind. Esc / B cancels.") :
+					"");
 		if (bound && a_allowClear && !capturing)
 		{
 			ImGui::SameLine(0.0f, 0.0f);
 			if (DrawCompactChromeButton("##Clear",
 					{ origin.x + width - clearWidth, origin.y }, { clearWidth, height },
-					FindPhosphorIconGlyphOrZero("x"), "x", "Unbind",
+					FindPhosphorIconGlyphOrZero("x"), "x",
+					Localization::Text("$DMUI_Controls_Unbind", "Unbind"),
 					ImGui::GetColorU32(ImGuiCol_TextDisabled)))
 			{
 				(void)Hotkeys::CancelCapture();
@@ -1014,11 +1026,11 @@ namespace DearModdingUI
 		ImGui::TextWrapped("%s", a_text ? a_text : "");
 	}
 
-	void DrawSectionHeader(const char* a_text)
+	void DrawSectionHeader(std::string_view a_key, const char* a_english) noexcept
 	{
 		DrawSectionHeader(
-			a_text,
-			ResolveIconGlyph(IconKind::kCategory, {}, a_text ? a_text : ""));
+			Localization::Text(a_key, a_english),
+			ResolveIconGlyph(IconKind::kCategory, {}, a_english));
 	}
 
 	void DrawSectionHeader(const char* a_text, char32_t a_glyph) noexcept

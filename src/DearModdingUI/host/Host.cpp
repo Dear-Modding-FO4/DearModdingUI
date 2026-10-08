@@ -239,7 +239,8 @@ namespace DearModdingUI
 			&ApiLoadImageFile,
 			&ApiRequestOverlayFocus,
 			&ApiReleaseOverlayFocus,
-			&ApiQueryOverlayFocus
+			&ApiQueryOverlayFocus,
+			&ApiResolveText
 		};
 		return api;
 	}

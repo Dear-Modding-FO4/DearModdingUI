@@ -21,8 +21,6 @@
 
 #include <F4SE/F4SE.h>
 #include <RE/B/BSScript_IStackCallbackFunctor.h>
-#include <RE/B/BSScaleformManager.h>
-#include <REX/CONVERT.h>
 #include <REX/FModule.h>
 #include <REX/REX.h>
 
@@ -33,7 +31,6 @@
 #include <atomic>
 #include <filesystem>
 #include <format>
-#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -94,55 +91,18 @@ namespace DearModdingUI::MCM
 			};
 		}
 
-		struct TranslatorRelease
+		// MCM names translation files after the config folder.
+		// Lookup failures throw so the mapper reports them apart from misses.
+		[[nodiscard]] TextResolver HostTextResolver(std::string a_owner)
 		{
-			void operator()(RE::BSScaleformTranslator* a_translator) const noexcept
-			{
-				if (a_translator)
-					a_translator->Release();
-			}
-		};
-
-		using TranslatorHandle =
-			std::unique_ptr<RE::BSScaleformTranslator, TranslatorRelease>;
-
-		[[nodiscard]] TranslatorHandle AcquireTranslator() noexcept
-		{
-			auto* manager = RE::BSScaleformManager::GetSingleton();
-			auto* translator = manager && manager->loader ?
-				manager->GetTranslator() :
-				nullptr;
-			if (!translator)
-			{
-				REX::ERROR(
-					"DearModdingUI-MCM: game translator unavailable; localization keys preserved"sv);
-				return {};
-			}
-			return TranslatorHandle{ translator };
-		}
-
-		[[nodiscard]] std::optional<std::string> ResolveGameText(
-			const RE::BSScaleformTranslator& a_translator,
-			std::string_view a_key)
-		{
-			std::wstring wideKey;
-			if (a_key.size() > static_cast<size_t>((std::numeric_limits<int>::max)()) ||
-				a_key.find('\0') != std::string_view::npos ||
-				!REX::UTF8_TO_UTF16(a_key, wideKey))
-				throw std::runtime_error("localization key could not be converted to UTF-16");
-			const RE::BSFixedStringWCS key{ wideKey };
-			const auto& translations =
-				a_translator.translator.translationMap;
-			const auto found = translations.find(key);
-			if (found == translations.end())
-				return std::nullopt;
-			const std::wstring_view value{ found->second };
-			std::string text;
-			if (!value.empty() &&
-				(value.size() > static_cast<size_t>((std::numeric_limits<int>::max)()) ||
-					!REX::UTF16_TO_UTF8(value, text)))
-				throw std::runtime_error("localized text could not be converted to UTF-8");
-			return text;
+			return [owner = std::move(a_owner)](std::string_view a_key) {
+				DMUI_Result result{ DMUI_RESULT_OK };
+				auto text = dmui::Client::ResolveText(owner, a_key, &result);
+				if (text || result == DMUI_RESULT_TEXT_NOT_FOUND)
+					return text;
+				throw std::runtime_error(
+					std::string{ "host text lookup failed: " } + DMUI_ResultToString(result));
+			};
 		}
 
 		[[nodiscard]] uint64_t HashText(std::string_view a_value) noexcept
@@ -514,7 +474,7 @@ namespace DearModdingUI::MCM
 				REX::FModule::IsRuntimeOG() ? "OG (legacy MSVC)" : "NG/AE (modern MSVC)");
 		}
 
-		void DiscoverAndRegister(const TextResolver& a_textResolver) noexcept
+		void DiscoverAndRegister() noexcept
 		{
 			try
 			{
@@ -540,7 +500,10 @@ namespace DearModdingUI::MCM
 					}
 					const auto config = entry.path() / "config.json";
 					if (std::filesystem::is_regular_file(config, error))
-						RegisterConfig(config, a_textResolver, keybinds);
+						RegisterConfig(
+							config,
+							HostTextResolver(PathText(entry.path().filename())),
+							keybinds);
 					error.clear();
 				}
 			}
@@ -556,21 +519,11 @@ namespace DearModdingUI::MCM
 			}
 		}
 
-		void RegisterConfigsAfterTranslations() noexcept
+		void RegisterConfigsOnce() noexcept
 		{
 			if (s_configsRegistered.exchange(true, std::memory_order_acq_rel))
 				return;
-			auto translator = AcquireTranslator();
-			if (!translator)
-			{
-				DiscoverAndRegister({});
-				return;
-			}
-			const TextResolver resolver =
-				[translator = translator.get()](std::string_view a_key) {
-					return ResolveGameText(*translator, a_key);
-				};
-			DiscoverAndRegister(resolver);
+			DiscoverAndRegister();
 		}
 
 		void RefreshValues() noexcept
@@ -615,7 +568,7 @@ namespace DearModdingUI::MCM
 					REX::INFO(
 						"DearModdingUI-MCM: Papyrus runtime: ready"sv);
 				if (a_message->type == F4SE::MessagingInterface::kGameLoaded)
-					RegisterConfigsAfterTranslations();
+					RegisterConfigsOnce();
 				RefreshValues();
 			}
 		}

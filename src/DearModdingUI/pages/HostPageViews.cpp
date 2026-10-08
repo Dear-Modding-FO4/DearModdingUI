@@ -5,7 +5,6 @@
 #include <DearModdingUI/pages/Health.h>
 #include <DearModdingUI/pages/Home.h>
 #include <DearModdingUI/host/Host.h>
-#include <DearModdingUI/host/LocalizationStrings.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/settings/HostSettingsView.h>
 #include <DearModdingUI/IconGlyphs.h>
@@ -13,6 +12,7 @@
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/controls/SettingsTable.h>
 #include <DearModdingUI/host/Status.h>
+#include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/presentation/Theme.h>
 
 #include <imgui/imgui.h>
@@ -25,9 +25,13 @@
 #include <vector>
 
 namespace DearModdingUI
-{	
+{
 	namespace
 	{
+		constexpr Localization::Phrase kSettingsApplyText{ "$DMUI_Pages_SettingsApply", "Apply" };
+		constexpr Localization::Phrase kSettingsResetText{ "$DMUI_Pages_SettingsReset", "Reset" };
+		constexpr Localization::Phrase kSettingsRevertText{ "$DMUI_Pages_SettingsRevert", "Revert" };
+
 		struct HostSettingsTitleButton
 		{
 			SettingsAction action;
@@ -77,9 +81,9 @@ namespace DearModdingUI
 		void DrawHome() noexcept
 		{
 			(void)DrawTitleRow({
-				.title = kHostHomePage.displayName,
+				.title = HostPageName(HostPageKind::kHome),
 				.titleScale = Theme::kFeatureTitleScale,
-				.summary = kHostHomePage.summary
+				.summary = HostPageSummary(HostPageKind::kHome)
 			});
 			const auto& clients = RegisteredClients();
 			const auto& pages = OrderedPages();
@@ -96,7 +100,7 @@ namespace DearModdingUI
 				HomeHealthSeverity(health, attention, now));
 
 			DrawSectionHeader(
-				lsAbout,
+				Localization::Text("$DMUI_Home_AboutHeader", "About"),
 				FindPhosphorIconGlyphOrZero("info"));
 			{
 				const Theme::FontGuard font{ Theme::FontRole::kSubtext };
@@ -104,7 +108,7 @@ namespace DearModdingUI
 			}
 			Theme::SectionSpacing();
 			DrawSectionHeader(
-				lsOverview,
+				Localization::Text("$DMUI_Home_OverviewHeader", "Overview"),
 				FindPhosphorIconGlyphOrZero(kHostHomePage.iconName));
 			char identity[128]{};
 			std::snprintf(
@@ -116,25 +120,20 @@ namespace DearModdingUI
 				static_cast<int>(kHostVersion.size()),
 				kHostVersion.data());
 			DrawBulletText(identity);
-			char registry[128]{};
-			std::snprintf(
-				registry,
-				sizeof(registry),
-				"%zu %s | %zu %s | %zu %s",
+			const auto registry = Localization::Format(
+				"$DMUI_Home_RegistryCounts",
+				"{} mods | {} pages | {} actions",
 				clients.size(),
-				lsMods.GetValue().c_str(),
 				pages.size(),
-				lsPagesSm.GetValue().c_str(),
-				actions.size(),
-				lsActionsSm.GetValue().c_str());
-			DrawBulletText(registry);
+				actions.size());
+			DrawBulletText(registry.c_str());
 			ImGui::PushStyleColor(ImGuiCol_Text, Theme::StatusTextColor(severity));
 			DrawBulletText(summary.c_str());
 			ImGui::PopStyleColor();
 
 			Theme::SectionSpacing();
 			DrawSectionHeader(
-				lsQuickLinks,
+				Localization::Text("$DMUI_Home_QuickLinksHeader", "Quick Links"),
 				FindPhosphorIconGlyphOrZero("link"));
 			std::vector<LinkRowEntry> quickLinks;
 			for (const auto& link : HomeQuickLinks())
@@ -155,7 +154,7 @@ namespace DearModdingUI
 
 			Theme::SectionSpacing();
 			DrawSectionHeader(
-				lsFaq,
+				Localization::Text("$DMUI_Home_FaqHeader", "FAQ"),
 				FindPhosphorIconGlyphOrZero("question"));
 			const auto faq = BuildHomeFaq(
 				FormatHotkeyChord(HostSettings::Current().menuToggleKey));
@@ -187,16 +186,18 @@ namespace DearModdingUI
 					"##DearModdingUI.CopyHealthReport",
 					extent,
 					FindPhosphorIconGlyphOrZero("clipboard-text"),
-					lsCopyReport,
-					lsCopyReportMessage
+					Localization::Text("$DMUI_Health_CopyReport", "Copy report"),
+					Localization::Text(
+						"$DMUI_Health_CopyReportTooltip",
+						"Copy a diagnostics report to the clipboard.")
 				}
 			};
 			if (DrawTitleRow({
-					.title = kHostHealthPage.displayName,
+					.title = HostPageName(HostPageKind::kHealth),
 					.titleScale = Theme::kFeatureTitleScale,
 					.buttons = buttons,
 					.buttonExtentPolicy = extentPolicy,
-					.summary = kHostHealthPage.summary
+					.summary = HostPageSummary(HostPageKind::kHealth)
 				}))
 			{
 				const auto report = BuildHealthDiagnosticsReport(
@@ -211,11 +212,13 @@ namespace DearModdingUI
 			}
 
 			DrawSectionHeader(
-				lsHostSubsystems,
+				Localization::Text("$DMUI_Health_HostSubsystemsHeader", "Host subsystems"),
 				FindPhosphorIconGlyphOrZero(kHostHealthPage.iconName));
 			const auto subsystemRows = BuildHealthSubsystemRows(health, now);
 			if (subsystemRows.empty())
-				DrawBulletText(lsMessageNoHostSubsystem);
+				DrawBulletText(Localization::Text(
+					"$DMUI_Health_NoSubsystemObservations",
+					"No host subsystem observations are available."));
 			else if (const auto table = SettingsTable::Begin(
 					DMUI_INVALID_CLIENT_HANDLE,
 					"##DearModdingUI.HostHealthSubsystems");
@@ -229,14 +232,16 @@ namespace DearModdingUI
 						row.identity.c_str(),
 						row.reason.c_str(),
 						[&]() noexcept {
+							const auto text = Localization::Format(
+								"$DMUI_Health_SubsystemStatus",
+								"Status: {} | {} in state",
+								row.stateLabel,
+								row.durationLabel);
 							ImGui::TextColored(
 								Theme::StatusTextColor(
 									HealthStatusSeverity(row.severity)),
-								"%s: %s | %s %s",
-								lsStatus.GetValue().c_str(),
-								row.stateLabel.c_str(),
-								row.durationLabel.c_str(),
-								lsInState.GetValue().c_str());
+								"%s",
+								text.c_str());
 						});
 				}
 				(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
@@ -252,7 +257,9 @@ namespace DearModdingUI
 				DrawSectionHeader(section.heading.c_str(), section.glyph);
 				if (section.clients.empty())
 				{
-					DrawBulletText(lsNoClientModsMessage);
+					DrawBulletText(Localization::Text(
+					"$DMUI_Health_NoClientMods",
+					"No client mods registered this session."));
 					continue;
 				}
 				ImGui::PushID(static_cast<int>(sectionIndex));
@@ -271,16 +278,15 @@ namespace DearModdingUI
 							actions,
 							client->handle,
 							&RegisteredAction::client);
-						const auto description = std::format(
-							"{} | {} {} | {} {}",
+						const auto description = Localization::Format(
+							"$DMUI_Health_ClientCounts",
+							"{} | {} pages | {} actions",
 							client->id,
 							pageCount,
-							lsPagesSm.GetValue(),
-							actionCount,
-							lsActionsSm.GetValue());
-						const auto version = std::format(
-							"{} {}.{}",
-							lsVersion.GetValue(),
+							actionCount);
+						const auto version = Localization::Format(
+							"$DMUI_Health_ClientVersion",
+							"Version {}.{}",
 							client->version >> 16,
 							client->version & 0xFFFFu);
 						const auto* status =
@@ -293,16 +299,19 @@ namespace DearModdingUI
 							[&]() noexcept {
 								ImGui::TextUnformatted(version.c_str());
 								ImGui::SameLine();
+								const auto text = Localization::Format(
+									"$DMUI_Health_ClientStatus",
+									"Status: {}",
+									ClientStatusLabel(
+										client->callbackFailed,
+										status));
 								ImGui::TextColored(
 									Theme::StatusTextColor(
 										EffectiveClientStatusSeverity(
 											client->callbackFailed,
 											status)),
-									"%s: %s",
-									lsStatus.GetValue().c_str(),
-									ClientStatusLabel(
-										client->callbackFailed,
-										status));
+									"%s",
+									text.c_str());
 							});
 					}
 					(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
@@ -312,13 +321,15 @@ namespace DearModdingUI
 
 			Theme::SectionSpacing();
 			DrawSectionHeader(
-				lsReportedProblems,
+				Localization::Text("$DMUI_Health_ReportedProblemsHeader", "Reported problems"),
 				FindPhosphorIconGlyphOrZero("warning-circle"));
 			const auto diagnosticSections =
 				BuildHealthDiagnosticSections(clients, diagnostics);
 			if (diagnosticSections.empty())
 			{
-				DrawBulletText(lsNoClientDiagnosticsMessage);
+				DrawBulletText(Localization::Text(
+				"$DMUI_Health_NoDiagnostics",
+				"No client diagnostics have been reported."));
 				return;
 			}
 			ImGui::Indent();
@@ -389,35 +400,41 @@ namespace DearModdingUI
 				HostSettingsTitleButton{
 					SettingsAction::kReset,
 					"##DearModdingUI.HostSettingsResetButton",
-					"Reset",
-					"Reset saves the default sidebar layout immediately and "
-					"loads other shipped interface defaults into the draft. "
-					"Use Apply to save those.",
+					Localization::Text(kSettingsResetText),
+					Localization::Text(
+						"$DMUI_Pages_SettingsResetTooltip",
+						"Reset saves the default sidebar layout immediately and "
+						"loads other shipped interface defaults into the draft. "
+						"Use Apply to save those."),
 					SettingsActionButtonWidth(
 						SettingsAction::kReset,
-						"Reset",
+						Localization::Text(kSettingsResetText),
 						extent) },
 				HostSettingsTitleButton{
 					SettingsAction::kRevert,
 					"##DearModdingUI.HostSettingsRevertButton",
-					"Revert",
-					"Revert discards pending interface edits and restores "
-					"saved settings. Sidebar layout changes are already saved.",
+					Localization::Text(kSettingsRevertText),
+					Localization::Text(
+						"$DMUI_Pages_SettingsRevertTooltip",
+						"Revert discards pending interface edits and restores "
+						"saved settings. Sidebar layout changes are already saved."),
 					SettingsActionButtonWidth(
 						SettingsAction::kRevert,
-						"Revert",
+						Localization::Text(kSettingsRevertText),
 						extent) },
 				HostSettingsTitleButton{
 					SettingsAction::kApply,
 					"##DearModdingUI.HostSettingsApplyButton",
-					"Apply",
-					"Apply saves host settings to DearModdingUI.toml. "
-					"Sidebar layout changes save immediately; appearance "
-					"previews update live, and typography rebuilds once if "
-					"needed.",
+					Localization::Text(kSettingsApplyText),
+					Localization::Text(
+						"$DMUI_Pages_SettingsApplyTooltip",
+						"Apply saves host settings to DearModdingUI.toml. "
+						"Sidebar layout changes save immediately; appearance "
+						"previews update live, and typography rebuilds once if "
+						"needed."),
 					SettingsActionButtonWidth(
 						SettingsAction::kApply,
-						"Apply",
+						Localization::Text(kSettingsApplyText),
 						extent) }
 			};
 			const auto dirty =
@@ -440,11 +457,11 @@ namespace DearModdingUI
 				};
 			}
 			const auto pressed = DrawTitleRow({
-				.title = kHostSettingsPage.displayName,
+				.title = HostPageName(HostPageKind::kSettings),
 				.titleScale = Theme::kFeatureTitleScale,
 				.buttons = buttons,
 				.buttonExtentPolicy = extentPolicy,
-				.summary = kHostSettingsPage.summary
+				.summary = HostPageSummary(HostPageKind::kSettings)
 			});
 			if (pressed)
 				InvokeHostSettingsTitleAction(actions[*pressed].action);

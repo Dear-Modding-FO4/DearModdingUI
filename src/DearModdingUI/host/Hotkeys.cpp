@@ -1,5 +1,6 @@
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/host/RenderExecution.h>
+#include <DearModdingUI/localization/Localization.h>
 #include <Support/BoundedString.h>
 
 #include <algorithm>
@@ -201,15 +202,20 @@ namespace DearModdingUI
 		return value;
 	}
 
+	const char* HotkeyNotSetText() noexcept
+	{
+		return Localization::Text("$DMUI_Hotkeys_NotSet", "Not set");
+	}
+
 	std::string FormatHotkeyChord(std::string_view a_chord)
 	{
 		if (a_chord.empty())
-			return "Not set";
+			return HotkeyNotSetText();
 		auto parsed = ParseHotkeyChord(a_chord);
 		if (!parsed.recognized)
-			return "Invalid binding";
+			return Localization::Text("$DMUI_Hotkeys_InvalidBinding", "Invalid binding");
 		if (parsed.chord.IsNone())
-			return "Not set";
+			return HotkeyNotSetText();
 		std::string value;
 		const auto append = [&](std::string_view a_label) {
 			if (!value.empty())
@@ -255,7 +261,8 @@ namespace DearModdingUI
 	DMUI_Result HotkeyRegistry::Register(
 		DMUI_ClientHandle a_client,
 		const DMUI_HotkeyActionDescriptor* a_descriptor,
-		DMUI_HotkeyActionHandle* a_action) noexcept
+		DMUI_HotkeyActionHandle* a_action,
+		std::string_view a_clientId) noexcept
 	{
 		if (!a_descriptor || !a_action ||
 			a_client == DMUI_INVALID_CLIENT_HANDLE)
@@ -272,6 +279,7 @@ namespace DearModdingUI
 		{
 			Action action;
 			action.client = a_client;
+			action.clientId = a_clientId;
 			action.callback = a_descriptor->callback;
 			action.userData = a_descriptor->userData;
 			action.contextPolicy = contextPolicy;
@@ -674,6 +682,7 @@ namespace DearModdingUI
 				auto& snapshot = snapshots[action.id];
 				snapshot.id = action.id;
 				snapshot.displayName = action.displayName;
+				Localization::Translate(snapshot.displayName, action.clientId);
 				snapshot.suggestedDefaultChord = action.suggestedDefaultChord;
 				snapshot.registered = true;
 				for (const auto slot : kHotkeySlots)
@@ -805,9 +814,10 @@ namespace DearModdingUI
 		DMUI_Result Register(
 			DMUI_ClientHandle a_client,
 			const DMUI_HotkeyActionDescriptor* a_descriptor,
-			DMUI_HotkeyActionHandle* a_action) noexcept
+			DMUI_HotkeyActionHandle* a_action,
+			std::string_view a_clientId) noexcept
 		{
-			return RegistryInstance().Register(a_client, a_descriptor, a_action);
+			return RegistryInstance().Register(a_client, a_descriptor, a_action, a_clientId);
 		}
 
 		DMUI_Result Query(

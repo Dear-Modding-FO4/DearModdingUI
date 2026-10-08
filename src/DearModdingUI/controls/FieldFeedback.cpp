@@ -1,6 +1,8 @@
 #include <DearModdingUI/controls/FieldFeedback.h>
 
 #include <DearModdingUI/presentation/Theme.h>
+#include <DearModdingUI/host/Status.h>
+#include <DearModdingUI/localization/Localization.h>
 
 #include <imgui/imgui.h>
 
@@ -177,11 +179,11 @@ namespace DearModdingUI::FieldFeedback
 		switch (a_severity)
 		{
 		case DMUI_FIELD_FEEDBACK_SEVERITY_WARNING:
-			return "Warning";
+			return StatusSeverityLabel(DMUI_STATUS_SEVERITY_WARNING);
 		case DMUI_FIELD_FEEDBACK_SEVERITY_ERROR:
-			return "Error";
+			return StatusSeverityLabel(DMUI_STATUS_SEVERITY_ERROR);
 		default:
-			return "Info";
+			return StatusSeverityLabel(DMUI_STATUS_SEVERITY_INFO);
 		}
 	}
 
@@ -334,4 +336,39 @@ namespace DearModdingUI::FieldFeedback
 		s_previewLayout = m_previous;
 	}
 #endif
+}
+
+namespace DearModdingUI
+{
+	const char* FieldFeedbackLayoutLabel(FieldFeedbackPlacement a_kind) noexcept
+	{
+		switch (a_kind)
+		{
+		case FieldFeedbackPlacement::kUnderLabel:
+			return Localization::Text("$DMUI_Controls_FeedbackUnderLabel", "Under label");
+		case FieldFeedbackPlacement::kUnderControl:
+			return Localization::Text("$DMUI_Controls_FeedbackUnderControl", "Under control");
+		default:
+			return Localization::Text("$DMUI_Controls_FeedbackStrip", "Full-width strip");
+		}
+	}
+
+	const char* FieldFeedbackLayoutDescription(FieldFeedbackPlacement a_kind) noexcept
+	{
+		switch (a_kind)
+		{
+		case FieldFeedbackPlacement::kUnderLabel:
+			return Localization::Text(
+				"$DMUI_Controls_FeedbackUnderLabelHelp",
+				"Show feedback below the field label and description.");
+		case FieldFeedbackPlacement::kUnderControl:
+			return Localization::Text(
+				"$DMUI_Controls_FeedbackUnderControlHelp",
+				"Show feedback directly below the field control.");
+		default:
+			return Localization::Text(
+				"$DMUI_Controls_FeedbackStripHelp",
+				"Show feedback in a highlighted strip beneath the field.");
+		}
+	}
 }

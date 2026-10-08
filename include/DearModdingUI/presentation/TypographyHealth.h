@@ -19,6 +19,7 @@ namespace DearModdingUI::Theme
 		bool requestedBodyLoaded{ false };
 		std::array<bool, static_cast<size_t>(FontRole::kCount)> rolesLoaded{};
 		bool iconsLoaded{ false };
+		size_t systemFallbacksLoaded{ 0 };
 		bool emergencyFontUsed{ false };
 		bool usableAtlas{ false };
 	};
@@ -55,13 +56,6 @@ namespace DearModdingUI::Theme
 				a_outcome.effectiveFamily));
 		}
 
-		constexpr std::array roleNames{
-			"body",
-			"title",
-			"heading",
-			"subheading",
-			"subtext"
-		};
 		std::string missingRoles;
 		for (size_t index = 0; index < a_outcome.rolesLoaded.size(); ++index)
 		{
@@ -69,7 +63,7 @@ namespace DearModdingUI::Theme
 				continue;
 			if (!missingRoles.empty())
 				missingRoles.append(", ");
-			missingRoles.append(roleNames[index]);
+			missingRoles.append(kFontRoleDefaults[index].key);
 		}
 		if (!missingRoles.empty())
 		{
@@ -80,6 +74,8 @@ namespace DearModdingUI::Theme
 		}
 		if (!a_outcome.iconsLoaded)
 			append("Phosphor icons are unavailable; labels remain text-only.");
+		if (a_outcome.systemFallbacksLoaded == 0)
+			append("No system fallback fonts loaded; non-Latin text may not render.");
 		if (a_outcome.emergencyFontUsed)
 			append("The built-in emergency font is keeping text usable.");
 
@@ -88,8 +84,9 @@ namespace DearModdingUI::Theme
 		return {
 			HealthState::kReady,
 			std::format(
-				"Loaded \"{}\" with all bundled roles and Phosphor icons.",
-				a_outcome.effectiveFamily)
+				"Loaded \"{}\" with all bundled roles, Phosphor icons, and {} system fallback fonts.",
+				a_outcome.effectiveFamily,
+				a_outcome.systemFallbacksLoaded)
 		};
 	}
 }

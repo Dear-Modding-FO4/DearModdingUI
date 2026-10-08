@@ -47,7 +47,8 @@ namespace DearModdingUI
 		std::span<const ClientStatus> a_statuses,
 		DMUI_ClientHandle a_client) noexcept;
 	[[nodiscard]] const char* StatusSeverityLabel(
-		DMUI_StatusSeverity a_severity) noexcept;
+		DMUI_StatusSeverity a_severity,
+		bool a_localized = true) noexcept;
 	[[nodiscard]] constexpr DMUI_StatusSeverity EffectiveClientStatusSeverity(
 		bool a_callbackFailed,
 		const ClientStatus* a_status) noexcept
@@ -60,7 +61,8 @@ namespace DearModdingUI
 	}
 	[[nodiscard]] const char* ClientStatusLabel(
 		bool a_callbackFailed,
-		const ClientStatus* a_status) noexcept;
+		const ClientStatus* a_status,
+		bool a_localized = true) noexcept;
 
 	[[nodiscard]] std::vector<ClientStatus> RollupClientStatuses(
 		std::span<const ClientStatus> a_statuses);

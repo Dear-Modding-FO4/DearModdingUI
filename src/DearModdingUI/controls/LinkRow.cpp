@@ -1,7 +1,8 @@
 #include <DearModdingUI/controls/LinkRow.h>
-#include <DearModdingUI/host/LocalizationStrings.h>
+
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/VisualDecisions.h>
+#include <DearModdingUI/localization/Localization.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -102,19 +103,29 @@ namespace DearModdingUI
 			if (ImGui::IsItemHovered(hoverFlags) && ImGui::BeginTooltip())
 			{
 				if (link.action == DMUI_LINK_ACTION_COPY_TARGET)
-					ImGui::TextUnformatted(lsCopyTarget);
+					ImGui::TextUnformatted(Localization::Text(
+						"$DMUI_Controls_CopyTarget",
+						"Copy target"));
 				else
 				{
 					if (link.external.targetKind ==
 						DMUI_EXTERNAL_TARGET_VIRTUAL_FILE)
-						ImGui::TextUnformatted(lsOpenPhysicalBackingFile);
+						ImGui::TextUnformatted(Localization::Text(
+							"$DMUI_Controls_OpenBackingFile",
+							"Open physical backing file"));
 					else if (link.external.targetKind ==
 						DMUI_EXTERNAL_TARGET_VIRTUAL_FILE_PARENT)
-						ImGui::TextUnformatted(lsOpenPhysicalContainingFolder);
+						ImGui::TextUnformatted(Localization::Text(
+							"$DMUI_Controls_OpenContainingFolder",
+							"Open physical containing folder"));
 					ImGui::TextUnformatted(
 						link.external.application.empty() ?
-							lsOpenWithSysDef :
-							lsOpenWithSelApp);
+							Localization::Text(
+								"$DMUI_Controls_OpenWithSystemDefault",
+								"Open with system default") :
+							Localization::Text(
+								"$DMUI_Controls_OpenWithSelectedApplication",
+								"Open with selected application"));
 				}
 				const auto detail = link.note.empty() ?
 					std::string_view{ link.external.target } :

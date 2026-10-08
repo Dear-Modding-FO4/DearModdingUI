@@ -1,5 +1,7 @@
 #include <DearModdingUI/host/Status.h>
 
+#include <DearModdingUI/localization/Localization.h>
+
 #include <algorithm>
 #include <limits>
 #include <memory>
@@ -19,32 +21,34 @@ namespace DearModdingUI
 	}
 
 	const char* StatusSeverityLabel(
-		DMUI_StatusSeverity a_severity) noexcept
+		DMUI_StatusSeverity a_severity,
+		bool a_localized) noexcept
 	{
 		switch (a_severity)
 		{
 		case DMUI_STATUS_SEVERITY_INFO:
-			return "Info";
+			return Localization::Text({ "$DMUI_Status_SeverityInfo", "Info" }, a_localized);
 		case DMUI_STATUS_SEVERITY_SUCCESS:
-			return "Success";
+			return Localization::Text({ "$DMUI_Status_SeveritySuccess", "Success" }, a_localized);
 		case DMUI_STATUS_SEVERITY_WARNING:
-			return "Warning";
+			return Localization::Text({ "$DMUI_Status_SeverityWarning", "Warning" }, a_localized);
 		case DMUI_STATUS_SEVERITY_ERROR:
-			return "Error";
+			return Localization::Text({ "$DMUI_Status_SeverityError", "Error" }, a_localized);
 		default:
-			return "Unknown";
+			return Localization::Text({ "$DMUI_Status_SeverityUnknown", "Unknown" }, a_localized);
 		}
 	}
 
 	const char* ClientStatusLabel(
 		bool a_callbackFailed,
-		const ClientStatus* a_status) noexcept
+		const ClientStatus* a_status,
+		bool a_localized) noexcept
 	{
 		if (a_callbackFailed)
-			return "Unavailable";
-		return a_status ?
-			StatusSeverityLabel(a_status->severity) :
-			"Ready";
+			return Localization::Text({ "$DMUI_Status_ClientUnavailable", "Unavailable" }, a_localized);
+		if (a_status)
+			return StatusSeverityLabel(a_status->severity, a_localized);
+		return Localization::Text({ "$DMUI_Status_ClientReady", "Ready" }, a_localized);
 	}
 
 	std::vector<ClientStatus> RollupClientStatuses(

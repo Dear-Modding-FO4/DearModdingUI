@@ -115,6 +115,7 @@ namespace DearModdingUI
 	[[nodiscard]] bool ValidHotkeyActionId(std::string_view a_id) noexcept;
 	[[nodiscard]] ParsedHotkeyChord ParseHotkeyChord(std::string_view a_value) noexcept;
 	[[nodiscard]] std::string SerializeHotkeyChord(HotkeyChord a_chord);
+	[[nodiscard]] const char* HotkeyNotSetText() noexcept;
 	[[nodiscard]] std::string FormatHotkeyChord(std::string_view a_chord);
 
 	struct HotkeyBindingSnapshot
@@ -143,7 +144,8 @@ namespace DearModdingUI
 		[[nodiscard]] DMUI_Result Register(
 			DMUI_ClientHandle a_client,
 			const DMUI_HotkeyActionDescriptor* a_descriptor,
-			DMUI_HotkeyActionHandle* a_action) noexcept;
+			DMUI_HotkeyActionHandle* a_action,
+			std::string_view a_clientId = {}) noexcept;
 		[[nodiscard]] DMUI_Result Query(
 			DMUI_ClientHandle a_client,
 			DMUI_HotkeyActionHandle a_action,
@@ -191,6 +193,7 @@ namespace DearModdingUI
 		{
 			DMUI_HotkeyActionHandle handle{ DMUI_INVALID_HOTKEY_ACTION_HANDLE };
 			DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
+			std::string clientId;
 			std::string id;
 			std::string displayName;
 			HotkeyChord suggestedDefault;
@@ -262,7 +265,8 @@ namespace DearModdingUI
 		[[nodiscard]] DMUI_Result Register(
 			DMUI_ClientHandle a_client,
 			const DMUI_HotkeyActionDescriptor* a_descriptor,
-			DMUI_HotkeyActionHandle* a_action) noexcept;
+			DMUI_HotkeyActionHandle* a_action,
+			std::string_view a_clientId = {}) noexcept;
 		[[nodiscard]] DMUI_Result Query(
 			DMUI_ClientHandle a_client,
 			DMUI_HotkeyActionHandle a_action,

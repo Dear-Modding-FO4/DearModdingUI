@@ -75,7 +75,6 @@ namespace Addictol
 			case F4SE::MessagingInterface::kPreLoadGame:
 			case F4SE::MessagingInterface::kNewGame:
 			case F4SE::MessagingInterface::kGameLoaded:
-				PlatformImgui::InitializeLocalization();
 				PlatformImgui::HandleGameTransition();
 				break;
 			case F4SE::MessagingInterface::kGameDataReady:

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <Support/Localization.h>
-
 #include <algorithm>
 #include <chrono>
 #include <mutex>
@@ -12,13 +10,6 @@
 
 namespace DearModdingUI
 {
-	static LocalizeString lsWaiting("$Waiting", "Waiting");
-	static LocalizeString lsProgressing("$Progressing", "Progressing");
-	static LocalizeString lsReady("$Ready", "Ready");
-	static LocalizeString lsDegraded("$Degraded", "Degraded");
-	static LocalizeString lsFailed("$Failed", "Failed");
-	static LocalizeString lsUnknown("$Unknown", "Unknown");
-
 	using HealthClock = std::chrono::steady_clock;
 
 	class SubsystemHealth;
@@ -56,17 +47,17 @@ namespace DearModdingUI
 		switch (a_state)
 		{
 		case HealthState::kWaiting:
-			return lsWaiting;
+			return "Waiting";
 		case HealthState::kProgressing:
-			return lsProgressing;
+			return "Progressing";
 		case HealthState::kReady:
-			return lsReady;
+			return "Ready";
 		case HealthState::kDegraded:
-			return lsDegraded;
+			return "Degraded";
 		case HealthState::kFailed:
-			return lsFailed;
+			return "Failed";
 		default:
-			return lsUnknown;
+			return "Unknown";
 		}
 	}
 

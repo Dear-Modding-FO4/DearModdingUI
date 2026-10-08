@@ -1,8 +1,8 @@
 #include <DearModdingUI/pages/Home.h>
-#include <DearModdingUI/host/LocalizationStrings.h>
+
+#include <DearModdingUI/localization/Localization.h>
 
 #include <array>
-#include <cstdio>
 #include <utility>
 
 namespace DearModdingUI
@@ -27,7 +27,12 @@ namespace DearModdingUI
 
 	std::string_view HomeAboutText() noexcept
 	{
-		return lsHomeAboutText;
+		return Localization::Text(
+			"$DMUI_Home_About",
+			"DearModdingUI is a shared settings menu for Fallout 4. "
+			"Mods register their own pages in one overlay instead of each "
+			"shipping a separate menu, and mods that were never built for it "
+			"can appear here too.");
 	}
 
 	std::span<const HomeQuickLink> HomeQuickLinks() noexcept
@@ -38,22 +43,43 @@ namespace DearModdingUI
 	std::vector<HomeFaqEntry> BuildHomeFaq(
 		std::string_view a_toggleKeyName)
 	{
-		std::string toggleAnswer{ lsPress.GetValue() };
-		toggleAnswer.append(" ").append(a_toggleKeyName);
-		toggleAnswer.append(" ").append(lsFaqA1.GetValue());
 		return {
 			{
-				lsFaq1,
-				std::move(toggleAnswer)
+				Localization::Text(
+					"$DMUI_Home_FaqOpenQuestion",
+					"How do I open the menu?"),
+				Localization::Format(
+					"$DMUI_Home_FaqOpenAnswer",
+					"Press {} to open or close DearModdingUI. You can change "
+					"this key on the Settings page.",
+					a_toggleKeyName)
 			},
 			{
-				lsFaq2, lsFaqA2
+				Localization::Text(
+					"$DMUI_Home_FaqStorageQuestion",
+					"Where are settings stored?"),
+				Localization::Text(
+					"$DMUI_Home_FaqStorageAnswer",
+					"Host settings are stored in "
+					"Data/F4SE/Plugins/DearModdingUI.toml.")
 			},
 			{
-				lsFaq3, lsFaqA3
+				Localization::Text(
+					"$DMUI_Home_FaqMissingPageQuestion",
+					"Why is a mod page missing or grayed out?"),
+				Localization::Text(
+					"$DMUI_Home_FaqMissingPageAnswer",
+					"Open the Health page to see whether the host or that mod "
+					"reported a problem.")
 			},
 			{
-				lsFaq4, lsFaqA4
+				Localization::Text(
+					"$DMUI_Home_FaqReplaceQuestion",
+					"Does this replace a mod's own menu?"),
+				Localization::Text(
+					"$DMUI_Home_FaqReplaceAnswer",
+					"No. Mods register pages and DearModdingUI draws them in the "
+					"shared overlay.")
 			}
 		};
 	}
@@ -64,7 +90,9 @@ namespace DearModdingUI
 		HealthClock::time_point a_now)
 	{
 		if (a_subsystems.empty() && a_clientsNeedingAttention == 0)
-			return lsHostHealthNotObservedYet;
+			return Localization::Text(
+				"$DMUI_Home_HealthNotObserved",
+				"Host health not observed yet");
 
 		size_t subsystemsNeedingAttention{};
 		size_t subsystemsStarting{};
@@ -78,61 +106,46 @@ namespace DearModdingUI
 		if (subsystemsNeedingAttention == 0 &&
 			subsystemsStarting == 0 &&
 			a_clientsNeedingAttention == 0)
-			return lsAllSystemsReady;
+			return Localization::Text(
+				"$DMUI_Home_AllReady",
+				"All systems ready");
 
-		char summary[192]{};
 		if (subsystemsNeedingAttention != 0 &&
 			a_clientsNeedingAttention != 0)
 		{
-			std::snprintf(
-				summary,
-				sizeof(summary),
-				"%zu %s %zu %s",
+			return Localization::Format(
+				"$DMUI_Home_SubsystemsAndModsAttention",
+				"Host subsystems needing attention: {}; mods needing attention: {}",
 				subsystemsNeedingAttention,
-				subsystemsNeedingAttention == 1 ? lsSystemsPartMsgFailed1_1.GetValue().c_str() : lsSystemsPartMsgFailed1_2.GetValue().c_str(),
-				a_clientsNeedingAttention,
-				a_clientsNeedingAttention == 1 ? lsSystemsPartMsgFailed2_1.GetValue().c_str() : lsSystemsPartMsgFailed2_2.GetValue().c_str());
+				a_clientsNeedingAttention);
 		}
-		else if (subsystemsStarting != 0 &&
+		if (subsystemsStarting != 0 &&
 			a_clientsNeedingAttention != 0)
 		{
-			std::snprintf(
-				summary,
-				sizeof(summary),
-				"%zu %s %zu %s",
+			return Localization::Format(
+				"$DMUI_Home_SubsystemsStartingModsAttention",
+				"Host subsystems starting: {}; mods needing attention: {}",
 				subsystemsStarting,
-				subsystemsStarting == 1 ? lsSystemsPartMsgFailed3_1.GetValue().c_str() : lsSystemsPartMsgFailed4_1.GetValue().c_str(),
-				a_clientsNeedingAttention,
-				a_clientsNeedingAttention == 1 ? lsSystemsPartMsgFailed2_1.GetValue().c_str() : lsSystemsPartMsgFailed2_2.GetValue().c_str());
+				a_clientsNeedingAttention);
 		}
-		else if (subsystemsNeedingAttention != 0)
+		if (subsystemsNeedingAttention != 0)
 		{
-			std::snprintf(
-				summary,
-				sizeof(summary),
-				"%zu %s",
-				subsystemsNeedingAttention,
-				subsystemsNeedingAttention == 1 ? lsSystemsPartMsgFailed5_1.GetValue().c_str() : lsSystemsPartMsgFailed6_1.GetValue().c_str());
+			return Localization::Format(
+				"$DMUI_Home_SubsystemsAttention",
+				"Host subsystems needing attention: {}",
+				subsystemsNeedingAttention);
 		}
-		else if (subsystemsStarting != 0)
+		if (subsystemsStarting != 0)
 		{
-			std::snprintf(
-				summary,
-				sizeof(summary),
-				"%zu %s",
-				subsystemsStarting,
-				subsystemsStarting == 1 ? lsSystemsPartMsgFailed3_1.GetValue().c_str() : lsSystemsPartMsgFailed4_1.GetValue().c_str());
+			return Localization::Format(
+				"$DMUI_Home_SubsystemsStarting",
+				"Host subsystems starting: {}",
+				subsystemsStarting);
 		}
-		else
-		{
-			std::snprintf(
-				summary,
-				sizeof(summary),
-				"%zu %s",
-				a_clientsNeedingAttention,
-				a_clientsNeedingAttention == 1 ? lsSystemsPartMsgFailed2_1.GetValue().c_str() : lsSystemsPartMsgFailed2_2.GetValue().c_str());
-		}
-		return summary;
+		return Localization::Format(
+			"$DMUI_Home_ModsAttention",
+			"Mods needing attention: {}",
+			a_clientsNeedingAttention);
 	}
 
 	HealthSeverity HomeHealthSeverity(

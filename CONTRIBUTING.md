@@ -66,8 +66,8 @@ Optional project generation, run from the repository root:
 
 | Path | Purpose |
 |---|---|
-| `src\DearModdingUI\`, `include\DearModdingUI\` | Matching `host`, `controls`, `navigation`, `pages`, `settings`, and `presentation` components. |
-| `src\Platform\`, `include\Platform\` | Native input, renderer attachment, and external-file adapters. |
+| `src\DearModdingUI\`, `include\DearModdingUI\` | Matching `host`, `controls`, `navigation`, `pages`, `settings`, `presentation`, and `localization` components. |
+| `src\Platform\`, `include\Platform\` | Native input, renderer attachment, external-file, system-font, and game-text adapters. |
 | `src\Support\`, `include\Support\` | Shared runtime, bounded-string, task, and health primitives. |
 | `mcm\src\`, `mcm\include\` | Game-independent configuration decoding, mapping, and bindings. |
 | `mcm\adapters\` | Stable-UI rendering adapters shared by MCM consumers. |

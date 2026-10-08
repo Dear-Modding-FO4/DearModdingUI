@@ -147,7 +147,7 @@ namespace DearModdingUI::HostAPIInternal
 			return validation;
 		if (!RenderExecution::IsActiveClient(a_client, true))
 			return DMUI_RESULT_WRONG_THREAD;
-		if (!ImGui::GetCurrentContext() || !Theme::GetFonts().monospace)
+		if (!ImGui::GetCurrentContext() || !Theme::FontsReady())
 			return DMUI_RESULT_HOST_NOT_READY;
 		try
 		{

@@ -1,10 +1,11 @@
 #include <DearModdingUI/navigation/SidebarView.h>
+#include <DearModdingUI/navigation/CommandPalette.h>
 
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/host/Host.h>
-#include <DearModdingUI/host/LocalizationStrings.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -18,6 +19,10 @@ namespace DearModdingUI
 {
 	namespace
 	{
+		constexpr Localization::Phrase kModsText{ "$DMUI_Nav_Mods", "Mods" };
+		constexpr Localization::Phrase kPagesText{ "$DMUI_Nav_Pages", "Pages" };
+		constexpr Localization::Phrase kSelectModHintText{ "$DMUI_Nav_SelectModHint", "Select a mod to browse its pages." };
+
 		inline constexpr float kSidebarModFontScale{ 0.8f };
 
 		[[nodiscard]] float ClientStatusTrailingWidth(
@@ -232,11 +237,11 @@ namespace DearModdingUI
 						ImGuiTableFlags_BordersInnerV))
 			{
 				ImGui::TableSetupColumn(
-					lsModsHi,
+					Localization::Text(kModsText),
 					ImGuiTableColumnFlags_WidthStretch,
 					1.0f);
 				ImGui::TableSetupColumn(
-					lsPages,
+					Localization::Text(kPagesText),
 					ImGuiTableColumnFlags_WidthStretch,
 					1.0f);
 				ImGui::TableNextColumn();
@@ -255,14 +260,18 @@ namespace DearModdingUI
 						"##DearModdingPagesPane",
 						{ 0.0f, -FLT_MIN }))
 				{
-					DrawSectionHeader(lsPages, PhosphorGlyph::kFiles);
+					DrawSectionHeader(
+						Localization::Text(kPagesText),
+						PhosphorGlyph::kFiles);
 					ImGui::Spacing();
 					if (const auto* client =
 							a_context.model.FindClient(
 								a_context.selection.activeClient))
 						DrawSidebarPageList(a_context, *client);
 					else
-						ImGui::TextDisabled(lsMessageSelectModToBrowse);
+						ImGui::TextDisabled(
+							"%s",
+							Localization::Text(kSelectModHintText));
 				}
 				ImGui::EndChild();
 				ImGui::EndTable();
@@ -319,7 +328,9 @@ namespace DearModdingUI
 					DrawSidebarPageList(a_context, *client);
 				}
 				else
-					ImGui::TextDisabled(lsMessageSelectModToBrowse);
+					ImGui::TextDisabled(
+						"%s",
+						Localization::Text(kSelectModHintText));
 			}
 			ImGui::EndChild();
 		}
@@ -366,7 +377,7 @@ namespace DearModdingUI
 				const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
 				const auto row = DrawSelectableRow({
 					.id = "##DearModdingDrillDownBack",
-					.label = lsAllMods,
+					.label = Localization::Text("$DMUI_Nav_AllMods", "All Mods"),
 					.leadingAffordance = RowLeadingAffordance::kBack,
 					.textColor = textColor,
 					.hoveredTextColor = textColor
@@ -398,19 +409,19 @@ namespace DearModdingUI
 			const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
 			for (const auto& page : kHostNavigationPages)
 			{
-				ImGui::PushID(page->id.data());
+				ImGui::PushID(page.id.data());
 				const auto row = DrawSelectableRow({
 					.id = "##DearModdingHostPage",
-					.label = page->displayName,
-					.selected = a_selection.activeHostPage == page->kind,
+					.label = HostPageName(page.kind),
+					.selected = a_selection.activeHostPage == page.kind,
 					.leadingAffordance = RowLeadingAffordance::kIcon,
-					.glyph = FindPhosphorIconGlyphOrZero(page->iconName),
+					.glyph = FindPhosphorIconGlyphOrZero(page.iconName),
 					.textColor = textColor,
 					.hoveredTextColor = textColor
 				});
 				ImGui::PopID();
 				if (row.pressed)
-					a_intent.Offer(NavigationRequest::Host(page->kind));
+					a_intent.Offer(NavigationRequest::Host(page.kind));
 			}
 		}
 
@@ -456,8 +467,8 @@ namespace DearModdingUI
 				IconColor(
 					ImGui::GetColorU32(ImGuiCol_Text),
 					Theme::kSearchIconAlpha));
-			auto hint = std::format("{}...", lsCommandPalettePopup.GetValue());
-			const auto textSize = ImGui::CalcTextSize(hint.c_str());
+			const auto* hint = CommandPaletteHint();
+			const auto textSize = ImGui::CalcTextSize(hint);
 			ImGui::RenderTextEllipsis(
 				ImGui::GetWindowDrawList(),
 				{
@@ -472,7 +483,7 @@ namespace DearModdingUI
 				},
 				position.x + size.x -
 					ImGui::GetStyle().FramePadding.x,
-				hint.c_str(),
+				hint,
 				nullptr,
 				&textSize);
 			return pressed;
@@ -650,10 +661,14 @@ namespace DearModdingUI
 				{ -FLT_MIN, -FLT_MIN }))
 		{
 			ControllerNavigation::BeginPane(ControllerNavigation::Pane::kSidebar);
-			DrawSectionHeader(lsHost, PhosphorGlyph::kAppWindow);
+			DrawSectionHeader(
+				Localization::Text("$DMUI_Nav_Host", "Host"),
+				PhosphorGlyph::kAppWindow);
 			DrawHostRows(a_selection, intent);
 			ImGui::Spacing();
-			DrawSectionHeader(lsModsHi, PhosphorGlyph::kSquaresFour);
+			DrawSectionHeader(
+				Localization::Text(kModsText),
+				PhosphorGlyph::kSquaresFour);
 			openPalette = DrawPaletteAffordance();
 			ImGui::Spacing();
 
@@ -703,5 +718,43 @@ namespace DearModdingUI
 		ImGui::PopStyleVar();
 		ImGui::PopStyleColor();
 		return { intent.request, openPalette };
+	}
+
+	const char* SidebarLayoutLabel(SidebarLayoutKind a_kind) noexcept
+	{
+		switch (a_kind)
+		{
+		case SidebarLayoutKind::TwoPane:
+			return Localization::Text("$DMUI_Nav_LayoutTwoPane", "Two-pane");
+		case SidebarLayoutKind::DrillDown:
+			return Localization::Text("$DMUI_Nav_LayoutDrillDown", "Drill-down");
+		case SidebarLayoutKind::IconRail:
+			return Localization::Text("$DMUI_Nav_LayoutIconRail", "Icon rail");
+		default:
+			return Localization::Text("$DMUI_Nav_LayoutTree", "Tree");
+		}
+	}
+
+	const char* SidebarLayoutDescription(SidebarLayoutKind a_kind) noexcept
+	{
+		switch (a_kind)
+		{
+		case SidebarLayoutKind::TwoPane:
+			return Localization::Text(
+				"$DMUI_Nav_LayoutTwoPaneHelp",
+				"Keep a fixed mod list with the selected mod's pages.");
+		case SidebarLayoutKind::DrillDown:
+			return Localization::Text(
+				"$DMUI_Nav_LayoutDrillDownHelp",
+				"Show one level at a time; well suited to many mods.");
+		case SidebarLayoutKind::IconRail:
+			return Localization::Text(
+				"$DMUI_Nav_LayoutIconRailHelp",
+				"Browse mods from a compact icon rail.");
+		default:
+			return Localization::Text(
+				"$DMUI_Nav_LayoutTreeHelp",
+				"Browse every mod and page at once.");
+		}
 	}
 }

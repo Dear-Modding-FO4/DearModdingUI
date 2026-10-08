@@ -12,16 +12,6 @@
 
 namespace DearModdingUI::Theme
 {
-	struct Fonts
-	{
-		ImFont* body{ nullptr };
-		ImFont* title{ nullptr };
-		ImFont* heading{ nullptr };
-		ImFont* subheading{ nullptr };
-		ImFont* subtext{ nullptr };
-		ImFont* monospace{ nullptr };
-	};
-
 	class FontGuard
 	{
 	public:
@@ -61,7 +51,8 @@ namespace DearModdingUI::Theme
 	void Initialize(void* a_window) noexcept;
 	[[nodiscard]] bool PrepareFrame(uint32_t a_backBufferHeight) noexcept;
 	void ApplyStyle() noexcept;
-	[[nodiscard]] const Fonts& GetFonts() noexcept;
+	[[nodiscard]] bool FontsReady() noexcept;
+	[[nodiscard]] float FontSize(FontRole a_role) noexcept;
 	[[nodiscard]] bool PushFont(FontRole a_role, float a_scale = 1.0f) noexcept;
 	void PopFont() noexcept;
 	[[nodiscard]] float Scale() noexcept;

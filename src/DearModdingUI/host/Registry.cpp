@@ -9,6 +9,31 @@
 namespace DearModdingUI
 {
 
+	// Each client's keys come from its own <client id>_<language>.txt file.
+	void Registry::TranslateRegistrations()
+	{
+		for (auto& client : m_clients)
+		{
+			Localization::Translate(client.displayName, client.id);
+			Localization::Translate(client.bridgeSourceLabel, client.id);
+		}
+		for (auto& category : m_categories)
+			Localization::Translate(category.displayName, category.clientId);
+		for (auto& page : m_pages)
+		{
+			Localization::Translate(page.displayName, page.clientId);
+			Localization::Translate(page.summary, page.clientId);
+			page.clientDisplayName = FindClient(page.client)->displayName;
+			page.imguiLabel = PageImGuiLabel(page);
+		}
+		for (auto& action : m_actions)
+		{
+			Localization::Translate(action.displayLabel, action.clientId);
+			Localization::Translate(action.tooltip, action.clientId);
+			action.clientDisplayName = FindClient(action.client)->displayName;
+		}
+	}
+
 	bool Registry::Freeze() noexcept
 	{
 		try
@@ -16,6 +41,7 @@ namespace DearModdingUI
 			const std::scoped_lock lock{ m_mutex };
 			if (!m_open)
 				return false;
+			TranslateRegistrations();
 			std::ranges::sort(m_pages, [&](const auto& a_left, const auto& a_right) {
 				if (std::tie(a_left.clientDisplayName, a_left.clientId) !=
 					std::tie(a_right.clientDisplayName, a_right.clientId))
@@ -240,9 +266,10 @@ namespace DearModdingUI
 		return FindClient(a_client) ? DMUI_RESULT_OK : DMUI_RESULT_CLIENT_NOT_FOUND;
 	}
 
-	DMUI_Result Registry::CopyClientDisplayName(
+	DMUI_Result Registry::CopyClientText(
 		DMUI_ClientHandle a_client,
-		std::string& a_displayName) const noexcept
+		std::string RegisteredClient::* a_field,
+		std::string& a_text) const noexcept
 	{
 		try
 		{
@@ -250,13 +277,25 @@ namespace DearModdingUI
 			const auto* client = FindClient(a_client);
 			if (!client)
 				return DMUI_RESULT_CLIENT_NOT_FOUND;
-			a_displayName = client->displayName;
+			a_text = client->*a_field;
 			return DMUI_RESULT_OK;
 		}
 		catch (...)
 		{
 			return DMUI_RESULT_RESOURCE_EXHAUSTED;
 		}
+	}
+
+	DMUI_Result Registry::CopyClientDisplayName(
+		DMUI_ClientHandle a_client,
+		std::string& a_displayName) const noexcept
+	{
+		return CopyClientText(a_client, &RegisteredClient::displayName, a_displayName);
+	}
+
+	DMUI_Result Registry::CopyClientId(DMUI_ClientHandle a_client, std::string& a_id) const noexcept
+	{
+		return CopyClientText(a_client, &RegisteredClient::id, a_id);
 	}
 
 	DMUI_Result Registry::InvokePage(DMUI_PageHandle a_page) noexcept

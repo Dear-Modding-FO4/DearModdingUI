@@ -3,6 +3,10 @@
 
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
+#include <DearModdingUI/localization/Localization.h>
+
+#include <cstring>
+#include <limits>
 
 namespace DearModdingUI::HostAPIInternal
 {
@@ -149,6 +153,27 @@ namespace DearModdingUI::HostAPIInternal
 		if (validation == DMUI_RESULT_OK)
 			*a_info = service.overlayFocus.Query(a_page);
 		return validation;
+	}
+
+	[[nodiscard]] DMUI_Result DMUI_CALL ApiResolveText(const char* a_owner, const char* a_key,
+		char* a_buffer, uint32_t a_capacity, uint32_t* a_requiredCapacity) noexcept
+	{
+		if (!a_owner || !a_key || (!a_buffer && a_capacity != 0))
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		if (Localization::Language().empty())
+			return DMUI_RESULT_HOST_NOT_READY;
+		const auto* text = Localization::FindTranslation(a_owner, a_key);
+		if (!text)
+			return DMUI_RESULT_TEXT_NOT_FOUND;
+		if (text->size() >= (std::numeric_limits<uint32_t>::max)())
+			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		const auto required = static_cast<uint32_t>(text->size() + 1);
+		if (a_requiredCapacity)
+			*a_requiredCapacity = required;
+		if (a_capacity < required)
+			return DMUI_RESULT_BUFFER_TOO_SMALL;
+		std::memcpy(a_buffer, text->c_str(), required);
+		return DMUI_RESULT_OK;
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiPostNotification(

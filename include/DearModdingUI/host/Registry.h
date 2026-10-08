@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/API.h>
+#include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/navigation/Navigation.h>
 
 #include <atomic>
@@ -17,6 +18,7 @@ namespace DearModdingUI
 		DMUI_ClientHandle handle{ DMUI_INVALID_CLIENT_HANDLE };
 		std::string id;
 		std::string displayName;
+		std::string iconMetadata;
 		std::string iconName;
 		DMUI_ClientOrigin origin{ DMUI_CLIENT_ORIGIN_NATIVE };
 		std::string bridgeSourceLabel;
@@ -38,6 +40,7 @@ namespace DearModdingUI
 		std::string clientDisplayName;
 		std::string id;
 		std::string displayName;
+		std::string iconMetadata;
 		std::string categoryId;
 		std::string summary;
 		std::string imguiLabel;
@@ -50,12 +53,25 @@ namespace DearModdingUI
 		std::string iconName;
 	};
 
+	// Keys never seed icon guessing, so translation cannot change icons.
+	[[nodiscard]] inline std::string IconMetadata(std::string_view a_sourceName)
+	{
+		return Localization::IsTextKey(a_sourceName) ? std::string{} : std::string{ a_sourceName };
+	}
+
+	// The stable ### suffix keeps ImGui state when the visible name is translated.
+	[[nodiscard]] inline std::string PageImGuiLabel(const RegisteredPage& a_page)
+	{
+		return a_page.displayName + "###" + a_page.clientId + "/" + a_page.id;
+	}
+
 	struct RegisteredCategory
 	{
 		DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
 		std::string clientId;
 		std::string id;
 		std::string displayName;
+		std::string iconMetadata;
 		int32_t sortKey{ 0 };
 		std::string iconName;
 	};
@@ -124,6 +140,7 @@ namespace DearModdingUI
 			DMUI_ClientHandle a_client,
 			const DMUI_PageActivityObserverDescriptor* a_descriptor,
 			DMUI_PageActivityObserverHandle* a_observer) noexcept;
+		// Translates registered "$KEY" text before navigation is ordered and indexed.
 		[[nodiscard]] bool Freeze() noexcept;
 		[[nodiscard]] bool IsOpen() const noexcept;
 		[[nodiscard]] bool Empty() const noexcept;
@@ -160,6 +177,9 @@ namespace DearModdingUI
 		[[nodiscard]] DMUI_Result CopyClientDisplayName(
 			DMUI_ClientHandle a_client,
 			std::string& a_displayName) const noexcept;
+		[[nodiscard]] DMUI_Result CopyClientId(
+			DMUI_ClientHandle a_client,
+			std::string& a_id) const noexcept;
 		[[nodiscard]] DMUI_Result InvokePage(DMUI_PageHandle a_page) noexcept;
 		[[nodiscard]] bool PageFailed(DMUI_PageHandle a_page) const noexcept;
 		void MarkPageFailed(DMUI_PageHandle a_page) noexcept;
@@ -196,6 +216,11 @@ namespace DearModdingUI
 			DMUI_FrameObserverHandle a_observer) noexcept;
 		[[nodiscard]] RegisteredPageActivityObserver* FindPageActivityObserver(
 			DMUI_PageActivityObserverHandle a_observer) noexcept;
+		void TranslateRegistrations();
+		[[nodiscard]] DMUI_Result CopyClientText(
+			DMUI_ClientHandle a_client,
+			std::string RegisteredClient::* a_field,
+			std::string& a_text) const noexcept;
 		[[nodiscard]] bool OwnsPage(
 			DMUI_ClientHandle a_client,
 			DMUI_PageHandle a_page) const noexcept;

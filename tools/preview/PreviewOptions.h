@@ -30,6 +30,7 @@ namespace DearModdingUIPreview
 		bool menuClosed{};
 		bool controllerNavigation{};
 		std::optional<std::string> hotkeyState;
+		std::string language;
 		bool help{};
 	};
 

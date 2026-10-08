@@ -87,8 +87,6 @@ namespace DearModdingUI
 	{
 		FieldFeedbackPlacement kind;
 		std::string_view id;
-		std::string_view label;
-		std::string_view description;
 		FieldFeedback::LayoutResolver resolve;
 	};
 
@@ -96,27 +94,24 @@ namespace DearModdingUI
 		FieldFeedbackLayoutDescriptor{
 			FieldFeedbackPlacement::kUnderLabel,
 			"label",
-			"Under label",
-			"Show feedback below the field label and description.",
 			&FieldFeedback::ResolveUnderLabel
 		},
 		FieldFeedbackLayoutDescriptor{
 			FieldFeedbackPlacement::kUnderControl,
 			"control",
-			"Under control",
-			"Show feedback directly below the field control.",
 			&FieldFeedback::ResolveUnderControl
 		},
 		FieldFeedbackLayoutDescriptor{
 			FieldFeedbackPlacement::kFullWidthStrip,
 			"strip",
-			"Full-width strip",
-			"Show feedback in a highlighted strip beneath the field.",
 			&FieldFeedback::ResolveFullWidthStrip
 		}
 	};
 	inline constexpr auto DEFAULT_FIELD_FEEDBACK_LAYOUT =
 		FieldFeedbackPlacement::kFullWidthStrip;
+
+	[[nodiscard]] const char* FieldFeedbackLayoutLabel(FieldFeedbackPlacement a_kind) noexcept;
+	[[nodiscard]] const char* FieldFeedbackLayoutDescription(FieldFeedbackPlacement a_kind) noexcept;
 
 	[[nodiscard]] constexpr const FieldFeedbackLayoutDescriptor*
 		FindFieldFeedbackLayout(FieldFeedbackPlacement a_kind) noexcept

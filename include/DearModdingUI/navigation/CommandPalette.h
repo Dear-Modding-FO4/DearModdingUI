@@ -20,6 +20,8 @@ namespace DearModdingUI
 		}
 	};
 
+	[[nodiscard]] const char* CommandPaletteHint() noexcept;
+
 	[[nodiscard]] const NavigationSearchEntry* DrawCommandPalette(
 		const NavigationModel& a_model,
 		const ClientSelectionState& a_selection,

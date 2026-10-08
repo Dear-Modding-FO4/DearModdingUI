@@ -8,7 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Localization support has been added, and translation 96 strings into English and Russian has been carried out.
+- **Localization (ABI 2.2)**: `$KEY` registration text is translated from `Interface\Translations\<client id>_<language>.txt`, falling back to `_en`; `resolveText` translates drawn text.
+- **Translatable host interface**: The host's own text is translated by `DearModdingUI_<language>.txt`, falling back to English.
+- **Non-Latin text**: Cyrillic, Greek, Chinese, Japanese, and Korean text renders through Windows system fallback fonts, ordered for the game language.
+
+### Changed
+- **MCM bridge**: Translates MCM text through the host's translation files, named after each mod's config folder, instead of the game translator.
 
 ### Fixed
 - Clients built with newer headers connect to older hosts of the same major; newer-minor operations report `UNSUPPORTED_ABI`.

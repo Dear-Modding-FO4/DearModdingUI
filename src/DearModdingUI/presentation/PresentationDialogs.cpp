@@ -1,4 +1,5 @@
 #include <DearModdingUI/presentation/PresentationServices.h>
+#include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/host/RenderExecution.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <Support/BoundedString.h>
@@ -337,7 +338,9 @@ namespace DearModdingUI::PresentationServices
 			};
 			auto action = DialogAction::kNone;
 			if (snapshot.event == DMUI_DIALOG_EVENT_SUBMITTED)
-				ImGui::TextDisabled("Working...");
+				ImGui::TextDisabled(
+					"%s",
+					Localization::Text("$DMUI_Dialog_Working", "Working..."));
 			else
 			{
 				if (ImGui::Button(snapshot.acceptLabel.c_str()))

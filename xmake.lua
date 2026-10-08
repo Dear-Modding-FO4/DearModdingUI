@@ -136,6 +136,7 @@ local source_sets = {
         "src/DearModdingUI/controls/SettingsTable.cpp",
         "src/DearModdingUI/controls/TextInput.cpp",
         "src/DearModdingUI/controls/TextViewer.cpp",
+        "src/DearModdingUI/navigation/CommandPalette.cpp",
         "src/DearModdingUI/navigation/Navigation*.cpp",
         "src/DearModdingUI/navigation/SidebarView.cpp",
         "src/DearModdingUI/pages/Health.cpp",
@@ -153,19 +154,21 @@ local source_sets = {
         "src/DearModdingUI/presentation/ThemeLayout.cpp",
         "src/Platform/files/ExternalOpen.cpp",
         "src/Platform/input/CursorLoader.cpp",
-        "src/Platform/settings/GameColors.cpp"
+        "src/Platform/settings/GameColors.cpp",
+        "src/Platform/localization/TranslationFiles.cpp",
+        "src/DearModdingUI/localization/Localization.cpp"
     },
     ui = {
         "src/DearModdingUI/host/Host*.cpp",
         "src/DearModdingUI/host/Shell.cpp",
         "src/DearModdingUI/controls/Faq.cpp",
         "src/DearModdingUI/controls/LinkRow.cpp",
-        "src/DearModdingUI/navigation/CommandPalette.cpp",
         "src/DearModdingUI/pages/HostPageViews.cpp",
         "src/DearModdingUI/settings/HostSettings.cpp",
         "src/DearModdingUI/settings/HostSettingsView.cpp",
         "src/DearModdingUI/presentation/BackgroundBlur.cpp",
-        "src/DearModdingUI/presentation/Theme.cpp"
+        "src/DearModdingUI/presentation/Theme.cpp",
+        "src/Platform/fonts/SystemFonts.cpp"
     },
     runtime = {
         "src/Main.cpp",
@@ -437,6 +440,9 @@ target("dmui-preview", function()
             path.join(project_dir("data/F4SE/Plugins"), "*"),
             plugins
         )
+        for _, translation in ipairs(os.files(project_dir("data/Interface/Translations/*.txt"))) do
+            os.cp(translation, path.join(data_root, "Interface/Translations") .. "/")
+        end
         if local_fixtures then
             copy_mcm_fixture_data(data_root, os)
         end
@@ -593,7 +599,9 @@ task("package-release", function()
         local output_root = project_dir(path.join(".Build", variant, "F4SE", "Plugins"))
         local package_owner = project_dir(".Build/packages")
         local data_root = project_dir("data")
-        local runtime_assets = os.files(project_dir("data/F4SE/Plugins/**"))
+        local runtime_assets = table.join(
+            os.files(project_dir("data/F4SE/Plugins/**")),
+            os.files(project_dir("data/Interface/Translations/*.txt")))
         table.sort(runtime_assets)
         local components = { plugin_name, "DearModdingUI-MCM" }
         if variant == "test" then
@@ -640,8 +648,10 @@ task("package-release", function()
                 end
                 for _, source in ipairs(runtime_assets) do
                     local extension = path.extension(source):lower()
-                    if extension == ".toml" or extension == ".ttf" then
-                        local relative = path.relative(source, data_root)
+                    local relative = path.relative(source, data_root)
+                    local translation = extension == ".txt" and
+                        path.filename(path.directory(source)) == "Translations"
+                    if extension == ".toml" or extension == ".ttf" or translation then
                         local destination = path.join(folder, relative)
                         os.mkdir(path.directory(destination))
                         os.cp(source, destination)

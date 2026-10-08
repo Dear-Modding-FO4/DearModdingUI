@@ -3,6 +3,7 @@
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/host/MenuDismissal.h>
 #include <DearModdingUI/host/ModalCoordinator.h>
+#include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <REX/REX.h>
@@ -74,11 +75,19 @@ namespace DearModdingUI::ControllerNavigation
 		{
 			const auto editing = ImGui::GetCurrentContext()->ActiveId != 0;
 			return std::array{
-				std::pair{ "A", editing ? "Confirm" : "Select" }, std::pair{ "B", "Back" },
-				std::pair{ "X", "Reset" }, std::pair{ "Y", "Search" },
-				std::pair{ "LB/RB", editing ? "Adjust" : "Pane" },
-				std::pair{ "LT/RT", "Page" }, std::pair{ "LS", "Cursor" }, std::pair{ "RS", "Scroll" },
-				std::pair{ "Start", "Close" }
+				std::pair{ "A", editing ?
+					Localization::Text("$DMUI_Controller_Confirm", "Confirm") :
+					Localization::Text("$DMUI_Controller_Select", "Select") },
+				std::pair{ "B", Localization::Text("$DMUI_Controller_Back", "Back") },
+				std::pair{ "X", Localization::Text("$DMUI_Controller_Reset", "Reset") },
+				std::pair{ "Y", Localization::Text("$DMUI_Controller_Search", "Search") },
+				std::pair{ "LB/RB", editing ?
+					Localization::Text("$DMUI_Controller_Adjust", "Adjust") :
+					Localization::Text("$DMUI_Controller_Pane", "Pane") },
+				std::pair{ "LT/RT", Localization::Text("$DMUI_Controller_Page", "Page") },
+				std::pair{ "LS", Localization::Text("$DMUI_Controller_Cursor", "Cursor") },
+				std::pair{ "RS", Localization::Text("$DMUI_Controller_Scroll", "Scroll") },
+				std::pair{ "Start", Localization::Text("$DMUI_Controller_Close", "Close") }
 			};
 		}
 

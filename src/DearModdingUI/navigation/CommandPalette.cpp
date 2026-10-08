@@ -1,11 +1,10 @@
 #include <DearModdingUI/navigation/CommandPalette.h>
 
-
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/host/MenuDismissal.h>
 #include <DearModdingUI/presentation/Theme.h>
-#include <DearModdingUI/host/LocalizationStrings.h>
 
 #include <REX/REX.h>
 #include <imgui/imgui.h>
@@ -20,8 +19,13 @@ namespace DearModdingUI
 
 	namespace
 	{
-		inline constexpr char kCommandPalettePopupId[] =
-			"{}###DearModdingPalette";
+		[[nodiscard]] std::string CommandPalettePopupId()
+		{
+			return std::string{ Localization::Text(
+					   "$DMUI_Palette_SearchTitle",
+					   "Search mods, pages, and actions") } +
+				"###DearModdingPalette";
+		}
 
 		[[nodiscard]] std::vector<NavigationSearchHit> BuildResults(
 			const NavigationModel& a_model,
@@ -55,14 +59,17 @@ namespace DearModdingUI
 			std::string label{ a_entry.displayName };
 			if (a_entry.kind == NavigationItemKind::kClient)
 			{
-				label.append(" \xE2\x80\x94 "); label.append(lsMod.GetValue());
+				label.append(" \xE2\x80\x94 ");
+				label.append(Localization::Text("$DMUI_Palette_ModKind", "Mod"));
 				return label;
 			}
 			label.append(" \xE2\x80\x94 ");
 			label.append(a_entry.clientDisplayName);
 			label.append(" \xE2\x80\xBA ");
 			label.append(
-				a_entry.category.empty() ? lsActions : a_entry.category);
+				a_entry.category.empty() ?
+					Localization::Text("$DMUI_Palette_ActionsCategory", "Actions") :
+					a_entry.category.c_str());
 			return label;
 		}
 
@@ -89,6 +96,11 @@ namespace DearModdingUI
 		}
 	}
 
+	const char* CommandPaletteHint() noexcept
+	{
+		return Localization::Text("$DMUI_Palette_SearchHint", "Search mods, pages, and actions...");
+	}
+
 	const NavigationSearchEntry* DrawCommandPalette(
 		const NavigationModel& a_model,
 		const ClientSelectionState& a_selection,
@@ -99,8 +111,7 @@ namespace DearModdingUI
 			a_state.query.clear();
 			a_state.selection = 0;
 			a_state.focusRequested = true;
-			ImGui::OpenPopup(std::format(kCommandPalettePopupId,
-				lsCommandPalettePopup.GetValue()).c_str());
+			ImGui::OpenPopup(CommandPalettePopupId().c_str());
 			a_state.openRequested = false;
 		}
 
@@ -115,8 +126,9 @@ namespace DearModdingUI
 			},
 			ImGuiCond_Appearing);
 		auto open = true;
+		const auto popupId = CommandPalettePopupId();
 		if (!BeginPopupModalWithRoundedTitleBarButtons(
-				std::format(kCommandPalettePopupId, lsCommandPalettePopup.GetValue()).c_str(),
+				popupId.c_str(),
 				&open,
 				ImGuiWindowFlags_NoSavedSettings))
 		{
@@ -133,13 +145,15 @@ namespace DearModdingUI
 		const auto previousQuery = a_state.query;
 		const auto searchResult = DrawSearchInput(
 			"NavigationPaletteSearch",
-			std::format("{}...", lsCommandPalettePopup.GetValue()).c_str(),
+			CommandPaletteHint(),
 			a_state.query);
 		if (searchResult != DMUI_RESULT_OK)
 		{
 			REX::ERROR("DearModdingUI: command palette search failed ({})"sv,
 				static_cast<uint32_t>(searchResult));
-			ImGui::TextUnformatted(lsSearchInputUnavailable);
+			ImGui::TextUnformatted(Localization::Text(
+				"$DMUI_Palette_SearchUnavailable",
+				"Search input unavailable."));
 		}
 		auto results = BuildResults(a_model, a_selection, a_state);
 		a_state.selection = ResolvePaletteSelectionIndex(
@@ -173,15 +187,23 @@ namespace DearModdingUI
 		{
 			const Theme::FontGuard font{ Theme::FontRole::kHeading };
 			ImGui::TextUnformatted(
-				a_state.query.empty() ? lsRecentPages : lsResults);
+				a_state.query.empty() ?
+					Localization::Text("$DMUI_Palette_RecentPages", "Recent pages") :
+					Localization::Text("$DMUI_Palette_Results", "Results"));
 		}
 		ImGui::Separator();
 		if (results.empty())
 		{
 			ImGui::TextDisabled(
-				a_state.query.empty() ? lsNoRecentPagesYet : lsNoMatchingMods);
+				"%s",
+				a_state.query.empty() ?
+					Localization::Text(
+						"$DMUI_Palette_NoRecentPages",
+						"No recent pages yet.") :
+					Localization::Text(
+						"$DMUI_Palette_NoResults",
+						"No matching mods, pages, or actions."));
 		}
-
 		for (size_t index = 0; index < results.size(); ++index)
 		{
 			const auto& entry = results[index].Entry();

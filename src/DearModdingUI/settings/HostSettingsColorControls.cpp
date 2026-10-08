@@ -1,8 +1,12 @@
 #include "HostSettingsColorControls.h"
 
+#include <DearModdingUI/localization/Localization.h>
+
 #include <imgui/imgui.h>
 
 #include <algorithm>
+#include <format>
+#include <string>
 
 namespace DearModdingUI::HostSettingsViewDetail
 {
@@ -13,16 +17,20 @@ namespace DearModdingUI::HostSettingsViewDetail
 		float a_width) noexcept
 	{
 		const auto drawButton = [&](
-			const char* a_label,
+			const std::string& a_label,
 			std::optional<HostAccentColor> a_source) noexcept {
 			ImGui::BeginDisabled(!a_source);
-			const auto pressed = ImGui::Button(a_label);
+			const auto pressed = ImGui::Button(a_label.c_str());
 			ImGui::EndDisabled();
 			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 			{
 				ImGui::SetTooltip("%s", a_source ?
-					"Copy this game color to the accent preview. Use Apply to save." :
-					"Color unavailable. Requires Fallout 4 with valid game color preferences.");
+					Localization::Text(
+						"$DMUI_Settings_SyncColorAvailable",
+						"Copy this game color to the accent preview. Use Apply to save.") :
+					Localization::Text(
+						"$DMUI_Settings_SyncColorUnavailable",
+						"Color unavailable. Requires Fallout 4 with valid game color preferences."));
 			}
 			if (!pressed || !a_source || a_color == *a_source)
 				return false;
@@ -30,11 +38,17 @@ namespace DearModdingUI::HostSettingsViewDetail
 			return true;
 		};
 
-		constexpr const char* hudLabel{ "Sync from HUD" };
-		constexpr const char* pipboyLabel{ "Sync from Pip-Boy" };
+		const auto* hudText = Localization::Text(
+			"$DMUI_Settings_SyncFromHud",
+			"Sync from HUD");
+		const auto* pipboyText = Localization::Text(
+			"$DMUI_Settings_SyncFromPipboy",
+			"Sync from Pip-Boy");
+		const auto hudLabel = std::format("{}###SyncFromHud", hudText);
+		const auto pipboyLabel = std::format("{}###SyncFromPipboy", pipboyText);
 		const auto& style = ImGui::GetStyle();
-		const auto buttonWidth = ImGui::CalcTextSize(hudLabel).x +
-			ImGui::CalcTextSize(pipboyLabel).x +
+		const auto buttonWidth = ImGui::CalcTextSize(hudText).x +
+			ImGui::CalcTextSize(pipboyText).x +
 			style.FramePadding.x * 4.0f + style.ItemSpacing.x;
 		auto changed = drawButton(hudLabel, a_hudColor);
 		if (buttonWidth <= a_width)
@@ -70,7 +84,9 @@ namespace DearModdingUI::HostSettingsViewDetail
 		if (a_presets.empty())
 			return changed;
 
-		constexpr const char* label{ "Color-vision-friendly presets" };
+		const auto* label = Localization::Text(
+			"$DMUI_Settings_ColorVisionPresets",
+			"Color-vision-friendly presets");
 		const auto& style = ImGui::GetStyle();
 		const auto swatchHeight = ImGui::GetFrameHeight();
 		const auto labelWidth = ImGui::CalcTextSize(label).x;
@@ -128,8 +144,9 @@ namespace DearModdingUI::HostSettingsViewDetail
 
 			const auto& preset = a_presets[index];
 			ImGui::PushID(static_cast<int>(index));
+			const auto presetId = std::format("{}###Preset", preset.name);
 			if (ImGui::ColorButton(
-					preset.name,
+					presetId.c_str(),
 					HostAccentToImVec4(preset.color),
 					ImGuiColorEditFlags_NoAlpha,
 					{ swatchWidth, swatchHeight }))

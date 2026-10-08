@@ -3,6 +3,7 @@
 #include <DearModdingUI/SettingsActions.h>
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/controls/FieldFeedback.h>
+#include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
 
@@ -18,6 +19,8 @@ namespace DearModdingUI::SettingsTable
 {
 	namespace
 	{
+		constexpr Localization::Phrase kResetText{ "$DMUI_Controls_Reset", "Reset" };
+
 		struct RenderState
 		{
 			BracketState bracket;
@@ -172,7 +175,7 @@ namespace DearModdingUI::SettingsTable
 		{
 			return SettingsActionButtonWidth(
 				SettingsAction::kReset,
-				"Reset",
+				Localization::Text(kResetText),
 				a_buttonExtent);
 		}
 
@@ -321,11 +324,11 @@ namespace DearModdingUI::SettingsTable
 		}
 
 		ImGui::TableSetupColumn(
-			"Setting",
+			Localization::Text("$DMUI_Controls_SettingColumn", "Setting"),
 			ImGuiTableColumnFlags_WidthStretch,
 			3.0f);
 		ImGui::TableSetupColumn(
-			"Value",
+			Localization::Text("$DMUI_Controls_ValueColumn", "Value"),
 			ImGuiTableColumnFlags_WidthStretch,
 			2.0f);
 		s_state.tableId = ImGui::GetCurrentTable()->ID;
@@ -517,10 +520,14 @@ namespace DearModdingUI::SettingsTable
 				},
 				{ s_state.resetWidth, s_state.buttonExtent },
 				SettingsAction::kReset,
-				"Reset",
+				Localization::Text(kResetText),
 				a_options.resetEnabled ?
-					"Reset this setting to its default." :
-					"This setting already uses its default.",
+					Localization::Text(
+						"$DMUI_Controls_ResetSettingTooltip",
+						"Reset this setting to its default.") :
+					Localization::Text(
+						"$DMUI_Controls_AlreadyDefaultTooltip",
+						"This setting already uses its default."),
 				a_options.resetEnabled);
 			a_resetPressed |= ControllerNavigation::ResetFocusedRow(
 				a_options.resetEnabled,

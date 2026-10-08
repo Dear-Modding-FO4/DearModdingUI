@@ -79,7 +79,7 @@ jobs:
               $expected = @("F4SE/Plugins/$component.dll")
               $dlls = @($names | Where-Object { $_ -like '*.dll' })
               if (Compare-Object $expected $dlls) { throw "$component has the wrong DLLs." }
-              if ($names | Where-Object { $_ -notmatch '^F4SE/Plugins/.+\.(dll|toml|txt|ttf)$' }) {
+              if ($names | Where-Object { $_ -notmatch '^(F4SE/Plugins/.+\.(dll|toml|ttf)|Interface/Translations/[^/]+\.txt)$' }) {
                 throw "$component contains non-runtime files."
               }
               if ($component -eq 'DearModdingUI-MCM' -and $names.Count -ne 1) {

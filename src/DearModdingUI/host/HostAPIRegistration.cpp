@@ -107,7 +107,11 @@ namespace DearModdingUI::HostAPIInternal
 		const auto clientResult = service.registry.ValidateClient(a_client);
 		if (clientResult != DMUI_RESULT_OK)
 			return clientResult;
-		return Hotkeys::Register(a_client, a_descriptor, a_action);
+		std::string clientId;
+		if (const auto idResult = service.registry.CopyClientId(a_client, clientId);
+			idResult != DMUI_RESULT_OK)
+			return idResult;
+		return Hotkeys::Register(a_client, a_descriptor, a_action, clientId);
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL

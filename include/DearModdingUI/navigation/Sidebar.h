@@ -26,8 +26,6 @@ namespace DearModdingUI
 	{
 		SidebarLayoutKind kind;
 		std::string_view id;
-		std::string_view label;
-		std::string_view description;
 		bool production;
 		bool preview;
 	};
@@ -36,37 +34,32 @@ namespace DearModdingUI
 		SidebarLayoutDescriptor{
 			SidebarLayoutKind::Tree,
 			"tree",
-			"Tree",
-			"Browse every mod and page at once.",
 			true,
 			true
 		},
 		SidebarLayoutDescriptor{
 			SidebarLayoutKind::TwoPane,
 			"twopane",
-			"Two-pane",
-			"Keep a fixed mod list with the selected mod's pages.",
 			true,
 			true
 		},
 		SidebarLayoutDescriptor{
 			SidebarLayoutKind::DrillDown,
 			"drilldown",
-			"Drill-down",
-			"Show one level at a time; well suited to many mods.",
 			true,
 			true
 		},
 		SidebarLayoutDescriptor{
 			SidebarLayoutKind::IconRail,
 			"iconrail",
-			"Icon rail",
-			"Browse mods from a compact icon rail.",
 			true,
 			true
 		}
 	};
 	inline constexpr auto DEFAULT_SIDEBAR_LAYOUT = SidebarLayoutKind::Tree;
+
+	[[nodiscard]] const char* SidebarLayoutLabel(SidebarLayoutKind a_kind) noexcept;
+	[[nodiscard]] const char* SidebarLayoutDescription(SidebarLayoutKind a_kind) noexcept;
 
 	[[nodiscard]] constexpr const SidebarLayoutDescriptor*
 		FindSidebarLayout(SidebarLayoutKind a_kind) noexcept
