@@ -1,0 +1,233 @@
+$DMUI_Controls_PressButtons	Appuyer sur les boutons...
+$DMUI_Controls_PressKeys	Appuyer sur les touches...
+$DMUI_Controls_CheckBinding	Vérifier l'assignation
+$DMUI_Controls_ReleaseToBind	Relâcher pour assigner. Échap / B pour annuler.
+$DMUI_Controls_Unbind	Désassigner
+$DMUI_Controls_FeedbackUnderLabel	Sous l'étiquette
+$DMUI_Controls_FeedbackUnderControl	Sous le contrôle
+$DMUI_Controls_FeedbackStrip	Bandeau pleine largeur
+$DMUI_Controls_FeedbackUnderLabelHelp	Afficher le retour sous l'étiquette et la description du champ.
+$DMUI_Controls_FeedbackUnderControlHelp	Afficher le retour directement sous le contrôle du champ.
+$DMUI_Controls_FeedbackStripHelp	Afficher le retour dans un bandeau mis en évidence sous le champ.
+$DMUI_Controls_CopyTarget	Copier la cible
+$DMUI_Controls_OpenBackingFile	Ouvrir le fichier physique sous-jacent
+$DMUI_Controls_OpenContainingFolder	Ouvrir le dossier conteneur physique
+$DMUI_Controls_OpenWithSystemDefault	Ouvrir avec l'application par défaut du système
+$DMUI_Controls_OpenWithSelectedApplication	Ouvrir avec l'application sélectionnée
+$DMUI_Controls_Reset	Réinitialiser
+$DMUI_Controls_SettingColumn	Paramètre
+$DMUI_Controls_ValueColumn	Valeur
+$DMUI_Controls_ResetSettingTooltip	Réinitialiser ce paramètre à sa valeur par défaut.
+$DMUI_Controls_AlreadyDefaultTooltip	Ce paramètre utilise déjà sa valeur par défaut.
+$DMUI_Controller_Confirm	Confirmer
+$DMUI_Controller_Select	Sélectionner
+$DMUI_Controller_Back	Retour
+$DMUI_Controller_Reset	Réinitialiser
+$DMUI_Controller_Search	Rechercher
+$DMUI_Controller_Adjust	Ajuster
+$DMUI_Controller_Pane	Volet
+$DMUI_Controller_Page	Page
+$DMUI_Controller_Cursor	Curseur
+$DMUI_Controller_Scroll	Défilement
+$DMUI_Controller_Close	Fermer
+$DMUI_Hotkeys_NotSet	Non défini
+$DMUI_Hotkeys_InvalidBinding	Assignation invalide
+$DMUI_Shell_Close	Fermer
+$DMUI_Shell_StatusDetailsTitle	Détails du statut
+$DMUI_Shell_NavigationRejected	La demande de navigation a été rejetée.
+$DMUI_Shell_CloseMenu	Fermer le menu
+$DMUI_Shell_PageFailedTitle	{} n'a pas pu être affiché
+$DMUI_Shell_PageFailedBody	Le rappel de page du mod a échoué et a été désactivé pour cette session. Les autres pages restent disponibles.
+$DMUI_Shell_ActionFailedTooltip	Action désactivée après l'échec de son rappel.
+$DMUI_Shell_SelectPage	Veuillez sélectionner une page à gauche.
+$DMUI_Shell_ErrorFrom	Erreur de {}
+$DMUI_Shell_CopyDetails	Copier les détails
+$DMUI_Shell_Settings	Paramètres
+$DMUI_Shell_Dismiss	Masquer
+$DMUI_Shell_HostFooter	Hôte : {}
+$DMUI_Shell_ModFooter	Mod : {}
+$DMUI_Shell_VersionFooter	Version : {}.{}
+$DMUI_Shell_DismissStatus	Masquer le statut
+$DMUI_Shell_InterfaceSettings	Paramètres de l'interface
+$DMUI_Status_SeverityInfo	Info
+$DMUI_Status_SeveritySuccess	Succès
+$DMUI_Status_SeverityWarning	Avertissement
+$DMUI_Status_SeverityError	Erreur
+$DMUI_Status_SeverityUnknown	Inconnu
+$DMUI_Status_ClientUnavailable	Indisponible
+$DMUI_Status_ClientReady	Prêt
+$DMUI_Palette_SearchTitle	Rechercher des mods, pages et actions
+$DMUI_Palette_ModKind	Mod
+$DMUI_Palette_ActionsCategory	Actions
+$DMUI_Palette_SearchHint	Rechercher des mods, pages et actions...
+$DMUI_Palette_SearchUnavailable	Saisie de recherche indisponible.
+$DMUI_Palette_RecentPages	Pages récentes
+$DMUI_Palette_Results	Résultats
+$DMUI_Palette_NoRecentPages	Aucune page récente pour le moment.
+$DMUI_Palette_NoResults	Aucun mod, page ou action correspondant.
+$DMUI_Nav_HealthPage	Santé
+$DMUI_Nav_SettingsPage	Paramètres
+$DMUI_Nav_HomePage	Accueil
+$DMUI_Nav_HealthPageSummary	Statut détaillé des sous-systèmes de l'hôte et des mods enregistrés.
+$DMUI_Nav_SettingsPageSummary	Configurer l'interface du menu partagé, la lisibilité et la saisie.
+$DMUI_Nav_HomePageSummary	Aperçu du statut de l'hôte du menu partagé.
+$DMUI_Nav_Native	Natif
+$DMUI_Nav_Bridged	Ponté
+$DMUI_Nav_Mods	Mods
+$DMUI_Nav_Pages	Pages
+$DMUI_Nav_SelectModHint	Sélectionner un mod pour parcourir ses pages.
+$DMUI_Nav_AllMods	Tous les mods
+$DMUI_Nav_Host	Hôte
+$DMUI_Nav_LayoutTwoPane	Deux volets
+$DMUI_Nav_LayoutDrillDown	Navigation hiérarchique
+$DMUI_Nav_LayoutIconRail	Barre d'icônes
+$DMUI_Nav_LayoutTree	Arborescence
+$DMUI_Nav_LayoutTwoPaneHelp	Conserver une liste de mods fixe avec les pages du mod sélectionné
+$DMUI_Nav_LayoutDrillDownHelp	Afficher un niveau à la fois ; bien adapté à un grand nombre de mods.
+$DMUI_Nav_LayoutIconRailHelp	Parcourir les mods depuis une barre d'icônes compacte.
+$DMUI_Nav_LayoutTreeHelp	Parcourir tous les mods et pages à la fois.
+$DMUI_Health_StateWaiting	En attente
+$DMUI_Health_StateProgressing	En cours
+$DMUI_Health_StateReady	Prêt
+$DMUI_Health_StateDegraded	Dégradé
+$DMUI_Health_StateFailed	Échec
+$DMUI_Health_StateUnknown	Inconnu
+$DMUI_Health_DeadlineExceeded	(délai dépassé)
+$DMUI_Health_ErrorCountOne	1 erreur
+$DMUI_Health_ErrorCountOther	{} erreurs
+$DMUI_Health_WarningCountOne	1 avertissement
+$DMUI_Health_WarningCountOther	{} avertissements
+$DMUI_Health_SuccessCountOne	1 succès
+$DMUI_Health_SuccessCountOther	{} succès
+$DMUI_Health_InfoCount	{} info
+$DMUI_Health_DroppedReportOne	1 autre rapport de diagnostic n'a pas été conservé.
+$DMUI_Health_DroppedReportOther	{} autres rapports de diagnostic n'ont pas été conservés.
+$DMUI_Health_ScopeLabel	Portée : {}
+$DMUI_Health_DurationSeconds	{}s
+$DMUI_Health_DurationMinutes	{}m {}s
+$DMUI_Health_DurationHours	{}h {}m
+$DMUI_Health_RegisteredMods	Mods enregistrés
+$DMUI_Health_BridgedMods	Mods pontés
+$DMUI_Health_SourceMods	{} mods
+$DMUI_Home_About	DearModdingUI est un menu de paramètres partagé pour Fallout 4. Les mods enregistrent leurs propres pages dans une seule interface au lieu d'avoir chacun un menu séparé, et les mods qui n'ont jamais été conçus pour cela peuvent également apparaître ici.
+$DMUI_Home_FaqOpenQuestion	Comment ouvrir le menu ?
+$DMUI_Home_FaqOpenAnswer	Appuyez sur {} pour ouvrir ou fermer DearModdingUI. Vous pouvez changer cette touche sur la page Paramètres.
+$DMUI_Home_FaqStorageQuestion	Où sont stockés les paramètres ?
+$DMUI_Home_FaqStorageAnswer	Les paramètres de l'hôte sont stockés dans Data/F4SE/Plugins/DearModdingUI.toml.
+$DMUI_Home_FaqMissingPageQuestion	Pourquoi une page de mod est-elle manquante ou grisée ?
+$DMUI_Home_FaqMissingPageAnswer	Ouvrez la page Santé pour voir si l'hôte ou ce mod a signalé un problème.
+$DMUI_Home_FaqReplaceQuestion	Cela remplace-t-il le menu propre du mod ?
+$DMUI_Home_FaqReplaceAnswer	Non. Les mods enregistrent des pages et DearModdingUI les affiche dans l'interface partagée.
+$DMUI_Home_HealthNotObserved	Santé de l'hôte non encore observée
+$DMUI_Home_AllReady	Tous les systèmes sont prêts
+$DMUI_Home_SubsystemsAndModsAttention	Sous-systèmes de l'hôte nécessitant attention : {} ; mods nécessitant attention : {}
+$DMUI_Home_SubsystemsStartingModsAttention	Sous-systèmes de l'hôte en cours de démarrage : {} ; mods nécessitant attention : {}
+$DMUI_Home_SubsystemsAttention	Sous-systèmes de l'hôte nécessitant attention : {}
+$DMUI_Home_SubsystemsStarting	Sous-systèmes de l'hôte en cours de démarrage : {}
+$DMUI_Home_ModsAttention	Mods nécessitant attention : {}
+$DMUI_Pages_SettingsApply	Appliquer
+$DMUI_Pages_SettingsReset	Réinitialiser
+$DMUI_Pages_SettingsRevert	Annuler
+$DMUI_Home_AboutHeader	À propos
+$DMUI_Home_OverviewHeader	Aperçu
+$DMUI_Home_RegistryCounts	{} mods | {} pages | {} actions
+$DMUI_Home_QuickLinksHeader	Liens rapides
+$DMUI_Home_FaqHeader	FAQ
+$DMUI_Health_CopyReport	Copier le rapport
+$DMUI_Health_CopyReportTooltip	Copier un rapport de diagnostic dans le presse-papiers.
+$DMUI_Health_HostSubsystemsHeader	Sous-systèmes de l'hôte
+$DMUI_Health_NoSubsystemObservations	Aucune observation de sous-système de l'hôte n'est disponible.
+$DMUI_Health_SubsystemStatus	Statut : {} | {} dans l'état
+$DMUI_Health_NoClientMods	Aucun mod client enregistré cette session.
+$DMUI_Health_ClientCounts	{} | {} pages | {} actions
+$DMUI_Health_ClientVersion	Version {}.{}
+$DMUI_Health_ClientStatus	Statut : {}
+$DMUI_Health_ReportedProblemsHeader	Problèmes signalés
+$DMUI_Health_NoDiagnostics	Aucun diagnostic client n'a été signalé
+$DMUI_Pages_SettingsResetTooltip	Réinitialiser enregistre immédiatement la disposition par défaut de la barre latérale et charge les autres valeurs par défaut d'interface dans le brouillon. Utilisez Appliquer pour les enregistrer.
+$DMUI_Pages_SettingsRevertTooltip	Annuler supprime les modifications d'interface en attente et restaure les paramètres enregistrés. Les modifications de la disposition de la barre latérale sont déjà enregistrées.
+$DMUI_Pages_SettingsApplyTooltip	Appliquer enregistre les paramètres de l'hôte dans DearModdingUI.toml. Les modifications de la disposition de la barre latérale sont enregistrées immédiatement ; les aperçus d'apparence se mettent à jour en direct, et la typographie est reconstruite une fois si nécessaire.
+$DMUI_Dialog_Working	Traitement...
+$DMUI_Settings_SettingsSaved	Paramètres enregistrés.
+$DMUI_Settings_SyncColorAvailable	Copier cette couleur du jeu vers l'aperçu de l'accent. Utilisez Appliquer pour enregistrer.
+$DMUI_Settings_SyncColorUnavailable	Couleur indisponible. Nécessite Fallout 4 avec des préférences de couleur de jeu valides.
+$DMUI_Settings_SyncFromHud	Synchroniser depuis le HUD
+$DMUI_Settings_SyncFromPipboy	Synchroniser depuis le Pip-Boy
+$DMUI_Settings_ColorVisionPresets	Préréglages adaptés aux déficiences visuelles
+$DMUI_Settings_DefaultGreen	Vert par défaut
+$DMUI_Settings_AccessibleBlue	Bleu accessible
+$DMUI_Settings_OkabeBlue	Bleu Okabe-Ito, distinguable pour les déficiences courantes de la vision des couleurs
+$DMUI_Settings_AccessibleOrange	Orange accessible
+$DMUI_Settings_OkabeOrange	Orange Okabe-Ito, distinguable pour les déficiences courantes de la vision des couleurs
+$DMUI_Settings_AccessibleSkyBlue	Bleu ciel accessible
+$DMUI_Settings_OkabeSkyBlue	Bleu ciel Okabe-Ito, distinguable pour les déficiences courantes de la vision des couleurs
+$DMUI_Settings_AccessibleVermillion	Vermillon accessible
+$DMUI_Settings_OkabeVermillion	Vermillon Okabe-Ito, distinguable pour les déficiences courantes de la vision des couleurs
+$DMUI_Settings_AccessiblePurple	Violet accessible
+$DMUI_Settings_OkabePurple	Violet Okabe-Ito, distinguable pour les déficiences courantes de la vision des couleurs
+$DMUI_Settings_FeedbackExampleInfo	Les changements s'appliquent après la réouverture du menu.
+$DMUI_Settings_FeedbackExampleWarning	Cette option peut affecter le rythme du jeu.
+$DMUI_Settings_FeedbackExampleError	Le minimum ne peut pas dépasser le maximum.
+$DMUI_Settings_FeedbackPreview	Aperçu du retour de champ
+$DMUI_Settings_Appearance	Apparence
+$DMUI_Settings_SidebarLayout	Disposition de la barre latérale (enregistrée immédiatement)
+$DMUI_Settings_AccentColor	Couleur d'accent
+$DMUI_Settings_AccentColorHelp	Recolore les sélections, contrôles, liens et chaque icône de menu Phosphor en mode coloré.
+$DMUI_Settings_SyncAccent	Synchroniser l'accent avec le jeu
+$DMUI_Settings_SyncAccentHelp	Copie la couleur actuelle du HUD ou du Pip-Boy une fois. Utilisez Appliquer pour enregistrer ou Annuler pour ignorer.
+$DMUI_Settings_IconColorMode	Mode de couleur des icônes
+$DMUI_Settings_IconColorModeHelp	Les icônes colorées utilisent l'accent ci-dessus ; les icônes monochromes utilisent la couleur de texte active.
+$DMUI_Settings_IconModeColored	Coloré (accent)
+$DMUI_Settings_IconModeMonochrome	Monochrome (texte)
+$DMUI_Settings_LogoColors	Couleurs du logo
+$DMUI_Settings_LogoColorsHelp	Utilise les couleurs d'origine du logo ou l'accent actuel, indépendamment du mode de couleur des icônes.
+$DMUI_Settings_LogoOriginalColors	Couleurs d'origine
+$DMUI_Settings_LogoAccent	Accent
+$DMUI_Settings_WindowBackgroundOpacity	Opacité de l'arrière-plan de la fenêtre
+$DMUI_Settings_WindowBackgroundOpacityHelp	Augmente ou diminue l'obscurité de la fenêtre hôte sans modifier le contenu du client.
+$DMUI_Settings_PaletteBackground	Arrière-plan de la palette de commandes
+$DMUI_Settings_PaletteBackgroundHelp	Définit la couleur de surface surélevée utilisée par la palette de commandes.
+$DMUI_Settings_PaletteOpacity	Opacité de la palette de commandes
+$DMUI_Settings_PaletteOpacityHelp	Contrôle la transparence du panneau hôte atténué visible à travers la palette.
+$DMUI_Settings_BackgroundBlur	Flou d'arrière-plan
+$DMUI_Settings_BackgroundBlurHelp	Floute le jeu derrière la fenêtre hôte ; le désactiver évite les passes de flou.
+$DMUI_Settings_BlurStrength	Intensité du flou
+$DMUI_Settings_BlurStrengthHelp	Ajuste la dispersion d'échantillonnage de flou par image sans réallouer les ressources graphiques.
+$DMUI_Settings_FeedbackPlacement	Placement du retour de champ
+$DMUI_Settings_FeedbackInfo	Retour de champ : info
+$DMUI_Settings_FeedbackInfoHelp	Couleur utilisée uniquement pour le retour d'information de champ.
+$DMUI_Settings_FeedbackWarning	Retour de champ : avertissement
+$DMUI_Settings_FeedbackWarningHelp	Couleur utilisée uniquement pour le retour d'avertissement de champ.
+$DMUI_Settings_FeedbackError	Retour de champ : erreur
+$DMUI_Settings_FeedbackErrorHelp	Couleur utilisée uniquement pour le retour d'erreur de champ.
+$DMUI_Settings_Readability	Lisibilité
+$DMUI_Settings_UiScale	Échelle de l'interface (nécessite Appliquer)
+$DMUI_Settings_UiScaleHelp	Multiplie le dimensionnement dérivé de la résolution ; Appliquer reconstruit la typographie une fois avant l'image suivante.
+$DMUI_Settings_BodyFontFamily	Famille de police de corps (nécessite Appliquer)
+$DMUI_Settings_BodyFontFamilyHelp	Liste les dossiers de familles de polices dans Data/F4SE/Plugins/DearModdingUI/Fonts ; Appliquer reconstruit la famille sélectionnée une fois.
+$DMUI_Settings_AppliedThisFrame	Appliqué à cette image : {}
+$DMUI_Settings_HotkeyConflictDefault	Conflit : la valeur par défaut suggérée est déjà assignée.
+$DMUI_Settings_HotkeyConflictOverride	Conflit : l'assignation enregistrée est attribuée à une autre action ou au basculement de menu.
+$DMUI_Settings_HotkeyInvalidOverride	Invalide : l'assignation enregistrée n'est pas reconnue pour ce périphérique d'entrée.
+$DMUI_Settings_InputAndBehavior	Saisie et comportement
+$DMUI_Settings_TypingNeedsKeyboard	La saisie nécessite un clavier.
+$DMUI_Settings_MenuToggleController	Basculement du menu (manette)
+$DMUI_Settings_MenuToggleKeyboard	Basculement du menu (clavier)
+$DMUI_Settings_MenuToggleHelp	Ouvre et ferme le menu partagé. Appliquer enregistre l'assignation pour cette session et les lancements futurs.
+$DMUI_Settings_FallSoulsMode	Mode FallSouls
+$DMUI_Settings_FallSoulsModeHelp	Maintient le jeu en cours d'exécution lorsque ce menu est ouvert. S'applique à la prochaine ouverture du menu.
+$DMUI_Settings_ClientHotkeys	Raccourcis client
+$DMUI_Settings_ClientHotkeysHelp	Les assignations appartiennent à DearModdingUI. Les modifications ci-dessous sont enregistrées immédiatement.
+$DMUI_Settings_NoClientActions	Aucune action client ou assignation enregistrée.
+$DMUI_Settings_HotkeyColumnAction	Action
+$DMUI_Settings_HotkeyColumnKeyboard	Clavier / souris
+$DMUI_Settings_HotkeyColumnController	Manette
+$DMUI_Settings_NotRegisteredClearable	Non enregistré. Les assignations enregistrées peuvent être effacées.
+$DMUI_Settings_NotRegisteredInactive	Non enregistré. Cette assignation enregistrée est inactive et peut être effacée.
+$DMUI_Settings_HostFacts	Informations de l'hôte (lecture seule)
+$DMUI_Settings_HostFactsHelp	Valeurs résolues par l'hôte DearModdingUI.
+$DMUI_Settings_PixelSize	{:.0f} px
+$DMUI_Settings_ResolvedTypographySize	Taille de typographie résolue
+$DMUI_Settings_ResolvedTypographySizeHelp	Dérivée de la hauteur du backbuffer et de l'échelle d'interface appliquée à une limite d'image.
+$DMUI_Settings_EffectiveUiScale	Échelle d'interface effective
+$DMUI_Settings_EffectiveUiScaleHelp	Dérivée de la résolution et de [Additional] fMenuUiScale.
