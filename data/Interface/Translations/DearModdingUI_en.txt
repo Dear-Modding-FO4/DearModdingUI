@@ -1,101 +1,233 @@
-$Host	Host
-$Mod	Mod
-$Version	Version
-$StatusDetailsPopup	Status details
-$NavRequestRejected	Navigation request was rejected
-$Close	Close
-$CloseMenu	Close menu
-$ErrorFrom	Error from
-$CopyDetails	Copy details
-$MessagePleaseSelectPage	Please select a page from the left.
-$MessageActionDisabledAfterCallbacks	Action disabled after its callback failed.
-$MessageFailedCallbackPages	The mod's page callback failed and has been disabled for this session. Other pages remain available.
-$CouldNotBeDisplayed	could not be displayed
-$Settings	Settings
-$Dismiss	Dismiss
-$DismissStatus	Dismiss status
-$InterfaceSettings	Interface settings
-$CommandPalettePopup	Search mods, pages, and actions
-$Actions	Actions
-$SearchInputUnavailable	Search input unavailable.
-$RecentPages	Recent pages
-$Results	Results
-$NoRecentPagesYet	No recent pages yet.
-$NoMatchingMods	No matching mods, pages, or actions.
-$DeadlineExceeded	(deadline exceeded)	
-$Error	error
-$Errors	errors
-$Warning	warning
-$Warnings	warnings
-$Success	success
-$Successes	successes
-$Info	info
-$FurtherDiagnosticReport	further diagnostic report was not retained
-$FurtherDiagnosticReports	further diagnostic reports were not retained
-$Scope	Scope
-$SecondShort	s
-$MinuteShort	m
-$HourShort	h
-$RegisteredMods	Registered mods
-$BridgedMods	Bridged mods
-$Mods	mods
-$ModsHi	Mods
-$DiagnosticsReport	diagnostics report
-$HostSubsystems	Host subsystems
-$NoObservations	No observations
-$ReportedDiagnostics	Reported diagnostics
-$None	None
-$Waiting	Waiting
-$Progressing	Progressing
-$Ready	Ready
-$Degraded	Degraded
-$Failed	Failed
-$Unknown	Unknown
-$HomeHi	Home
-$HomeSummary	At-a-glance status for the shared menu host.
-$HealthHi	Health
-$HealthSummary	Detailed host subsystem and registered mod status.
-$SettingsHi	Settings
-$SettingsSummary	Configure the shared menu interface, readability, and input.
-$Pages	Pages
-$MessageSelectModToBrowse	Select a mod to browse its pages.
-$AllMods	All Mods
-$MessageNoHostSubsystem	No host subsystem observations are available.
-$About	About
-$Overview	Overview
-$PagesSm	pages
-$ActionsSm	actions
-$QuickLinks	Quick Links
-$Faq	FAQ
-$CopyReport	Copy report
-$CopyReportMessage	Copy a diagnostics report to the clipboard.
-$NoClientModsMessage	No client mods registered this session.
-$Status	Status
-$InState	in state
-$NoClientDiagnosticsMessage	No client diagnostics have been reported.
-$HomeAboutText	DearModdingUI is a shared settings menu for Fallout 4. Mods register their own pages in one overlay instead of each shipping a separate menu, and mods that were never built for it can appear here too.
-$Press	Press
-$Faq1	How do I open the menu?
-$FaqA1	to open or close DearModdingUI. You can change this key on the Settings page.
-$Faq2	Where are settings stored?
-$FaqA2	Host settings are stored in Data/F4SE/Plugins/DearModdingUI.toml.
-$Faq3	Why is a mod page missing or grayed out?
-$FaqA3	Open the Health page to see whether the host or that mod reported a problem.
-$Faq4	Does this replace a mod's own menu?
-$FaqA4	No. Mods register pages and DearModdingUI draws them in the shared overlay.
-$AllSystemsReady	All systems ready
-$SystemsPartMsgFailed1_1	host subsystem and
-$SystemsPartMsgFailed2_1	host subsystems and
-$SystemsPartMsgFailed1_2	mod needs attention
-$SystemsPartMsgFailed2_2	mods need attention
-$SystemsPartMsgFailed3_1	host subsystem starting
-$SystemsPartMsgFailed4_1	host subsystems starting
-$SystemsPartMsgFailed5_1	host subsystem needs attention
-$SystemsPartMsgFailed6_1	host subsystems need attention
-$HostHealthNotObservedYet	Host health not observed yet
-$ReportedProblems	Reported problems
-$CopyTarget  Copy target
-$OpenPhysicalBackingFile    Open physical backing file
-$OpenPhysicalContainingFolder   Open physical containing folder
-$OpenWithSysDef Open with system default
-$OpenWithSelApp Open with selected application
+$DMUI_Controls_PressButtons	Press buttons...
+$DMUI_Controls_PressKeys	Press keys...
+$DMUI_Controls_CheckBinding	Check binding
+$DMUI_Controls_ReleaseToBind	Release to bind. Esc / B cancels.
+$DMUI_Controls_Unbind	Unbind
+$DMUI_Controls_FeedbackUnderLabel	Under label
+$DMUI_Controls_FeedbackUnderControl	Under control
+$DMUI_Controls_FeedbackStrip	Full-width strip
+$DMUI_Controls_FeedbackUnderLabelHelp	Show feedback below the field label and description.
+$DMUI_Controls_FeedbackUnderControlHelp	Show feedback directly below the field control.
+$DMUI_Controls_FeedbackStripHelp	Show feedback in a highlighted strip beneath the field.
+$DMUI_Controls_CopyTarget	Copy target
+$DMUI_Controls_OpenBackingFile	Open physical backing file
+$DMUI_Controls_OpenContainingFolder	Open physical containing folder
+$DMUI_Controls_OpenWithSystemDefault	Open with system default
+$DMUI_Controls_OpenWithSelectedApplication	Open with selected application
+$DMUI_Controls_Reset	Reset
+$DMUI_Controls_SettingColumn	Setting
+$DMUI_Controls_ValueColumn	Value
+$DMUI_Controls_ResetSettingTooltip	Reset this setting to its default.
+$DMUI_Controls_AlreadyDefaultTooltip	This setting already uses its default.
+$DMUI_Controller_Confirm	Confirm
+$DMUI_Controller_Select	Select
+$DMUI_Controller_Back	Back
+$DMUI_Controller_Reset	Reset
+$DMUI_Controller_Search	Search
+$DMUI_Controller_Adjust	Adjust
+$DMUI_Controller_Pane	Pane
+$DMUI_Controller_Page	Page
+$DMUI_Controller_Cursor	Cursor
+$DMUI_Controller_Scroll	Scroll
+$DMUI_Controller_Close	Close
+$DMUI_Hotkeys_NotSet	Not set
+$DMUI_Hotkeys_InvalidBinding	Invalid binding
+$DMUI_Shell_Close	Close
+$DMUI_Shell_StatusDetailsTitle	Status details
+$DMUI_Shell_NavigationRejected	Navigation request was rejected.
+$DMUI_Shell_CloseMenu	Close menu
+$DMUI_Shell_PageFailedTitle	{} could not be displayed
+$DMUI_Shell_PageFailedBody	The mod's page callback failed and has been disabled for this session. Other pages remain available.
+$DMUI_Shell_ActionFailedTooltip	Action disabled after its callback failed.
+$DMUI_Shell_SelectPage	Please select a page from the left.
+$DMUI_Shell_ErrorFrom	Error from {}
+$DMUI_Shell_CopyDetails	Copy details
+$DMUI_Shell_Settings	Settings
+$DMUI_Shell_Dismiss		Dismiss
+$DMUI_Shell_HostFooter	Host: {}
+$DMUI_Shell_ModFooter	Mod: {}
+$DMUI_Shell_VersionFooter	Version: {}.{}
+$DMUI_Shell_DismissStatus	Dismiss status
+$DMUI_Shell_InterfaceSettings	Interface settings
+$DMUI_Status_SeverityInfo	Info
+$DMUI_Status_SeveritySuccess	Success
+$DMUI_Status_SeverityWarning	Warning
+$DMUI_Status_SeverityError	Error
+$DMUI_Status_SeverityUnknown	Unknown
+$DMUI_Status_ClientUnavailable	Unavailable
+$DMUI_Status_ClientReady	Ready
+$DMUI_Palette_SearchTitle	Search mods, pages, and actions
+$DMUI_Palette_ModKind	Mod
+$DMUI_Palette_ActionsCategory	Actions
+$DMUI_Palette_SearchHint	Search mods, pages, and actions...
+$DMUI_Palette_SearchUnavailable	Search input unavailable.
+$DMUI_Palette_RecentPages	Recent pages
+$DMUI_Palette_Results	Results
+$DMUI_Palette_NoRecentPages	No recent pages yet.
+$DMUI_Palette_NoResults	No matching mods, pages, or actions.
+$DMUI_Nav_HealthPage	Health
+$DMUI_Nav_SettingsPage	Settings
+$DMUI_Nav_HomePage	Home
+$DMUI_Nav_HealthPageSummary	Detailed host subsystem and registered mod status.
+$DMUI_Nav_SettingsPageSummary	Configure the shared menu interface, readability, and input.
+$DMUI_Nav_HomePageSummary	At-a-glance status for the shared menu host.
+$DMUI_Nav_Native	Native
+$DMUI_Nav_Bridged	Bridged
+$DMUI_Nav_Mods	Mods
+$DMUI_Nav_Pages	Pages
+$DMUI_Nav_SelectModHint	Select a mod to browse its pages.
+$DMUI_Nav_AllMods	All Mods
+$DMUI_Nav_Host	Host
+$DMUI_Nav_LayoutTwoPane	Two-pane
+$DMUI_Nav_LayoutDrillDown	Drill-down
+$DMUI_Nav_LayoutIconRail	Icon rail
+$DMUI_Nav_LayoutTree	Tree
+$DMUI_Nav_LayoutTwoPaneHelp	Keep a fixed mod list with the selected mod's pages
+$DMUI_Nav_LayoutDrillDownHelp	Show one level at a time; well suited to many mods.
+$DMUI_Nav_LayoutIconRailHelp	Browse mods from a compact icon rail.
+$DMUI_Nav_LayoutTreeHelp	Browse every mod and page at once.
+$DMUI_Health_StateWaiting	Waiting
+$DMUI_Health_StateProgressing	Progressing
+$DMUI_Health_StateReady	Ready
+$DMUI_Health_StateDegraded	Degraded
+$DMUI_Health_StateFailed	Failed
+$DMUI_Health_StateUnknown	Unknown
+$DMUI_Health_DeadlineExceeded	(deadline exceeded)
+$DMUI_Health_ErrorCountOne	1 error
+$DMUI_Health_ErrorCountOther	{} errors
+$DMUI_Health_WarningCountOne	1 warning
+$DMUI_Health_WarningCountOther	{} warnings
+$DMUI_Health_SuccessCountOne	1 success
+$DMUI_Health_SuccessCountOther	{} successes
+$DMUI_Health_InfoCount	{} info
+$DMUI_Health_DroppedReportOne	1 further diagnostic report was not retained.
+$DMUI_Health_DroppedReportOther	{} further diagnostic reports were not retained.
+$DMUI_Health_ScopeLabel	Scope: {}
+$DMUI_Health_DurationSeconds	{}s
+$DMUI_Health_DurationMinutes	{}m {}s
+$DMUI_Health_DurationHours	{}h {}m
+$DMUI_Health_RegisteredMods	Registered mods
+$DMUI_Health_BridgedMods	Bridged mods
+$DMUI_Health_SourceMods	{} mods
+$DMUI_Home_About	DearModdingUI is a shared settings menu for Fallout 4. Mods register their own pages in one overlay instead of each shipping a separate menu, and mods that were never built for it can appear here too.
+$DMUI_Home_FaqOpenQuestion	How do I open the menu?
+$DMUI_Home_FaqOpenAnswer	Press {} to open or close DearModdingUI. You can change this key on the Settings page.
+$DMUI_Home_FaqStorageQuestion	Where are settings stored?
+$DMUI_Home_FaqStorageAnswer	Host settings are stored in Data/F4SE/Plugins/DearModdingUI.toml.
+$DMUI_Home_FaqMissingPageQuestion	Why is a mod page missing or grayed out?
+$DMUI_Home_FaqMissingPageAnswer	Open the Health page to see whether the host or that mod reported a problem.
+$DMUI_Home_FaqReplaceQuestion	Does this replace a mod's own menu?
+$DMUI_Home_FaqReplaceAnswer	No. Mods register pages and DearModdingUI draws them in the shared overlay.
+$DMUI_Home_HealthNotObserved	Host health not observed yet
+$DMUI_Home_AllReady	All systems ready
+$DMUI_Home_SubsystemsAndModsAttention	Host subsystems needing attention: {}; mods needing attention: {}
+$DMUI_Home_SubsystemsStartingModsAttention	Host subsystems starting: {}; mods needing attention: {}
+$DMUI_Home_SubsystemsAttention	Host subsystems needing attention: {}
+$DMUI_Home_SubsystemsStarting	Host subsystems starting: {}
+$DMUI_Home_ModsAttention	Mods needing attention: {}
+$DMUI_Pages_SettingsApply	Apply
+$DMUI_Pages_SettingsReset	Reset
+$DMUI_Pages_SettingsRevert	Revert
+$DMUI_Home_AboutHeader	About
+$DMUI_Home_OverviewHeader	Overview
+$DMUI_Home_RegistryCounts	{} mods | {} pages | {} actions
+$DMUI_Home_QuickLinksHeader	Quick Links
+$DMUI_Home_FaqHeader	FAQ
+$DMUI_Health_CopyReport	Copy report
+$DMUI_Health_CopyReportTooltip	Copy a diagnostics report to the clipboard.
+$DMUI_Health_HostSubsystemsHeader	Host subsystems
+$DMUI_Health_NoSubsystemObservations	No host subsystem observations are available.
+$DMUI_Health_SubsystemStatus	Status: {} | {} in state
+$DMUI_Health_NoClientMods	No client mods registered this session.
+$DMUI_Health_ClientCounts	{} | {} pages | {} actions
+$DMUI_Health_ClientVersion	Version {}.{}
+$DMUI_Health_ClientStatus	Status: {}
+$DMUI_Health_ReportedProblemsHeader	Reported problems
+$DMUI_Health_NoDiagnostics	No client diagnostics have been reported
+$DMUI_Pages_SettingsResetTooltip	Reset saves the default sidebar layout immediately and loads other shipped interface defaults into the draft. Use Apply to save those.
+$DMUI_Pages_SettingsRevertTooltip	Revert discards pending interface edits and restores saved settings. Sidebar layout changes are already saved.
+$DMUI_Pages_SettingsApplyTooltip	Apply saves host settings to DearModdingUI.toml. Sidebar layout changes save immediately; appearance previews update live, and typography rebuilds once if needed.
+$DMUI_Dialog_Working	Working...
+$DMUI_Settings_SettingsSaved	Settings saved.
+$DMUI_Settings_SyncColorAvailable	Copy this game color to the accent preview. Use Apply to save.
+$DMUI_Settings_SyncColorUnavailable	Color unavailable. Requires Fallout 4 with valid game color preferences.
+$DMUI_Settings_SyncFromHud	Sync from HUD
+$DMUI_Settings_SyncFromPipboy	Sync from Pip-Boy
+$DMUI_Settings_ColorVisionPresets	Color-vision-friendly presets
+$DMUI_Settings_DefaultGreen	Default green
+$DMUI_Settings_AccessibleBlue	Accessible blue
+$DMUI_Settings_OkabeBlue	Okabe-Ito blue, distinguishable across common color-vision deficiencies
+$DMUI_Settings_AccessibleOrange	Accessible orange
+$DMUI_Settings_OkabeOrange	Okabe-Ito orange, distinguishable across common color-vision deficiencies
+$DMUI_Settings_AccessibleSkyBlue	Accessible sky blue
+$DMUI_Settings_OkabeSkyBlue	Okabe-Ito sky blue, distinguishable across common color-vision deficiencies
+$DMUI_Settings_AccessibleVermillion	Accessible vermillion
+$DMUI_Settings_OkabeVermillion	Okabe-Ito vermillion, distinguishable across common color-vision deficiencies
+$DMUI_Settings_AccessiblePurple	Accessible purple
+$DMUI_Settings_OkabePurple	Okabe-Ito purple, distinguishable across common color-vision deficiencies
+$DMUI_Settings_FeedbackExampleInfo	Changes apply after the menu reopens.
+$DMUI_Settings_FeedbackExampleWarning	This option may affect gameplay timing.
+$DMUI_Settings_FeedbackExampleError	Minimum cannot exceed maximum.
+$DMUI_Settings_FeedbackPreview	Field feedback preview
+$DMUI_Settings_Appearance	Appearance
+$DMUI_Settings_SidebarLayout	Sidebar layout (saved immediately)
+$DMUI_Settings_AccentColor	Accent color
+$DMUI_Settings_AccentColorHelp	Retints selections, controls, links, and every Phosphor menu icon in colored mode.
+$DMUI_Settings_SyncAccent	Sync accent with game
+$DMUI_Settings_SyncAccentHelp	Copies the current HUD or Pip-Boy color once. Use Apply to save or Revert to discard.
+$DMUI_Settings_IconColorMode	Icon color mode
+$DMUI_Settings_IconColorModeHelp	Colored icons use the accent above; monochrome icons use the active text color.
+$DMUI_Settings_IconModeColored	Colored (accent)
+$DMUI_Settings_IconModeMonochrome	Monochrome (text)
+$DMUI_Settings_LogoColors	Logo colors
+$DMUI_Settings_LogoColorsHelp	Uses the original logo colors or the current accent, independently of icon color mode.
+$DMUI_Settings_LogoOriginalColors	Original colors
+$DMUI_Settings_LogoAccent	Accent
+$DMUI_Settings_WindowBackgroundOpacity	Window background opacity
+$DMUI_Settings_WindowBackgroundOpacityHelp	Raises or lowers the darkness of the host window without changing client content.
+$DMUI_Settings_PaletteBackground	Command palette background
+$DMUI_Settings_PaletteBackgroundHelp	Sets the elevated surface color used by the command palette.
+$DMUI_Settings_PaletteOpacity	Command palette opacit
+$DMUI_Settings_PaletteOpacityHelp	Controls how faintly the dimmed host panel shows through the palette.
+$DMUI_Settings_BackgroundBlur	Background blur
+$DMUI_Settings_BackgroundBlurHelp	Blurs the game behind the host window; disabling it avoids the blur passes.
+$DMUI_Settings_BlurStrength	Blur strength
+$DMUI_Settings_BlurStrengthHelp	Adjusts the per-frame blur sample spread without reallocating graphics resources.
+$DMUI_Settings_FeedbackPlacement	Field feedback placement
+$DMUI_Settings_FeedbackInfo	Field feedback: info
+$DMUI_Settings_FeedbackInfoHelp	Color used only for informational field feedback.
+$DMUI_Settings_FeedbackWarning	Field feedback: warning
+$DMUI_Settings_FeedbackWarningHelp	Color used only for warning field feedback.
+$DMUI_Settings_FeedbackError	Field feedback: error
+$DMUI_Settings_FeedbackErrorHelp	Color used only for error field feedback.
+$DMUI_Settings_Readability	Readability
+$DMUI_Settings_UiScale	UI scale (requires Apply)
+$DMUI_Settings_UiScaleHelp	Multiplies resolution-derived sizing; Apply rebuilds typography once before the next frame.
+$DMUI_Settings_BodyFontFamily	Body font family (requires Apply)
+$DMUI_Settings_BodyFontFamilyHelp	Lists font-family folders in Data/F4SE/Plugins/DearModdingUI/Fonts; Apply rebuilds the selected family once.
+$DMUI_Settings_AppliedThisFrame	Applied this frame: {}
+$DMUI_Settings_HotkeyConflictDefault	Conflict: suggested default is already assigned.
+$DMUI_Settings_HotkeyConflictOverride	Conflict: saved binding is assigned to another action or menu toggle.
+$DMUI_Settings_HotkeyInvalidOverride	Invalid: saved binding is not recognized for this input device.
+$DMUI_Settings_InputAndBehavior	Input and behavior
+$DMUI_Settings_TypingNeedsKeyboard	Typing needs a keyboard.
+$DMUI_Settings_MenuToggleController	Menu toggle (controller)
+$DMUI_Settings_MenuToggleKeyboard	Menu toggle (keyboard)
+$DMUI_Settings_MenuToggleHelp	Opens and closes the shared menu. Apply saves the binding for this session and future launches.
+$DMUI_Settings_FallSoulsMode	FallSouls mode
+$DMUI_Settings_FallSoulsModeHelp	Keep the game running while this menu is open. Applies the next time the menu opens.
+$DMUI_Settings_ClientHotkeys	Client hotkeys
+$DMUI_Settings_ClientHotkeysHelp	Bindings are owned by DearModdingUI. Changes below are saved immediately.
+$DMUI_Settings_NoClientActions	No client actions or saved overrides.
+$DMUI_Settings_HotkeyColumnAction	Action
+$DMUI_Settings_HotkeyColumnKeyboard	Keyboard / mouse
+$DMUI_Settings_HotkeyColumnController	Controller
+$DMUI_Settings_NotRegisteredClearable	Not registered. Saved bindings can be cleared.
+$DMUI_Settings_NotRegisteredInactive	Not registered. This saved binding is inactive and can be cleared.
+$DMUI_Settings_HostFacts	Host facts (read-only)
+$DMUI_Settings_HostFactsHelp	Values resolved by the DearModdingUI host.
+$DMUI_Settings_PixelSize	{:.0f} px
+$DMUI_Settings_ResolvedTypographySize	Resolved typography size
+$DMUI_Settings_ResolvedTypographySizeHelp	Derived from the backbuffer height and the applied UI scale at a frame boundary.
+$DMUI_Settings_EffectiveUiScale	Effective UI scale
+$DMUI_Settings_EffectiveUiScaleHelp	Derived from resolution and [Additional] fMenuUiScale.

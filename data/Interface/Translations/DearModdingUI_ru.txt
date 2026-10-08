@@ -1,101 +1,233 @@
-$Host	Хост
-$Mod	Мод
-$Version	Версия
-$StatusDetailsPopup	Подробности статуса
-$NavRequestRejected	Запрос навигации отклонён
-$Close	Закрыть
-$CloseMenu	Закрыть меню
-$ErrorFrom	Ошибка от
-$CopyDetails	Скопировать подробности
-$MessagePleaseSelectPage	Выберите страницу слева.
-$MessageActionDisabledAfterCallbacks	Действие отключено после сбоя его обратного вызова.
-$MessageFailedCallbackPages	Обратный вызов страницы мода завершился ошибкой и отключён для этой сессии. Остальные страницы доступны.
-$CouldNotBeDisplayed	не удалось отобразить
-$Settings	Настройки
-$Dismiss	Отклонить
-$DismissStatus	Отклонить статус
-$InterfaceSettings	Настройки интерфейса
-$CommandPalettePopup	Поиск модов, страниц и действий
-$Actions	Действия
-$SearchInputUnavailable	Поиск недоступен.
-$RecentPages	Недавние страницы
-$Results	Результаты
-$NoRecentPagesYet	Недавних страниц пока нет.
-$NoMatchingMods	Подходящих модов, страниц или действий не найдено.
-$DeadlineExceeded	(превышено время ожидания)
-$Error	ошибка
-$Errors	ошибки
-$Warning	предупреждение
-$Warnings	предупреждения
-$Success	успешно
-$Successes	успешные
-$Info	информация
-$FurtherDiagnosticReport	дополнительный диагностический отчёт не сохранён
-$FurtherDiagnosticReports	дополнительные диагностические отчёты не сохранены
-$Scope	Область
-$SecondShort	с
-$MinuteShort	м
-$HourShort	ч
-$RegisteredMods	Зарегистрированные моды
-$BridgedMods	Связанные моды
-$Mods	моды
-$ModsHi	Моды
-$DiagnosticsReport	диагностический отчёт
-$HostSubsystems	Подсистемы хоста
-$NoObservations	Нет наблюдений
-$ReportedDiagnostics	Зарегистрированная диагностика
-$None	Нет
-$Waiting	Ожидание
-$Progressing	Выполняется
-$Ready	Готово
-$Degraded	Ухудшено
-$Failed	Сбой
-$Unknown	Неизвестно
-$HomeHi	Главная
-$HomeSummary	Общий статус хоста общего меню.
-$HealthHi	Состояние
-$HealthSummary	Подробный статус подсистем хоста и зарегистрированных модов.
-$SettingsHi	Настройки
-$SettingsSummary	Настройка интерфейса общего меню, читаемости и ввода.
-$Pages	Страницы
-$MessageSelectModToBrowse	Выберите мод для просмотра его страниц.
-$AllMods	Все моды
-$MessageNoHostSubsystem	Нет данных о подсистемах хоста.
-$About	О программе
-$Overview	Обзор
-$PagesSm	страницы
-$ActionsSm	действия
-$QuickLinks	Быстрые ссылки
-$Faq	Частые вопросы
-$CopyReport	Скопировать отчёт
-$CopyReportMessage	Скопировать диагностический отчёт в буфер обмена.
-$NoClientModsMessage	В этой сессии не зарегистрировано клиентских модов.
-$Status	Статус
-$InState	в состоянии
-$NoClientDiagnosticsMessage	Клиентская диагностика не зарегистрирована.
-$HomeAboutText	DearModdingUI — общее меню настроек для Fallout 4. Моды регистрируют свои страницы в одном окне вместо отдельного меню для каждого, а моды, изначально не созданные для него, тоже могут здесь отображаться.
-$Press	Нажмите
-$Faq1	Как открыть меню?
-$FaqA1	чтобы открыть или закрыть DearModdingUI. Этот ключ можно изменить на странице настроек.
-$Faq2	Где хранятся настройки?
-$FaqA2	Настройки хоста хранятся в Data/F4SE/Plugins/DearModdingUI.toml.
-$Faq3	Почему страница мода отсутствует или недоступна?
-$FaqA3	Откройте страницу «Состояние», чтобы проверить, не сообщил ли хост или мод о проблеме.
-$Faq4	Заменяет ли это собственное меню мода?
-$FaqA4	Нет. Моды регистрируют страницы, а DearModdingUI отображает их в общем окне.
-$AllSystemsReady	Все системы готовы
-$SystemsPartMsgFailed1_1	подсистема хоста и
-$SystemsPartMsgFailed2_1	подсистемы хоста и
-$SystemsPartMsgFailed1_2	мод требует внимания
-$SystemsPartMsgFailed2_2	мода требуют внимания
-$SystemsPartMsgFailed3_1	подсистема хоста запускается
-$SystemsPartMsgFailed4_1	подсистемы хоста запускаются
-$SystemsPartMsgFailed5_1	подсистема хоста требует внимания
-$SystemsPartMsgFailed6_1	подсистемы хоста требуют внимания
-$HostHealthNotObservedYet	Состояние хоста ещё не проверено
-$ReportedProblems Сообщенные проблемы
-$CopyTarget Скопировать ссылку
-$OpenPhysicalBackingFile Открыть физический резервный файл
-$OpenPhysicalContainingFolder Открыть физическую папку, содержащую
-$OpenWithSysDef Открыть с помощью системного по умолчанию
-$OpenWithSelApp Открыть с помощью выбранного приложения
+$DMUI_Controls_PressButtons	Нажмите кнопки...
+$DMUI_Controls_PressKeys	Нажмите клавиши...
+$DMUI_Controls_CheckBinding	Проверить назначение
+$DMUI_Controls_ReleaseToBind	Отпустите для назначения. Esc / B — отмена.
+$DMUI_Controls_Unbind	Снять назначение
+$DMUI_Controls_FeedbackUnderLabel	Под меткой
+$DMUI_Controls_FeedbackUnderControl	Под элементом
+$DMUI_Controls_FeedbackStrip	Полоса на всю ширину
+$DMUI_Controls_FeedbackUnderLabelHelp	Показывать отзыв под меткой и описанием поля.
+$DMUI_Controls_FeedbackUnderControlHelp	Показывать отзыв прямо под элементом поля.
+$DMUI_Controls_FeedbackStripHelp	Показывать отзыв в выделенной полосе под полем.
+$DMUI_Controls_CopyTarget	Копировать цель
+$DMUI_Controls_OpenBackingFile	Открыть физический файл данных
+$DMUI_Controls_OpenContainingFolder	Открыть физическую папку
+$DMUI_Controls_OpenWithSystemDefault	Открыть в системе по умолчанию
+$DMUI_Controls_OpenWithSelectedApplication	Открыть в выбранном приложении
+$DMUI_Controls_Reset	Сбросить
+$DMUI_Controls_SettingColumn	Настройка
+$DMUI_Controls_ValueColumn	Значение
+$DMUI_Controls_ResetSettingTooltip	Сбросить эту настройку на значение по умолчанию.
+$DMUI_Controls_AlreadyDefaultTooltip	Эта настройка уже использует значение по умолчанию.
+$DMUI_Controller_Confirm	Подтвердить
+$DMUI_Controller_Select	Выбрать
+$DMUI_Controller_Back	Назад
+$DMUI_Controller_Reset	Сбросить
+$DMUI_Controller_Search	Поиск
+$DMUI_Controller_Adjust	Изменить
+$DMUI_Controller_Pane	Панель
+$DMUI_Controller_Page	Страница
+$DMUI_Controller_Cursor	Курсор
+$DMUI_Controller_Scroll	Прокрутка
+$DMUI_Controller_Close	Закрыть
+$DMUI_Hotkeys_NotSet	Не назначено
+$DMUI_Hotkeys_InvalidBinding	Неверное назначение
+$DMUI_Shell_Close	Закрыть
+$DMUI_Shell_StatusDetailsTitle	Подробности статуса
+$DMUI_Shell_NavigationRejected	Запрос навигации отклонён.
+$DMUI_Shell_CloseMenu	Закрыть меню
+$DMUI_Shell_PageFailedTitle	{} не удалось отобразить
+$DMUI_Shell_PageFailedBody	Обратный вызов страницы мода завершился ошибкой и отключён для этой сессии. Остальные страницы доступны.
+$DMUI_Shell_ActionFailedTooltip	Действие отключено после сбоя его обратного вызова.
+$DMUI_Shell_SelectPage	Выберите страницу слева.
+$DMUI_Shell_ErrorFrom	Ошибка от {}
+$DMUI_Shell_CopyDetails	Скопировать подробности
+$DMUI_Shell_Settings	Настройки
+$DMUI_Shell_Dismiss		Отклонить
+$DMUI_Shell_HostFooter	Хост: {}
+$DMUI_Shell_ModFooter	Мод: {}
+$DMUI_Shell_VersionFooter	Версия: {}.{}
+$DMUI_Shell_DismissStatus	Отклонить статус
+$DMUI_Shell_InterfaceSettings	Настройки интерфейса
+$DMUI_Status_SeverityInfo	Информация
+$DMUI_Status_SeveritySuccess	Успех
+$DMUI_Status_SeverityWarning	Предупреждение
+$DMUI_Status_SeverityError	Ошибка
+$DMUI_Status_SeverityUnknown	Неизвестно
+$DMUI_Status_ClientUnavailable	Недоступно
+$DMUI_Status_ClientReady	Готово
+$DMUI_Palette_SearchTitle	Поиск модов, страниц и действий
+$DMUI_Palette_ModKind	Мод
+$DMUI_Palette_ActionsCategory	Действия
+$DMUI_Palette_SearchHint	Поиск модов, страниц и действий...
+$DMUI_Palette_SearchUnavailable	Поле поиска недоступно.
+$DMUI_Palette_RecentPages	Недавние страницы
+$DMUI_Palette_Results	Результаты
+$DMUI_Palette_NoRecentPages	Недавних страниц пока нет.
+$DMUI_Palette_NoResults	Подходящих модов, страниц или действий не найдено.
+$DMUI_Nav_HealthPage	Состояние
+$DMUI_Nav_SettingsPage	Настройки
+$DMUI_Nav_HomePage	Главная
+$DMUI_Nav_HealthPageSummary	Подробный статус подсистем хоста и зарегистрированных модов.
+$DMUI_Nav_SettingsPageSummary	Настройка интерфейса общего меню, читаемости и ввода.
+$DMUI_Nav_HomePageSummary	Краткий статус хоста общего меню.
+$DMUI_Nav_Native	Нативные
+$DMUI_Nav_Bridged	Связанные
+$DMUI_Nav_Mods	Моды
+$DMUI_Nav_Pages	Страницы
+$DMUI_Nav_SelectModHint	Выберите мод, чтобы просмотреть его страницы.
+$DMUI_Nav_AllMods	Все моды
+$DMUI_Nav_Host	Хост
+$DMUI_Nav_LayoutTwoPane	Двухпанельный
+$DMUI_Nav_LayoutDrillDown	С вложенным переходом
+$DMUI_Nav_LayoutIconRail	Панель значков
+$DMUI_Nav_LayoutTree	Дерево
+$DMUI_Nav_LayoutTwoPaneHelp	Фиксированный список модов со страницами выбранного мода
+$DMUI_Nav_LayoutDrillDownHelp	Показывать по одному уровню; хорошо подходит для большого числа модов.
+$DMUI_Nav_LayoutIconRailHelp	Просмотр модов на компактной панели значков.
+$DMUI_Nav_LayoutTreeHelp	Просмотр всех модов и страниц одновременно.
+$DMUI_Health_StateWaiting	Ожидание
+$DMUI_Health_StateProgressing	Выполняется
+$DMUI_Health_StateReady	Готово
+$DMUI_Health_StateDegraded	Ухудшено
+$DMUI_Health_StateFailed	Сбой
+$DMUI_Health_StateUnknown	Неизвестно
+$DMUI_Health_DeadlineExceeded	(превышено время ожидания)
+$DMUI_Health_ErrorCountOne	1 ошибка
+$DMUI_Health_ErrorCountOther	{} ошибок
+$DMUI_Health_WarningCountOne	1 предупреждение
+$DMUI_Health_WarningCountOther	{} предупреждений
+$DMUI_Health_SuccessCountOne	1 успех
+$DMUI_Health_SuccessCountOther	{} успешных
+$DMUI_Health_InfoCount	{} инфо
+$DMUI_Health_DroppedReportOne	1 дополнительный диагностический отчёт не сохранён.
+$DMUI_Health_DroppedReportOther	{} дополнительных диагностических отчётов не сохранено.
+$DMUI_Health_ScopeLabel	Область: {}
+$DMUI_Health_DurationSeconds	{}с
+$DMUI_Health_DurationMinutes	{}м {}с
+$DMUI_Health_DurationHours	{}ч {}м
+$DMUI_Health_RegisteredMods	Зарегистрированные моды
+$DMUI_Health_BridgedMods	Связанные моды
+$DMUI_Health_SourceMods	{} модов
+$DMUI_Home_About	DearModdingUI — общее меню настроек для Fallout 4. Моды регистрируют свои страницы в одном оверлее вместо отдельного меню у каждого, а моды, изначально не созданные для него, тоже могут отображаться здесь.
+$DMUI_Home_FaqOpenQuestion	Как открыть меню?
+$DMUI_Home_FaqOpenAnswer	Нажмите {}, чтобы открыть или закрыть DearModdingUI. Клавишу можно изменить на странице «Настройки».
+$DMUI_Home_FaqStorageQuestion	Где хранятся настройки?
+$DMUI_Home_FaqStorageAnswer	Настройки хоста хранятся в Data/F4SE/Plugins/DearModdingUI.toml.
+$DMUI_Home_FaqMissingPageQuestion	Почему страница мода отсутствует или недоступна?
+$DMUI_Home_FaqMissingPageAnswer	Откройте страницу «Состояние», чтобы проверить, сообщил ли хост или этот мод о проблеме.
+$DMUI_Home_FaqReplaceQuestion	Это заменяет собственное меню мода?
+$DMUI_Home_FaqReplaceAnswer	Нет. Моды регистрируют страницы, а DearModdingUI отрисовывает их в общем оверлее.
+$DMUI_Home_HealthNotObserved	Состояние хоста ещё не проверено
+$DMUI_Home_AllReady	Все системы готовы
+$DMUI_Home_SubsystemsAndModsAttention	Подсистемы хоста, требующие внимания: {}; моды, требующие внимания: {}
+$DMUI_Home_SubsystemsStartingModsAttention	Подсистемы хоста запускаются: {}; моды, требующие внимания: {}
+$DMUI_Home_SubsystemsAttention	Подсистемы хоста, требующие внимания: {}
+$DMUI_Home_SubsystemsStarting	Подсистемы хоста запускаются: {}
+$DMUI_Home_ModsAttention	Моды, требующие внимания: {}
+$DMUI_Pages_SettingsApply	Применить
+$DMUI_Pages_SettingsReset	Сбросить
+$DMUI_Pages_SettingsRevert	Вернуть
+$DMUI_Home_AboutHeader	О программе
+$DMUI_Home_OverviewHeader	Обзор
+$DMUI_Home_RegistryCounts	{} модов | {} страниц | {} действий
+$DMUI_Home_QuickLinksHeader	Быстрые ссылки
+$DMUI_Home_FaqHeader	ЧАВО
+$DMUI_Health_CopyReport	Скопировать отчёт
+$DMUI_Health_CopyReportTooltip	Скопировать диагностический отчёт в буфер обмена.
+$DMUI_Health_HostSubsystemsHeader	Подсистемы хоста
+$DMUI_Health_NoSubsystemObservations	Данные о подсистемах хоста недоступны.
+$DMUI_Health_SubsystemStatus	Статус: {} | {} в состоянии
+$DMUI_Health_NoClientMods	В этой сессии клиентские моды не зарегистрированы.
+$DMUI_Health_ClientCounts	{} | {} страниц | {} действий
+$DMUI_Health_ClientVersion	Версия {}.{}
+$DMUI_Health_ClientStatus	Статус: {}
+$DMUI_Health_ReportedProblemsHeader	Зарегистрированные проблемы
+$DMUI_Health_NoDiagnostics	Клиентская диагностика не зарегистрирована
+$DMUI_Pages_SettingsResetTooltip	Сброс немедленно сохраняет макет боковой панели по умолчанию и загружает остальные предустановленные значения интерфейса в черновик. Используйте «Применить» для их сохранения.
+$DMUI_Pages_SettingsRevertTooltip	Вернуть отменяет ожидающие изменения интерфейса и восстанавливает сохранённые настройки. Изменения макета боковой панели уже сохранены.
+$DMUI_Pages_SettingsApplyTooltip	Применить сохраняет настройки хоста в DearModdingUI.toml. Изменения макета боковой панели сохраняются немедленно; предпросмотр внешнего вида обновляется в реальном времени, а типографика пересобирается при необходимости.
+$DMUI_Dialog_Working	Выполняется...
+$DMUI_Settings_SettingsSaved	Настройки сохранены.
+$DMUI_Settings_SyncColorAvailable	Скопировать цвет игры в предпросмотр акцента. Используйте «Применить» для сохранения.
+$DMUI_Settings_SyncColorUnavailable	Цвет недоступен. Требуется Fallout 4 с корректными настройками цвета игры.
+$DMUI_Settings_SyncFromHud	Синхронизировать с HUD
+$DMUI_Settings_SyncFromPipboy	Синхронизировать с Пип-Боем
+$DMUI_Settings_ColorVisionPresets	Палитры для людей с нарушением цветового зрения
+$DMUI_Settings_DefaultGreen	Зелёный по умолчанию
+$DMUI_Settings_AccessibleBlue	Доступный синий
+$DMUI_Settings_OkabeBlue	Синий Окамэ-Ито, различим при распространённых нарушениях цветового зрения
+$DMUI_Settings_AccessibleOrange	Доступный оранжевый
+$DMUI_Settings_OkabeOrange	Оранжевый Окамэ-Ито, различим при распространённых нарушениях цветового зрения
+$DMUI_Settings_AccessibleSkyBlue	Доступный голубой
+$DMUI_Settings_OkabeSkyBlue	Голубой Окамэ-Ито, различим при распространённых нарушениях цветового зрения
+$DMUI_Settings_AccessibleVermillion	Доступный киноварный
+$DMUI_Settings_OkabeVermillion	Киноварный Окамэ-Ито, различим при распространённых нарушениях цветового зрения
+$DMUI_Settings_AccessiblePurple	Доступный пурпурный
+$DMUI_Settings_OkabePurple	Пурпурный Окамэ-Ито, различим при распространённых нарушениях цветового зрения
+$DMUI_Settings_FeedbackExampleInfo	Изменения вступят в силу после повторного открытия меню.
+$DMUI_Settings_FeedbackExampleWarning	Эта настройка может повлиять на тайминг геймплея.
+$DMUI_Settings_FeedbackExampleError	Минимум не может превышать максимум.
+$DMUI_Settings_FeedbackPreview	Предпросмотр отзыва поля
+$DMUI_Settings_Appearance	Внешний вид
+$DMUI_Settings_SidebarLayout	Макет боковой панели (сохраняется немедленно)
+$DMUI_Settings_AccentColor	Акцентный цвет
+$DMUI_Settings_AccentColorHelp	Перекрашивает выделение, элементы, ссылки и все значки меню Phosphor в цветном режиме.
+$DMUI_Settings_SyncAccent	Синхронизировать акцент с игрой
+$DMUI_Settings_SyncAccentHelp	Копирует текущий цвет HUD или Пип-Боя один раз. Используйте «Применить» для сохранения или «Вернуть» для отмены.
+$DMUI_Settings_IconColorMode	Режим цвета значков
+$DMUI_Settings_IconColorModeHelp	Цветные значки используют акцент выше; монохромные значки используют текущий цвет текста.
+$DMUI_Settings_IconModeColored	Цветные (акцент)
+$DMUI_Settings_IconModeMonochrome	Монохромные (текст)
+$DMUI_Settings_LogoColors	Цвета логотипа
+$DMUI_Settings_LogoColorsHelp	Использует исходные цвета логотипа или текущий акцент, независимо от режима цвета значков.
+$DMUI_Settings_LogoOriginalColors	Исходные цвета
+$DMUI_Settings_LogoAccent	Акцент
+$DMUI_Settings_WindowBackgroundOpacity	Непрозрачность фона окна
+$DMUI_Settings_WindowBackgroundOpacityHelp	Увеличивает или уменьшает затемнение окна хоста, не меняя содержимое клиента.
+$DMUI_Settings_PaletteBackground	Фон палитры команд
+$DMUI_Settings_PaletteBackgroundHelp	Задаёт приподнятый цвет поверхности для палитры команд.
+$DMUI_Settings_PaletteOpacity	Непрозрачность палитры команд
+$DMUI_Settings_PaletteOpacityHelp	Определяет, насколько затемнённая панель хоста просвечивает сквозь палитру.
+$DMUI_Settings_BackgroundBlur	Размытие фона
+$DMUI_Settings_BackgroundBlurHelp	Размывает игру за окном хоста; отключение убирает проходы размытия.
+$DMUI_Settings_BlurStrength	Сила размытия
+$DMUI_Settings_BlurStrengthHelp	Регулирует разброс выборки размытия по кадрам без перераспределения графических ресурсов.
+$DMUI_Settings_FeedbackPlacement	Расположение отзыва поля
+$DMUI_Settings_FeedbackInfo	Отзыв поля: информация
+$DMUI_Settings_FeedbackInfoHelp	Цвет, используемый только для информационного отзыва поля.
+$DMUI_Settings_FeedbackWarning	Отзыв поля: предупреждение
+$DMUI_Settings_FeedbackWarningHelp	Цвет, используемый только для отзыва-предупреждения поля.
+$DMUI_Settings_FeedbackError	Отзыв поля: ошибка
+$DMUI_Settings_FeedbackErrorHelp	Цвет, используемый только для отзыва-ошибки поля.
+$DMUI_Settings_Readability	Читаемость
+$DMUI_Settings_UiScale	Масштаб интерфейса (требуется «Применить»)
+$DMUI_Settings_UiScaleHelp	Умножает размеры на основе разрешения; «Применить» пересобирает типографику один раз перед следующим кадром.
+$DMUI_Settings_BodyFontFamily	Семейство шрифта основного текста (требуется «Применить»)
+$DMUI_Settings_BodyFontFamilyHelp	Показывает папки семейств шрифтов в Data/F4SE/Plugins/DearModdingUI/Fonts; «Применить» пересобирает выбранное семейство один раз.
+$DMUI_Settings_AppliedThisFrame	Применено в этом кадре: {}
+$DMUI_Settings_HotkeyConflictDefault	Конфликт: предлагаемое значение по умолчанию уже назначено.
+$DMUI_Settings_HotkeyConflictOverride	Конфликт: сохранённое назначение привязано к другому действию или переключателю меню.
+$DMUI_Settings_HotkeyInvalidOverride	Некорректно: сохранённое назначение не распознано для этого устройства ввода.
+$DMUI_Settings_InputAndBehavior	Ввод и поведение
+$DMUI_Settings_TypingNeedsKeyboard	Для ввода текста нужна клавиатура.
+$DMUI_Settings_MenuToggleController	Переключение меню (контроллер)
+$DMUI_Settings_MenuToggleKeyboard	Переключение меню (клавиатура)
+$DMUI_Settings_MenuToggleHelp	Открывает и закрывает общее меню. «Применить» сохраняет назначение для этой сессии и будущих запусков.
+$DMUI_Settings_FallSoulsMode	Режим FallSouls
+$DMUI_Settings_FallSoulsModeHelp	Игра продолжается, пока меню открыто. Применяется при следующем открытии меню.
+$DMUI_Settings_ClientHotkeys	Горячие клавиши клиента
+$DMUI_Settings_ClientHotkeysHelp	Назначения принадлежат DearModdingUI. Изменения ниже сохраняются немедленно.
+$DMUI_Settings_NoClientActions	Клиентские действия или сохранённые переопределения отсутствуют.
+$DMUI_Settings_HotkeyColumnAction	Действие
+$DMUI_Settings_HotkeyColumnKeyboard	Клавиатура / мышь
+$DMUI_Settings_HotkeyColumnController	Контроллер
+$DMUI_Settings_NotRegisteredClearable	Не зарегистрировано. Сохранённые назначения можно очистить.
+$DMUI_Settings_NotRegisteredInactive	Не зарегистрировано. Это сохранённое назначение неактивно и может быть очищено.
+$DMUI_Settings_HostFacts	Данные хоста (только чтение)
+$DMUI_Settings_HostFactsHelp	Значения, определённые хостом DearModdingUI.
+$DMUI_Settings_PixelSize	{:.0f} px
+$DMUI_Settings_ResolvedTypographySize	Итоговый размер типографики
+$DMUI_Settings_ResolvedTypographySizeHelp	Выводится из высоты заднего буфера и применённого масштаба интерфейса на границе кадра.
+$DMUI_Settings_EffectiveUiScale	Эффективный масштаб интерфейса
+$DMUI_Settings_EffectiveUiScaleHelp	Выводится из разрешения и [Additional] fMenuUiScale.
