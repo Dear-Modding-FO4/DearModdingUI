@@ -9,7 +9,7 @@ $DMUI_Controls_FeedbackStrip	Полоса на всю ширину
 $DMUI_Controls_FeedbackUnderLabelHelp	Показывать отзыв под меткой и описанием поля.
 $DMUI_Controls_FeedbackUnderControlHelp	Показывать отзыв прямо под элементом поля.
 $DMUI_Controls_FeedbackStripHelp	Показывать отзыв в выделенной полосе под полем.
-$DMUI_Controls_CopyTarget	Копировать цель
+$DMUI_Controls_CopyTarget	Копировать ссылку
 $DMUI_Controls_OpenBackingFile	Открыть физический файл данных
 $DMUI_Controls_OpenContainingFolder	Открыть физическую папку
 $DMUI_Controls_OpenWithSystemDefault	Открыть в системе по умолчанию
