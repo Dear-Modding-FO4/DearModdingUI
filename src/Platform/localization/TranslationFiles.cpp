@@ -22,6 +22,8 @@ namespace DearModdingUI
 		try
 		{
 			const auto* setting = RE::GetINISetting("sLanguage:General");
+			if (!setting)
+				setting = RE::GetINISetting("SLanguage:General");	
 			if (!setting || setting->GetType() != RE::Setting::SETTING_TYPE::kString)
 				return {};
 			std::string language{ setting->GetString() };
