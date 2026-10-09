@@ -58,6 +58,8 @@ namespace DearModdingUI
 			HostPageViewState hostPages;
 			NavigationPresentationState presentation;
 			std::optional<StatusMessage> statusDetails;
+			// Every page shares one content window, so a new page must not inherit the previous scroll.
+			bool resetContentScroll{};
 			SidebarLayoutKind sidebarLayout{ DEFAULT_SIDEBAR_LAYOUT };
 #if defined(DMUI_PREVIEW)
 			std::optional<SidebarLayoutKind> previewSidebarLayoutOverride;
@@ -108,6 +110,7 @@ namespace DearModdingUI
 			}
 			HostSettings::SetPageActive(
 				result.hostPage == HostPageKind::kSettings);
+			a_state.resetContentScroll |= result.selectionChanged;
 			if (result.revealSelection &&
 				result.client != DMUI_INVALID_CLIENT_HANDLE)
 			{
@@ -312,6 +315,8 @@ namespace DearModdingUI
 			ShellState& a_state) noexcept
 		{
 			ImGui::TableNextColumn();
+			if (std::exchange(a_state.resetContentScroll, false))
+				ImGui::SetNextWindowScroll({ 0.0f, 0.0f });
 			const auto gap = Theme::Layout().sectionGap;
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ gap, gap });
 			const auto visible = ImGui::BeginChild(
