@@ -70,7 +70,7 @@ namespace DearModdingUI
 
 	bool OverlayFocusState::IsActive() const noexcept
 	{
-		return m_holder.load(std::memory_order_acquire) != DMUI_INVALID_PAGE_HANDLE;
+		return Holder() != DMUI_INVALID_PAGE_HANDLE;
 	}
 
 	DMUI_PageHandle OverlayFocusState::Holder() const noexcept

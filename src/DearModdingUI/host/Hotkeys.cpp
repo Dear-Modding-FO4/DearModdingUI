@@ -632,16 +632,13 @@ namespace DearModdingUI
 			active.captured = true;
 			return HotkeyMessageResult::kConsumed;
 		}
-		const auto matches = [&](HotkeyChord a_chord) {
-			return ChordMatchesLocked(a_chord, a_keyCode, a_modifiers);
-		};
 		const auto hasActivation = [&](DMUI_HotkeyActionHandle a_action, bool a_toggle) {
 			return std::ranges::any_of(m_activeKeys, [&](const auto& a_active) {
 				return a_active.slot == slot &&
 					(a_toggle ? a_active.toggle : a_active.action == a_action);
 			});
 		};
-		if (matches(m_reservedChords[index]) &&
+		if (ChordMatchesLocked(m_reservedChords[index], a_keyCode, a_modifiers) &&
 			!hasActivation(DMUI_INVALID_HOTKEY_ACTION_HANDLE, true))
 		{
 			active.toggle = true;

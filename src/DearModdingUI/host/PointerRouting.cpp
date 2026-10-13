@@ -20,7 +20,6 @@ namespace DearModdingUI::PointerRouting
 
 		State s_state;
 
-		// A new owner inherits nothing from the previous one.
 		void Adopt(DMUI_PageHandle a_owner) noexcept
 		{
 			if (a_owner != s_state.owner)

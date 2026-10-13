@@ -122,7 +122,7 @@ namespace Addictol::platformImguiDetail
 
 	[[nodiscard]] bool HasWindowHook(HWND a_window) noexcept;
 	[[nodiscard]] bool SubclassWindowLocked(HWND a_window) noexcept;
-	// GetKeyState follows the message being handled; GetAsyncKeyState is the live state.
+	// GetKeyState matches the current message; GetAsyncKeyState is live.
 	[[nodiscard]] uint32_t HeldModifiers(SHORT (WINAPI* a_keyState)(int)) noexcept;
 	[[nodiscard]] DearModdingUI::HotkeyContextState CurrentHotkeyContextState() noexcept;
 	void RefreshHotkeyContext() noexcept;

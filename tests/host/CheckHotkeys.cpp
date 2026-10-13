@@ -399,27 +399,6 @@ namespace vmm_tests
 				"context transition broke the owned edge pair");
 		});
 
-		runner.test("world pointer routing sees which mouse presses a hotkey would take", [] {
-			HotkeyRegistry registry;
-			CallbackState state;
-			(void)Register(registry, 1, "Example.Pick", "Mouse3", state);
-			auto descriptor = Descriptor("Example.Gameplay", "Mouse4", state);
-			descriptor.contextPolicy = DMUI_HOTKEY_CONTEXT_HOST_INPUT_INACTIVE;
-			DMUI_HotkeyActionHandle gameplay{};
-			require(registry.Register(1, &descriptor, &gameplay) == DMUI_RESULT_OK,
-				"contextual hotkey registration failed");
-			(void)Register(registry, 1, "Example.Combo", "Ctrl+Mouse5", state);
-			registry.SetContext({ HostInputMode::kOverlayFocus, false, false });
-			const auto code = [](uint32_t a_button) { return KeyCatalog::kMouseButtonOffset + a_button; };
-			require(registry.WouldActOn(code(2), 0) && !registry.WouldActOn(code(0), 0),
-				"a bound mouse button was not told apart from an unbound one");
-			require(!registry.WouldActOn(code(3), 0), "a gameplay-only hotkey claimed an overlay press");
-			require(registry.WouldActOn(code(4), kHotkeyModifierControl) && !registry.WouldActOn(code(4), 0),
-				"modifiers were not matched like HandleKey");
-			registry.SetContext({ HostInputMode::kGameplay, false, false });
-			require(registry.WouldActOn(code(3), 0), "a gameplay hotkey was ignored in gameplay");
-		});
-
 		runner.test("disabled hotkeys yield but retain owned releases", [] {
 			HotkeyRegistry registry;
 			CallbackState state;

@@ -163,7 +163,7 @@ namespace DearModdingUI
 		[[nodiscard]] bool IsToggleChordHeld() const noexcept;
 		void Claim(uint32_t a_keyCode) noexcept;
 		[[nodiscard]] bool OwnsKey(uint32_t a_keyCode) const noexcept;
-		// True when a press now would be claimed, captured, or fire a hotkey.
+		// Predicts HandleKey for a press the engine queue has not delivered yet.
 		[[nodiscard]] bool WouldActOn(uint32_t a_keyCode, uint32_t a_modifiers) const noexcept;
 		void BeginCapture(HotkeySlot a_slot = HotkeySlot::kKeyboardMouse) noexcept;
 		[[nodiscard]] bool CancelCapture() noexcept;

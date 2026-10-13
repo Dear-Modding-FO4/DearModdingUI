@@ -23,8 +23,6 @@ namespace DearModdingUI::PointerRouting
 	};
 
 	// Message thread with the ImGui context current; kDivert must skip ImGui.
-	// Buttons are DMUI_POINTER_BUTTON_* bits, positions are at the message, and
-	// an excluded input (a hotkey takes it) is forwarded like ImGui's own.
 	[[nodiscard]] Verdict RoutePress(
 		DMUI_PageHandle a_owner, uint32_t a_button, DMUI_Vec2 a_position, bool a_excluded) noexcept;
 	[[nodiscard]] Verdict RouteRelease(DMUI_PageHandle a_owner, uint32_t a_button) noexcept;

@@ -369,13 +369,6 @@ namespace Addictol::platformImguiDetail
 			DearModdingUI::CursorLoader::ApplyNativePosition(position.x, position.y);
 		}
 
-		static_assert(
-			DMUI_POINTER_BUTTON_LEFT == 1u &&
-			DMUI_POINTER_BUTTON_RIGHT == 2u &&
-			DMUI_POINTER_BUTTON_MIDDLE == 4u &&
-			DMUI_POINTER_BUTTON_X1 == 8u &&
-			DMUI_POINTER_BUTTON_X2 == 16u);
-
 		[[nodiscard]] MousePosition MapClientPointToBackBufferLocked(
 			HWND a_window,
 			MousePosition a_position) noexcept
@@ -428,7 +421,7 @@ namespace Addictol::platformImguiDetail
 			DMUI_POINTER_BUTTON_X1 == 8u &&
 			DMUI_POINTER_BUTTON_X2 == 16u);
 
-		// Hotkeys act on mouse input through the engine queue, so claim it here.
+		// Hotkeys claim mouse input later, from the engine queue.
 		[[nodiscard]] bool HotkeyWouldTake(const PointerMessage& a_message) noexcept
 		{
 			const auto key = PointerKeyCode(a_message);
@@ -438,7 +431,6 @@ namespace Addictol::platformImguiDetail
 			return DearModdingUI::Hotkeys::WouldActOn(key, HeldModifiers(&GetKeyState));
 		}
 
-		// Without an owner page nothing is diverted.
 		[[nodiscard]] DearModdingUI::PointerRouting::Verdict RoutePointerMessageLocked(
 			HWND a_window,
 			const PointerMessage& a_message,
@@ -459,7 +451,7 @@ namespace Addictol::platformImguiDetail
 				RouteWheel(owner, { a_message.wheelX, a_message.wheelY }, position, excluded);
 		}
 
-		// Mirrors the ImGui backend so a diverted drag's release still arrives off-window.
+		// Like the ImGui backend, so an off-window release still arrives.
 		void FollowDivertedCaptureLocked(HWND a_window, PointerMessageKind a_kind) noexcept
 		{
 			if (a_kind == PointerMessageKind::kPress && GetCapture() == nullptr)
