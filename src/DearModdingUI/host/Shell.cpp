@@ -413,15 +413,7 @@ namespace DearModdingUI
 		{
 			if (!a_state.statusDetails)
 				return;
-			const auto* viewport = ImGui::GetMainViewport();
-			ImGui::SetNextWindowSize(
-				{
-					(std::min)(
-						620.0f * Theme::Scale(),
-						viewport->WorkSize.x * 0.9f),
-					0.0f
-				},
-				ImGuiCond_Appearing);
+			SetNextWrappedModalWidth();
 			auto open = true;
 			auto closeRequested = false;
 			const auto popupId = StatusDetailsPopupId();

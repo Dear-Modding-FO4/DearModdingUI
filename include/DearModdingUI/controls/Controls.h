@@ -155,6 +155,7 @@ namespace DearModdingUI
 		const char* a_name,
 		bool* a_open,
 		ImGuiWindowFlags a_flags) noexcept;
+	void SetNextWrappedModalWidth() noexcept;
 	[[nodiscard]] bool DrawCompactChromeButton(
 		const char* a_id,
 		const ImVec2& a_origin,

@@ -109,7 +109,8 @@ namespace DearModdingUI::ModalCoordinator
 		{
 			const auto title = std::string(a_title, ImGui::FindRenderedTextEnd(a_title)) +
 				"###dmui.modal." + std::to_string(a_id);
-			auto* parent = ImGui::GetCurrentWindow();
+			// GetCurrentWindow would mark the implicit Debug window as used.
+			auto* parent = GImGui->CurrentWindow;
 			const auto seed = parent->IDStack.back();
 			// BeginPopupModal hashes its label, whereas OpenPopupEx accepts an ID.
 			parent->IDStack.back() = 0;
@@ -189,6 +190,7 @@ namespace DearModdingUI::ModalCoordinator
 				*a_open = false;
 			return false;
 		}
+		SetNextWrappedModalWidth();
 		return BeginModal(s_dialogPopup, a_title, a_open, ImGuiWindowFlags_AlwaysAutoResize);
 	}
 

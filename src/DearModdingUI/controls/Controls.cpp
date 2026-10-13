@@ -434,6 +434,15 @@ namespace DearModdingUI
 		return visible;
 	}
 
+	void SetNextWrappedModalWidth() noexcept
+	{
+		// Auto-fit wrapped text needs a width basis or it collapses.
+		const auto* viewport = ImGui::GetMainViewport();
+		ImGui::SetNextWindowSize(
+			{ (std::min)(620.0f * Theme::Scale(), viewport->WorkSize.x * 0.9f), 0.0f },
+			ImGuiCond_Appearing);
+	}
+
 	bool BeginPopupModalWithRoundedTitleBarButtons(
 		const char* a_name,
 		bool* a_open,
