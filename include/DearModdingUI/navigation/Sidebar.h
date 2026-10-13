@@ -191,7 +191,7 @@ namespace DearModdingUI
 		const NavigationClient& a_client,
 		std::string_view a_categoryId)
 	{
-		return a_client.id + "/" + std::string{ a_categoryId };
+		return NavigationCategoryKey(a_client.id, a_categoryId);
 	}
 
 	inline void RevealSidebarOrigin(

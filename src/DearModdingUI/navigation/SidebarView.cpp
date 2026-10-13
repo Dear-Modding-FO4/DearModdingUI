@@ -134,7 +134,7 @@ namespace DearModdingUI
 					.glyph =
 						a_section.origin == DMUI_CLIENT_ORIGIN_NATIVE ?
 							PhosphorGlyph::kPuzzlePiece :
-							FindPhosphorIconGlyphOrZero("share-network"),
+							FindPhosphorSlugGlyphOrZero("share-network"),
 					.expanded = &a_expanded,
 					.layout = RuledHeadingLayout::kLeadingRow,
 					.ruleStyle = RuledHeadingRuleStyle::kSubordinate
@@ -164,7 +164,6 @@ namespace DearModdingUI
 
 		void DrawPageRows(
 			const SidebarViewContext& a_context,
-			const NavigationClient& a_client,
 			const NavigationCategory& a_category) noexcept
 		{
 			const Theme::FontGuard font{ Theme::FontRole::kSubtext };
@@ -172,9 +171,8 @@ namespace DearModdingUI
 			{
 				const auto failed = PageFailed(page.handle);
 				const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
-				const auto id = PageRowLabel(a_client, page);
 				const auto row = DrawSelectableRow({
-					.id = id.c_str(),
+					.id = page.rowLabel.c_str(),
 					.label = page.displayName.c_str(),
 					.selected =
 						page.handle == a_context.selection.activePage,
@@ -415,7 +413,7 @@ namespace DearModdingUI
 					.label = HostPageName(page.kind),
 					.selected = a_selection.activeHostPage == page.kind,
 					.leadingAffordance = RowLeadingAffordance::kIcon,
-					.glyph = FindPhosphorIconGlyphOrZero(page.iconName),
+					.glyph = FindPhosphorSlugGlyphOrZero(page.iconName),
 					.textColor = textColor,
 					.hoveredTextColor = textColor
 				});
@@ -554,7 +552,7 @@ namespace DearModdingUI
 			auto expanded = true;
 			if (category.HasHeading())
 			{
-				const auto key = SidebarCategoryKey(a_client, category.id);
+				const auto& key = category.key;
 				auto state =
 					a_context.browsing.categoryExpansion
 						.try_emplace(key, true)
@@ -575,7 +573,7 @@ namespace DearModdingUI
 				continue;
 			if (a_indented)
 				ImGui::Indent(indent);
-			DrawPageRows(a_context, a_client, category);
+			DrawPageRows(a_context, category);
 			if (a_indented)
 				ImGui::Unindent(indent);
 		}

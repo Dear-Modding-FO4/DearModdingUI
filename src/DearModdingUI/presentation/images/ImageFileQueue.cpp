@@ -54,7 +54,10 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 		if (matches(m_active))
 			m_active->cancelled = true;
 		if (matches(m_completed))
+		{
 			m_completed.reset();
+			m_hasCompletion.store(false, std::memory_order_release);
+		}
 		m_changed.notify_one();
 	}
 
@@ -62,14 +65,14 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 	{
 		const std::scoped_lock lock{ m_mutex };
 		auto result = std::move(m_completed);
+		m_hasCompletion.store(false, std::memory_order_release);
 		m_changed.notify_one();
 		return result;
 	}
 
-	bool FileQueue::HasCompletion() noexcept
+	bool FileQueue::HasCompletion() const noexcept
 	{
-		const std::scoped_lock lock{ m_mutex };
-		return !!m_completed;
+		return m_hasCompletion.load(std::memory_order_acquire);
 	}
 
 	void FileQueue::Run() noexcept
@@ -90,7 +93,10 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 				DecodeFile(job->path, job->decoded) : DMUI_RESULT_IMAGE_DECODE_FAILED;
 			lock.lock();
 			if (!job->cancelled && !m_stopping)
+			{
 				m_completed = job;
+				m_hasCompletion.store(true, std::memory_order_release);
+			}
 			m_active.reset();
 		}
 		lock.unlock();

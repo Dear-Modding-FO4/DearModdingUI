@@ -446,7 +446,12 @@ namespace DearModdingUI
 
 	bool PageFailed(DMUI_PageHandle a_page) noexcept
 	{
-		return GetService().registry.PageFailed(a_page);
+		// Sidebar rows ask every frame; derive the set once per registry change.
+		thread_local Addictol::Support::Derived<uint64_t, std::vector<DMUI_PageHandle>> usable;
+		const auto& registry = GetService().registry;
+		return !std::ranges::binary_search(
+			usable.Get(registry.Revision(), [&]() noexcept { return registry.UsablePages(); }),
+			a_page);
 	}
 
 	bool InvokeAction(DMUI_ActionHandle a_action) noexcept
@@ -614,6 +619,16 @@ namespace DearModdingUI
 	bool DismissStatus(uint64_t a_generation) noexcept
 	{
 		return GetService().status.Dismiss(a_generation);
+	}
+
+	HostStateRevision CurrentHostStateRevision() noexcept
+	{
+		const auto& service = GetService();
+		return {
+			service.registry.Revision(),
+			service.status.Revision(),
+			service.diagnostics.Revision()
+		};
 	}
 
 }

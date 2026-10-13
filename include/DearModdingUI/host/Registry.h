@@ -3,6 +3,7 @@
 #include <DearModdingUI/API.h>
 #include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/navigation/Navigation.h>
+#include <Support/Revision.h>
 
 #include <atomic>
 #include <cstdint>
@@ -147,6 +148,8 @@ namespace DearModdingUI
 		[[nodiscard]] size_t ClientCount() const noexcept;
 		[[nodiscard]] size_t PageCount() const noexcept;
 		[[nodiscard]] size_t DemandedOverlayCount() const noexcept;
+		// Advances whenever registration, failure, or frame-demand state changes.
+		[[nodiscard]] uint64_t Revision() const noexcept;
 		[[nodiscard]] bool HasSettingsPages() const noexcept;
 		[[nodiscard]] const std::vector<RegisteredClient>& RegisteredClients() const noexcept;
 		[[nodiscard]] const std::vector<RegisteredCategory>&
@@ -182,6 +185,8 @@ namespace DearModdingUI
 			std::string& a_id) const noexcept;
 		[[nodiscard]] DMUI_Result InvokePage(DMUI_PageHandle a_page) noexcept;
 		[[nodiscard]] bool PageFailed(DMUI_PageHandle a_page) const noexcept;
+		// Sorted handles of pages whose callbacks have not failed.
+		[[nodiscard]] std::vector<DMUI_PageHandle> UsablePages() const noexcept;
 		void MarkPageFailed(DMUI_PageHandle a_page) noexcept;
 		[[nodiscard]] DMUI_Result InvokeAction(DMUI_ActionHandle a_action) noexcept;
 		[[nodiscard]] bool ActionFailed(DMUI_ActionHandle a_action) const noexcept;
@@ -224,6 +229,8 @@ namespace DearModdingUI
 		[[nodiscard]] bool OwnsPage(
 			DMUI_ClientHandle a_client,
 			DMUI_PageHandle a_page) const noexcept;
+		// Every state change republishes the lock-free mirrors.
+		void PublishLocked() noexcept;
 
 		mutable std::mutex m_mutex;
 		std::vector<RegisteredClient> m_clients;
@@ -239,7 +246,10 @@ namespace DearModdingUI
 		DMUI_FrameObserverHandle m_nextFrameObserver{ 1 };
 		DMUI_PageActivityObserverHandle m_nextPageActivityObserver{ 1 };
 		std::atomic<size_t> m_activeFrameObserverCount{ 0 };
+		std::atomic<size_t> m_demandedOverlayCount{ 0 };
+		Addictol::Support::Revision m_revision;
 		Notification m_notification{ Notification::kNone };
-		bool m_open{ true };
+		// Written under the lock; once false the registration vectors are immutable.
+		std::atomic<bool> m_open{ true };
 	};
 }

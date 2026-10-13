@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/API.h>
+#include <Support/Revision.h>
 
 #include <algorithm>
 #include <chrono>
@@ -170,6 +171,8 @@ namespace DearModdingUI
 		[[nodiscard]] std::vector<ClientStatus> SnapshotClientStatuses(
 			StatusClock::time_point a_now = StatusClock::now()) noexcept;
 		[[nodiscard]] bool Dismiss(uint64_t a_generation) noexcept;
+		// Advances on writes; transient expiry lands when a snapshot is taken.
+		[[nodiscard]] uint64_t Revision() const noexcept;
 
 	private:
 		[[nodiscard]] DMUI_Result SetImpl(
@@ -184,5 +187,6 @@ namespace DearModdingUI
 		std::optional<StatusMessage> m_current;
 		std::vector<std::pair<DMUI_ClientHandle, StatusMessage>> m_clientStatuses;
 		uint64_t m_generation{ 0 };
+		Addictol::Support::Revision m_revision;
 	};
 }

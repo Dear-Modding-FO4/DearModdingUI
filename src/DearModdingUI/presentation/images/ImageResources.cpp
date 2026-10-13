@@ -2,6 +2,7 @@
 #include <DearModdingUI/host/RenderExecution.h>
 #include <Support/ProcessLifetime.h>
 #include <Support/BoundedString.h>
+#include <Support/PublishingLock.h>
 #include "../PresentationServiceOwners.h"
 #include "ImageFileQueue.h"
 
@@ -11,6 +12,7 @@
 #include <imgui/imgui_internal.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -63,6 +65,9 @@ namespace DearModdingUI::PresentationServices
 			std::vector<Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>>
 				frameLeases;
 			ImageFiles::FileQueue files;
+			// Lock-free mirrors that Present polls while no frame is drawn.
+			std::atomic<bool> hasDevice{};
+			std::atomic<bool> unsubmittedLoads{};
 		};
 
 		[[nodiscard]] ImageService& GetImageService() noexcept
@@ -123,6 +128,19 @@ namespace DearModdingUI::PresentationServices
 		{
 			return (static_cast<uint64_t>(a_generation) << 32u) |
 				(static_cast<uint64_t>(a_slot) + 1u);
+		}
+
+		// Guards device or file-image state changes; reads use the plain lock.
+		[[nodiscard]] auto LockImages(ImageService& a_service)
+		{
+			return Addictol::Support::PublishingLock{ a_service.mutex, [&a_service]() noexcept {
+				a_service.hasDevice.store(a_service.device != nullptr, std::memory_order_release);
+				a_service.unsubmittedLoads.store(
+					std::ranges::any_of(a_service.images, [](const auto& a_image) {
+						return a_image.status == DMUI_IMAGE_STATUS_LOADING && !a_image.queued;
+					}),
+					std::memory_order_release);
+			} };
 		}
 
 		void RecycleImage(
@@ -340,7 +358,7 @@ namespace DearModdingUI::PresentationServices
 		{
 			std::string source{ *path };
 			auto& service = GetImageService();
-			const std::scoped_lock lock{ service.mutex };
+			const auto lock = LockImages(service);
 			DMUI_ImageHandle handle{};
 			const auto allocated = PublishImage(service, a_client, {}, 0, 0, ImageProvenance::kFile, &handle);
 			if (allocated != DMUI_RESULT_OK)
@@ -655,7 +673,7 @@ namespace DearModdingUI::PresentationServices
 			a_image == DMUI_INVALID_IMAGE_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		auto& service = GetImageService();
-		const std::scoped_lock lock{ service.mutex };
+		const auto lock = LockImages(service);
 		auto* image = FindImage(service, a_image);
 		if (!image || image->owner != a_client ||
 			image->status == DMUI_IMAGE_STATUS_RELEASED)
@@ -743,7 +761,7 @@ namespace DearModdingUI::PresentationServices
 		void SetDevice(ID3D11Device* a_device) noexcept
 		{
 			auto& service = GetImageService();
-			const std::scoped_lock lock{ service.mutex };
+			const auto lock = LockImages(service);
 			if (service.device == a_device)
 				return;
 			service.device = a_device;
@@ -770,14 +788,14 @@ namespace DearModdingUI::PresentationServices
 					image.status = DMUI_IMAGE_STATUS_INVALIDATED;
 				}
 			}
-		}
+			}
 
 		void PublishCompletions() noexcept
 		{
 			if (!RenderExecution::IsActive())
 				return;
 			auto& service = GetImageService();
-			const std::scoped_lock lock{ service.mutex };
+			const auto lock = LockImages(service);
 			if (!service.device)
 				return;
 			if (auto job = service.files.TakeCompletion())
@@ -830,19 +848,14 @@ namespace DearModdingUI::PresentationServices
 					image.failure = result;
 				}
 			}
-		}
+			}
 
 		bool HasFrameDemand() noexcept
 		{
-			auto& service = GetImageService();
-			const std::scoped_lock lock{ service.mutex };
-			if (!service.device)
-				return false;
-			if (service.files.HasCompletion())
-				return true;
-			return std::any_of(service.images.begin(), service.images.end(), [](const auto& image) {
-				return image.status == DMUI_IMAGE_STATUS_LOADING && !image.queued;
-			});
+			const auto& service = GetImageService();
+			return service.hasDevice.load(std::memory_order_acquire) &&
+				(service.unsubmittedLoads.load(std::memory_order_acquire) ||
+					service.files.HasCompletion());
 		}
 
 		void ReleaseFrameLeases() noexcept
@@ -854,9 +867,7 @@ namespace DearModdingUI::PresentationServices
 
 		bool HasDevice() noexcept
 		{
-			auto& service = GetImageService();
-			const std::scoped_lock lock{ service.mutex };
-			return service.device != nullptr;
+			return GetImageService().hasDevice.load(std::memory_order_acquire);
 		}
 
 		uint64_t DeviceGeneration() noexcept

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Support/Revision.h>
+
 #include <algorithm>
 #include <chrono>
 #include <mutex>
@@ -178,6 +180,11 @@ namespace DearModdingUI
 		SubsystemHealthRegistry& operator=(SubsystemHealthRegistry&&) = delete;
 
 		[[nodiscard]] std::vector<HealthSnapshot> Snapshots() const;
+		// Advances whenever Snapshots() may change.
+		[[nodiscard]] uint64_t Revision() const noexcept
+		{
+			return revision_.Current();
+		}
 
 	private:
 		friend class SubsystemHealth;
@@ -187,6 +194,7 @@ namespace DearModdingUI
 
 		mutable std::mutex mutex_;
 		std::vector<const SubsystemHealth*> subsystems_;
+		Addictol::Support::Revision revision_;
 	};
 
 	[[nodiscard]] inline SubsystemHealthRegistry& HostSubsystemHealthRegistry()
@@ -282,6 +290,7 @@ namespace DearModdingUI
 
 				snapshot_ = std::move(candidate);
 				reported_ = true;
+				AdvanceRegistry();
 			}
 			reporter_.Report(event, reportedSnapshot);
 			return true;
@@ -294,6 +303,7 @@ namespace DearModdingUI
 			snapshot_.deadline = a_deadline;
 			deadlineReported_ = false;
 			deadlineRecoveryPending_ = false;
+			AdvanceRegistry();
 		}
 
 		bool Evaluate(
@@ -327,6 +337,7 @@ namespace DearModdingUI
 		{
 			const std::scoped_lock lock{ mutex_ };
 			reported_ = false;
+			AdvanceRegistry();
 		}
 
 		[[nodiscard]] HealthSnapshot Snapshot() const
@@ -336,6 +347,12 @@ namespace DearModdingUI
 		}
 
 	private:
+		void AdvanceRegistry() noexcept
+		{
+			if (registry_)
+				registry_->revision_.Advance();
+		}
+
 		[[nodiscard]] std::optional<HealthSnapshot> ObservedSnapshot() const
 		{
 			const std::scoped_lock lock{ mutex_ };
@@ -362,6 +379,7 @@ namespace DearModdingUI
 	{
 		const std::scoped_lock lock{ mutex_ };
 		subsystems_.push_back(&a_health);
+		revision_.Advance();
 	}
 
 	inline void SubsystemHealthRegistry::Unregister(
@@ -371,6 +389,7 @@ namespace DearModdingUI
 		const auto found = std::ranges::find(subsystems_, &a_health);
 		if (found != subsystems_.end())
 			subsystems_.erase(found);
+		revision_.Advance();
 	}
 
 	inline std::vector<HealthSnapshot> SubsystemHealthRegistry::Snapshots() const

@@ -722,6 +722,11 @@ namespace DearModdingUI
 		}
 	}
 
+	uint64_t HotkeyRegistry::Revision() const noexcept
+	{
+		return m_revision.Current();
+	}
+
 	std::map<std::string, std::string> HotkeyRegistry::Overrides(HotkeySlot a_slot) const noexcept
 	{
 		try
@@ -783,6 +788,7 @@ namespace DearModdingUI
 				}
 			}
 		}
+		m_revision.Advance();
 	}
 
 	HotkeyRegistry::Action* HotkeyRegistry::FindActionLocked(
@@ -906,6 +912,11 @@ namespace DearModdingUI
 		std::vector<HotkeyActionSnapshot> Snapshot() noexcept
 		{
 			return RegistryInstance().Snapshot();
+		}
+
+		uint64_t Revision() noexcept
+		{
+			return RegistryInstance().Revision();
 		}
 
 		std::map<std::string, std::string> Overrides(HotkeySlot a_slot) noexcept

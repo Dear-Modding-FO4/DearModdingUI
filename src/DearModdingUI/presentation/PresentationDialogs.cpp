@@ -3,6 +3,7 @@
 #include <DearModdingUI/host/RenderExecution.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <Support/BoundedString.h>
+#include <Support/PublishingLock.h>
 #include <DearModdingUI/host/MenuDismissal.h>
 #include <DearModdingUI/host/ModalCoordinator.h>
 #include "PresentationServiceOwners.h"
@@ -11,6 +12,7 @@
 #include <imgui/imgui_internal.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <mutex>
 #include <string>
@@ -47,12 +49,25 @@ namespace DearModdingUI::PresentationServices
 			DMUI_DialogHandle nextDialog{ 1 };
 			uint64_t nextSubmission{ 1 };
 			Dialog dialog;
+			std::atomic<bool> active{};
 		};
 
 		[[nodiscard]] DialogService& GetDialogService() noexcept
 		{
 			static DialogService service;
 			return service;
+		}
+
+		[[nodiscard]] auto LockDialogs(DialogService& a_service)
+		{
+			return Addictol::Support::PublishingLock{ a_service.mutex, [&a_service]() noexcept {
+				const auto& dialog = a_service.dialog;
+				a_service.active.store(
+					dialog.handle != DMUI_INVALID_DIALOG_HANDLE &&
+						dialog.event != DMUI_DIALOG_EVENT_CANCELLED &&
+						dialog.event != DMUI_DIALOG_EVENT_COMPLETED,
+					std::memory_order_release);
+			} };
 		}
 
 		[[nodiscard]] DMUI_Result SubmitDialogLocked(
@@ -139,7 +154,7 @@ namespace DearModdingUI::PresentationServices
 			dialog.owner = a_client;
 			dialog.kind = a_descriptor->kind;
 			auto& service = GetDialogService();
-			const std::scoped_lock lock{ service.mutex };
+			const auto lock = LockDialogs(service);
 			if (service.dialog.handle != DMUI_INVALID_DIALOG_HANDLE)
 				return DMUI_RESULT_BUSY;
 			if (service.nextDialog == DMUI_INVALID_DIALOG_HANDLE)
@@ -170,7 +185,7 @@ namespace DearModdingUI::PresentationServices
 		if (!RenderExecution::IsActiveClient(a_client, false))
 			return DMUI_RESULT_WRONG_THREAD;
 		auto& service = GetDialogService();
-		const std::scoped_lock lock{ service.mutex };
+		const auto lock = LockDialogs(service);
 		auto& dialog = service.dialog;
 		if (dialog.handle != a_dialog || dialog.owner != a_client)
 			return DMUI_RESULT_STALE_HANDLE;
@@ -215,7 +230,7 @@ namespace DearModdingUI::PresentationServices
 					a_error, kDialogStringLimit, true, error))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 			auto& service = GetDialogService();
-			const std::scoped_lock lock{ service.mutex };
+			const auto lock = LockDialogs(service);
 			auto& dialog = service.dialog;
 			if (dialog.handle != a_dialog || dialog.owner != a_client)
 				return DMUI_RESULT_STALE_HANDLE;
@@ -248,7 +263,7 @@ namespace DearModdingUI::PresentationServices
 			a_dialog == DMUI_INVALID_DIALOG_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		auto& service = GetDialogService();
-		const std::scoped_lock lock{ service.mutex };
+		const auto lock = LockDialogs(service);
 		auto& dialog = service.dialog;
 		if (dialog.handle != a_dialog || dialog.owner != a_client)
 			return DMUI_RESULT_STALE_HANDLE;
@@ -263,7 +278,7 @@ namespace DearModdingUI::PresentationServices
 		if (a_dialog == DMUI_INVALID_DIALOG_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		auto& service = GetDialogService();
-		const std::scoped_lock lock{ service.mutex };
+		const auto lock = LockDialogs(service);
 		return SubmitDialogLocked(service, service.dialog, a_dialog);
 	}
 
@@ -276,7 +291,7 @@ namespace DearModdingUI::PresentationServices
 			auto& service = GetDialogService();
 			Dialog snapshot;
 			{
-				const std::scoped_lock lock{ service.mutex };
+				const auto lock = LockDialogs(service);
 				auto& dialog = service.dialog;
 				if (dialog.handle == DMUI_INVALID_DIALOG_HANDLE)
 					return;
@@ -306,7 +321,7 @@ namespace DearModdingUI::PresentationServices
 				if ((!open || escapeDismissed) &&
 					snapshot.event == DMUI_DIALOG_EVENT_PENDING)
 				{
-					const std::scoped_lock lock{ service.mutex };
+					const auto lock = LockDialogs(service);
 					if (service.dialog.handle == snapshot.handle &&
 						service.dialog.event == DMUI_DIALOG_EVENT_PENDING)
 						service.dialog.event = DMUI_DIALOG_EVENT_CANCELLED;
@@ -361,7 +376,7 @@ namespace DearModdingUI::PresentationServices
 				ImGui::CloseCurrentPopup();
 			ImGui::EndPopup();
 
-			const std::scoped_lock lock{ service.mutex };
+			const auto lock = LockDialogs(service);
 			auto& dialog = service.dialog;
 			if (dialog.handle != snapshot.handle ||
 				dialog.event != snapshot.event)
@@ -385,7 +400,7 @@ namespace DearModdingUI::PresentationServices
 	void NotifyMenuClosed() noexcept
 	{
 		auto& service = GetDialogService();
-		const std::scoped_lock lock{ service.mutex };
+		const auto lock = LockDialogs(service);
 		if (service.dialog.handle != DMUI_INVALID_DIALOG_HANDLE &&
 			service.dialog.event == DMUI_DIALOG_EVENT_PENDING)
 			service.dialog.event = DMUI_DIALOG_EVENT_CANCELLED;
@@ -393,17 +408,13 @@ namespace DearModdingUI::PresentationServices
 
 	bool HasActiveDialog() noexcept
 	{
-		auto& service = GetDialogService();
-		const std::scoped_lock lock{ service.mutex };
-		return service.dialog.handle != DMUI_INVALID_DIALOG_HANDLE &&
-			service.dialog.event != DMUI_DIALOG_EVENT_CANCELLED &&
-			service.dialog.event != DMUI_DIALOG_EVENT_COMPLETED;
+		return GetDialogService().active.load(std::memory_order_acquire);
 	}
 
 	uint32_t ActiveDialogPopupId() noexcept
 	{
 		auto& service = GetDialogService();
-		const std::scoped_lock lock{ service.mutex };
+		const auto lock = LockDialogs(service);
 		if (service.dialog.handle == DMUI_INVALID_DIALOG_HANDLE ||
 			service.dialog.event == DMUI_DIALOG_EVENT_CANCELLED ||
 			service.dialog.event == DMUI_DIALOG_EVENT_COMPLETED)
@@ -415,11 +426,7 @@ namespace DearModdingUI::PresentationServices
 	{
 		bool HasFrameDemand() noexcept
 		{
-			auto& service = GetDialogService();
-			const std::scoped_lock lock{ service.mutex };
-			return service.dialog.handle != DMUI_INVALID_DIALOG_HANDLE &&
-				service.dialog.event != DMUI_DIALOG_EVENT_CANCELLED &&
-				service.dialog.event != DMUI_DIALOG_EVENT_COMPLETED;
+			return HasActiveDialog();
 		}
 	}
 }

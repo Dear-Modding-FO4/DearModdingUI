@@ -15,12 +15,14 @@
 #include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/presentation/Theme.h>
 
+#include <Support/Revision.h>
+
 #include <imgui/imgui.h>
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdio>
-#include <format>
 #include <ranges>
 #include <vector>
 
@@ -78,30 +80,99 @@ namespace DearModdingUI
 				}));
 		}
 
-		void DrawHome() noexcept
+		// Durations, deadlines, and transient statuses advance by the second.
+		struct HostPageInputs
 		{
-			(void)DrawTitleRow({
-				.title = HostPageName(HostPageKind::kHome),
-				.titleScale = Theme::kFeatureTitleScale,
-				.summary = HostPageSummary(HostPageKind::kHome)
-			});
+			HostStateRevision host;
+			uint64_t health{};
+			uint64_t settings{};
+			int64_t second{};
+
+			[[nodiscard]] bool operator==(const HostPageInputs&) const noexcept = default;
+		};
+
+		[[nodiscard]] HostPageInputs CurrentHostPageInputs() noexcept
+		{
+			return {
+				CurrentHostStateRevision(),
+				HostSubsystemHealthRegistry().Revision(),
+				HostSettings::Revision(),
+				std::chrono::duration_cast<std::chrono::seconds>(
+					HealthClock::now().time_since_epoch()).count()
+			};
+		}
+
+		struct HomeModel
+		{
+			std::string registry;
+			std::string summary;
+			DMUI_StatusSeverity severity{ DMUI_STATUS_SEVERITY_INFO };
+			std::vector<HomeFaqEntry> faq;
+			// Views into faq; the model rebuilds in place.
+			std::vector<FaqRowEntry> faqRows;
+		};
+
+		void BuildHome(HomeModel& a_model)
+		{
 			const auto& clients = RegisteredClients();
-			const auto& pages = OrderedPages();
-			const auto& actions = OrderedActions();
 			const auto statuses =
 				RollupClientStatuses(CurrentClientStatuses());
 			const auto health = HostSubsystemHealthRegistry().Snapshots();
 			const auto now = HealthClock::now();
 			const auto attention =
 				CountClientsNeedingAttention(clients, statuses);
-			const auto summary =
-				BuildHomeHealthSummary(health, attention, now);
-			const auto severity = HealthStatusSeverity(
+			a_model.registry = Localization::Format(
+				"$DMUI_Home_RegistryCounts",
+				"{} mods | {} pages | {} actions",
+				clients.size(),
+				OrderedPages().size(),
+				OrderedActions().size());
+			a_model.summary = BuildHomeHealthSummary(health, attention, now);
+			a_model.severity = HealthStatusSeverity(
 				HomeHealthSeverity(health, attention, now));
+			a_model.faq = BuildHomeFaq(
+				FormatHotkeyChord(HostSettings::Current().menuToggleKey));
+			a_model.faqRows.clear();
+			for (const auto& entry : a_model.faq)
+				a_model.faqRows.push_back({ entry.question, entry.answer });
+		}
+
+		[[nodiscard]] const std::vector<LinkRowEntry>& HomeQuickLinkRows()
+		{
+			static const auto rows = [] {
+				std::vector<LinkRowEntry> result;
+				for (const auto& link : HomeQuickLinks())
+				{
+					result.push_back({
+						link.label,
+						{
+							DMUI_EXTERNAL_TARGET_URI,
+							std::string{ link.url }
+						},
+						link.note,
+						FindPhosphorSlugGlyphOrZero(link.iconName),
+						link.enabled,
+						DMUI_LINK_ACTION_COPY_TARGET
+					});
+				}
+				return result;
+			}();
+			return rows;
+		}
+
+		void DrawHome() noexcept
+		{
+			static Addictol::Support::Derived<HostPageInputs, HomeModel> cache;
+			const auto& model = cache.Get(CurrentHostPageInputs(), &BuildHome);
+			(void)DrawTitleRow({
+				.title = HostPageName(HostPageKind::kHome),
+				.titleScale = Theme::kFeatureTitleScale,
+				.summary = HostPageSummary(HostPageKind::kHome)
+			});
 
 			DrawSectionHeader(
 				Localization::Text("$DMUI_Home_AboutHeader", "About"),
-				FindPhosphorIconGlyphOrZero("info"));
+				FindPhosphorSlugGlyphOrZero("info"));
 			{
 				const Theme::FontGuard font{ Theme::FontRole::kSubtext };
 				ImGui::TextWrapped("%s", HomeAboutText().data());
@@ -109,7 +180,7 @@ namespace DearModdingUI
 			Theme::SectionSpacing();
 			DrawSectionHeader(
 				Localization::Text("$DMUI_Home_OverviewHeader", "Overview"),
-				FindPhosphorIconGlyphOrZero(kHostHomePage.iconName));
+				FindPhosphorSlugGlyphOrZero(kHostHomePage.iconName));
 			char identity[128]{};
 			std::snprintf(
 				identity,
@@ -120,61 +191,129 @@ namespace DearModdingUI
 				static_cast<int>(kHostVersion.size()),
 				kHostVersion.data());
 			DrawBulletText(identity);
-			const auto registry = Localization::Format(
-				"$DMUI_Home_RegistryCounts",
-				"{} mods | {} pages | {} actions",
-				clients.size(),
-				pages.size(),
-				actions.size());
-			DrawBulletText(registry.c_str());
-			ImGui::PushStyleColor(ImGuiCol_Text, Theme::StatusTextColor(severity));
-			DrawBulletText(summary.c_str());
+			DrawBulletText(model.registry.c_str());
+			ImGui::PushStyleColor(ImGuiCol_Text, Theme::StatusTextColor(model.severity));
+			DrawBulletText(model.summary.c_str());
 			ImGui::PopStyleColor();
 
 			Theme::SectionSpacing();
 			DrawSectionHeader(
 				Localization::Text("$DMUI_Home_QuickLinksHeader", "Quick Links"),
-				FindPhosphorIconGlyphOrZero("link"));
-			std::vector<LinkRowEntry> quickLinks;
-			for (const auto& link : HomeQuickLinks())
-			{
-				quickLinks.push_back({
-					link.label,
-					{
-						DMUI_EXTERNAL_TARGET_URI,
-						std::string{ link.url }
-					},
-					link.note,
-					FindPhosphorIconGlyphOrZero(link.iconName),
-					link.enabled,
-					DMUI_LINK_ACTION_COPY_TARGET
-				});
-			}
-			(void)DrawLinkRow("##DearModdingUI.HomeQuickLinks", quickLinks);
+				FindPhosphorSlugGlyphOrZero("link"));
+			(void)DrawLinkRow("##DearModdingUI.HomeQuickLinks", HomeQuickLinkRows());
 
 			Theme::SectionSpacing();
 			DrawSectionHeader(
 				Localization::Text("$DMUI_Home_FaqHeader", "FAQ"),
-				FindPhosphorIconGlyphOrZero("question"));
-			const auto faq = BuildHomeFaq(
-				FormatHotkeyChord(HostSettings::Current().menuToggleKey));
-			std::vector<FaqRowEntry> entries;
-			entries.reserve(faq.size());
-			for (const auto& entry : faq)
-				entries.push_back({ entry.question, entry.answer });
-			DrawFaq("##DearModdingUI.HomeFaq", entries);
+				PhosphorGlyph::kQuestion);
+			DrawFaq("##DearModdingUI.HomeFaq", model.faqRows);
 		}
 
-		void DrawHealth(HostPageViewState& a_state) noexcept
+		struct HealthSubsystemView
+		{
+			std::string id;
+			HealthSubsystemRow row;
+			std::string status;
+		};
+
+		struct HealthClientView
+		{
+			const RegisteredClient* client{};
+			std::string id;
+			std::string description;
+			std::string version;
+			std::string status;
+			DMUI_StatusSeverity severity{ DMUI_STATUS_SEVERITY_INFO };
+		};
+
+		struct HealthClientGroup
+		{
+			std::string heading;
+			char32_t glyph{};
+			std::vector<HealthClientView> clients;
+		};
+
+		struct HealthModel
+		{
+			std::vector<HealthSubsystemView> subsystems;
+			std::vector<HealthClientGroup> clientGroups;
+			std::vector<HealthDiagnosticSection> diagnostics;
+		};
+
+		void BuildHealth(HealthModel& a_model)
 		{
 			const auto& clients = RegisteredClients();
 			const auto& pages = OrderedPages();
 			const auto& actions = OrderedActions();
 			const auto statuses =
 				RollupClientStatuses(CurrentClientStatuses());
-			const auto health = HostSubsystemHealthRegistry().Snapshots();
 			const auto now = HealthClock::now();
-			const auto diagnostics = CurrentClientDiagnostics();
+
+			a_model.subsystems.clear();
+			for (auto& row : BuildHealthSubsystemRows(
+					HostSubsystemHealthRegistry().Snapshots(), now))
+			{
+				auto id = "Subsystem/" + row.identity;
+				auto status = Localization::Format(
+					"$DMUI_Health_SubsystemStatus",
+					"Status: {} | {} in state",
+					row.stateLabel,
+					row.durationLabel);
+				a_model.subsystems.push_back({ std::move(id), std::move(row), std::move(status) });
+			}
+
+			a_model.clientGroups.clear();
+			for (auto& section : BuildHealthClientSections(clients))
+			{
+				auto& group = a_model.clientGroups.emplace_back(
+					std::move(section.heading), section.glyph);
+				for (const auto* client : section.clients)
+				{
+					const auto* status = FindClientStatus(statuses, client->handle);
+					group.clients.push_back({
+						client,
+						"Client/" + client->id,
+						Localization::Format(
+							"$DMUI_Health_ClientCounts",
+							"{} | {} pages | {} actions",
+							client->id,
+							std::ranges::count(pages, client->handle, &RegisteredPage::client),
+							std::ranges::count(actions, client->handle, &RegisteredAction::client)),
+						Localization::Format(
+							"$DMUI_Health_ClientVersion",
+							"Version {}.{}",
+							client->version >> 16,
+							client->version & 0xFFFFu),
+						Localization::Format(
+							"$DMUI_Health_ClientStatus",
+							"Status: {}",
+							ClientStatusLabel(client->callbackFailed, status)),
+						EffectiveClientStatusSeverity(client->callbackFailed, status)
+					});
+				}
+			}
+
+			a_model.diagnostics =
+				BuildHealthDiagnosticSections(clients, CurrentClientDiagnostics());
+		}
+
+		void CopyHealthReport()
+		{
+			const auto report = BuildHealthDiagnosticsReport(
+				kHostDisplayName,
+				kHostVersion,
+				HostSubsystemHealthRegistry().Snapshots(),
+				RegisteredClients(),
+				RollupClientStatuses(CurrentClientStatuses()),
+				CurrentClientDiagnostics(),
+				HealthClock::now());
+			ImGui::SetClipboardText(report.c_str());
+		}
+
+		void DrawHealth(HostPageViewState& a_state) noexcept
+		{
+			static Addictol::Support::Derived<HostPageInputs, HealthModel> cache;
+			const auto& model = cache.Get(CurrentHostPageInputs(), &BuildHealth);
 			constexpr auto extentPolicy =
 				TitleRowButtonExtentPolicy::kTitleBar;
 			const auto extent = ResolveTitleRowButtonExtent(
@@ -185,7 +324,7 @@ namespace DearModdingUI
 				TitleRowButton{
 					"##DearModdingUI.CopyHealthReport",
 					extent,
-					FindPhosphorIconGlyphOrZero("clipboard-text"),
+					PhosphorGlyph::kClipboardText,
 					Localization::Text("$DMUI_Health_CopyReport", "Copy report"),
 					Localization::Text(
 						"$DMUI_Health_CopyReportTooltip",
@@ -199,23 +338,12 @@ namespace DearModdingUI
 					.buttonExtentPolicy = extentPolicy,
 					.summary = HostPageSummary(HostPageKind::kHealth)
 				}))
-			{
-				const auto report = BuildHealthDiagnosticsReport(
-					kHostDisplayName,
-					kHostVersion,
-					health,
-					clients,
-					statuses,
-					diagnostics,
-					now);
-				ImGui::SetClipboardText(report.c_str());
-			}
+				CopyHealthReport();
 
 			DrawSectionHeader(
 				Localization::Text("$DMUI_Health_HostSubsystemsHeader", "Host subsystems"),
-				FindPhosphorIconGlyphOrZero(kHostHealthPage.iconName));
-			const auto subsystemRows = BuildHealthSubsystemRows(health, now);
-			if (subsystemRows.empty())
+				FindPhosphorSlugGlyphOrZero(kHostHealthPage.iconName));
+			if (model.subsystems.empty())
 				DrawBulletText(Localization::Text(
 					"$DMUI_Health_NoSubsystemObservations",
 					"No host subsystem observations are available."));
@@ -224,36 +352,29 @@ namespace DearModdingUI
 					"##DearModdingUI.HostHealthSubsystems");
 				table.result == DMUI_RESULT_OK && table.visible)
 			{
-				for (const auto& row : subsystemRows)
+				for (const auto& subsystem : model.subsystems)
 				{
-					const auto id = "Subsystem/" + row.identity;
 					DrawHostDetailRow(
-						id.c_str(),
-						row.identity.c_str(),
-						row.reason.c_str(),
+						subsystem.id.c_str(),
+						subsystem.row.identity.c_str(),
+						subsystem.row.reason.c_str(),
 						[&]() noexcept {
-							const auto text = Localization::Format(
-								"$DMUI_Health_SubsystemStatus",
-								"Status: {} | {} in state",
-								row.stateLabel,
-								row.durationLabel);
 							ImGui::TextColored(
 								Theme::StatusTextColor(
-									HealthStatusSeverity(row.severity)),
+									HealthStatusSeverity(subsystem.row.severity)),
 								"%s",
-								text.c_str());
+								subsystem.status.c_str());
 						});
 				}
 				(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
 			}
 
-			const auto sections = BuildHealthClientSections(clients);
 			for (size_t sectionIndex = 0;
-				sectionIndex < sections.size();
+				sectionIndex < model.clientGroups.size();
 				++sectionIndex)
 			{
 				Theme::SectionSpacing();
-				const auto& section = sections[sectionIndex];
+				const auto& section = model.clientGroups[sectionIndex];
 				DrawSectionHeader(section.heading.c_str(), section.glyph);
 				if (section.clients.empty())
 				{
@@ -268,50 +389,19 @@ namespace DearModdingUI
 					"##DearModdingUI.HostHealthClients");
 				if (table.result == DMUI_RESULT_OK && table.visible)
 				{
-					for (const auto* client : section.clients)
+					for (const auto& row : section.clients)
 					{
-						const auto pageCount = std::ranges::count(
-							pages,
-							client->handle,
-							&RegisteredPage::client);
-						const auto actionCount = std::ranges::count(
-							actions,
-							client->handle,
-							&RegisteredAction::client);
-						const auto description = Localization::Format(
-							"$DMUI_Health_ClientCounts",
-							"{} | {} pages | {} actions",
-							client->id,
-							pageCount,
-							actionCount);
-						const auto version = Localization::Format(
-							"$DMUI_Health_ClientVersion",
-							"Version {}.{}",
-							client->version >> 16,
-							client->version & 0xFFFFu);
-						const auto* status =
-							FindClientStatus(statuses, client->handle);
-						const auto id = "Client/" + client->id;
 						DrawHostDetailRow(
-							id.c_str(),
-							client->displayName.c_str(),
-							description.c_str(),
+							row.id.c_str(),
+							row.client->displayName.c_str(),
+							row.description.c_str(),
 							[&]() noexcept {
-								ImGui::TextUnformatted(version.c_str());
+								ImGui::TextUnformatted(row.version.c_str());
 								ImGui::SameLine();
-								const auto text = Localization::Format(
-									"$DMUI_Health_ClientStatus",
-									"Status: {}",
-									ClientStatusLabel(
-										client->callbackFailed,
-										status));
 								ImGui::TextColored(
-									Theme::StatusTextColor(
-										EffectiveClientStatusSeverity(
-											client->callbackFailed,
-											status)),
+									Theme::StatusTextColor(row.severity),
 									"%s",
-									text.c_str());
+									row.status.c_str());
 							});
 					}
 					(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
@@ -322,9 +412,8 @@ namespace DearModdingUI
 			Theme::SectionSpacing();
 			DrawSectionHeader(
 				Localization::Text("$DMUI_Health_ReportedProblemsHeader", "Reported problems"),
-				FindPhosphorIconGlyphOrZero("warning-circle"));
-			const auto diagnosticSections =
-				BuildHealthDiagnosticSections(clients, diagnostics);
+				FindPhosphorSlugGlyphOrZero("warning-circle"));
+			const auto& diagnosticSections = model.diagnostics;
 			if (diagnosticSections.empty())
 			{
 				DrawBulletText(Localization::Text(
@@ -363,9 +452,10 @@ namespace DearModdingUI
 					for (size_t index = 0; index < section.rows.size(); ++index)
 					{
 						const auto& row = section.rows[index];
-						const auto id = std::format("Diagnostic/{}", index);
+						char id[32]{};
+						std::snprintf(id, sizeof(id), "Diagnostic/%zu", index);
 						DrawHostDetailRow(
-							id.c_str(),
+							id,
 							row.summary.c_str(),
 							row.description.c_str(),
 							[&]() noexcept {

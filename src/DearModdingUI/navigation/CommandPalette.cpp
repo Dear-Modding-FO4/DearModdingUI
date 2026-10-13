@@ -19,12 +19,15 @@ namespace DearModdingUI
 
 	namespace
 	{
-		[[nodiscard]] std::string CommandPalettePopupId()
+		// ImGui hashes from "###", so the bare suffix names the titled popup.
+		constexpr const char* kPopupId{ "###DearModdingPalette" };
+
+		[[nodiscard]] std::string CommandPalettePopupTitle()
 		{
 			return std::string{ Localization::Text(
 					   "$DMUI_Palette_SearchTitle",
 					   "Search mods, pages, and actions") } +
-				"###DearModdingPalette";
+				kPopupId;
 		}
 
 		[[nodiscard]] std::vector<NavigationSearchHit> BuildResults(
@@ -94,6 +97,17 @@ namespace DearModdingUI
 			label.append(a_entry.id);
 			return label;
 		}
+
+		[[nodiscard]] std::vector<CommandPaletteRow> BuildRows(
+			const NavigationModel& a_model,
+			const ClientSelectionState& a_selection,
+			const CommandPaletteState& a_state)
+		{
+			std::vector<CommandPaletteRow> rows;
+			for (const auto& hit : BuildResults(a_model, a_selection, a_state))
+				rows.push_back({ hit, RowId(hit.Entry()), RowText(hit.Entry()) });
+			return rows;
+		}
 	}
 
 	const char* CommandPaletteHint() noexcept
@@ -109,10 +123,16 @@ namespace DearModdingUI
 		if (a_state.openRequested)
 		{
 			a_state.query.clear();
+			a_state.rows.Invalidate();
 			a_state.selection = 0;
 			a_state.focusRequested = true;
-			ImGui::OpenPopup(CommandPalettePopupId().c_str());
+			ImGui::OpenPopup(kPopupId);
 			a_state.openRequested = false;
+		}
+		if (!ImGui::IsPopupOpen(kPopupId))
+		{
+			a_state.visible = false;
+			return nullptr;
 		}
 
 		const auto& style = ImGui::GetStyle();
@@ -126,9 +146,9 @@ namespace DearModdingUI
 			},
 			ImGuiCond_Appearing);
 		auto open = true;
-		const auto popupId = CommandPalettePopupId();
+		const auto popupTitle = CommandPalettePopupTitle();
 		if (!BeginPopupModalWithRoundedTitleBarButtons(
-				popupId.c_str(),
+				popupTitle.c_str(),
 				&open,
 				ImGuiWindowFlags_NoSavedSettings))
 		{
@@ -142,7 +162,6 @@ namespace DearModdingUI
 			a_state.focusRequested = false;
 		}
 
-		const auto previousQuery = a_state.query;
 		const auto searchResult = DrawSearchInput(
 			"NavigationPaletteSearch",
 			CommandPaletteHint(),
@@ -155,11 +174,15 @@ namespace DearModdingUI
 				"$DMUI_Palette_SearchUnavailable",
 				"Search input unavailable."));
 		}
-		auto results = BuildResults(a_model, a_selection, a_state);
+		const auto* cached = a_state.rows.CachedKey();
+		const auto queryChanged = !cached || cached->query != a_state.query;
+		const auto& results = a_state.rows.Get(
+			CommandPaletteRowsKey::View{ a_state.query, a_selection.recentPages },
+			[&]() { return BuildRows(a_model, a_selection, a_state); });
 		a_state.selection = ResolvePaletteSelectionIndex(
 			a_state.selection,
 			results.size(),
-			previousQuery != a_state.query);
+			queryChanged);
 
 		auto keyboardMoved = false;
 		if (!results.empty() && ImGui::IsKeyPressed(ImGuiKey_UpArrow, false))
@@ -206,15 +229,14 @@ namespace DearModdingUI
 		}
 		for (size_t index = 0; index < results.size(); ++index)
 		{
-			const auto& entry = results[index].Entry();
-			const auto id = RowId(entry);
-			const auto text = RowText(entry);
+			const auto& row = results[index];
+			const auto& entry = row.hit.Entry();
 			const auto selected = index == a_state.selection;
 			const Theme::FontGuard font{ Theme::FontRole::kSubheading };
 			const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
-			const auto row = DrawSelectableRow({
-				.id = id.c_str(),
-				.label = text.c_str(),
+			const auto drawn = DrawSelectableRow({
+				.id = row.id.c_str(),
+				.label = row.text.c_str(),
 				.selected = selected,
 				.height = ImGui::GetTextLineHeight(),
 				.leadingAffordance = RowLeadingAffordance::kIcon,
@@ -224,7 +246,7 @@ namespace DearModdingUI
 				.trailingWidth = ImGui::GetStyle().FramePadding.x,
 				.flushHorizontalHighlight = true
 			});
-			if (row.pressed)
+			if (drawn.pressed)
 				activated = index;
 			if (selected && keyboardMoved)
 				ImGui::SetScrollHereY();
@@ -233,7 +255,7 @@ namespace DearModdingUI
 		const NavigationSearchEntry* result{};
 		if (activated < results.size())
 		{
-			result = &results[activated].Entry();
+			result = &results[activated].hit.Entry();
 			ImGui::CloseCurrentPopup();
 			a_state.visible = false;
 		}

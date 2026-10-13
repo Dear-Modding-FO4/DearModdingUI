@@ -3,6 +3,7 @@
 #include <DearModdingUI/controls/FieldFeedback.h>
 #include <DearModdingUI/host/Registry.h>
 #include <Support/BoundedString.h>
+#include <Support/PublishingLock.h>
 #include "PresentationServiceOwners.h"
 #include "notifications/Queue.h"
 
@@ -10,6 +11,7 @@
 #include <REX/REX.h>
 
 #include <array>
+#include <atomic>
 #include <cstdio>
 #include <cmath>
 #include <mutex>
@@ -23,12 +25,20 @@ namespace DearModdingUI::PresentationServices
 		{
 			std::mutex mutex;
 			Notifications::Queue queue;
+			std::atomic<bool> queued{};
 		};
 
 		[[nodiscard]] NotificationService& GetNotificationService() noexcept
 		{
 			static NotificationService service;
 			return service;
+		}
+
+		[[nodiscard]] auto LockNotifications(NotificationService& a_service)
+		{
+			return Addictol::Support::PublishingLock{ a_service.mutex, [&a_service]() noexcept {
+				a_service.queued.store(!a_service.queue.Empty(), std::memory_order_release);
+			} };
 		}
 
 		struct ToastLayout
@@ -146,7 +156,7 @@ namespace DearModdingUI::PresentationServices
 					a_descriptor->durationMilliseconds : 5000u, 250u, 30000u)
 			};
 			auto& service = GetNotificationService();
-			const std::scoped_lock lock{ service.mutex };
+			const auto lock = LockNotifications(service);
 			if (service.queue.Post(std::move(toast)))
 				REX::DEBUG("DearModdingUI: notification queue full; dropped oldest queued toast");
 			return DMUI_RESULT_OK;
@@ -162,7 +172,7 @@ namespace DearModdingUI::PresentationServices
 		try
 		{
 			auto& service = GetNotificationService();
-			const std::scoped_lock lock{ service.mutex };
+			const auto lock = LockNotifications(service);
 			const auto now = Notifications::Clock::now();
 			const auto& style = ImGui::GetStyle();
 			const auto fontSize = ImGui::GetFontSize();
@@ -226,15 +236,13 @@ namespace DearModdingUI::PresentationServices
 		void Clear() noexcept
 		{
 			auto& service = GetNotificationService();
-			const std::scoped_lock lock{ service.mutex };
+			const auto lock = LockNotifications(service);
 			service.queue = {};
 		}
 
 		bool HasFrameDemand() noexcept
 		{
-			auto& service = GetNotificationService();
-			const std::scoped_lock lock{ service.mutex };
-			return !service.queue.Empty();
+			return GetNotificationService().queued.load(std::memory_order_acquire);
 		}
 
 #if defined(DMUI_UI_TESTING)

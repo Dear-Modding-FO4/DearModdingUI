@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ImageFileDecode.h"
+#include <atomic>
 #include <condition_variable>
 #include <deque>
 #include <memory>
@@ -35,7 +36,7 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 		[[nodiscard]] DMUI_Result Submit(LoadIdentity a_identity, const std::string& a_path) noexcept;
 		void Cancel(DMUI_ClientHandle a_owner, DMUI_ImageHandle a_handle) noexcept;
 		[[nodiscard]] std::shared_ptr<LoadJob> TakeCompletion() noexcept;
-		[[nodiscard]] bool HasCompletion() noexcept;
+		[[nodiscard]] bool HasCompletion() const noexcept;
 
 	private:
 		void Run() noexcept;
@@ -44,6 +45,8 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 		std::deque<std::shared_ptr<LoadJob>> m_queue;
 		std::shared_ptr<LoadJob> m_active;
 		std::shared_ptr<LoadJob> m_completed;
+		// Mirrors m_completed so Present can poll without the queue lock.
+		std::atomic<bool> m_hasCompletion{};
 		bool m_stopping{};
 		std::thread m_worker;
 	};

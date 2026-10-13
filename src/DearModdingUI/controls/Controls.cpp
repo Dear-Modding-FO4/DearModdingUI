@@ -89,7 +89,7 @@ namespace DearModdingUI
 			ImGui::SameLine(0.0f, 0.0f);
 			if (DrawCompactChromeButton("##Clear",
 					{ origin.x + width - clearWidth, origin.y }, { clearWidth, height },
-					FindPhosphorIconGlyphOrZero("x"), "x",
+					PhosphorGlyph::kX, "x",
 					Localization::Text("$DMUI_Controls_Unbind", "Unbind"),
 					ImGui::GetColorU32(ImGuiCol_TextDisabled)))
 			{

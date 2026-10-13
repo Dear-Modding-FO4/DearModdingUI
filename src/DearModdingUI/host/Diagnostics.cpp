@@ -22,6 +22,7 @@ namespace DearModdingUI
 				a_diagnostic.detail ? a_diagnostic.detail : ""
 			};
 			const std::scoped_lock lock{ mutex_ };
+			revision_.Advance();
 			auto client = std::ranges::find(
 				clients_,
 				a_client,
@@ -92,6 +93,11 @@ namespace DearModdingUI
 		{
 			return std::nullopt;
 		}
+	}
+
+	uint64_t DiagnosticStore::Revision() const noexcept
+	{
+		return revision_.Current();
 	}
 
 	std::vector<ClientDiagnosticSnapshot> DiagnosticStore::Snapshots() const noexcept

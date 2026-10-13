@@ -160,6 +160,7 @@ namespace DearModdingUI
 
 			m_generation = nextGeneration;
 			m_current = std::move(next);
+			m_revision.Advance();
 			return DMUI_RESULT_OK;
 		}
 		catch (...)
@@ -177,7 +178,10 @@ namespace DearModdingUI
 			if (m_current &&
 				!m_current->persistent &&
 				a_now >= m_current->createdAt + kTransientStatusLifetime)
+			{
 				m_current.reset();
+				m_revision.Advance();
+			}
 			return m_current;
 		}
 		catch (...)
@@ -192,10 +196,11 @@ namespace DearModdingUI
 		try
 		{
 			const std::scoped_lock lock{ m_mutex };
-			std::erase_if(m_clientStatuses, [&](const auto& a_entry) {
-				return !a_entry.second.persistent &&
-					a_now >= a_entry.second.createdAt + kTransientStatusLifetime;
-			});
+			if (std::erase_if(m_clientStatuses, [&](const auto& a_entry) {
+					return !a_entry.second.persistent &&
+						a_now >= a_entry.second.createdAt + kTransientStatusLifetime;
+				}))
+				m_revision.Advance();
 			std::vector<ClientStatus> statuses;
 			statuses.reserve(m_clientStatuses.size());
 			for (const auto& [client, message] : m_clientStatuses)
@@ -219,6 +224,12 @@ namespace DearModdingUI
 			return a_entry.second.generation == a_generation;
 		});
 		m_current.reset();
+		m_revision.Advance();
 		return true;
+	}
+
+	uint64_t StatusModel::Revision() const noexcept
+	{
+		return m_revision.Current();
 	}
 }

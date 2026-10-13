@@ -5,6 +5,7 @@
 #include <DearModdingUI/settings/HostSettingsPersistence.h>
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/localization/Localization.h>
+#include <Support/Revision.h>
 #include <Support/Runtime.h>
 #include <Support/SubsystemHealth.h>
 
@@ -40,6 +41,8 @@ namespace DearModdingUI::HostSettings
 		OverridesBySlot s_hotkeyOverrides;
 		std::mutex s_configurationHealthMutex;
 		HostSettingsHealthState s_configurationHealthState;
+		// Covers both Current() and EffectivePreview().
+		Addictol::Support::Revision s_revision;
 
 		class ConfigurationHealthReporter final : public HealthReporter
 		{
@@ -165,6 +168,7 @@ namespace DearModdingUI::HostSettings
 					for (const auto slot : kHotkeySlots)
 						Hotkeys::InitializeOverrides(s_hotkeyOverrides[static_cast<size_t>(slot)], slot);
 					UpdateMenuToggleChord();
+					s_revision.Advance();
 					{
 						const std::scoped_lock healthLock{
 							s_configurationHealthMutex
@@ -277,11 +281,14 @@ namespace DearModdingUI::HostSettings
 		void StorePageActive(bool a_active) noexcept
 		{
 			const auto current = s_pageActive.load(std::memory_order_acquire);
+			if (current == a_active)
+				return;
 			const std::scoped_lock lock{ s_previewMutex };
 			if (current && !a_active)
 			{
 				s_preview.reset();
 				s_pageRevision.fetch_add(1, std::memory_order_release);
+				s_revision.Advance();
 			}
 			s_pageActive.store(a_active, std::memory_order_release);
 		}
@@ -311,23 +318,33 @@ namespace DearModdingUI::HostSettings
 		EnsureLoaded();
 	}
 
-	HostInterfaceSettings Current() noexcept
+	uint64_t Revision() noexcept
 	{
 		EnsureLoaded();
-		const std::scoped_lock lock{ s_settingsMutex };
-		return s_settings;
+		return s_revision.Current();
+	}
+
+	const HostInterfaceSettings& Current() noexcept
+	{
+		thread_local Addictol::Support::Derived<uint64_t, HostInterfaceSettings> cache;
+		return cache.Get(Revision(), []() {
+			const std::scoped_lock lock{ s_settingsMutex };
+			return s_settings;
+		});
 	}
 
 	HostInterfacePreviewSettings EffectivePreview() noexcept
 	{
-		{
-			const std::scoped_lock lock{ s_previewMutex };
-			if (s_preview)
-				return *s_preview;
-		}
-		EnsureLoaded();
-		const std::scoped_lock lock{ s_settingsMutex };
-		return PreviewHostInterfaceSettings(s_settings);
+		thread_local Addictol::Support::Derived<uint64_t, HostInterfacePreviewSettings> cache;
+		return cache.Get(Revision(), []() noexcept {
+			{
+				const std::scoped_lock lock{ s_previewMutex };
+				if (s_preview)
+					return *s_preview;
+			}
+			const std::scoped_lock lock{ s_settingsMutex };
+			return PreviewHostInterfaceSettings(s_settings);
+		});
 	}
 
 	bool Apply(HostInterfaceSettings a_settings) noexcept
@@ -354,6 +371,7 @@ namespace DearModdingUI::HostSettings
 			}
 			s_settings = std::move(a_settings);
 			UpdateMenuToggleChord();
+			s_revision.Advance();
 		}
 		(void)SetHostStatus(
 			DMUI_STATUS_SEVERITY_SUCCESS,
@@ -374,7 +392,10 @@ namespace DearModdingUI::HostSettings
 				auto updated = s_settings;
 				updated.sidebarLayout = layout;
 				if (SaveSettings(updated, s_hotkeyOverrides, error))
+				{
 					s_settings = std::move(updated);
+					s_revision.Advance();
+				}
 				else
 					saved = false;
 			}
@@ -389,8 +410,11 @@ namespace DearModdingUI::HostSettings
 		}
 
 		const std::scoped_lock lock{ s_previewMutex };
-		if (s_preview)
+		if (s_preview && s_preview->sidebarLayout != layout)
+		{
 			s_preview->sidebarLayout = layout;
+			s_revision.Advance();
+		}
 		return true;
 	}
 
@@ -403,7 +427,10 @@ namespace DearModdingUI::HostSettings
 			s_pageRevision.load(std::memory_order_acquire) !=
 				a_pageRevision)
 			return;
+		if (s_preview == a_settings)
+			return;
 		s_preview = a_settings;
+		s_revision.Advance();
 	}
 
 	void NotifyMenuVisible(bool a_visible) noexcept

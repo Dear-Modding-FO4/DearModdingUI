@@ -62,4 +62,16 @@ namespace DearModdingUI
 	[[nodiscard]] std::vector<ClientDiagnosticSnapshot>
 		CurrentClientDiagnostics() noexcept;
 	[[nodiscard]] bool DismissStatus(uint64_t a_generation) noexcept;
+
+	// Changes whenever registry, status, or diagnostic snapshots may differ.
+	struct HostStateRevision
+	{
+		uint64_t registry{};
+		uint64_t status{};
+		uint64_t diagnostics{};
+
+		[[nodiscard]] bool operator==(const HostStateRevision&) const noexcept = default;
+	};
+
+	[[nodiscard]] HostStateRevision CurrentHostStateRevision() noexcept;
 }

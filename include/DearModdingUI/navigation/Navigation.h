@@ -31,6 +31,8 @@ namespace DearModdingUI
 		std::string categoryId;
 		std::string iconName;
 		IconSelection iconSelection;
+		// Derived once at build; rows draw every frame.
+		std::string rowLabel;
 	};
 
 	struct NavigationCategory
@@ -41,6 +43,7 @@ namespace DearModdingUI
 		int32_t sortKey{ 0 };
 		std::string iconName;
 		IconSelection iconSelection;
+		std::string key;
 
 		[[nodiscard]] bool HasHeading() const noexcept
 		{
@@ -264,6 +267,9 @@ namespace DearModdingUI
 	[[nodiscard]] std::string PageRowLabel(
 		const NavigationClient& a_client,
 		const NavigationPage& a_page);
+	[[nodiscard]] std::string NavigationCategoryKey(
+		std::string_view a_clientId,
+		std::string_view a_categoryId);
 	[[nodiscard]] PagePresentation DecidePagePresentation(
 		const NavigationPage* a_page,
 		bool a_callbackFailed) noexcept;

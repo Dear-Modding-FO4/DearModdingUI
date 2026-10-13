@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/API.h>
 #include <DearModdingUI/host/Status.h>
+#include <Support/Revision.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -51,9 +52,11 @@ namespace DearModdingUI
 		[[nodiscard]] std::optional<ClientDiagnosticSnapshot> Snapshot(
 			DMUI_ClientHandle a_client) const noexcept;
 		[[nodiscard]] std::vector<ClientDiagnosticSnapshot> Snapshots() const noexcept;
+		[[nodiscard]] uint64_t Revision() const noexcept;
 
 	private:
 		mutable std::mutex mutex_;
 		std::vector<ClientDiagnosticSnapshot> clients_;
+		Addictol::Support::Revision revision_;
 	};
 }

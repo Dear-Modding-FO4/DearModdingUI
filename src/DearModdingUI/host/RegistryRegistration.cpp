@@ -95,6 +95,7 @@ namespace DearModdingUI
 			client.handle = m_nextClient++;
 			client.iconMetadata = IconMetadata(client.displayName);
 			m_clients.push_back(std::move(client));
+			PublishLocked();
 			*a_client = m_clients.back().handle;
 			return DMUI_RESULT_OK;
 		}
@@ -176,6 +177,7 @@ namespace DearModdingUI
 			page.iconMetadata = IconMetadata(page.displayName);
 			page.imguiLabel = PageImGuiLabel(page);
 			m_pages.push_back(std::move(page));
+			PublishLocked();
 			*a_page = m_pages.back().handle;
 			return DMUI_RESULT_OK;
 		}
@@ -233,6 +235,7 @@ namespace DearModdingUI
 			category.clientId = client->id;
 			category.iconMetadata = IconMetadata(category.displayName);
 			m_categories.push_back(std::move(category));
+			PublishLocked();
 			return DMUI_RESULT_OK;
 		}
 		catch (...)
@@ -303,6 +306,7 @@ namespace DearModdingUI
 				action.iconName,
 				IconMetadata(action.displayLabel));
 			m_actions.push_back(std::move(action));
+			PublishLocked();
 			*a_action = m_actions.back().handle;
 			return DMUI_RESULT_OK;
 		}
@@ -340,6 +344,7 @@ namespace DearModdingUI
 
 			observer.handle = m_nextFrameObserver++;
 			m_frameObservers.push_back(observer);
+			PublishLocked();
 			m_activeFrameObserverCount.fetch_add(1, std::memory_order_release);
 			*a_observer = observer.handle;
 			return DMUI_RESULT_OK;
@@ -381,6 +386,7 @@ namespace DearModdingUI
 
 			observer.handle = m_nextPageActivityObserver++;
 			m_pageActivityObservers.push_back(observer);
+			PublishLocked();
 			*a_observer = observer.handle;
 			return DMUI_RESULT_OK;
 		}

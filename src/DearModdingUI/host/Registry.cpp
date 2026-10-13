@@ -91,6 +91,7 @@ namespace DearModdingUI
 				m_pages,
 				m_actions);
 			m_open = false;
+			PublishLocked();
 			return true;
 		}
 		catch (...)
@@ -101,8 +102,7 @@ namespace DearModdingUI
 
 	bool Registry::IsOpen() const noexcept
 	{
-		const std::scoped_lock lock{ m_mutex };
-		return m_open;
+		return m_open.load(std::memory_order_acquire);
 	}
 
 	bool Registry::Empty() const noexcept
@@ -125,12 +125,24 @@ namespace DearModdingUI
 
 	size_t Registry::DemandedOverlayCount() const noexcept
 	{
-		const std::scoped_lock lock{ m_mutex };
-		return static_cast<size_t>(std::ranges::count_if(m_pages, [](const auto& a_page) {
-			return a_page.kind == DMUI_PAGE_KIND_OVERLAY &&
-				a_page.frameDemand != 0 &&
-				!a_page.callbackFailed;
-		}));
+		return m_demandedOverlayCount.load(std::memory_order_acquire);
+	}
+
+	uint64_t Registry::Revision() const noexcept
+	{
+		return m_revision.Current();
+	}
+
+	void Registry::PublishLocked() noexcept
+	{
+		m_demandedOverlayCount.store(
+			static_cast<size_t>(std::ranges::count_if(m_pages, [](const auto& a_page) {
+				return a_page.kind == DMUI_PAGE_KIND_OVERLAY &&
+					a_page.frameDemand != 0 &&
+					!a_page.callbackFailed;
+			})),
+			std::memory_order_release);
+		m_revision.Advance();
 	}
 
 	bool Registry::HasSettingsPages() const noexcept
@@ -191,6 +203,7 @@ namespace DearModdingUI
 		if (page->frameDemand == (std::numeric_limits<uint32_t>::max)())
 			return DMUI_RESULT_RESOURCE_EXHAUSTED;
 		++page->frameDemand;
+		PublishLocked();
 		return DMUI_RESULT_OK;
 	}
 
@@ -207,6 +220,7 @@ namespace DearModdingUI
 		if (!page->frameDemand)
 			return DMUI_RESULT_NO_FRAME_DEMAND;
 		--page->frameDemand;
+		PublishLocked();
 		return DMUI_RESULT_OK;
 	}
 
@@ -262,8 +276,14 @@ namespace DearModdingUI
 
 	DMUI_Result Registry::ValidateClient(DMUI_ClientHandle a_client) const noexcept
 	{
+		const auto validate = [&]() noexcept {
+			return FindClient(a_client) ? DMUI_RESULT_OK : DMUI_RESULT_CLIENT_NOT_FOUND;
+		};
+		// Drawing calls validate per widget; frozen clients need no lock.
+		if (!m_open.load(std::memory_order_acquire))
+			return validate();
 		const std::scoped_lock lock{ m_mutex };
-		return FindClient(a_client) ? DMUI_RESULT_OK : DMUI_RESULT_CLIENT_NOT_FOUND;
+		return validate();
 	}
 
 	DMUI_Result Registry::CopyClientText(
@@ -320,7 +340,10 @@ namespace DearModdingUI
 
 		const std::scoped_lock lock{ m_mutex };
 		if (auto* page = FindPage(a_page))
+		{
 			page->callbackFailed = true;
+			PublishLocked();
+		}
 		return result;
 	}
 
@@ -331,11 +354,35 @@ namespace DearModdingUI
 		return !page || page->callbackFailed;
 	}
 
+	std::vector<DMUI_PageHandle> Registry::UsablePages() const noexcept
+	{
+		try
+		{
+			const std::scoped_lock lock{ m_mutex };
+			std::vector<DMUI_PageHandle> pages;
+			pages.reserve(m_pages.size());
+			for (const auto& page : m_pages)
+			{
+				if (!page.callbackFailed)
+					pages.push_back(page.handle);
+			}
+			std::ranges::sort(pages);
+			return pages;
+		}
+		catch (...)
+		{
+			return {};
+		}
+	}
+
 	void Registry::MarkPageFailed(DMUI_PageHandle a_page) noexcept
 	{
 		const std::scoped_lock lock{ m_mutex };
 		if (auto* page = FindPage(a_page))
+		{
 			page->callbackFailed = true;
+			PublishLocked();
+		}
 	}
 
 	DMUI_Result Registry::InvokeAction(DMUI_ActionHandle a_action) noexcept
@@ -359,7 +406,10 @@ namespace DearModdingUI
 
 		const std::scoped_lock lock{ m_mutex };
 		if (auto* action = FindAction(a_action))
+		{
 			action->callbackFailed = true;
+			PublishLocked();
+		}
 		return result;
 	}
 
@@ -374,7 +424,10 @@ namespace DearModdingUI
 	{
 		const std::scoped_lock lock{ m_mutex };
 		if (auto* action = FindAction(a_action))
+		{
 			action->callbackFailed = true;
+			PublishLocked();
+		}
 	}
 
 	DMUI_Result Registry::InvokeFrameObserver(
@@ -550,6 +603,7 @@ namespace DearModdingUI
 					if (observer.client == handle)
 						observer.callbackFailed = true;
 				}
+				PublishLocked();
 			}
 		}
 	}
@@ -586,7 +640,10 @@ namespace DearModdingUI
 			{
 				const std::scoped_lock lock{ m_mutex };
 				if (auto* client = FindClient(handle))
+				{
 					client->callbackFailed = true;
+					PublishLocked();
+				}
 			}
 		}
 	}

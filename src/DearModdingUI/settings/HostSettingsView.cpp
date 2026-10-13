@@ -9,6 +9,7 @@
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <Platform/settings/GameColors.h>
+#include <Support/Revision.h>
 
 #include <imgui/imgui.h>
 
@@ -16,8 +17,10 @@
 #include <array>
 #include <cstdio>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
+#include <vector>
 
 namespace DearModdingUI
 {
@@ -85,6 +88,10 @@ namespace DearModdingUI
 
 		HostSettingsDraftState g_settingsDraft;
 		uint64_t g_observedPageRevision{ 0 };
+		// Game colors change only in game menus, so each page visit reads them once.
+		std::optional<HostAccentColor> g_hudColor;
+		std::optional<HostAccentColor> g_pipboyColor;
+		Addictol::Support::Derived<uint64_t, std::vector<HotkeyActionSnapshot>> g_hotkeys;
 
 		[[nodiscard]] float ControlWidth() noexcept
 		{
@@ -163,6 +170,8 @@ namespace DearModdingUI
 			g_settingsDraft = BeginHostSettingsDraft(
 				HostSettings::Current());
 			g_observedPageRevision = revision;
+			g_hudColor = ReadGameColor(GameColorSource::kHUD);
+			g_pipboyColor = ReadGameColor(GameColorSource::kPipboy);
 			PreviewDraft();
 		}
 
@@ -363,8 +372,8 @@ namespace DearModdingUI
 				[&]() noexcept {
 					changed |= HostSettingsViewDetail::DrawGameColorSyncControls(
 						settings.accentColor,
-						ReadGameColor(GameColorSource::kHUD),
-						ReadGameColor(GameColorSource::kPipboy),
+						g_hudColor,
+						g_pipboyColor,
 						ControlWidth());
 				},
 				[]() noexcept { return false; });
@@ -841,7 +850,7 @@ namespace DearModdingUI
 				Localization::Text(
 					"$DMUI_Settings_ClientHotkeysHelp",
 					"Bindings are owned by DearModdingUI. Changes below are saved immediately."));
-			const auto actions = Hotkeys::Snapshot();
+			const auto& actions = g_hotkeys.Get(Hotkeys::Revision(), &Hotkeys::Snapshot);
 			if (actions.empty())
 			{
 				ImGui::TextDisabled(

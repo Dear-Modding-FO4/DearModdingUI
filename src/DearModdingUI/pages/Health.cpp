@@ -225,7 +225,7 @@ namespace DearModdingUI
 		std::vector<HealthClientSection> sections;
 		if (!native.clients.empty() || bridged.empty())
 			sections.push_back(std::move(native));
-		const auto bridgeGlyph = FindPhosphorIconGlyphOrZero("share-network");
+		const auto bridgeGlyph = FindPhosphorSlugGlyphOrZero("share-network");
 		for (auto& [sourceLabel, clients] : bridged)
 		{
 			sections.push_back({

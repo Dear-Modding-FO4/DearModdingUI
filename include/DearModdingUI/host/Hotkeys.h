@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/API.h>
 #include <Support/KeyCatalog.h>
+#include <Support/Revision.h>
 
 #include <array>
 #include <cstdint>
@@ -179,6 +180,8 @@ namespace DearModdingUI
 			bool a_repeat) noexcept;
 		void DispatchQueued() noexcept;
 		[[nodiscard]] std::vector<HotkeyActionSnapshot> Snapshot() const noexcept;
+		// Advances whenever Snapshot() may change.
+		[[nodiscard]] uint64_t Revision() const noexcept;
 		[[nodiscard]] std::map<std::string, std::string> Overrides(
 			HotkeySlot a_slot = HotkeySlot::kKeyboardMouse) const noexcept;
 
@@ -237,6 +240,7 @@ namespace DearModdingUI
 			DMUI_HotkeyActionHandle a_action) const noexcept;
 
 		mutable std::mutex m_mutex;
+		Addictol::Support::Revision m_revision;
 		std::vector<Action> m_actions;
 		std::array<std::map<std::string, std::string>, 2> m_overrides;
 		std::array<Event, kHotkeyEventQueueCapacity> m_events{};
@@ -294,6 +298,7 @@ namespace DearModdingUI
 			bool a_repeat) noexcept;
 		void DispatchQueued() noexcept;
 		[[nodiscard]] std::vector<HotkeyActionSnapshot> Snapshot() noexcept;
+		[[nodiscard]] uint64_t Revision() noexcept;
 		[[nodiscard]] std::map<std::string, std::string> Overrides(
 			HotkeySlot a_slot = HotkeySlot::kKeyboardMouse) noexcept;
 		[[nodiscard]] DMUI_Result SetOverride(

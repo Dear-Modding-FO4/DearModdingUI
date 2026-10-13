@@ -5,6 +5,7 @@
 #include <DearModdingUI/presentation/TypographyHealth.h>
 #include <DearModdingUI/localization/Localization.h>
 #include <Platform/fonts/SystemFonts.h>
+#include <Support/Revision.h>
 #include <Support/Runtime.h>
 #include <Support/SubsystemHealth.h>
 
@@ -18,6 +19,7 @@
 #include <cmath>
 #include <exception>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -94,6 +96,15 @@ namespace DearModdingUI::Theme
 		std::vector<std::string> g_fontFamilyNames;
 		std::string g_fontRequestFamily;
 		std::string g_effectiveBodyFontFamily;
+
+		struct AppliedStyle
+		{
+			uint64_t settingsRevision{};
+			float bodySize{};
+			// Mid-frame pops restore stale values, so the next frame edge reapplies.
+			bool atFrameEdge{};
+		};
+		std::optional<AppliedStyle> g_appliedStyle;
 
 		[[nodiscard]] RoleFont& Role(FontRole a_role) noexcept
 		{
@@ -393,9 +404,19 @@ namespace DearModdingUI::Theme
 
 	void ApplyStyle() noexcept
 	{
+		const auto settingsRevision = HostSettings::Revision();
+		const auto bodySize = FontSize(FontRole::kBody);
+		const auto* context = ImGui::GetCurrentContext();
+		const auto withinFrame = context && context->WithinFrameScope;
+		if (g_appliedStyle &&
+			g_appliedStyle->settingsRevision == settingsRevision &&
+			g_appliedStyle->bodySize == bodySize &&
+			(withinFrame || g_appliedStyle->atFrameEdge))
+			return;
+		g_appliedStyle = { settingsRevision, bodySize, !withinFrame };
+
 		const auto baseStyle = MakeBaseStyle();
 		auto style = baseStyle;
-		const auto bodySize = FontSize(FontRole::kBody);
 		const auto scaleFactor = ResolveStyleScale(bodySize);
 		style.ScaleAllSizes(scaleFactor);
 		const LayoutStyle layoutDefaults;
@@ -421,8 +442,7 @@ namespace DearModdingUI::Theme
 		style.HoverDelayNormal = kTooltipHoverDelay;
 		style.FontScaleMain = std::exp2(kDefaultGlobalScale);
 		// Mid-frame the live value tracks the pushed font; rebase at frame edges.
-		const auto* context = ImGui::GetCurrentContext();
-		style.FontSizeBase = context && context->WithinFrameScope ?
+		style.FontSizeBase = withinFrame ?
 			ImGui::GetStyle().FontSizeBase :
 			bodySize;
 
@@ -455,13 +475,14 @@ namespace DearModdingUI::Theme
 		ResolveRoleSizes(static_cast<uint32_t>(kDefaultScreenHeight), settings.uiScale);
 		const auto loaded = RebuildFonts(io, settings.bodyFontFamily);
 		g_fontRequestFamily = settings.bodyFontFamily;
+		g_appliedStyle.reset();
 		ApplyStyle();
 		PublishTypographyOutcome(loaded);
 	}
 
 	bool PrepareFrame(uint32_t a_backBufferHeight) noexcept
 	{
-		const auto settings = HostSettings::Current();
+		const auto& settings = HostSettings::Current();
 		const auto familyChanged = settings.bodyFontFamily != g_fontRequestFamily;
 		const auto sizeChanged = a_backBufferHeight != g_roleBackBufferHeight ||
 			settings.uiScale != g_roleUserScale;
@@ -542,7 +563,10 @@ namespace DearModdingUI::Theme
 
 	DMUI_ThemeColors ColorSnapshot() noexcept
 	{
-		return MakeColorSnapshot(colors::Accent());
+		thread_local Addictol::Support::Derived<uint64_t, DMUI_ThemeColors> cache;
+		return cache.Get(HostSettings::Revision(), []() noexcept {
+			return MakeColorSnapshot(colors::Accent());
+		});
 	}
 
 	const std::vector<std::string>& AvailableBodyFontFamilies() noexcept

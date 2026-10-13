@@ -457,7 +457,10 @@ namespace DearModdingUI
 	namespace HostSettings
 	{
 		void Initialize() noexcept;
-		[[nodiscard]] HostInterfaceSettings Current() noexcept;
+		// Advances whenever Current() or EffectivePreview() may change.
+		[[nodiscard]] uint64_t Revision() noexcept;
+		// Valid on the calling thread until its next call.
+		[[nodiscard]] const HostInterfaceSettings& Current() noexcept;
 		[[nodiscard]] HostInterfacePreviewSettings EffectivePreview() noexcept;
 		[[nodiscard]] bool Apply(HostInterfaceSettings a_settings) noexcept;
 		[[nodiscard]] bool SetSidebarLayout(SidebarLayoutKind a_layout) noexcept;

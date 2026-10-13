@@ -198,6 +198,18 @@ namespace DearModdingUI
 			a_client.id + "/" + a_page.id;
 	}
 
+	std::string NavigationCategoryKey(
+		std::string_view a_clientId,
+		std::string_view a_categoryId)
+	{
+		std::string key;
+		key.reserve(a_clientId.size() + a_categoryId.size() + 1);
+		key.append(a_clientId);
+		key.push_back('/');
+		key.append(a_categoryId);
+		return key;
+	}
+
 	NavigationModel BuildNavigationModel(
 		const std::vector<RegisteredClient>& a_clients,
 		const std::vector<RegisteredCategory>& a_categories,
@@ -333,6 +345,12 @@ namespace DearModdingUI
 				if (!category->iconMetadata.empty())
 					categoryLabels.push_back(category->iconMetadata);
 				navigationClient.categories.push_back(std::move(navigationCategory));
+			}
+			for (auto& category : navigationClient.categories)
+			{
+				category.key = NavigationCategoryKey(navigationClient.id, category.id);
+				for (auto& page : category.pages)
+					page.rowLabel = PageRowLabel(navigationClient, page);
 			}
 			const std::array primary{ std::string_view{ client->iconMetadata } };
 			navigationClient.iconSelection = IconResolver::Resolve({
