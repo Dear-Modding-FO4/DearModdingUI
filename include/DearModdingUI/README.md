@@ -50,7 +50,8 @@ their reference-counted frame demand is nonzero. Balance every successful `reque
 `releaseFrame`. Settings pages reject frame demand. The common toggle controls modal visibility and
 game-input suppression; overlay demand alone never suppresses input. A focused managed overlay
 (`requestOverlayFocus`, ABI 2.1) takes keyboard and mouse input and suppresses game input with the
-shell closed, until it is released, loses its demand, or the shell opens.
+shell closed, until it is released, loses its demand, or the shell opens. Clicks and wheel input on no
+DMUI window skip ImGui and reach that page through `getPointerState` (ABI 2.2).
 
 ## Shared menu
 

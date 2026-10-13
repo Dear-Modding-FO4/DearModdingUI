@@ -9,6 +9,7 @@
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/host/MenuDismissal.h>
+#include <DearModdingUI/host/PointerRouting.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <Platform/input/GameInput.h>
@@ -39,6 +40,22 @@ namespace Addictol::platformImguiDetail
 		static_assert(kSysKeyUpMessage == WM_SYSKEYUP);
 		static_assert(kEscapeVirtualKey == VK_ESCAPE);
 		static_assert(kWindowNcDestroyMessage == WM_NCDESTROY);
+		static_assert(kLeftButtonDownMessage == WM_LBUTTONDOWN);
+		static_assert(kLeftButtonUpMessage == WM_LBUTTONUP);
+		static_assert(kLeftButtonDoubleClickMessage == WM_LBUTTONDBLCLK);
+		static_assert(kRightButtonDownMessage == WM_RBUTTONDOWN);
+		static_assert(kRightButtonUpMessage == WM_RBUTTONUP);
+		static_assert(kRightButtonDoubleClickMessage == WM_RBUTTONDBLCLK);
+		static_assert(kMiddleButtonDownMessage == WM_MBUTTONDOWN);
+		static_assert(kMiddleButtonUpMessage == WM_MBUTTONUP);
+		static_assert(kMiddleButtonDoubleClickMessage == WM_MBUTTONDBLCLK);
+		static_assert(kMouseWheelMessage == WM_MOUSEWHEEL);
+		static_assert(kExtraButtonDownMessage == WM_XBUTTONDOWN);
+		static_assert(kExtraButtonUpMessage == WM_XBUTTONUP);
+		static_assert(kExtraButtonDoubleClickMessage == WM_XBUTTONDBLCLK);
+		static_assert(kMouseHorizontalWheelMessage == WM_MOUSEHWHEEL);
+		static_assert(kCaptureChangedMessage == WM_CAPTURECHANGED);
+		static_assert(kExtraButton2 == XBUTTON2 && kWheelDelta == WHEEL_DELTA);
 
 		struct WindowHookRecord
 		{
@@ -54,9 +71,7 @@ namespace Addictol::platformImguiDetail
 		[[nodiscard]] DearModdingUI::HotkeyMessageResult HandleHotkey(
 			uint32_t a_keyCode, uint32_t a_modifiers, bool a_pressed, bool a_repeat) noexcept
 		{
-			const auto* ui = RE::UI::GetSingleton();
-			DearModdingUI::Hotkeys::SetContext(
-				DearModdingUI::CurrentHotkeyContext(ui && ui->menuMode == 0));
+			RefreshHotkeyContext();
 			const auto result = DearModdingUI::Hotkeys::HandleKey(
 				a_keyCode, a_modifiers, a_pressed, a_repeat);
 			if (result == DearModdingUI::HotkeyMessageResult::kMenuToggle &&
@@ -248,12 +263,7 @@ namespace Addictol::platformImguiDetail
 			uint32_t modifiers{ 0 };
 			if (keyPressed || keyReleased)
 			{
-				if ((GetKeyState(VK_SHIFT) & 0x8000) != 0)
-					modifiers |= DearModdingUI::kHotkeyModifierShift;
-				if ((GetKeyState(VK_CONTROL) & 0x8000) != 0)
-					modifiers |= DearModdingUI::kHotkeyModifierControl;
-				if ((GetKeyState(VK_MENU) & 0x8000) != 0)
-					modifiers |= DearModdingUI::kHotkeyModifierAlt;
+				modifiers = HeldModifiers(&GetKeyState);
 			}
 			const auto escapeDecision = DecideEscapeMessage(
 				a_message,
@@ -451,6 +461,29 @@ namespace Addictol::platformImguiDetail
 		return true;
 	}
 
+	uint32_t HeldModifiers(SHORT (WINAPI* a_keyState)(int)) noexcept
+	{
+		uint32_t modifiers{};
+		if ((a_keyState(VK_SHIFT) & 0x8000) != 0)
+			modifiers |= DearModdingUI::kHotkeyModifierShift;
+		if ((a_keyState(VK_CONTROL) & 0x8000) != 0)
+			modifiers |= DearModdingUI::kHotkeyModifierControl;
+		if ((a_keyState(VK_MENU) & 0x8000) != 0)
+			modifiers |= DearModdingUI::kHotkeyModifierAlt;
+		return modifiers;
+	}
+
+	DearModdingUI::HotkeyContextState CurrentHotkeyContextState() noexcept
+	{
+		const auto* ui = RE::UI::GetSingleton();
+		return DearModdingUI::CurrentHotkeyContext(ui && ui->menuMode == 0);
+	}
+
+	void RefreshHotkeyContext() noexcept
+	{
+		DearModdingUI::Hotkeys::SetContext(CurrentHotkeyContextState());
+	}
+
 	void SetModalInputStateLocked(bool a_visible) noexcept
 	{
 		auto& context = Context();
@@ -470,6 +503,10 @@ namespace Addictol::platformImguiDetail
 			DearModdingUI::ControllerNavigation::Reset();
 		io.ClearInputKeys();
 		io.ClearInputMouse();
+		if (DearModdingUI::PointerRouting::HoldsButtons() &&
+			GetCapture() == context.activeWindow.load(std::memory_order_acquire))
+			ReleaseCapture();
+		DearModdingUI::PointerRouting::Reset();
 	}
 
 	void ApplyDrawingRequestLocked(bool a_enabled) noexcept
@@ -515,12 +552,11 @@ namespace Addictol::PlatformImgui
 			DearModdingUI::HotkeyMessageResult result;
 			{
 				const platformImguiDetail::ContextLock lock;
-				const auto* ui = RE::UI::GetSingleton();
 				result = DearModdingUI::ControllerNavigation::RouteButton(
 					a_keyCode, a_pressed, a_repeat,
 					a_keyCode >= DearModdingUI::KeyCatalog::kPadLT ?
 						DearModdingUI::ControllerNavigation::AnalogValue(a_value) : a_value,
-					DearModdingUI::CurrentHotkeyContext(ui && ui->menuMode == 0));
+					platformImguiDetail::CurrentHotkeyContextState());
 			}
 			// Toggle callbacks reacquire the platform lock.
 			if (result == DearModdingUI::HotkeyMessageResult::kMenuToggle &&
@@ -530,13 +566,8 @@ namespace Addictol::PlatformImgui
 			return result != DearModdingUI::HotkeyMessageResult::kPassThrough ||
 				DearModdingUI::Hotkeys::OwnsKey(a_keyCode);
 		}
-		uint32_t modifiers = 0;
-		if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
-			modifiers |= DearModdingUI::kHotkeyModifierShift;
-		if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0)
-			modifiers |= DearModdingUI::kHotkeyModifierControl;
-		if ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0)
-			modifiers |= DearModdingUI::kHotkeyModifierAlt;
+		// Engine events trail their window messages, so read the live state.
+		const auto modifiers = platformImguiDetail::HeldModifiers(&GetAsyncKeyState);
 		auto consumed = platformImguiDetail::HandleHotkey(a_keyCode, modifiers, a_pressed, a_repeat) !=
 			DearModdingUI::HotkeyMessageResult::kPassThrough;
 		if (a_pulse && a_pressed)

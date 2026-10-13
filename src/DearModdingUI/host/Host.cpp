@@ -354,6 +354,11 @@ namespace DearModdingUI
 			HostInputMode::kGameplay;
 	}
 
+	DMUI_PageHandle PointerOwnerPage() noexcept
+	{
+		return IsMenuVisible() ? DMUI_INVALID_PAGE_HANDLE : GetService().overlayFocus.Holder();
+	}
+
 	HotkeyContextState CurrentHotkeyContext(bool a_gameplaySafe) noexcept
 	{
 		return { CurrentInputMode(), PresentationServices::HasActiveDialog(), a_gameplaySafe };

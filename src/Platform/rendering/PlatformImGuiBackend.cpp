@@ -7,7 +7,9 @@
 #include <Platform/input/CarrierMenu.h>
 #include <Platform/input/CursorLoader.h>
 #include <DearModdingUI/host/Host.h>
+#include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
+#include <DearModdingUI/host/PointerRouting.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <Platform/rendering/D3D11State.h>
@@ -367,28 +369,104 @@ namespace Addictol::platformImguiDetail
 			DearModdingUI::CursorLoader::ApplyNativePosition(position.x, position.y);
 		}
 
+		static_assert(
+			DMUI_POINTER_BUTTON_LEFT == 1u &&
+			DMUI_POINTER_BUTTON_RIGHT == 2u &&
+			DMUI_POINTER_BUTTON_MIDDLE == 4u &&
+			DMUI_POINTER_BUTTON_X1 == 8u &&
+			DMUI_POINTER_BUTTON_X2 == 16u);
+
+		[[nodiscard]] MousePosition MapClientPointToBackBufferLocked(
+			HWND a_window,
+			MousePosition a_position) noexcept
+		{
+			const auto client = ReadClientSize(a_window);
+			return MapClientToBackBuffer(
+				a_position,
+				client.width,
+				client.height,
+				s_backendState.backBufferIdentity.width,
+				s_backendState.backBufferIdentity.height);
+		}
+
 		[[nodiscard]] LPARAM MapMouseMoveToBackBufferLocked(
 			HWND a_window,
 			LPARAM a_lparam) noexcept
 		{
-			const auto client = ReadClientSize(a_window);
 			const MousePosition position{
 				static_cast<float>(
 					static_cast<int16_t>(LOWORD(a_lparam))),
 				static_cast<float>(
 					static_cast<int16_t>(HIWORD(a_lparam)))
 			};
-			const auto mapped = MapClientToBackBuffer(
-				position,
-				client.width,
-				client.height,
-				s_backendState.backBufferIdentity.width,
-				s_backendState.backBufferIdentity.height);
+			const auto mapped = MapClientPointToBackBufferLocked(a_window, position);
 			if (mapped.x == position.x && mapped.y == position.y)
 				return a_lparam;
 			return MAKELPARAM(
 				static_cast<int16_t>(mapped.x),
 				static_cast<int16_t>(mapped.y));
+		}
+
+		// Button lparams are client pixels, wheel lparams are screen pixels.
+		[[nodiscard]] DMUI_Vec2 MessagePointerPositionLocked(
+			HWND a_window,
+			const PointerMessage& a_message,
+			LPARAM a_lparam) noexcept
+		{
+			POINT point{ static_cast<int16_t>(LOWORD(a_lparam)), static_cast<int16_t>(HIWORD(a_lparam)) };
+			if (a_message.kind == PointerMessageKind::kWheel)
+				ScreenToClient(a_window, std::addressof(point));
+			const auto mapped = MapClientPointToBackBufferLocked(
+				a_window, { static_cast<float>(point.x), static_cast<float>(point.y) });
+			return { mapped.x, mapped.y };
+		}
+
+		static_assert(
+			DMUI_POINTER_BUTTON_LEFT == 1u &&
+			DMUI_POINTER_BUTTON_RIGHT == 2u &&
+			DMUI_POINTER_BUTTON_MIDDLE == 4u &&
+			DMUI_POINTER_BUTTON_X1 == 8u &&
+			DMUI_POINTER_BUTTON_X2 == 16u);
+
+		// Hotkeys act on mouse input through the engine queue, so claim it here.
+		[[nodiscard]] bool HotkeyWouldTake(const PointerMessage& a_message) noexcept
+		{
+			const auto key = PointerKeyCode(a_message);
+			if (!key)
+				return false;
+			RefreshHotkeyContext();
+			return DearModdingUI::Hotkeys::WouldActOn(key, HeldModifiers(&GetKeyState));
+		}
+
+		// Without an owner page nothing is diverted.
+		[[nodiscard]] DearModdingUI::PointerRouting::Verdict RoutePointerMessageLocked(
+			HWND a_window,
+			const PointerMessage& a_message,
+			LPARAM a_lparam) noexcept
+		{
+			using namespace DearModdingUI::PointerRouting;
+			const auto owner = DearModdingUI::PointerOwnerPage();
+			const auto button = 1u << a_message.button;
+			if (a_message.kind == PointerMessageKind::kRelease)
+				return RouteRelease(owner, button);
+			if (a_message.kind == PointerMessageKind::kNone)
+				return Verdict::kForward;
+			const auto position = MessagePointerPositionLocked(a_window, a_message, a_lparam);
+			const auto excluded =
+				owner != DMUI_INVALID_PAGE_HANDLE && HotkeyWouldTake(a_message);
+			return a_message.kind == PointerMessageKind::kPress ?
+				RoutePress(owner, button, position, excluded) :
+				RouteWheel(owner, { a_message.wheelX, a_message.wheelY }, position, excluded);
+		}
+
+		// Mirrors the ImGui backend so a diverted drag's release still arrives off-window.
+		void FollowDivertedCaptureLocked(HWND a_window, PointerMessageKind a_kind) noexcept
+		{
+			if (a_kind == PointerMessageKind::kPress && GetCapture() == nullptr)
+				SetCapture(a_window);
+			else if (a_kind == PointerMessageKind::kRelease &&
+				!DearModdingUI::PointerRouting::HoldsButtons() && GetCapture() == a_window)
+				ReleaseCapture();
 		}
 
 		struct PipelineState
@@ -472,6 +550,7 @@ namespace Addictol::platformImguiDetail
 			DearModdingUI::ImGuiWin32Integration::NewFrameWithoutGamepad();
 			io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
 			ApplyBackBufferCoordinateSpaceLocked(a_nativePosition);
+			DearModdingUI::PointerRouting::BeginFrame(DearModdingUI::PointerOwnerPage());
 			DearModdingUI::ControllerNavigation::PrepareFrame(DearModdingUI::CurrentInputMode());
 			if (a_nativePosition)
 				ApplyCursorWarpLocked();
@@ -657,12 +736,24 @@ namespace Addictol::platformImguiDetail
 		const auto backendLparam = a_message == WM_MOUSEMOVE ?
 			MapMouseMoveToBackBufferLocked(a_window, a_lparam) :
 			a_lparam;
-		result.result = ImGui_ImplWin32_WndProcHandlerEx(
-			a_window,
-			a_message,
-			a_wparam,
-			backendLparam,
-			io);
+		const auto pointer = ClassifyPointerMessage(a_message, a_wparam);
+		if (a_message == kCaptureChangedMessage &&
+			reinterpret_cast<HWND>(a_lparam) != a_window)
+			DearModdingUI::PointerRouting::LoseCapture();
+		// ImGui would drop focus and active widgets on a world click.
+		const auto diverted =
+			RoutePointerMessageLocked(a_window, pointer, a_lparam) ==
+			DearModdingUI::PointerRouting::Verdict::kDivert;
+		if (diverted)
+			FollowDivertedCaptureLocked(a_window, pointer.kind);
+		result.result = diverted ?
+			0 :
+			ImGui_ImplWin32_WndProcHandlerEx(
+				a_window,
+				a_message,
+				a_wparam,
+				backendLparam,
+				io);
 		result.swallow = a_escapeConsumed ||
 			SwallowsGameWindowMessage(
 				a_message,

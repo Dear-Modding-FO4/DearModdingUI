@@ -416,6 +416,52 @@ namespace DearModdingUI
 		return a_keyCode < m_activeKeys.size() && m_activeKeys[a_keyCode].IsOwned();
 	}
 
+	bool HotkeyRegistry::ChordMatchesLocked(
+		HotkeyChord a_chord, uint32_t a_keyCode, uint32_t a_modifiers) const noexcept
+	{
+		return !a_chord.IsNone() && a_chord.modifiers == a_modifiers &&
+			std::ranges::find(a_chord.keys, a_keyCode) != a_chord.keys.end() &&
+			std::ranges::all_of(a_chord.keys, [&](auto a_key) {
+				return !a_key || a_key == a_keyCode || m_heldKeys[a_key];
+			});
+	}
+
+	bool HotkeyRegistry::ActionActsLocked(
+		const Action& a_action, size_t a_slot, uint32_t a_keyCode, uint32_t a_modifiers) const noexcept
+	{
+		const auto contextAllowed =
+			a_action.contextPolicy == DMUI_HOTKEY_CONTEXT_ALWAYS ||
+			(a_action.contextPolicy == DMUI_HOTKEY_CONTEXT_HOST_INPUT_INACTIVE &&
+				m_context.inputMode == HostInputMode::kGameplay &&
+				!m_context.dialogVisible) ||
+			(a_action.contextPolicy == DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED &&
+				m_context.inputMode == HostInputMode::kGameplay &&
+				!m_context.dialogVisible &&
+				m_context.gameplaySafe);
+		return a_action.live &&
+			a_action.enabled &&
+			contextAllowed &&
+			!a_action.callbackFailed &&
+			a_action.bindings[a_slot].state == DMUI_HOTKEY_BINDING_BOUND &&
+			ChordMatchesLocked(a_action.bindings[a_slot].effective, a_keyCode, a_modifiers);
+	}
+
+	bool HotkeyRegistry::WouldActOn(uint32_t a_keyCode, uint32_t a_modifiers) const noexcept
+	{
+		if (a_keyCode >= m_activeKeys.size())
+			return false;
+		const std::scoped_lock lock{ m_mutex };
+		if (m_activeKeys[a_keyCode].IsOwned() || m_capturing)
+			return true;
+		const auto slot = HotkeySlotForKey(a_keyCode);
+		const auto index = static_cast<size_t>(slot);
+		if (ChordMatchesLocked(m_reservedChords[index], a_keyCode, a_modifiers))
+			return true;
+		return std::ranges::any_of(m_actions, [&](const auto& a_action) {
+			return ActionActsLocked(a_action, index, a_keyCode, a_modifiers);
+		});
+	}
+
 	bool HotkeyRegistry::ToggleChordHeldLocked() const noexcept
 	{
 		return std::ranges::any_of(m_heldToggleChords, [](const auto& a_chord) {
@@ -587,11 +633,7 @@ namespace DearModdingUI
 			return HotkeyMessageResult::kConsumed;
 		}
 		const auto matches = [&](HotkeyChord a_chord) {
-			return !a_chord.IsNone() && a_chord.modifiers == a_modifiers &&
-				std::ranges::find(a_chord.keys, a_keyCode) != a_chord.keys.end() &&
-				std::ranges::all_of(a_chord.keys, [&](auto a_key) {
-					return !a_key || m_heldKeys[a_key];
-				});
+			return ChordMatchesLocked(a_chord, a_keyCode, a_modifiers);
 		};
 		const auto hasActivation = [&](DMUI_HotkeyActionHandle a_action, bool a_toggle) {
 			return std::ranges::any_of(m_activeKeys, [&](const auto& a_active) {
@@ -609,21 +651,7 @@ namespace DearModdingUI
 			return HotkeyMessageResult::kMenuToggle;
 		}
 		const auto found = std::ranges::find_if(m_actions, [&](const auto& a_action) {
-			const auto contextAllowed =
-				a_action.contextPolicy == DMUI_HOTKEY_CONTEXT_ALWAYS ||
-				(a_action.contextPolicy == DMUI_HOTKEY_CONTEXT_HOST_INPUT_INACTIVE &&
-					m_context.inputMode == HostInputMode::kGameplay &&
-					!m_context.dialogVisible) ||
-				(a_action.contextPolicy == DMUI_HOTKEY_CONTEXT_GAMEPLAY_UNOBSTRUCTED &&
-					m_context.inputMode == HostInputMode::kGameplay &&
-					!m_context.dialogVisible &&
-					m_context.gameplaySafe);
-			return a_action.live &&
-				a_action.enabled &&
-				contextAllowed &&
-				!a_action.callbackFailed &&
-				a_action.bindings[index].state == DMUI_HOTKEY_BINDING_BOUND &&
-				matches(a_action.bindings[index].effective) &&
+			return ActionActsLocked(a_action, index, a_keyCode, a_modifiers) &&
 				!hasActivation(a_action.handle, false);
 		});
 		if (found == m_actions.end())
@@ -862,6 +890,11 @@ namespace DearModdingUI
 		void Claim(uint32_t a_keyCode) noexcept
 		{
 			RegistryInstance().Claim(a_keyCode);
+		}
+
+		bool WouldActOn(uint32_t a_keyCode, uint32_t a_modifiers) noexcept
+		{
+			return RegistryInstance().WouldActOn(a_keyCode, a_modifiers);
 		}
 
 		bool OwnsKey(uint32_t a_keyCode) noexcept

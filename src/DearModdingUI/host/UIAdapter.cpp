@@ -1,4 +1,5 @@
 #include "UIAdapterInternal.h"
+#include <DearModdingUI/host/PointerRouting.h>
 #include <DearModdingUI/host/RenderExecution.h>
 #include <DearModdingUI/host/UIAdapter.h>
 #include <DearModdingUI/UIBindings.generated.h>
@@ -270,6 +271,32 @@ namespace DearModdingUI::UI
 			if (validation != DMUI_RESULT_OK)
 				return validation;
 			*a_colors = Theme::ColorSnapshot();
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL GetPointerState(
+			DMUI_ClientHandle a_client,
+			DMUI_PointerState* a_state) noexcept
+		{
+			if (!a_state)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_state = {};
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			const auto frame = PointerRouting::FrameFor(RenderExecution::ActivePage());
+			if (!frame)
+				return DMUI_RESULT_OK;
+
+			const auto& io = ImGui::GetIO();
+			a_state->active = 1u;
+			a_state->captured = io.WantCaptureMouse ? 1u : 0u;
+			a_state->position = Stable(io.MousePos);
+			a_state->viewport = Stable(io.DisplaySize);
+			a_state->wheel = frame->wheel;
+			a_state->down = frame->down;
+			a_state->pressed = frame->pressed;
+			a_state->released = frame->released;
 			return DMUI_RESULT_OK;
 		}
 

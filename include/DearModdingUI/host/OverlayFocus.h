@@ -51,6 +51,7 @@ namespace DearModdingUI
 		void EndPage(DMUI_PageHandle a_page, DMUI_OverlayFocusEndReason a_reason) noexcept;
 		[[nodiscard]] DMUI_OverlayFocusInfo Query(DMUI_PageHandle a_page) const noexcept;
 		[[nodiscard]] bool IsActive() const noexcept;
+		[[nodiscard]] DMUI_PageHandle Holder() const noexcept;
 		// Render thread: kGranted is reported once per grant so the overlay takes window focus.
 		[[nodiscard]] OverlayPageFocus Observe(DMUI_PageHandle a_page) noexcept;
 

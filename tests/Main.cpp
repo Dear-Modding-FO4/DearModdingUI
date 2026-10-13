@@ -17,6 +17,7 @@ int main()
 	run_icon_resolution_checks(runner);
 	run_settings_table_checks(runner);
 	run_hotkey_checks(runner);
+	run_pointer_routing_checks(runner);
 	run_presentation_service_checks(runner);
 	run_mcm_checks(runner);
 	run_mcm_availability_checks(runner);

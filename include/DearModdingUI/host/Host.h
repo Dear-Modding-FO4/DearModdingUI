@@ -37,6 +37,8 @@ namespace DearModdingUI
 	[[nodiscard]] bool HasSettingsPages() noexcept;
 	[[nodiscard]] bool IsMenuVisible() noexcept;
 	[[nodiscard]] HostInputMode CurrentInputMode() noexcept;
+	// Overlay focus owns world pointer input unless the shell is open.
+	[[nodiscard]] DMUI_PageHandle PointerOwnerPage() noexcept;
 	[[nodiscard]] HotkeyContextState CurrentHotkeyContext(bool a_gameplaySafe) noexcept;
 	void EndOverlayFocus(DMUI_OverlayFocusEndReason a_reason) noexcept;
 	[[nodiscard]] DMUI_Result SetMenuVisible(bool a_visible) noexcept;

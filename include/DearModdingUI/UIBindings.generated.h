@@ -1282,6 +1282,9 @@ namespace DearModdingUI::UI::Bindings
 		DMUI_Vec2 a_position,
 		DMUI_Vec2 a_pivot,
 		uint32_t* a_visible) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL GetPointerState(
+		DMUI_ClientHandle a_client,
+		DMUI_PointerState* a_state) noexcept;
 
 	[[nodiscard]] inline DMUI_UIAPI MakeAPI() noexcept
 	{
@@ -1384,7 +1387,8 @@ namespace DearModdingUI::UI::Bindings
 			&BeginPanel,
 			&EndPanel,
 			&InputTextEditor,
-			&BeginTooltipAt
+			&BeginTooltipAt,
+			&GetPointerState
 		};
 	}
 }

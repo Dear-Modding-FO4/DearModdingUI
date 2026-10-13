@@ -73,6 +73,7 @@ namespace vmm_tests
 	void run_icon_resolution_checks(Runner& runner);
 	void run_settings_table_checks(Runner& runner);
 	void run_hotkey_checks(Runner& runner);
+	void run_pointer_routing_checks(Runner& runner);
 	void run_presentation_service_checks(Runner& runner);
 	void run_mcm_checks(Runner& runner);
 	void run_mcm_availability_checks(Runner& runner);

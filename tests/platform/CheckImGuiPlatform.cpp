@@ -36,6 +36,25 @@ namespace vmm_tests
 					MouseKeyCode(kMouseButtonCount) == 0 && MouseKeyCode(0x1000) == 0,
 				"wheel or unknown mouse id mapped incorrectly");
 		});
+		runner.test("pointer messages classify buttons, double clicks, and wheel notches", [] {
+			const auto x2Down = ClassifyPointerMessage(0x020B, uint64_t{ 2 } << 16);
+			require(x2Down.kind == PointerMessageKind::kPress && x2Down.button == 4 &&
+					ClassifyPointerMessage(0x020C, uint64_t{ 1 } << 16).button == 3,
+				"extended buttons mapped to the wrong index");
+			require(ClassifyPointerMessage(0x0203, 0).kind == PointerMessageKind::kPress &&
+					ClassifyPointerMessage(0x0205, 0).kind == PointerMessageKind::kRelease &&
+					ClassifyPointerMessage(0x0200, 0).kind == PointerMessageKind::kNone,
+				"double click or movement misclassified");
+			const auto down = ClassifyPointerMessage(0x020A, uint64_t{ 0xFF88 } << 16);
+			require(down.kind == PointerMessageKind::kWheel && down.wheelY == -1.0f &&
+					ClassifyPointerMessage(0x020E, uint64_t{ 120 } << 16).wheelX == 1.0f,
+				"wheel delta sign or scale drifted");
+			require(PointerKeyCode(down) == DearModdingUI::KeyCatalog::kMouseWheelOffset + 1 &&
+					PointerKeyCode(ClassifyPointerMessage(0x020A, uint64_t{ 120 } << 16)) ==
+						DearModdingUI::KeyCatalog::kMouseWheelOffset &&
+					PointerKeyCode(x2Down) == DearModdingUI::KeyCatalog::kMouseButtonOffset + 4,
+				"pointer messages mapped to the wrong hotkey keys");
+		});
 		run_gamepad_input_checks(runner);
 		runner.test("native cursor and Present share one submission per active frame", [] {
 			FrameSubmission frame;

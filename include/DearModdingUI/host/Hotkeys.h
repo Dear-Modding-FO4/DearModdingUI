@@ -163,6 +163,8 @@ namespace DearModdingUI
 		[[nodiscard]] bool IsToggleChordHeld() const noexcept;
 		void Claim(uint32_t a_keyCode) noexcept;
 		[[nodiscard]] bool OwnsKey(uint32_t a_keyCode) const noexcept;
+		// True when a press now would be claimed, captured, or fire a hotkey.
+		[[nodiscard]] bool WouldActOn(uint32_t a_keyCode, uint32_t a_modifiers) const noexcept;
 		void BeginCapture(HotkeySlot a_slot = HotkeySlot::kKeyboardMouse) noexcept;
 		[[nodiscard]] bool CancelCapture() noexcept;
 		[[nodiscard]] std::optional<HotkeyChord> TakeCapture() noexcept;
@@ -235,6 +237,10 @@ namespace DearModdingUI
 		void RecomputeBindingsLocked() noexcept;
 		void ReleaseKeyLocked(ActiveKey& a_active) noexcept;
 		[[nodiscard]] bool ToggleChordHeldLocked() const noexcept;
+		[[nodiscard]] bool ChordMatchesLocked(
+			HotkeyChord a_chord, uint32_t a_keyCode, uint32_t a_modifiers) const noexcept;
+		[[nodiscard]] bool ActionActsLocked(
+			const Action& a_action, size_t a_slot, uint32_t a_keyCode, uint32_t a_modifiers) const noexcept;
 		[[nodiscard]] Action* FindActionLocked(DMUI_HotkeyActionHandle a_action) noexcept;
 		[[nodiscard]] const Action* FindActionLocked(
 			DMUI_HotkeyActionHandle a_action) const noexcept;
@@ -287,6 +293,7 @@ namespace DearModdingUI
 		[[nodiscard]] bool IsToggleChordHeld() noexcept;
 		void Claim(uint32_t a_keyCode) noexcept;
 		[[nodiscard]] bool OwnsKey(uint32_t a_keyCode) noexcept;
+		[[nodiscard]] bool WouldActOn(uint32_t a_keyCode, uint32_t a_modifiers) noexcept;
 		void BeginCapture(HotkeySlot a_slot = HotkeySlot::kKeyboardMouse) noexcept;
 		[[nodiscard]] bool CancelCapture() noexcept;
 		[[nodiscard]] std::optional<HotkeyChord> TakeCapture() noexcept;

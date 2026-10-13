@@ -73,6 +73,11 @@ namespace DearModdingUI
 		return m_holder.load(std::memory_order_acquire) != DMUI_INVALID_PAGE_HANDLE;
 	}
 
+	DMUI_PageHandle OverlayFocusState::Holder() const noexcept
+	{
+		return m_holder.load(std::memory_order_acquire);
+	}
+
 	OverlayPageFocus OverlayFocusState::Observe(DMUI_PageHandle a_page) noexcept
 	{
 		if (m_holder.load(std::memory_order_acquire) != a_page)

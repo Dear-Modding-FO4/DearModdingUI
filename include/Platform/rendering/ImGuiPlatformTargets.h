@@ -414,6 +414,72 @@ namespace Addictol::ImguiPlatform
 			SwallowsMessage(ClassifyMessage(a_message), a_wantCaptureMouse, a_wantCaptureKeyboard);
 	}
 
+	enum class PointerMessageKind : uint32_t
+	{
+		kNone,
+		kPress,
+		kRelease,
+		kWheel
+	};
+
+	struct PointerMessage
+	{
+		PointerMessageKind kind{ PointerMessageKind::kNone };
+		// Engine mouse button index, as MouseKeyCode takes it.
+		uint32_t button{};
+		// Notches; positive y is away from the user, positive x is right.
+		float wheelX{};
+		float wheelY{};
+	};
+
+	inline constexpr uint32_t kLeftButtonDownMessage = 0x0201;
+	inline constexpr uint32_t kLeftButtonUpMessage = 0x0202;
+	inline constexpr uint32_t kLeftButtonDoubleClickMessage = 0x0203;
+	inline constexpr uint32_t kRightButtonDownMessage = 0x0204;
+	inline constexpr uint32_t kRightButtonUpMessage = 0x0205;
+	inline constexpr uint32_t kRightButtonDoubleClickMessage = 0x0206;
+	inline constexpr uint32_t kMiddleButtonDownMessage = 0x0207;
+	inline constexpr uint32_t kMiddleButtonUpMessage = 0x0208;
+	inline constexpr uint32_t kMiddleButtonDoubleClickMessage = 0x0209;
+	inline constexpr uint32_t kMouseWheelMessage = 0x020A;
+	inline constexpr uint32_t kExtraButtonDownMessage = 0x020B;
+	inline constexpr uint32_t kExtraButtonUpMessage = 0x020C;
+	inline constexpr uint32_t kExtraButtonDoubleClickMessage = 0x020D;
+	inline constexpr uint32_t kMouseHorizontalWheelMessage = 0x020E;
+	inline constexpr uint32_t kCaptureChangedMessage = 0x0215;
+	inline constexpr uint32_t kExtraButton2 = 2;
+	inline constexpr uint32_t kWheelDelta = 120;
+
+	// Double clicks are presses, as the ImGui Win32 backend treats them.
+	[[nodiscard]] constexpr PointerMessage ClassifyPointerMessage(
+		uint32_t a_message,
+		uint64_t a_wparam) noexcept
+	{
+		const auto high = static_cast<uint32_t>((a_wparam >> 16) & 0xFFFFu);
+		const auto extra = high == kExtraButton2 ? 4u : 3u;
+		const auto notches = static_cast<float>(static_cast<int16_t>(high)) /
+			static_cast<float>(kWheelDelta);
+		switch (a_message)
+		{
+		case kLeftButtonDownMessage: case kLeftButtonDoubleClickMessage:
+			return { PointerMessageKind::kPress, 0 };
+		case kLeftButtonUpMessage: return { PointerMessageKind::kRelease, 0 };
+		case kRightButtonDownMessage: case kRightButtonDoubleClickMessage:
+			return { PointerMessageKind::kPress, 1 };
+		case kRightButtonUpMessage: return { PointerMessageKind::kRelease, 1 };
+		case kMiddleButtonDownMessage: case kMiddleButtonDoubleClickMessage:
+			return { PointerMessageKind::kPress, 2 };
+		case kMiddleButtonUpMessage: return { PointerMessageKind::kRelease, 2 };
+		case kExtraButtonDownMessage: case kExtraButtonDoubleClickMessage:
+			return { PointerMessageKind::kPress, extra };
+		case kExtraButtonUpMessage: return { PointerMessageKind::kRelease, extra };
+		case kMouseWheelMessage: return { PointerMessageKind::kWheel, 0, 0.0f, notches };
+		case kMouseHorizontalWheelMessage: return { PointerMessageKind::kWheel, 0, notches, 0.0f };
+		default:
+			return {};
+		}
+	}
+
 	[[nodiscard]] constexpr bool IsKeyRepeat(uint64_t a_lparam) noexcept
 	{
 		return (a_lparam & kKeyRepeatBit) != 0;
@@ -428,6 +494,16 @@ namespace Addictol::ImguiPlatform
 		if (a_idCode == 0x900)
 			return DearModdingUI::KeyCatalog::kMouseWheelOffset + 1;
 		return 0;
+	}
+
+	// The key a hotkey would bind for this message; horizontal wheel has none.
+	[[nodiscard]] constexpr uint32_t PointerKeyCode(const PointerMessage& a_message) noexcept
+	{
+		using namespace DearModdingUI::KeyCatalog;
+		if (a_message.kind != PointerMessageKind::kWheel)
+			return MouseKeyCode(a_message.button);
+		return a_message.wheelY > 0.0f ? static_cast<uint32_t>(kMouseWheelOffset) :
+			a_message.wheelY < 0.0f ? static_cast<uint32_t>(kMouseWheelOffset) + 1u : 0u;
 	}
 
 	inline constexpr uint32_t kEscapeVirtualKey = 0x1B;
