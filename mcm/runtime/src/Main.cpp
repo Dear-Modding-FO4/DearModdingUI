@@ -537,6 +537,26 @@ namespace DearModdingUI::MCM
 			}
 		}
 
+		// Load messages arrive on save-load job threads; s_mods is main-thread only.
+		void ScheduleRefresh() noexcept
+		{
+			try
+			{
+				s_scheduler.Schedule([] { RefreshValues(); });
+			}
+			catch (const std::exception& error)
+			{
+				REX::ERROR(
+					"DearModdingUI-MCM: value refresh could not be scheduled: {}"sv,
+					error.what());
+			}
+			catch (...)
+			{
+				REX::ERROR(
+					"DearModdingUI-MCM: value refresh could not be scheduled"sv);
+			}
+		}
+
 		void MessageListener(
 			F4SE::MessagingInterface::Message* a_message) noexcept
 		{
@@ -555,7 +575,7 @@ namespace DearModdingUI::MCM
 					F4SE::MessagingInterface::kGameDataReady)
 			{
 				if (a_message->data)
-					RefreshValues();
+					ScheduleRefresh();
 			}
 			else if (a_message->type ==
 						F4SE::MessagingInterface::kPostLoadGame ||
@@ -569,7 +589,7 @@ namespace DearModdingUI::MCM
 						"DearModdingUI-MCM: Papyrus runtime: ready"sv);
 				if (a_message->type == F4SE::MessagingInterface::kGameLoaded)
 					RegisterConfigsOnce();
-				RefreshValues();
+				ScheduleRefresh();
 			}
 		}
 
