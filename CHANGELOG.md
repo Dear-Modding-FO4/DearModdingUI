@@ -15,8 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **MCM bridge**: Translates MCM text through the host's translation files, named after each mod's config folder, instead of the game translator.
+- `beginField` / `FieldScope` accept an empty label and a description without a label, matching settings rows.
+- Declarative settings pages use the host search input and space groups by the theme's section gap.
 
 ### Fixed
+- Declarative settings search no longer truncates queries longer than 255 bytes.
 - Clients built with newer headers connect to older hosts of the same major; newer-minor operations report `UNSUPPORTED_ABI`.
 - Keys DMUI acts on (hotkeys, Escape, controller B) no longer reach the game or type into text fields, and held game actions release when DMUI takes input.
 

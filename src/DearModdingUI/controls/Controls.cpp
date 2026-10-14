@@ -903,7 +903,12 @@ namespace DearModdingUI
 		const auto iconSpace =
 			iconSize + Theme::kSearchInputPaddingExtra * scale;
 		const auto cursor = ImGui::GetCursorScreenPos();
-		const auto width = ImGui::GetContentRegionAvail().x;
+		// Honor a caller width like every other item; default to full width.
+		const auto hasWidth = (ImGui::GetCurrentContext()->NextItemData.HasFlags &
+								  ImGuiNextItemDataFlags_HasWidth) != 0;
+		const auto width = hasWidth ?
+			ImGui::CalcItemWidth() :
+			ImGui::GetContentRegionAvail().x;
 		const auto frameHeight = ImGui::GetFrameHeight();
 		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4());
 		ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4());

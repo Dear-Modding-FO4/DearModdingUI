@@ -608,11 +608,6 @@ namespace DearModdingUI::SettingsTable
 	{
 		if (!a_id || a_id[0] == '\0')
 			return { DMUI_RESULT_INVALID_ARGUMENT, false };
-		if (a_layout == RowLayout::kLabelValue &&
-			(!a_label || a_label[0] == '\0'))
-			return { DMUI_RESULT_INVALID_ARGUMENT, false };
-		if (a_description && (!a_label || a_label[0] == '\0'))
-			return { DMUI_RESULT_INVALID_ARGUMENT, false };
 		if (s_state.bracket.CurrentPhase() == Phase::kTable)
 		{
 			return BeginRow(

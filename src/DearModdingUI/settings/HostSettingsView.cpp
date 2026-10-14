@@ -123,17 +123,18 @@ namespace DearModdingUI
 			DrawValue&& a_drawValue,
 			ResetEnabled&& a_resetEnabled) noexcept
 		{
-			const auto result = SettingsTable::BeginRow(
+			const auto result = SettingsTable::BeginField(
 				DMUI_INVALID_CLIENT_HANDLE,
 				a_id,
 				a_label,
-				a_description);
+				a_description,
+				SettingsTable::RowLayout::kLabelValue);
 			if (result.result != DMUI_RESULT_OK || !result.visible)
 				return false;
 
 			a_drawValue();
 			bool resetPressed{};
-			const auto endResult = SettingsTable::EndRow(
+			const auto endResult = SettingsTable::EndField(
 				DMUI_INVALID_CLIENT_HANDLE,
 				{
 					a_resetVisible,

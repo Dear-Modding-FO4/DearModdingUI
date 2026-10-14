@@ -260,6 +260,38 @@ namespace vmm_tests
 				"table pool growth changed the ImGui stack");
 		});
 
+		runner.test("label-value fields accept hidden labels like rows", [] {
+			constexpr DMUI_ClientHandle owner{ 7 };
+			ImGuiTestFrame frame;
+			const auto drawField = [&](const char* a_id, const char* a_label) {
+				const auto field = SettingsTable::BeginField(
+					owner, a_id, a_label, "Description",
+					SettingsTable::RowLayout::kLabelValue);
+				require(field.result == DMUI_RESULT_OK && field.visible,
+					"hidden-label field did not begin");
+				bool value{};
+				(void)ImGui::Checkbox("##Value", &value);
+				bool resetPressed{};
+				require(SettingsTable::EndField(
+							owner, { false, false }, resetPressed) ==
+						DMUI_RESULT_OK,
+					"hidden-label field did not end");
+			};
+			{
+				const SettingsTable::ClientCallbackGuard guard{ owner };
+				const auto table = SettingsTable::Begin(owner, "settings");
+				require(table.result == DMUI_RESULT_OK && table.visible,
+					"settings table did not begin");
+				drawField("empty", "");
+				drawField("null", nullptr);
+				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
+					"settings table did not end");
+				drawField("standalone", "");
+			}
+			require(frame.IsAtBaseline() && frame.Errors() == 0,
+				"hidden-label fields changed the ImGui stack");
+		});
+
 		runner.test("first-frame page callback preserves its host table", [] {
 			constexpr DMUI_ClientHandle owner{ 7 };
 			ImGuiTestFrame frame;

@@ -367,10 +367,7 @@ namespace DearModdingUI::HostAPIInternal
 			SettingsTable::ValidateFieldBeginOptions(a_options);
 		if (optionsValidation != DMUI_RESULT_OK)
 			return optionsValidation;
-		if (!a_id || a_id[0] == '\0' ||
-			(a_options->layout == DMUI_FIELD_LAYOUT_LABEL_VALUE &&
-				(!a_label || a_label[0] == '\0')) ||
-			(a_description && (!a_label || a_label[0] == '\0')))
+		if (!a_id || a_id[0] == '\0')
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		const auto validation = ValidateDrawingClient(a_client);
 		if (validation != DMUI_RESULT_OK)
