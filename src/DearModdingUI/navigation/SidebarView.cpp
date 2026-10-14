@@ -41,10 +41,10 @@ namespace DearModdingUI
 		{
 			if (!a_status || !IsPersistentStatus(a_status->severity))
 				return;
-			const auto color =
+			const auto color = Theme::StatusTextColor(
 				a_status->severity == DMUI_STATUS_SEVERITY_WARNING ?
-					Theme::kStatusPaletteDefaults.warning :
-					Theme::kStatusPaletteDefaults.error;
+					DMUI_STATUS_SEVERITY_WARNING :
+					DMUI_STATUS_SEVERITY_ERROR);
 			const auto radius =
 				ImGui::GetFontSize() * Theme::kSearchIconStrokeRatio;
 			const auto& padding = ImGui::GetStyle().FramePadding;
@@ -181,7 +181,7 @@ namespace DearModdingUI
 					.hoveredTextColor = textColor,
 					.disabledColor = failed ?
 						std::optional<ImU32>{ ImGui::GetColorU32(
-							Theme::kStatusPaletteDefaults.error) } :
+							Theme::StatusTextColor(DMUI_STATUS_SEVERITY_ERROR)) } :
 						std::nullopt
 				});
 				if (row.pressed)

@@ -238,7 +238,7 @@ namespace DearModdingUI
 					"{} could not be displayed",
 					a_page.displayName);
 				ImGui::TextColored(
-					Theme::kStatusPaletteDefaults.error,
+					Theme::StatusTextColor(DMUI_STATUS_SEVERITY_ERROR),
 					"%s",
 					title.c_str());
 			}

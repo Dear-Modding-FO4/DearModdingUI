@@ -10,11 +10,11 @@ namespace DearModdingUI::Theme
 		auto mutedAccent = a_accent;
 		mutedAccent.w = colors::kMutedAccentOpacity;
 		return {
-			convert(colors::kSuccess),
-			convert(colors::kWarning),
-			convert(colors::kError),
-			convert(colors::kInfo),
-			convert(colors::kMuted),
+			convert(kStatusPaletteDefaults.success),
+			convert(kStatusPaletteDefaults.warning),
+			convert(kStatusPaletteDefaults.error),
+			convert(kStatusPaletteDefaults.info),
+			convert(kStatusPaletteDefaults.disable),
 			convert(a_accent),
 			convert(mutedAccent),
 			convert(kFullPalette[ImGuiCol_TableRowBgAlt]),

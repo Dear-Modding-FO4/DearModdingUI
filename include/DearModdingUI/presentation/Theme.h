@@ -28,11 +28,6 @@ namespace DearModdingUI::Theme
 	namespace colors
 	{
 		inline constexpr float kMutedAccentOpacity{ 0.39f };
-		inline const ImVec4 kSuccess{ 0.0f, 1.0f, 0.0f, 1.0f };
-		inline const ImVec4 kWarning{ 1.0f, 0.6f, 0.2f, 1.0f };
-		inline const ImVec4 kError{ 1.0f, 0.4f, 0.4f, 1.0f };
-		inline const ImVec4 kInfo{ 0.2f, 1.0f, 0.328f, 1.0f };
-		inline const ImVec4 kMuted{ 0.5f, 0.5f, 0.5f, 1.0f };
 
 		[[nodiscard]] ImVec4 Accent() noexcept;
 		[[nodiscard]] ImVec4 AccentMuted() noexcept;
