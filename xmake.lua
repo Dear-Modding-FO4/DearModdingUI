@@ -261,7 +261,7 @@ rule("dmui.shaders", function()
 
 				batchcmds:vrunv("sed", {
 					"-i",
-					"s/\x05#/#/g",
+					"/#endif/c\\#endif",
 					header
 				})
 			end
