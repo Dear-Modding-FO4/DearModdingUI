@@ -140,13 +140,19 @@ namespace DearModdingUI::Theme
 			if (!std::filesystem::exists(path, error))
 				return nullptr;
 
+			static const ImWchar ranges[] =
+			{
+			    0x0020, 0xFFFD, // ALL
+			    0,
+			};
+
 			auto config = ReferenceConfig();
 			config.OversampleH = 3;
 			config.OversampleV = 2;
 			config.PixelSnapH = true;
 			config.RasterizerMultiply = 1.1f;
 			const auto file = path.string();
-			return a_atlas.AddFontFromFileTTF(file.c_str(), 0.0f, &config);
+			return a_atlas.AddFontFromFileTTF(file.c_str(), 0.0f, &config, ranges);
 		}
 
 		[[nodiscard]] bool MergeIconFont(
