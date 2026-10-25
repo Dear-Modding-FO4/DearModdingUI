@@ -376,6 +376,12 @@ namespace vmm_tests
 				require(ReferenceCount(view.Get()) == references,
 					"rejected SRV acquired a retained reference");
 			}
+			const auto foreign = CreateImageResources();
+			const DMUI_D3D11ImageDescriptor foreignDescriptor{ foreign.view.Get(), 0, 0 };
+			DMUI_ImageHandle foreignImage{};
+			require(PresentationServices::ImportD3D11Image(31, &foreignDescriptor, &foreignImage) ==
+						DMUI_RESULT_UNSUPPORTED_RESOURCE,
+				"SRV from another device was accepted");
 			require(PresentationServices::ImageSlotCount() == slots,
 				"rejected SRVs allocated image slots");
 			PresentationServices::InvalidateDevice();

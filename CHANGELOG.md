@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Declarative settings search no longer truncates queries longer than 255 bytes.
 - Clients built with newer headers connect to older hosts of the same major; newer-minor operations report `UNSUPPORTED_ABI`.
 - Keys DMUI acts on (hotkeys, Escape, controller B) no longer reach the game or type into text fields, and held game actions release when DMUI takes input.
+- Imported D3D11 images are accepted when a proxy such as ReShade reports the wrapped device from views.
 
 ## [0.2.1] - 2026-10-05
 

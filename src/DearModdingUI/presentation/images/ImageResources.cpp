@@ -59,6 +59,8 @@ namespace DearModdingUI::PresentationServices
 		{
 			std::mutex mutex;
 			ID3D11Device* device{};
+			// Proxies such as ReShade report their wrapped device from views.
+			ID3D11Device* viewDevice{};
 			uint64_t deviceGeneration{ 1 };
 			std::vector<ImageEntry> images;
 			uint32_t firstFreeImage{ kNoImageSlot };
@@ -343,6 +345,21 @@ namespace DearModdingUI::PresentationServices
 				DXGI_FORMAT_R8G8B8A8_UNORM, &initialData, 1, a_view);
 			return result == DMUI_RESULT_IMAGE_DEVICE_FAILED ? DMUI_RESULT_RESOURCE_EXHAUSTED : result;
 		}
+
+		// Identity only: the probe view is gone before the pointer is compared.
+		[[nodiscard]] ID3D11Device* ProbeViewDevice(ID3D11Device* a_device) noexcept
+		{
+			constexpr uint32_t texel{};
+			const D3D11_SUBRESOURCE_DATA initialData{ &texel, sizeof(texel), 0 };
+			Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> view;
+			if (!a_device ||
+				CreateTextureView(a_device, 1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &initialData, 1, view) !=
+					DMUI_RESULT_OK)
+				return a_device;
+			Microsoft::WRL::ComPtr<ID3D11Device> reported;
+			view->GetDevice(&reported);
+			return reported.Get();
+		}
 	}
 
 	DMUI_Result LoadImageFile(
@@ -442,7 +459,8 @@ namespace DearModdingUI::PresentationServices
 			(formatSupport & requiredSupport) == requiredSupport;
 		auto& service = GetImageService();
 		const std::scoped_lock lock{ service.mutex };
-		const auto deviceMatches = imageDevice && imageDevice == service.device;
+		const auto deviceMatches = imageDevice &&
+			(imageDevice == service.device || imageDevice == service.viewDevice);
 		if (imageDevice)
 			imageDevice->Release();
 		if (!deviceMatches || !service.device || !sampleable)
@@ -761,10 +779,12 @@ namespace DearModdingUI::PresentationServices
 		void SetDevice(ID3D11Device* a_device) noexcept
 		{
 			auto& service = GetImageService();
+			auto* const viewDevice = ProbeViewDevice(a_device);
 			const auto lock = LockImages(service);
 			if (service.device == a_device)
 				return;
 			service.device = a_device;
+			service.viewDevice = viewDevice;
 			++service.deviceGeneration;
 			service.frameLeases.clear();
 			for (uint32_t slot = 0; slot < service.images.size(); ++slot)
