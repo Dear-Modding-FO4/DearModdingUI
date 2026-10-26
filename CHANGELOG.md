@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Localization (ABI 2.2)**: `$KEY` registration text is translated from `Interface\Translations\<client id>_<language>.txt`, falling back to `_en`; `resolveText` translates drawn text.
 - **Pointer state (ABI 2.2)**: `getPointerState` reports clicks, wheel input, and cursor position that no DMUI window took to the focused overlay; ImGui does not see those clicks.
+- **Normalized overlay placement (ABI 2.2)**: `configureOverlayNormalized` places a managed overlay's pivot at a fraction of the viewport, such as top center, exact at any UI scale or window size.
 - **Translatable host interface**: The host's own text is translated by `DearModdingUI_<language>.txt`, falling back to English.
 - **Non-Latin text**: Cyrillic, Greek, Chinese, Japanese, and Korean text renders through Windows system fallback fonts, ordered for the game language.
 

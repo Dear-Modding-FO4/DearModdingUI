@@ -240,7 +240,8 @@ namespace DearModdingUI
 			&ApiRequestOverlayFocus,
 			&ApiReleaseOverlayFocus,
 			&ApiQueryOverlayFocus,
-			&ApiResolveText
+			&ApiResolveText,
+			&ApiConfigureOverlayNormalized
 		};
 		return api;
 	}
