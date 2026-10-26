@@ -70,10 +70,9 @@ namespace DearModdingUI::HostAPIInternal
 		return PresentationServices::QueryImage(a_client, a_image, a_info);
 	}
 
-	template <class Options>
-	[[nodiscard]] static DMUI_Result ConfigureOverlayPage(DMUI_ClientHandle a_client,
-														  DMUI_PageHandle a_page,
-														  const Options *a_options) noexcept
+	[[nodiscard]] DMUI_Result DMUI_CALL
+	ApiConfigureOverlay(DMUI_ClientHandle a_client, DMUI_PageHandle a_page,
+						const DMUI_ManagedOverlayOptions *a_options) noexcept
 	{
 		auto &registry = GetService().registry;
 		std::string clientId, pageId;
@@ -83,20 +82,6 @@ namespace DearModdingUI::HostAPIInternal
 			return validation;
 		return PresentationServices::ConfigureOverlay(
 			a_client, a_page, a_options, clientId, pageId);
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL
-	ApiConfigureOverlay(DMUI_ClientHandle a_client, DMUI_PageHandle a_page,
-						const DMUI_ManagedOverlayOptions *a_options) noexcept
-	{
-		return ConfigureOverlayPage(a_client, a_page, a_options);
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL
-	ApiConfigureOverlayNormalized(DMUI_ClientHandle a_client, DMUI_PageHandle a_page,
-								  const DMUI_ManagedOverlayNormalizedOptions *a_options) noexcept
-	{
-		return ConfigureOverlayPage(a_client, a_page, a_options);
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL

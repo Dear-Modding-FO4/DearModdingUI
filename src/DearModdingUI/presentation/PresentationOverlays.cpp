@@ -37,8 +37,6 @@ namespace DearModdingUI::PresentationServices
 			DMUI_ClientHandle owner{ DMUI_INVALID_CLIENT_HANDLE };
 			DMUI_PageHandle page{ DMUI_INVALID_PAGE_HANDLE };
 			DMUI_ManagedOverlayOptions options{};
-			DMUI_Vec2 position{};
-			DMUI_Vec2 pivot{};
 			DMUI_ManagedOverlayPlacement placement{};
 			DMUI_Vec2 pendingSize{};
 			bool configured{};
@@ -122,6 +120,11 @@ namespace DearModdingUI::PresentationServices
 			a_overlay.sizePending = true;
 		}
 
+		[[nodiscard]] constexpr bool IsOverlayAnchor(DMUI_OverlayAnchor a_anchor) noexcept
+		{
+			return a_anchor <= DMUI_OVERLAY_ANCHOR_SCREEN_POSITION;
+		}
+
 		[[nodiscard]] ImVec2 ResolveOverlaySize(
 			const DMUI_ManagedOverlayOptions& a_options,
 			float a_scale) noexcept
@@ -135,40 +138,32 @@ namespace DearModdingUI::PresentationServices
 			};
 		}
 
-		[[nodiscard]] constexpr bool IsOverlayAnchor(DMUI_OverlayAnchor a_anchor) noexcept
-		{
-			return a_anchor <= DMUI_OVERLAY_ANCHOR_NORMALIZED;
-		}
-
-		struct OverlayPosition
-		{
-			ImVec2 position;
-			ImVec2 pivot;
-		};
-
-		// Corners are normalized placements whose offset insets from the edges they touch.
-		[[nodiscard]] OverlayPosition ResolveOverlayPosition(
+		[[nodiscard]] ImVec2 ResolveOverlayPosition(
 			const DMUI_ManagedOverlayOptions& a_options,
-			DMUI_Vec2 a_position,
-			DMUI_Vec2 a_pivot,
 			ImVec2 a_viewport,
+			ImVec2 a_size,
 			float a_scale) noexcept
 		{
-			constexpr DMUI_Vec2 corners[]{ { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 }, { 0, 0 } };
-			auto offset = a_options.offset;
-			if (a_options.anchor != DMUI_OVERLAY_ANCHOR_NORMALIZED)
-			{
-				a_position = a_pivot = corners[a_options.anchor];
-				offset = {
-					a_pivot.x == 1.0f ? -offset.x : offset.x,
-					a_pivot.y == 1.0f ? -offset.y : offset.y
-				};
-			}
-			return {
-				{ a_viewport.x * a_position.x + offset.x * a_scale,
-					a_viewport.y * a_position.y + offset.y * a_scale },
-				{ a_pivot.x, a_pivot.y }
+			if (a_options.anchor == DMUI_OVERLAY_ANCHOR_SCREEN_POSITION)
+				return { a_options.offset.x, a_options.offset.y };
+			const ImVec2 offset{
+				a_options.offset.x * a_scale,
+				a_options.offset.y * a_scale
 			};
+			switch (a_options.anchor)
+			{
+			case DMUI_OVERLAY_ANCHOR_TOP_RIGHT:
+				return { a_viewport.x - a_size.x - offset.x, offset.y };
+			case DMUI_OVERLAY_ANCHOR_BOTTOM_LEFT:
+				return { offset.x, a_viewport.y - a_size.y - offset.y };
+			case DMUI_OVERLAY_ANCHOR_BOTTOM_RIGHT:
+				return {
+					a_viewport.x - a_size.x - offset.x,
+					a_viewport.y - a_size.y - offset.y
+				};
+			default:
+				return offset;
+			}
 		}
 	}
 
@@ -258,54 +253,32 @@ namespace DearModdingUI::PresentationServices
 		std::string_view a_clientId,
 		std::string_view a_pageId) noexcept
 	{
-		if (!a_options || a_options->anchor == DMUI_OVERLAY_ANCHOR_NORMALIZED)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		const DMUI_ManagedOverlayNormalizedOptions options{ .options = *a_options };
-		return ConfigureOverlay(a_client, a_page, &options, a_clientId, a_pageId);
-	}
-
-	DMUI_Result ConfigureOverlay(
-		DMUI_ClientHandle a_client,
-		DMUI_PageHandle a_page,
-		const DMUI_ManagedOverlayNormalizedOptions* a_options,
-		std::string_view a_clientId,
-		std::string_view a_pageId) noexcept
-	{
 		if (!a_options || a_client == DMUI_INVALID_CLIENT_HANDLE ||
 			a_page == DMUI_INVALID_PAGE_HANDLE)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		const auto& options = a_options->options;
-		const auto normalized = options.anchor == DMUI_OVERLAY_ANCHOR_NORMALIZED;
-		const auto position = normalized ? a_options->position : DMUI_Vec2{};
-		const auto pivot = normalized ? a_options->pivot : DMUI_Vec2{};
-		// Range checks also reject NaN.
-		const auto fraction = [](DMUI_Vec2 a_value) {
-			return a_value.x >= 0.0f && a_value.x <= 1.0f && a_value.y >= 0.0f && a_value.y <= 1.0f;
-		};
-		if (!fraction(position) || !fraction(pivot) ||
-			!IsOverlayAnchor(options.anchor) ||
-			!std::isfinite(options.offset.x) ||
-			!std::isfinite(options.offset.y) ||
-			!std::isfinite(options.size.x) ||
-			!std::isfinite(options.size.y) ||
-			!std::isfinite(options.minimumSize.x) ||
-			!std::isfinite(options.minimumSize.y) ||
-			!std::isfinite(options.maximumSize.x) ||
-			!std::isfinite(options.maximumSize.y) ||
-			!std::isfinite(options.opacity) ||
-			!std::isfinite(options.contentScale) ||
-			options.opacity < 0.0f ||
-			options.opacity > 1.0f ||
-			options.contentScale < 0.5f ||
-			options.contentScale > 3.0f ||
-			options.size.x < 0.0f ||
-			options.size.y < 0.0f ||
-			options.minimumSize.x < 0.0f ||
-			options.minimumSize.y < 0.0f ||
-			(options.maximumSize.x > 0.0f &&
-				options.maximumSize.x < options.minimumSize.x) ||
-			(options.maximumSize.y > 0.0f &&
-				options.maximumSize.y < options.minimumSize.y))
+		if (!IsOverlayAnchor(a_options->anchor) ||
+			!std::isfinite(a_options->offset.x) ||
+			!std::isfinite(a_options->offset.y) ||
+			!std::isfinite(a_options->size.x) ||
+			!std::isfinite(a_options->size.y) ||
+			!std::isfinite(a_options->minimumSize.x) ||
+			!std::isfinite(a_options->minimumSize.y) ||
+			!std::isfinite(a_options->maximumSize.x) ||
+			!std::isfinite(a_options->maximumSize.y) ||
+			!std::isfinite(a_options->opacity) ||
+			!std::isfinite(a_options->contentScale) ||
+			a_options->opacity < 0.0f ||
+			a_options->opacity > 1.0f ||
+			a_options->contentScale < 0.5f ||
+			a_options->contentScale > 3.0f ||
+			a_options->size.x < 0.0f ||
+			a_options->size.y < 0.0f ||
+			a_options->minimumSize.x < 0.0f ||
+			a_options->minimumSize.y < 0.0f ||
+			(a_options->maximumSize.x > 0.0f &&
+				a_options->maximumSize.x < a_options->minimumSize.x) ||
+			(a_options->maximumSize.y > 0.0f &&
+				a_options->maximumSize.y < a_options->minimumSize.y))
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		try
 		{
@@ -324,28 +297,24 @@ namespace DearModdingUI::PresentationServices
 				overlay->key = key;
 			}
 			const auto positionChanged = !overlay->configured ||
-				overlay->options.anchor != options.anchor ||
-				overlay->position.x != position.x || overlay->position.y != position.y ||
-				overlay->pivot.x != pivot.x || overlay->pivot.y != pivot.y ||
-				overlay->options.offset.x != options.offset.x ||
-				overlay->options.offset.y != options.offset.y;
+				overlay->options.anchor != a_options->anchor ||
+				overlay->options.offset.x != a_options->offset.x ||
+				overlay->options.offset.y != a_options->offset.y;
 			const auto sizeChanged = !overlay->configured ||
-				overlay->options.size.x != options.size.x ||
-				overlay->options.size.y != options.size.y;
+				overlay->options.size.x != a_options->size.x ||
+				overlay->options.size.y != a_options->size.y;
 			if (positionChanged)
-				overlay->placement.offset = options.offset;
+				overlay->placement.offset = a_options->offset;
 			if (sizeChanged)
-				overlay->pendingSize = options.size;
+				overlay->pendingSize = a_options->size;
 			const auto firstConfigure = !overlay->configured;
-			overlay->options = options;
-			overlay->position = position;
-			overlay->pivot = pivot;
+			overlay->options = *a_options;
 			if (firstConfigure)
 				ApplySavedPlacement(service, *overlay);
 			overlay->positionPending |= positionChanged;
 			overlay->sizePending |= sizeChanged;
 			overlay->configured = true;
-			overlay->placement.anchor = options.anchor;
+			overlay->placement.anchor = a_options->anchor;
 			return DMUI_RESULT_OK;
 		}
 		catch (...)
@@ -406,8 +375,6 @@ namespace DearModdingUI::PresentationServices
 		ManagedOverlayInput a_input) noexcept
 	{
 		DMUI_ManagedOverlayOptions options{};
-		DMUI_Vec2 normalizedPosition{};
-		DMUI_Vec2 normalizedPivot{};
 		DMUI_ManagedOverlayPlacement previous{};
 		bool positionPending{};
 		bool sizePending{};
@@ -421,8 +388,6 @@ namespace DearModdingUI::PresentationServices
 			if (!overlay || overlay->owner != a_client || !overlay->configured)
 				return ManagedOverlayBeginResult::kNotConfigured;
 			options = overlay->options;
-			normalizedPosition = overlay->position;
-			normalizedPivot = overlay->pivot;
 			previous = overlay->placement;
 			options.offset = previous.offset;
 			positionPending = std::exchange(overlay->positionPending, false);
@@ -464,8 +429,7 @@ namespace DearModdingUI::PresentationServices
 			clamp(expectedSize.x, minimum.x, maximum.x),
 			clamp(expectedSize.y, minimum.y, maximum.y)
 		};
-		const auto [position, pivot] = ResolveOverlayPosition(
-			options, normalizedPosition, normalizedPivot, viewport, hostScale);
+		const auto position = ResolveOverlayPosition(options, viewport, expectedSize, hostScale);
 		const auto anchored = options.anchor != DMUI_OVERLAY_ANCHOR_FREE;
 		const std::string windowLabel{
 			a_label.empty() ? "Managed overlay" : a_label
@@ -473,7 +437,7 @@ namespace DearModdingUI::PresentationServices
 		// Let ImGui own resize geometry until release, then restore the final anchor.
 		const auto resizing = IsResizingOverlay(ImGui::FindWindowByName(windowLabel.c_str()));
 		if ((anchored && !resizing) || (!anchored && positionPending) || previous.changeGeneration == 0)
-			ImGui::SetNextWindowPos(position, ImGuiCond_Always, pivot);
+			ImGui::SetNextWindowPos(position, ImGuiCond_Always);
 		if (sizePending)
 			ImGui::SetNextWindowSize(expectedSize, ImGuiCond_Always);
 		else if (options.minimumSize.x > 0.0f || options.minimumSize.y > 0.0f)

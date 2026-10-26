@@ -97,83 +97,43 @@ namespace vmm_tests
 					DMUI_RESULT_INVALID_ARGUMENT, "non-finite desired size was accepted");
 		});
 
-		runner.test("normalized overlays align current size at host scale and viewport", [] {
+		runner.test("screen-position overlays place their top-left in unscaled pixels", [] {
 			support::ImGuiTestContext imgui;
 			ImGui::GetIO().FontGlobalScale = 1.5f;
-			const auto overlay = [](DMUI_OverlayAnchor a_anchor, DMUI_Vec2 a_offset, DMUI_Vec2 a_size,
-									 DMUI_Vec2 a_position = {}, DMUI_Vec2 a_pivot = {}) {
-				return DMUI_ManagedOverlayNormalizedOptions{
-					.options = { .anchor = a_anchor, .offset = a_offset, .size = a_size, .opacity = 1, .contentScale = 1 },
-					.position = a_position,
-					.pivot = a_pivot
-				};
+			DMUI_ManagedOverlayOptions options{
+				.anchor = DMUI_OVERLAY_ANCHOR_SCREEN_POSITION,
+				.offset = { 540, 20 },
+				.size = { 200, 0 },
+				.opacity = 1,
+				.contentScale = 1.25f,
+				.allowArrangement = 1
 			};
-			const auto draw = [&](DMUI_PageHandle a_page) {
-				const auto label = std::string{ "Normalized overlay " } + std::to_string(a_page);
-				for (int frame = 0; frame < 3; ++frame)
-				{
-					imgui.BeginWindow("##NormalizedOverlayTest");
-					(void)PresentationServices::BeginManagedOverlay(9, a_page, label, PresentationServices::ManagedOverlayInput::kPassive);
-					ImGui::TextUnformatted("Normalized content");
-					PresentationServices::EndManagedOverlay();
-					imgui.EndWindow();
-				}
+			require(PresentationServices::ConfigureOverlay(9, 170, &options) == DMUI_RESULT_OK,
+				"screen-position overlay configure failed");
+			const auto draw = [&](bool a_move) {
+				imgui.BeginWindow("##ScreenPositionTest");
+				if (a_move)
+					ImGui::SetWindowPos("Screen overlay", { 10, 10 });
+				(void)PresentationServices::BeginManagedOverlay(9, 170, "Screen overlay", PresentationServices::ManagedOverlayInput::kArrangement);
+				ImGui::TextUnformatted("Screen content");
+				PresentationServices::EndManagedOverlay();
+				imgui.EndWindow();
 				DMUI_ManagedOverlayPlacement placement{};
-				require(PresentationServices::QueryOverlay(9, a_page, &placement) == DMUI_RESULT_OK,
-					"normalized overlay query failed");
+				require(PresentationServices::QueryOverlay(9, 170, &placement) == DMUI_RESULT_OK,
+					"screen-position overlay query failed");
 				return placement;
 			};
-			const auto at = [](const DMUI_ManagedOverlayPlacement& a_placement, float a_x, float a_y) {
-				return std::abs(a_placement.position.x - a_x) < 0.01f && std::abs(a_placement.position.y - a_y) < 0.01f;
-			};
-			const struct
-			{
-				DMUI_ManagedOverlayNormalizedOptions options;
-				DMUI_Vec2 expected;
-			} cases[]{
-				{ overlay(DMUI_OVERLAY_ANCHOR_NORMALIZED, { 0, 20 }, { 200, 100 }, { 0.5f, 0 }, { 0.5f, 0 }), { 540, 30 } },
-				{ overlay(DMUI_OVERLAY_ANCHOR_NORMALIZED, { 10, -20 }, { 200, 100 }, { 0.5f, 0.5f }, { 0.5f, 0.5f }), { 555, 280 } },
-				{ overlay(DMUI_OVERLAY_ANCHOR_NORMALIZED, { -10, -20 }, { 200, 100 }, { 1, 1 }, { 1, 1 }), { 1065, 590 } },
-				// Corners keep their inset offsets and ignore normalized fields.
-				{ overlay(DMUI_OVERLAY_ANCHOR_BOTTOM_RIGHT, { 10, 20 }, { 200, 100 }, { 0.5f, 0.5f }, { 0.5f, 0.5f }), { 1065, 590 } }
-			};
-			for (size_t index = 0; index < std::size(cases); ++index)
-			{
-				const auto page = static_cast<DMUI_PageHandle>(140 + index);
-				require(PresentationServices::ConfigureOverlay(9, page, &cases[index].options) == DMUI_RESULT_OK,
-					"normalized overlay configure failed");
-				const auto placement = draw(page);
-				require(at(placement, cases[index].expected.x, cases[index].expected.y) &&
-						placement.anchor == cases[index].options.options.anchor,
-					"normalized placement did not align the window with the scaled offset");
-			}
-
-			// Automatic height aligns the measured window, and a resize re-resolves it.
-			const auto automatic = overlay(DMUI_OVERLAY_ANCHOR_NORMALIZED, { 0, -20 }, { 200, 0 }, { 0.5f, 1 }, { 0.5f, 1 });
-			require(PresentationServices::ConfigureOverlay(9, 150, &automatic) == DMUI_RESULT_OK,
-				"automatic normalized overlay configure failed");
-			auto placement = draw(150);
-			require(placement.size.y > 0 && at(placement, 540, 690 - placement.size.y),
-				"normalized placement did not align an automatic size");
-			ImGui::GetIO().DisplaySize = { 1920, 1080 };
-			placement = draw(150);
-			require(at(placement, 860, 1050 - placement.size.y),
-				"normalized placement did not follow a viewport change");
-
-			auto invalid = automatic;
-			invalid.position.x = 1.5f;
-			require(PresentationServices::ConfigureOverlay(9, 151, &invalid) == DMUI_RESULT_INVALID_ARGUMENT,
-				"normalized position outside the viewport was accepted");
-			invalid = automatic;
-			invalid.pivot.y = std::numeric_limits<float>::quiet_NaN();
-			require(PresentationServices::ConfigureOverlay(9, 151, &invalid) == DMUI_RESULT_INVALID_ARGUMENT,
-				"non-finite pivot was accepted");
-			invalid = automatic;
-			invalid.options.anchor = DMUI_OVERLAY_ANCHOR_NORMALIZED + 1;
-			require(PresentationServices::ConfigureOverlay(9, 151, &invalid) == DMUI_RESULT_INVALID_ARGUMENT,
+			auto placement = draw(false);
+			require(placement.anchor == DMUI_OVERLAY_ANCHOR_SCREEN_POSITION &&
+					placement.position.x == 540 && placement.position.y == 20 && placement.size.x == 200,
+				"screen position was scaled or did not match pixel size units");
+			(void)draw(true);
+			placement = draw(false);
+			require(placement.position.x == 540 && placement.position.y == 20,
+				"arrangement moved a client-owned screen position");
+			options.anchor = DMUI_OVERLAY_ANCHOR_SCREEN_POSITION + 1;
+			require(PresentationServices::ConfigureOverlay(9, 171, &options) == DMUI_RESULT_INVALID_ARGUMENT,
 				"unknown anchor was accepted");
-			require(PresentationServices::ConfigureOverlay(9, 151, &automatic.options) == DMUI_RESULT_INVALID_ARGUMENT,
-				"the legacy entry accepted a normalized anchor without position");
 		});
 
 		runner.test("managed overlay settings restore defaults reset and retain absent mods", [] {
