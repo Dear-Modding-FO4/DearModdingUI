@@ -3,6 +3,7 @@
 #include <Windows.h>
 
 #include <array>
+#include <filesystem>
 #include <fstream>
 #include <cassert>
 
@@ -34,6 +35,34 @@ namespace Addictol::Support
 				std::string{};
 		}();
 		return directory;
+	}
+
+	std::string GetModuleNameAt(const void* a_address) noexcept
+	{
+		HMODULE module{ nullptr };
+		if (!GetModuleHandleExW(
+				GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+					GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+				static_cast<LPCWSTR>(a_address),
+				&module))
+			return {};
+		std::array<wchar_t, 4096> buffer{};
+		const auto length = GetModuleFileNameW(
+			module,
+			buffer.data(),
+			static_cast<DWORD>(buffer.size()));
+		if (!length || length >= buffer.size())
+			return {};
+		try
+		{
+			const auto name = std::filesystem::path{
+				std::wstring_view{ buffer.data(), length } }.filename().u8string();
+			return { reinterpret_cast<const char*>(name.data()), name.size() };
+		}
+		catch (...)
+		{
+			return {};
+		}
 	}
 
 	constexpr static std::string	WHITESPACEA = " \n\r\t\f\v";

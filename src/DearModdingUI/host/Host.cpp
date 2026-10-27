@@ -10,12 +10,15 @@
 #include "HostAPIEntries.h"
 #include "HostContext.h"
 
+#include <Support/Runtime.h>
+
 #include <REX/REX.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 
 #include <algorithm>
+#include <intrin.h>
 #include <string_view>
 
 #ifndef IMGUI_HAS_DOCK
@@ -643,8 +646,11 @@ DMUI_EXPORT const DMUI_HostAPI* DMUI_CALL DMUI_GetAPI(
 {
 	if (!DearModdingUI::ServesAbiVersion(a_requestedAbiVersion))
 	{
+		// A mismatched client cannot describe itself, so name its module.
+		const auto plugin = Addictol::Support::GetModuleNameAt(_ReturnAddress());
 		REX::WARN(
-			"DearModdingUI ABI mismatch: client requires {}.{}, host provides {}.{}",
+			"DearModdingUI ABI mismatch: {} requires {}.{}, host provides {}.{}",
+			plugin.empty() ? std::string_view{ "<unknown plugin>" } : plugin,
 			DMUI_ABI_VERSION_MAJOR(a_requestedAbiVersion),
 			DMUI_ABI_VERSION_MINOR(a_requestedAbiVersion),
 			DMUI_ABI_MAJOR,

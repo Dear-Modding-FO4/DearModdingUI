@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Non-Latin text**: Cyrillic, Greek, Chinese, Japanese, and Korean text renders through Windows system fallback fonts, ordered for the game language.
 
 ### Changed
+- ABI mismatch warnings name the plugin that requested the API.
 - **MCM bridge**: Translates MCM text through the host's translation files, named after each mod's config folder, instead of the game translator.
 - `beginField` / `FieldScope` accept an empty label and a description without a label, matching settings rows.
 - Declarative settings pages use the host search input and space groups by the theme's section gap.

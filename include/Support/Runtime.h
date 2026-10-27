@@ -6,6 +6,8 @@ namespace Addictol::Support
 {
 	[[nodiscard]] std::string GetRuntimePath() noexcept;
 	[[nodiscard]] std::string GetRuntimeDirectory() noexcept;
+	// UTF-8 file name of the module containing an address, or empty.
+	[[nodiscard]] std::string GetModuleNameAt(const void* a_address) noexcept;
 
 	// Trim from the start (left trim)
 	void LeftTrim(std::string& s) noexcept;
