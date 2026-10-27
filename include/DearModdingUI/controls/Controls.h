@@ -33,6 +33,8 @@ namespace DearModdingUI
 		bool back{ false };
 		// A disclosure row toggles this and dims while it is collapsed.
 		bool* expanded{ nullptr };
+		// Rows that open content by selection dim while that content is hidden.
+		std::optional<bool> open;
 		char32_t glyph{ 0 };
 		ImU32 textColor{ 0 };
 		ImU32 hoveredTextColor{ 0 };

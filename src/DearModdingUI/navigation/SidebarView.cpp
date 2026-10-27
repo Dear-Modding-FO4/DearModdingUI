@@ -80,14 +80,14 @@ namespace DearModdingUI
 				kSidebarModFontScale
 			};
 			const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
+			const auto selected = a_client.handle == a_selection.activeClient;
+			// Without a toggle, a mod's pages show while it is selected.
 			const auto row = DrawSelectableRow({
 				.id = a_client.id.c_str(),
 				.label = a_client.displayName.c_str(),
-				.selected = a_client.handle == a_selection.activeClient,
-				.expanded =
-					a_kind == SidebarClientRowKind::kTree ?
-						a_expanded :
-						nullptr,
+				.selected = selected,
+				.expanded = a_expanded,
+				.open = a_expanded ? std::nullopt : std::optional{ selected },
 				.glyph = ResolveNavigationClientIconGlyph(a_client),
 				.textColor = textColor,
 				.hoveredTextColor = textColor,

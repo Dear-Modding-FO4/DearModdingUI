@@ -260,10 +260,10 @@ namespace DearModdingUI
 			a_window->DrawList->PopClipRect();
 		}
 
-		// Disclosures show state by brightness; collapsed ones dim.
-		[[nodiscard]] ImVec4 DisclosureColor(ImVec4 a_color, const bool* a_expanded) noexcept
+		// Disclosures show state by brightness; closed ones dim.
+		[[nodiscard]] ImVec4 DisclosureColor(ImVec4 a_color, bool a_open) noexcept
 		{
-			if (a_expanded && !*a_expanded)
+			if (!a_open)
 				a_color.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
 			return a_color;
 		}
@@ -569,7 +569,7 @@ namespace DearModdingUI
 			ImGui::ColorConvertFloat4ToU32(DisclosureColor(
 				ImGui::ColorConvertU32ToFloat4(
 					hovered ? a_options.hoveredTextColor : a_options.textColor),
-				a_options.expanded)));
+				a_options.open.value_or(!a_options.expanded || *a_options.expanded))));
 		const auto fontSize = ImGui::GetFontSize();
 		auto cursorX = rect.Min.x + ImGui::GetStyle().FramePadding.x;
 		if (a_options.back)
@@ -640,8 +640,9 @@ namespace DearModdingUI
 		}
 		const auto defaultColor = Theme::kFeatureHeadingDefaults.colorDefault;
 		const auto defaultHoveredColor = Theme::kFeatureHeadingDefaults.colorHovered;
-		auto color = DisclosureColor(defaultColor, a_options.expanded);
-		const auto hoveredColor = DisclosureColor(defaultHoveredColor, a_options.expanded);
+		const auto open = !a_options.expanded || *a_options.expanded;
+		auto color = DisclosureColor(defaultColor, open);
+		const auto hoveredColor = DisclosureColor(defaultHoveredColor, open);
 		if (a_options.layout == RuledHeadingLayout::kLeadingRow)
 		{
 			const auto row = DrawSelectableRow({

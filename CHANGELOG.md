@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ABI mismatch warnings name the plugin that requested the API.
 - **MCM bridge**: Translates MCM text through the host's translation files, named after each mod's config folder, instead of the game translator.
 - Built-in settings pages translate their search hint, "Modified only" filter, Reset all, Revert, and Apply controls, and their fallback labels.
-- Collapsible sidebar headings, mods, FAQ entries, and Health reports show their state by brightness instead of arrows: expanded is bright, collapsed is dim.
+- Collapsible headings, FAQ entries, and Health reports show their state by brightness instead of arrows: expanded is bright, collapsed is dim. In every sidebar layout, a mod is bright while its pages are shown.
 - `beginField` / `FieldScope` accept an empty label and a description without a label, matching settings rows.
 - Declarative settings pages use the host search input and space groups by the theme's section gap.
 
