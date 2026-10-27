@@ -1,13 +1,13 @@
 #pragma once
 
 #include <DearModdingUI/ThemeDefaults.h>
+#include <Support/Message.h>
 #include <Support/SubsystemHealth.h>
 
 #include <array>
-#include <format>
 #include <string>
-#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace DearModdingUI::Theme
 {
@@ -27,64 +27,86 @@ namespace DearModdingUI::Theme
 	[[nodiscard]] inline HealthObservation ClassifyTypographyHealth(
 		const TypographyLoadOutcome& a_outcome)
 	{
+		using Support::Message;
+		using Support::Phrase;
+		using Support::PluralPhrase;
+
 		if (!a_outcome.usableAtlas)
 		{
 			return {
 				HealthState::kFailed,
-				"No usable font atlas could be prepared. Verify the bundled font files and restart."
+				Message{ Phrase{
+					"$DMUI_Typography_NoAtlas",
+					"No usable font atlas could be prepared. Verify the bundled font files and restart." } }
 			};
 		}
 
-		std::string reason;
-		const auto append = [&](std::string_view a_detail) {
-			if (!reason.empty())
-				reason.push_back(' ');
-			reason.append(a_detail);
-		};
+		std::vector<Message> sentences;
 		if (!a_outcome.requestedFamilyFound)
 		{
-			append(std::format(
-				"Requested family \"{}\" was unavailable; using \"{}\".",
+			sentences.emplace_back(
+				Phrase{
+					"$DMUI_Typography_FamilyUnavailable",
+					"Requested family \"{}\" was unavailable; using \"{}\"." },
 				a_outcome.requestedFamily,
-				a_outcome.effectiveFamily));
+				a_outcome.effectiveFamily);
 		}
 		else if (!a_outcome.requestedBodyLoaded)
 		{
-			append(std::format(
-				"Body font for \"{}\" could not load; using \"{}\".",
+			sentences.emplace_back(
+				Phrase{
+					"$DMUI_Typography_BodyFontFailed",
+					"Body font for \"{}\" could not load; using \"{}\"." },
 				a_outcome.requestedFamily,
-				a_outcome.effectiveFamily));
+				a_outcome.effectiveFamily);
 		}
 
-		std::string missingRoles;
+		std::vector<Message> missingRoles;
 		for (size_t index = 0; index < a_outcome.rolesLoaded.size(); ++index)
 		{
-			if (a_outcome.rolesLoaded[index])
-				continue;
-			if (!missingRoles.empty())
-				missingRoles.append(", ");
-			missingRoles.append(kFontRoleDefaults[index].key);
+			if (!a_outcome.rolesLoaded[index])
+				missingRoles.push_back(Message::Text(std::string{ kFontRoleDefaults[index].key }));
 		}
 		if (!missingRoles.empty())
 		{
-			append(std::format(
-				"Bundled {} role{} used fallback text.",
-				missingRoles,
-				missingRoles.contains(',') ? "s" : ""));
+			const auto count = missingRoles.size();
+			sentences.push_back(Message::Plural(
+				PluralPhrase{
+					"$DMUI_Typography_MissingRoles",
+					"Bundled {} role used fallback text.",
+					"Bundled {} roles used fallback text." },
+				count,
+				Message::Join(std::move(missingRoles), ", ")));
 		}
 		if (!a_outcome.iconsLoaded)
-			append("Phosphor icons are unavailable; labels remain text-only.");
+		{
+			sentences.emplace_back(Phrase{
+				"$DMUI_Typography_IconsUnavailable",
+				"Phosphor icons are unavailable; labels remain text-only." });
+		}
 		if (a_outcome.systemFallbacksLoaded == 0)
-			append("No system fallback fonts loaded; non-Latin text may not render.");
+		{
+			sentences.emplace_back(Phrase{
+				"$DMUI_Typography_NoSystemFallbacks",
+				"No system fallback fonts loaded; non-Latin text may not render." });
+		}
 		if (a_outcome.emergencyFontUsed)
-			append("The built-in emergency font is keeping text usable.");
+		{
+			sentences.emplace_back(Phrase{
+				"$DMUI_Typography_EmergencyFont",
+				"The built-in emergency font is keeping text usable." });
+		}
 
-		if (!reason.empty())
-			return { HealthState::kDegraded, std::move(reason) };
+		if (!sentences.empty())
+			return { HealthState::kDegraded, Message::Join(std::move(sentences), " ") };
 		return {
 			HealthState::kReady,
-			std::format(
-				"Loaded \"{}\" with all bundled roles, Phosphor icons, and {} system fallback fonts.",
+			Message::Plural(
+				PluralPhrase{
+					"$DMUI_Typography_Ready",
+					"Loaded \"{}\" with all bundled roles, Phosphor icons, and {} system fallback font.",
+					"Loaded \"{}\" with all bundled roles, Phosphor icons, and {} system fallback fonts." },
+				a_outcome.systemFallbacksLoaded,
 				a_outcome.effectiveFamily,
 				a_outcome.systemFallbacksLoaded)
 		};

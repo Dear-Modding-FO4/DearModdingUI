@@ -266,11 +266,14 @@ namespace DearModdingUI::MCM::detail
 			a_descriptor.control = std::move(mapped);
 		}
 
-		void MapFileChoiceControl(dmui::SettingDescriptor& a_descriptor)
+		void MapFileChoiceControl(
+			dmui::SettingDescriptor& a_descriptor,
+			const Support::TextCatalog& a_catalog)
 		{
 			dmui::ChoiceSettingControl mapped;
-			mapped.options.push_back({ "", "None" });
-			mapped.unmatchedLabel = "None";
+			const auto none = BridgeText::Render(BridgeText::kNone, a_catalog);
+			mapped.options.push_back({ "", none });
+			mapped.unmatchedLabel = none;
 			a_descriptor.defaultValue = std::string{};
 			a_descriptor.control = std::move(mapped);
 		}
@@ -280,7 +283,8 @@ namespace DearModdingUI::MCM::detail
 			std::string a_id,
 			MappedRow& a_row,
 			detail::Diagnostics& a_diag,
-			DisplayTextResolver& a_textResolver)
+			DisplayTextResolver& a_textResolver,
+			const Support::TextCatalog& a_catalog)
 		{
 			dmui::SettingDescriptor descriptor;
 			descriptor.id = std::move(a_id);
@@ -365,7 +369,7 @@ namespace DearModdingUI::MCM::detail
 				MapChoiceControl(a_control, descriptor, a_textResolver);
 				break;
 			case ControlType::kFileMenu:
-				MapFileChoiceControl(descriptor);
+				MapFileChoiceControl(descriptor, a_catalog);
 				break;
 			case ControlType::kInput:
 			{
@@ -406,15 +410,18 @@ namespace DearModdingUI::MCM::detail
 				break;
 			}
 			case ControlType::kKeymap:
+			{
+				auto unbound = BridgeText::Render(BridgeText::kUnbound, a_catalog);
 				descriptor.control = dmui::ReadOnlySettingControl{};
-				descriptor.defaultValue = std::string{ "Unbound" };
+				descriptor.defaultValue = unbound;
 				a_row.text = MappedText{
 					descriptor.id,
-					TextPresentation{ "Unbound" }
+					TextPresentation{ std::move(unbound) }
 				};
 				a_row.keybindId = a_control.id;
 				descriptor.showReset = false;
 				break;
+			}
 			default:
 				descriptor.control = dmui::UnsupportedSettingControl{
 					static_cast<uint32_t>(a_control.type) + 1
@@ -605,7 +612,8 @@ namespace DearModdingUI::MCM::detail
 			const Page& a_page,
 			std::string_view a_displayName,
 			detail::Diagnostics& a_diag,
-			DisplayTextResolver& a_textResolver)
+			DisplayTextResolver& a_textResolver,
+			const Support::TextCatalog& a_catalog)
 		{
 			MappedPage mapped;
 			mapped.id = a_page.id;
@@ -673,7 +681,10 @@ namespace DearModdingUI::MCM::detail
 					continue;
 
 				if (!currentGroup)
-					addGroup("general", "General", a_page.location);
+					addGroup(
+						"general",
+						BridgeText::Render(BridgeText::kGeneral, a_catalog),
+						a_page.location);
 
 				auto id = control.id.empty() ?
 					"control-" + std::to_string(control.sourceIndex + 1) :
@@ -701,7 +712,9 @@ namespace DearModdingUI::MCM::detail
 				if (control.type == ControlType::kButton)
 				{
 					auto label = control.text.empty() ?
-						(control.id.empty() ? "Action" : control.id) :
+						(control.id.empty() ?
+							BridgeText::Render(BridgeText::kAction, a_catalog) :
+							control.id) :
 						a_textResolver.Resolve(
 							control.text,
 							control.location + ".text",
@@ -713,7 +726,8 @@ namespace DearModdingUI::MCM::detail
 					{
 						if (!description.empty())
 							description.push_back('\n');
-						description += "This button has no action.";
+						description +=
+							BridgeText::Render(BridgeText::kButtonNoAction, a_catalog);
 					}
 					auto& group = mapped.settings.groups[*currentGroup];
 					dmui::SettingsActionRow action;
@@ -740,7 +754,8 @@ namespace DearModdingUI::MCM::detail
 					id,
 					row,
 					a_diag,
-					a_textResolver);
+					a_textResolver,
+					a_catalog);
 				row.unsupported =
 					std::holds_alternative<dmui::UnsupportedSettingControl>(
 						descriptor.control) ||
@@ -820,7 +835,7 @@ namespace DearModdingUI::MCM::detail
 					});
 				if (hasUnsupportedImages)
 					mapped.settings.notes.push_back({
-						"This page contains only unrendered SWF components.",
+						BridgeText::Render(BridgeText::kSwfOnlyPage, a_catalog),
 						false
 					});
 				else
@@ -839,7 +854,8 @@ namespace DearModdingUI::MCM::detail
 		std::string& a_displayName,
 		std::vector<MappedPage>& a_pages,
 		std::vector<Diagnostic>& a_diagnostics,
-		const TextResolver& a_textResolver)
+		const TextResolver& a_textResolver,
+		const Support::TextCatalog& a_catalog)
 	{
 		detail::Diagnostics diagnostics{ std::string{ a_source }, a_diagnostics };
 		DisplayTextResolver textResolver{ a_textResolver, diagnostics };
@@ -850,7 +866,7 @@ namespace DearModdingUI::MCM::detail
 		for (const auto& page : a_configuration.pages)
 		{
 			a_pages.push_back(MapPage(
-				page, a_displayName, diagnostics, textResolver));
+				page, a_displayName, diagnostics, textResolver, a_catalog));
 		}
 	}
 }

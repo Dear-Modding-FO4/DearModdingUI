@@ -387,5 +387,109 @@ namespace vmm_tests
 				"client-side text formatting truncated or crossed the ABI");
 		});
 
+		runner.test("table sort specs mirror the native sort and enforce capacity", [] {
+			ImGuiFrame frame;
+			const DearModdingUI::UI::Testing::ValidationOverride validation{
+				&AcceptClient
+			};
+			const auto& api = DearModdingUI::UI::API();
+			dmui::ui::detail::ScopedContext context{ &api, 1u };
+			DMUI_UITableSortSpec sentinel{ -7, 99u };
+			uint32_t count{ 99u };
+			require(
+				api.tableGetSortSpecs(1u, &sentinel, 1u, &count) ==
+						DMUI_RESULT_UNBALANCED_BRACKET &&
+					count == 0u,
+				"sort specs were read outside a table");
+
+			using dmui::ui::TableColumnFlags;
+			require(
+				dmui::ui::BeginTable(
+					"##sorted", 3,
+					dmui::ui::TableFlags::kSortable | dmui::ui::TableFlags::kSortMulti),
+				"sortable table did not open");
+			dmui::ui::TableSetupColumn("Name", TableColumnFlags::kDefaultSort);
+			dmui::ui::TableSetupColumn(
+				"Avg", TableColumnFlags::kDefaultSort | TableColumnFlags::kPreferSortDescending);
+			dmui::ui::TableSetupColumn("Note", TableColumnFlags::kNoSort);
+			dmui::ui::TableHeadersRow();
+
+			const auto* native = ImGui::TableGetSortSpecs();
+			require(native && native->SpecsCount == 2, "native table holds no sort");
+			const auto specs = dmui::ui::TableGetSortSpecs();
+			require(
+				specs.size() == 2 &&
+					specs[0].column == native->Specs[0].ColumnIndex &&
+					specs[0].direction == DMUI_UI_SORT_DIRECTION_ASCENDING &&
+					specs[1].column == native->Specs[1].ColumnIndex &&
+					specs[1].direction == DMUI_UI_SORT_DIRECTION_DESCENDING &&
+					specs[0].column != specs[1].column,
+				"stable sort specs differ from the native sort");
+
+			count = 0u;
+			require(
+				api.tableGetSortSpecs(1u, &sentinel, 1u, &count) ==
+						DMUI_RESULT_BUFFER_TOO_SMALL &&
+					count == 2u && sentinel.column == -7 && sentinel.direction == 99u,
+				"short capacity truncated instead of reporting the required count");
+			require(
+				api.tableGetSortSpecs(1u, nullptr, 0u, &count) ==
+						DMUI_RESULT_BUFFER_TOO_SMALL && count == 2u &&
+					api.tableGetSortSpecs(1u, &sentinel, 1u, nullptr) ==
+						DMUI_RESULT_INVALID_ARGUMENT &&
+					api.tableGetSortSpecs(1u, nullptr, 1u, &count) ==
+						DMUI_RESULT_INVALID_ARGUMENT,
+				"count probe or argument validation failed");
+			dmui::ui::EndTable();
+			require(context.Result() == DMUI_RESULT_OK, "sort readback left an error");
+		});
+
+		runner.test("table background colors reach the native table and reject bad input", [] {
+			ImGuiFrame frame;
+			const DearModdingUI::UI::Testing::ValidationOverride validation{
+				&AcceptClient
+			};
+			const auto& api = DearModdingUI::UI::API();
+			dmui::ui::detail::ScopedContext context{ &api, 1u };
+			require(
+				api.tableSetBgColor(1u, DMUI_UI_TABLE_BG_TARGET_ROW_BG0, 0xFF0000FFu, -1) ==
+					DMUI_RESULT_UNBALANCED_BRACKET,
+				"background color was set outside a table");
+
+			require(dmui::ui::BeginTable("##bg", 2), "table did not open");
+			dmui::ui::TableNextRow();
+			const auto* table = GImGui->CurrentTable;
+			require(
+				api.tableSetBgColor(1u, DMUI_UI_TABLE_BG_TARGET_ROW_BG1, 0xFF0000FFu, 1) ==
+						DMUI_RESULT_OK &&
+					table->RowBgColor[1] == IM_COL32(255, 0, 0, 255),
+				"row background did not reach the native table");
+			(void)dmui::ui::TableSetColumnIndex(1);
+			require(
+				api.tableSetBgColor(1u, DMUI_UI_TABLE_BG_TARGET_CELL, 0x00FF0080u, -1) ==
+						DMUI_RESULT_OK &&
+					table->RowCellData[table->RowCellDataCurrent].Column == 1 &&
+					table->RowCellData[table->RowCellDataCurrent].BgColor ==
+						IM_COL32(0, 255, 0, 128),
+				"cell background did not target the current column");
+			require(
+				api.tableSetBgColor(1u, DMUI_UI_TABLE_BG_TARGET_CELL, 0u, 2) ==
+						DMUI_RESULT_INVALID_ARGUMENT &&
+					api.tableSetBgColor(1u, DMUI_UI_TABLE_BG_TARGET_CELL, 0u, -2) ==
+						DMUI_RESULT_INVALID_ARGUMENT &&
+					api.tableSetBgColor(1u, DMUI_UI_TABLE_BG_TARGET_NONE, 0u, -1) ==
+						DMUI_RESULT_INVALID_ARGUMENT &&
+					api.tableSetBgColor(1u, UINT32_C(99), 0u, -1) ==
+						DMUI_RESULT_INVALID_ARGUMENT,
+				"invalid target or column reached native ImGui");
+				require(
+					api.tableSetBgColor(1u, DMUI_UI_TABLE_BG_TARGET_CELL, 0u, 0) ==
+							DMUI_RESULT_OK &&
+						api.tableSetBgColor(1u, DMUI_UI_TABLE_BG_TARGET_CELL, 0u, 1) ==
+							DMUI_RESULT_INVALID_ARGUMENT &&
+						table->RowCellDataCurrent < table->ColumnsCount,
+					"out-of-order cell colors overran the native row span");
+			dmui::ui::EndTable();
+		});
 	}
 }

@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <format>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -312,7 +311,8 @@ namespace DearModdingUI::MCM
 		void UpdateConditionNotes(
 			dmui::SettingsPage& a_page,
 			const ConditionStateSummary& a_summary,
-			ConditionNotes& a_notes)
+			ConditionNotes& a_notes,
+			const Support::TextCatalog& a_catalog)
 		{
 			constexpr auto kPendingNote = "dearmodding.mcm.condition.pending";
 			constexpr auto kUnavailableNote =
@@ -332,7 +332,7 @@ namespace DearModdingUI::MCM
 			if (loading && !a_notes.pending)
 			{
 				a_page.notes.push_back({
-					"Loading setting visibility…",
+					BridgeText::Render(BridgeText::kLoadingVisibility, a_catalog),
 					true,
 					kPendingNote
 				});
@@ -341,13 +341,9 @@ namespace DearModdingUI::MCM
 			if (a_summary.unevaluableConditions && !a_notes.unavailable)
 			{
 				a_page.notes.push_back({
-					std::format(
-						"Compatibility: {} condition{} could not be applied "
-						"because a controller is inoperable or its value is "
-						"missing or failed. "
-						"Dependent content is shown.",
-						a_summary.unevaluableConditions,
-						a_summary.unevaluableConditions == 1 ? "" : "s"),
+					Support::Message{
+						BridgeText::kConditionsNotApplied,
+						a_summary.unevaluableConditions }.Render(a_catalog),
 					false,
 					kUnavailableNote
 				});
@@ -355,9 +351,20 @@ namespace DearModdingUI::MCM
 			}
 		}
 
+		// Empty when the reason has nothing to say in this position.
+		[[nodiscard]] std::string Explain(
+			const std::optional<Support::Phrase>& a_phrase,
+			const Support::TextCatalog& a_catalog)
+		{
+			return a_phrase ?
+				BridgeText::Render(*a_phrase, a_catalog) :
+				std::string{};
+		}
+
 		void UpdateInertNote(
 			dmui::SettingsPage& a_page,
-			const std::vector<std::function<ResolvedInertState()>>& a_resolvers)
+			const std::vector<std::function<ResolvedInertState()>>& a_resolvers,
+			const Support::TextCatalog& a_catalog)
 		{
 			constexpr auto kNoteId = "dearmodding.mcm.availability";
 			RemoveNote(a_page, kNoteId);
@@ -374,10 +381,43 @@ namespace DearModdingUI::MCM
 			{
 				if (!text.empty())
 					text.push_back('\n');
-				text.append(Describe(reason).pageText);
+				text.append(Explain(Describe(reason).pageText, a_catalog));
 			}
 			if (!text.empty())
 				a_page.notes.push_back({ std::move(text), false, kNoteId });
+		}
+
+		struct ActionExplanation
+		{
+			std::string id;
+			std::string help;
+			std::function<ResolvedInertState()> resolve;
+		};
+
+		// Row state changes after binding, so the sentence is rebuilt per frame.
+		void RefreshActionExplanations(
+			dmui::SettingsPage& a_page,
+			const std::vector<ActionExplanation>& a_actions,
+			const Support::TextCatalog& a_catalog)
+		{
+			for (const auto& entry : a_actions)
+			{
+				auto* action = FindActionRow(a_page, entry.id);
+				if (!action)
+					continue;
+				const auto explanation = Explain(
+					Describe(entry.resolve().rowReason).text,
+					a_catalog);
+				auto description = entry.help;
+				if (!explanation.empty())
+				{
+					if (!description.empty())
+						description.push_back('\n');
+					description.append(explanation);
+				}
+				if (action->description != description)
+					action->description = std::move(description);
+			}
 		}
 	}
 
@@ -394,11 +434,14 @@ namespace DearModdingUI::MCM
 	void BindPage(
 		MappedPage& a_page,
 		ValueSource& a_source,
-		McmStateResolver a_resolveState)
+		McmStateResolver a_resolveState,
+		const Support::TextCatalog& a_catalog)
 	{
 		auto inertResolvers =
 			std::make_shared<
 				std::vector<std::function<ResolvedInertState()>>>();
+		auto actionExplanations =
+			std::make_shared<std::vector<ActionExplanation>>();
 		const auto dependencies = std::make_shared<const Dependencies>(
 			BuildDependencies(a_page.rows));
 		const auto localToggles = std::make_shared<LocalToggleState>(
@@ -412,6 +455,7 @@ namespace DearModdingUI::MCM
 		auto priorPrepare = std::move(a_page.settings.prepareView);
 		a_page.settings.prepareView =
 			[&a_source,
+			 &a_catalog,
 			 rows = a_page.rows,
 			 dependencies,
 			 localToggles,
@@ -426,7 +470,8 @@ namespace DearModdingUI::MCM
 						*dependencies,
 						a_source,
 						*localToggles),
-					notes);
+					notes,
+					a_catalog);
 			};
 
 		for (auto& row : a_page.rows)
@@ -563,6 +608,7 @@ namespace DearModdingUI::MCM
 				const auto description = descriptor->description;
 				descriptor->resolveDescription =
 					[resolve,
+					 &a_catalog,
 					 fileChoices = row.fileChoiceState,
 					 priorDescription = std::move(priorDescription),
 					 description] {
@@ -574,10 +620,10 @@ namespace DearModdingUI::MCM
 							fileChoices &&
 								reason == InertReason::kFileChoicesFailed ?
 							fileChoices->Description() :
-							std::string{};
+							Support::Message{};
 						const auto explanation = detailed.empty() ?
-							std::string{ Describe(reason).text } :
-							detailed;
+							Explain(Describe(reason).text, a_catalog) :
+							detailed.Render(a_catalog);
 						if (!explanation.empty())
 						{
 							if (!result.empty())
@@ -593,14 +639,11 @@ namespace DearModdingUI::MCM
 				action->isEnabled = [resolve] {
 					return resolve().governingReason == InertReason::kNone;
 				};
-				const auto explanation =
-					Describe(resolve().rowReason).text;
-				if (!explanation.empty())
-				{
-					if (!action->description.empty())
-						action->description.push_back('\n');
-					action->description.append(explanation);
-				}
+				actionExplanations->push_back({
+					row.id,
+					action->description,
+					std::move(resolve)
+				});
 			}
 			if (row.groupControl &&
 				localToggles->ownedRows.contains(row.id))
@@ -637,11 +680,17 @@ namespace DearModdingUI::MCM
 
 		auto priorPrepareView = std::move(a_page.settings.prepareView);
 		a_page.settings.prepareView =
-			[priorPrepareView = std::move(priorPrepareView),
-			 inertResolvers](dmui::SettingsPage& a_settings) {
+			[&a_catalog,
+			 priorPrepareView = std::move(priorPrepareView),
+			 inertResolvers,
+			 actionExplanations](dmui::SettingsPage& a_settings) {
 				if (priorPrepareView)
 					priorPrepareView(a_settings);
-				UpdateInertNote(a_settings, *inertResolvers);
+				UpdateInertNote(a_settings, *inertResolvers, a_catalog);
+				RefreshActionExplanations(
+					a_settings,
+					*actionExplanations,
+					a_catalog);
 			};
 
 	}

@@ -37,9 +37,11 @@ namespace DearModdingUI::MCM
 		public:
 			ConfigReader(
 				std::string a_source,
-				LoadResult& a_result) :
+				LoadResult& a_result,
+				const Support::TextCatalog& a_catalog) :
 				m_source(std::move(a_source)),
 				m_result(a_result),
+				m_catalog(a_catalog),
 				m_diagnostics(m_source, a_result.diagnostics)
 			{}
 
@@ -350,25 +352,30 @@ namespace DearModdingUI::MCM
 
 					Page page;
 					page.location = location;
-					if (const auto displayName = ReadString(
-							value, "pageDisplayName", location))
-						page.displayName = *displayName;
-					else if (const auto displayName = ReadString(
-								 value, "displayName", location))
-						page.displayName = *displayName;
+					auto authoredName =
+						ReadString(value, "pageDisplayName", location);
+					if (!authoredName)
+						authoredName = ReadString(value, "displayName", location);
+					if (authoredName)
+					{
+						page.displayName = *authoredName;
+					}
 					else
 					{
-						page.displayName =
-							"Page " + std::to_string(index + 1);
+						page.displayName = Support::Message{
+							BridgeText::kPageName,
+							index + 1
+						}.Render(m_catalog);
 						Diagnose(
 							DiagnosticSeverity::kWarning,
 							location,
 							"page has no display name");
 					}
 
+					// A translated fallback name must not leak into the page id.
 					auto candidate = ReadString(value, "id", location)
 						.value_or(detail::MakeIdentifier(
-							page.displayName,
+							authoredName.value_or(std::string{}),
 							"page-" + std::to_string(index + 1)));
 					page.id = UniquePageId(std::move(candidate), location);
 
@@ -736,6 +743,7 @@ namespace DearModdingUI::MCM
 
 			std::string m_source;
 			LoadResult& m_result;
+			const Support::TextCatalog& m_catalog;
 			detail::Diagnostics m_diagnostics;
 			std::unordered_set<std::string> m_pageIds;
 		};
@@ -744,7 +752,8 @@ namespace DearModdingUI::MCM
 	LoadResult ParseConfig(
 		std::string_view a_json,
 		std::string_view a_source,
-		const TextResolver& a_textResolver) noexcept
+		const TextResolver& a_textResolver,
+		const Support::TextCatalog& a_catalog) noexcept
 	{
 		LoadResult result;
 		auto source = std::string{ "<memory>" };
@@ -763,7 +772,7 @@ namespace DearModdingUI::MCM
 				nullptr,
 				true,
 				false);
-			ConfigReader reader{ source, result };
+			ConfigReader reader{ source, result, a_catalog };
 			reader.Read(document);
 			if (result.configuration)
 			{
@@ -773,7 +782,8 @@ namespace DearModdingUI::MCM
 					result.displayName,
 					result.pages,
 					result.diagnostics,
-					a_textResolver);
+					a_textResolver,
+					a_catalog);
 			}
 		}
 		catch (const Json::parse_error& a_error)
@@ -803,7 +813,8 @@ namespace DearModdingUI::MCM
 
 	LoadResult LoadConfig(
 		const std::filesystem::path& a_path,
-		const TextResolver& a_textResolver) noexcept
+		const TextResolver& a_textResolver,
+		const Support::TextCatalog& a_catalog) noexcept
 	{
 		LoadResult result;
 		auto source = std::string{ "<path>" };
@@ -831,7 +842,7 @@ namespace DearModdingUI::MCM
 					std::move(message));
 				return result;
 			}
-			return ParseConfig(file.text, source, a_textResolver);
+			return ParseConfig(file.text, source, a_textResolver, a_catalog);
 		}
 		catch (const std::exception& a_error)
 		{

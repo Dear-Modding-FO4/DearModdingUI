@@ -67,15 +67,19 @@ namespace DearModdingUI::MCM
 	[[nodiscard]] UserKeybinds LoadUserKeybinds(
 		const std::filesystem::path& a_path) noexcept;
 
-	[[nodiscard]] std::string KeyName(int32_t a_keycode);
+	[[nodiscard]] std::string KeyName(
+		int32_t a_keycode,
+		const Support::TextCatalog& a_catalog = Support::EnglishCatalog());
 
 	[[nodiscard]] std::string FormatKeybind(
 		int32_t a_keycode,
-		uint32_t a_modifiers);
+		uint32_t a_modifiers,
+		const Support::TextCatalog& a_catalog = Support::EnglishCatalog());
 
 	void ApplyKeybinds(
 		MappedPage& a_page,
 		const KeybindDefinitions& a_definitions,
 		const UserKeybinds& a_bindings,
-		DiagnosticReporter& a_diagnostics) noexcept;
+		DiagnosticReporter& a_diagnostics,
+		const Support::TextCatalog& a_catalog = Support::EnglishCatalog()) noexcept;
 }

@@ -1,5 +1,7 @@
 #include "../support/DearModdingUITestSupport.h"
 #include "../support/ImGuiTestContext.h"
+#include "../support/LanguageScope.h"
+#include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/presentation/FontCatalog.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/settings/HostSettingsHealthState.h>
@@ -206,7 +208,7 @@ namespace vmm_tests
 			require(
 				loaded.disposition == HostSettingsLoadDisposition::kMissing &&
 					!loaded.settings.fallSoulsMode &&
-					loaded.detail.find("Using defaults") != std::string::npos,
+					loaded.detail.English().find("Using defaults") != std::string::npos,
 				"an absent optional host config was not healthy");
 
 			std::ofstream(path)
@@ -246,7 +248,7 @@ namespace vmm_tests
 				loaded = LoadHostInterfaceSettings(path);
 				require(loaded.disposition == HostSettingsLoadDisposition::kCorrected &&
 						loaded.settings.menuToggleGamepad == "PadBack+PadLB+PadRB" &&
-						loaded.detail.find("sMenuToggleGamepad") != std::string::npos,
+						loaded.detail.English().find("sMenuToggleGamepad") != std::string::npos,
 					"invalid gamepad toggle lost fallback or diagnostics");
 			}
 
@@ -255,7 +257,7 @@ namespace vmm_tests
 			loaded = LoadHostInterfaceSettings(path);
 			require(
 				loaded.disposition == HostSettingsLoadDisposition::kFailed &&
-					loaded.detail.find("correct or remove") !=
+					loaded.detail.English().find("correct or remove") !=
 						std::string::npos,
 				"a malformed host config did not retain actionable failure");
 
@@ -292,18 +294,18 @@ namespace vmm_tests
 				loaded.disposition == HostSettingsLoadDisposition::kCorrected &&
 					loaded.settings.menuToggleKey == "End" &&
 					observation.state == HealthState::kDegraded &&
-					observation.reason.find(
+					observation.reason.English().find(
 						"sMenuToggleKey \"Hyper\" used \"End\"") !=
 						std::string::npos,
 				"configuration health reported a stale toggle fallback");
 
-			state.RecordSaveFailure("access denied");
+			state.RecordSaveFailure(Support::Message::Text("access denied"));
 			observation = state.Observation();
 			require(
 				observation.state == HealthState::kDegraded &&
-					observation.reason.find("access denied") !=
+					observation.reason.English().find("access denied") !=
 						std::string::npos &&
-					observation.reason.find("sMenuToggleKey") !=
+					observation.reason.English().find("sMenuToggleKey") !=
 						std::string::npos,
 				"a save failure erased the active load correction");
 
@@ -311,7 +313,7 @@ namespace vmm_tests
 			observation = state.Observation();
 			require(
 				observation.state == HealthState::kReady &&
-					observation.reason.find("Saved accepted settings") !=
+					observation.reason.English().find("Saved accepted settings") !=
 						std::string::npos,
 				"a successful write did not resolve persisted configuration health");
 
@@ -322,9 +324,91 @@ namespace vmm_tests
 			state.RecordLoad(unbound);
 			require(unbound.disposition == HostSettingsLoadDisposition::kCorrected &&
 					unbound.settings.menuToggleKey == "End" &&
-					state.Observation().reason.find(
+					state.Observation().reason.English().find(
 						"sMenuToggleKey \"none\" used \"End\"") != std::string::npos,
 				"none disabled the menu toggle instead of reporting the End fallback");
+			std::filesystem::remove_all(root, error);
+		});
+
+		runner.test("configuration corrections count the hidden ones and name the Apply control per language", [] {
+			const auto root =
+				std::filesystem::current_path() /
+				".Build" /
+				"Tests" /
+				"health-config-translation";
+			std::error_code error;
+			std::filesystem::remove_all(root, error);
+			std::filesystem::create_directories(root, error);
+			const auto path = root / "DearModdingUI.toml";
+			const auto contains = [](const std::string& a_text, std::string_view a_part) {
+				return a_text.find(a_part) != std::string::npos;
+			};
+
+			std::ofstream(path)
+				<< "[Additional]\n"
+				<< "sMenuToggleKey = \"Hyper\"\n"
+				<< "sMenuSidebarLayout = \"columns\"\n"
+				<< "fMenuUiScale = 99.0\n"
+				<< "sMenuAccentColor = \"bad\"\n"
+				<< "sMenuBodyFontFamily = \"..\\\\escaped\"\n"
+				<< "bMenuBackgroundBlur = \"yes\"\n";
+			const auto loaded = LoadHostInterfaceSettings(path);
+			const auto english = loaded.detail.English();
+			require(
+				loaded.corrections.size() == 6 &&
+					contains(english, "sMenuSidebarLayout \"columns\" used \"") &&
+					contains(english, "; and 1 more correction. Use Apply on the Settings page to persist the accepted values."),
+				"the hidden correction count or the Apply control changed in English");
+
+			{
+				const support::LanguageScope language{ "ru" };
+				const auto russian = Localization::Render(loaded.detail);
+				// The Settings page "Apply" button, in Cyrillic.
+				constexpr std::string_view apply{
+					"\xD0\x9F\xD1\x80\xD0\xB8\xD0\xBC\xD0\xB5\xD0\xBD\xD0\xB8\xD1\x82\xD1\x8C"
+				};
+				require(
+					russian != english &&
+						contains(russian, "sMenuSidebarLayout \"columns\"") &&
+						!contains(russian, " used ") &&
+						!contains(russian, "Apply") &&
+						contains(russian, apply),
+					"the correction summary was not translated around its arguments");
+				require(Localization::Render(loaded.detail, false) == english,
+					"reports lost their English rendering");
+			}
+			std::filesystem::remove_all(root, error);
+		});
+
+		runner.test("settings save failures render per language and keep the OS explanation", [] {
+			const auto root =
+				std::filesystem::current_path() /
+				".Build" /
+				"Tests" /
+				"settings-save-translation";
+			std::error_code error;
+			std::filesystem::remove_all(root, error);
+			std::filesystem::create_directories(root, error);
+			const auto path = root / "DearModdingUI.toml";
+
+			SettingsMoveProbe probe;
+			probe.firstError = ERROR_NOT_SAME_DEVICE;
+			const auto saved = PersistHostInterfaceSettings(
+				path, PersistedHostInterfaceSettings{}, { &probe, &ProbeSettingsMove });
+			const auto english = saved.detail.English();
+			const auto accessDenied = DescribeWindowsError(ERROR_ACCESS_DENIED);
+			const auto notSameDevice = DescribeWindowsError(ERROR_NOT_SAME_DEVICE);
+			const support::LanguageScope language{ "de" };
+			const auto german = Localization::Render(saved.detail);
+			require(
+				!saved.saved &&
+					german != english &&
+					german.find(accessDenied) != std::string::npos &&
+					german.find(notSameDevice) != std::string::npos &&
+					german.find("Windows-Fehler 5") != std::string::npos &&
+					german.find("DearModdingUI.toml") != std::string::npos &&
+					german.find("Windows error") == std::string::npos,
+				"a translated save failure lost the file name, code, or OS explanation");
 			std::filesystem::remove_all(root, error);
 		});
 
@@ -429,13 +513,13 @@ namespace vmm_tests
 							!std::filesystem::exists(temporary),
 					"failed replacement used an unrelated fallback or left temporary data");
 				require(explanation != "No system explanation is available" &&
-							saved.detail.find(explanation) != std::string::npos &&
-							saved.detail.find("Windows error 5") != std::string::npos,
+							saved.detail.English().find(explanation) != std::string::npos &&
+							saved.detail.English().find("Windows error 5") != std::string::npos,
 					"replacement failure omitted its readable system explanation");
 				if (firstError == ERROR_NOT_SAME_DEVICE)
 				{
 					require((probe.flags[1] & MOVEFILE_COPY_ALLOWED) != 0 &&
-								saved.detail.find(DescribeWindowsError(ERROR_NOT_SAME_DEVICE)) != std::string::npos,
+								saved.detail.English().find(DescribeWindowsError(ERROR_NOT_SAME_DEVICE)) != std::string::npos,
 						"failed cross-volume retry lost the original error 17 explanation");
 				}
 				const auto loaded = LoadHostInterfaceSettings(path);
@@ -452,10 +536,10 @@ namespace vmm_tests
 			require(
 				!saved.saved &&
 					saved.nativeError != ERROR_SUCCESS &&
-					saved.detail.find("Opening temporary settings file") !=
+					saved.detail.English().find("Opening temporary settings file") !=
 						std::string::npos &&
 					explanation != "No system explanation is available" &&
-					saved.detail.find(explanation) != std::string::npos &&
+					saved.detail.English().find(explanation) != std::string::npos &&
 					loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
 					loaded.settings.menuToggleKey == "Home" &&
 					loaded.settings.fallSoulsMode,

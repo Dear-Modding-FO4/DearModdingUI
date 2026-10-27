@@ -47,6 +47,11 @@ namespace DearModdingUI::GameInput
 		static std::atomic<bool> s_blocked{ false };
 		static std::atomic<bool> s_runtimeFailureReported{ false };
 
+		constexpr Support::Phrase kWaitingForGameData{
+			"$DMUI_Input_WaitingForGameData",
+			"Waiting for the game-data-ready prerequisite."
+		};
+
 		class InputHealthReporter final : public DearModdingUI::HealthReporter
 		{
 		public:
@@ -60,7 +65,7 @@ namespace DearModdingUI::GameInput
 				{
 					REX::ERROR("[{}] Game-input interception Failed: {}"sv,
 						a_snapshot.identity,
-						a_snapshot.reason);
+						a_snapshot.reason.English());
 				}
 				else if (a_snapshot.state == HealthState::kReady)
 				{
@@ -69,7 +74,7 @@ namespace DearModdingUI::GameInput
 						a_event == HealthEvent::kRecovery ?
 							"recovered" :
 							"Ready",
-						a_snapshot.reason);
+						a_snapshot.reason.English());
 				}
 			}
 		};
@@ -77,6 +82,7 @@ namespace DearModdingUI::GameInput
 		InputHealthReporter s_inputHealthReporter;
 		DearModdingUI::SubsystemHealth s_inputHealth{
 			"dmui.input.game-interception",
+			{ "$DMUI_Health_SubsystemGameInput", "Game input" },
 			s_inputHealthReporter,
 			DearModdingUI::HostSubsystemHealthRegistry()
 		};
@@ -369,7 +375,7 @@ namespace DearModdingUI::GameInput
 	{
 		(void)s_inputHealth.Observe(
 			DearModdingUI::HealthState::kWaiting,
-			"Waiting for the game-data-ready prerequisite.");
+			Support::Message{ kWaitingForGameData });
 	}
 
 	bool InstallHooks() noexcept
@@ -379,9 +385,19 @@ namespace DearModdingUI::GameInput
 				expected, true, std::memory_order_acq_rel))
 			return s_installed.load(std::memory_order_acquire);
 
-		(void)s_inputHealth.Observe(
-			DearModdingUI::HealthState::kProgressing,
-			"Installing MenuControls, PlayerControls, and PlayerCamera interception.");
+		try
+		{
+			(void)s_inputHealth.Observe(
+				DearModdingUI::HealthState::kProgressing,
+				AllReceiversMessage({
+					"$DMUI_Input_Installing",
+					"Installing {}, {}, and {} interception."
+				}));
+		}
+		catch (...)
+		{
+			// Health is advisory; installation still proceeds.
+		}
 		const std::array outcomes{
 			InputReceiverHookOutcome{
 				InputReceiver::kMenuControls,

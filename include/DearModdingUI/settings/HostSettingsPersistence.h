@@ -1,6 +1,8 @@
 #pragma once
 
 #include <DearModdingUI/settings/HostSettings.h>
+#include <Support/Message.h>
+
 #include <filesystem>
 #include <map>
 #include <string>
@@ -25,8 +27,8 @@ namespace DearModdingUI
 			HostSettingsLoadDisposition::kMissing
 		};
 		std::string path;
-		std::string detail;
-		std::vector<std::string> corrections;
+		Support::Message detail;
+		std::vector<Support::Message> corrections;
 	};
 
 	[[nodiscard]] HostSettingsLoadResult LoadHostInterfaceSettings(
@@ -51,7 +53,13 @@ namespace DearModdingUI
 		bool usedCrossVolumeFallback{ false };
 		bool temporaryCleanupFailed{ false };
 		uint32_t nativeError{ 0 };
-		std::string detail;
+		Support::Message detail;
+	};
+
+	// Also used when a save throws before the persister can describe it.
+	inline constexpr Support::Phrase kPersistFailedUnknown{
+		"$DMUI_Config_PersistFailedUnknown",
+		"Persisting {} failed for an unknown reason."
 	};
 
 	[[nodiscard]] std::string DescribeWindowsError(uint32_t a_error);

@@ -17,6 +17,7 @@
 #include <array>
 #include <cstdio>
 #include <cstdint>
+#include <format>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -26,7 +27,7 @@ namespace DearModdingUI
 {
 	namespace
 	{
-		constexpr Localization::Phrase kDefaultGreenText{ "$DMUI_Settings_DefaultGreen", "Default green" };
+		constexpr Support::Phrase kDefaultGreenText{ "$DMUI_Settings_DefaultGreen", "Default green" };
 
 		using HostSettingsViewDetail::ColorPreset;
 
@@ -974,8 +975,8 @@ namespace DearModdingUI
 
 			const auto typography = Localization::Format(
 				"$DMUI_Settings_PixelSize",
-				"{:.0f} px",
-				Theme::FontSize(Theme::FontRole::kBody));
+				"{} px",
+				std::format("{:.0f}", Theme::FontSize(Theme::FontRole::kBody)));
 			DrawReadOnlyHostFact(
 				"ResolvedTypographySize",
 				Localization::Text(

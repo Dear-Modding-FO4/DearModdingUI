@@ -239,7 +239,6 @@ namespace DearModdingUI
 				.label = row.text.c_str(),
 				.selected = selected,
 				.height = ImGui::GetTextLineHeight(),
-				.leadingAffordance = RowLeadingAffordance::kIcon,
 				.glyph = ResolveNavigationSearchEntryGlyph(entry),
 				.textColor = textColor,
 				.hoveredTextColor = textColor,

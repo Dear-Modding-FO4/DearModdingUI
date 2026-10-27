@@ -219,6 +219,20 @@ namespace DearModdingUI::UI
 			};
 		}
 
+		[[nodiscard]] DMUI_UISortDirection StableSortDirection(
+			ImGuiSortDirection a_native) noexcept
+		{
+			switch (a_native)
+			{
+			case ImGuiSortDirection_Ascending:
+				return DMUI_UI_SORT_DIRECTION_ASCENDING;
+			case ImGuiSortDirection_Descending:
+				return DMUI_UI_SORT_DIRECTION_DESCENDING;
+			default:
+				return DMUI_UI_SORT_DIRECTION_NONE;
+			}
+		}
+
 		[[nodiscard]] DMUI_Result TranslateInputFlags(
 			DMUI_UIInputTextFlags a_flags,
 			ImGuiInputTextFlags& a_native) noexcept
@@ -791,6 +805,69 @@ namespace DearModdingUI::UI
 			if (validation != DMUI_RESULT_OK)
 				return validation;
 			ImGui::TableSetupScrollFreeze(a_columns, a_rows);
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL TableGetSortSpecs(
+			DMUI_ClientHandle a_client,
+			DMUI_UITableSortSpec* a_specs,
+			uint32_t a_capacity,
+			uint32_t* a_count) noexcept
+		{
+			if (!a_count || (!a_specs && a_capacity != 0u))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_count = 0u;
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			if (!GImGui || !GImGui->CurrentTable)
+				return DMUI_RESULT_UNBALANCED_BRACKET;
+			const auto* native = ImGui::TableGetSortSpecs();
+			const auto count = native && native->SpecsCount > 0 ?
+				static_cast<uint32_t>(native->SpecsCount) : 0u;
+			*a_count = count;
+			if (a_capacity < count)
+				return DMUI_RESULT_BUFFER_TOO_SMALL;
+			for (uint32_t index = 0; index < count; ++index)
+			{
+				const auto& spec = native->Specs[index];
+				a_specs[index].column = spec.ColumnIndex;
+				a_specs[index].direction = StableSortDirection(spec.SortDirection);
+			}
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL TableSetBgColor(
+			DMUI_ClientHandle a_client,
+			DMUI_UITableBgTarget a_target,
+			uint32_t a_rgba,
+			int32_t a_column) noexcept
+		{
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			ImGuiTableBgTarget target{};
+			const auto translated = TranslateTableBgTarget(a_target, target);
+			if (translated != DMUI_RESULT_OK)
+				return translated;
+			const auto* table = GImGui ? GImGui->CurrentTable : nullptr;
+			if (!table)
+				return DMUI_RESULT_UNBALANCED_BRACKET;
+			// Native rows reject a column, so only cells forward it.
+			int column = -1;
+			if (target == ImGuiTableBgTarget_CellBg)
+			{
+				column = a_column == -1 ? table->CurrentColumn : a_column;
+				if (column < 0 || column >= table->ColumnsCount)
+					return DMUI_RESULT_INVALID_ARGUMENT;
+				// ImGui sizes the per-row cell span at ColumnsCount entries.
+				const bool startsEntry = table->RowCellDataCurrent < 0 ||
+					table->RowCellData[table->RowCellDataCurrent].Column != column;
+				if (startsEntry && table->RowCellDataCurrent + 1 >= table->ColumnsCount)
+					return DMUI_RESULT_INVALID_ARGUMENT;
+			}
+			ImGui::TableSetBgColor(
+				target, ImGui::ColorConvertFloat4ToU32(StableRGBA(a_rgba)), column);
 			return DMUI_RESULT_OK;
 		}
 

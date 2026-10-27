@@ -40,7 +40,7 @@ namespace DearModdingUI
 {
 	namespace
 	{
-		constexpr Localization::Phrase kCloseText{ "$DMUI_Shell_Close", "Close" };
+		constexpr Support::Phrase kCloseText{ "$DMUI_Shell_Close", "Close" };
 
 		[[nodiscard]] std::string StatusDetailsPopupId()
 		{

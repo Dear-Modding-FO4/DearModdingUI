@@ -260,6 +260,14 @@ namespace DearModdingUI
 			a_window->DrawList->PopClipRect();
 		}
 
+		// Disclosures show state by brightness; collapsed ones dim.
+		[[nodiscard]] ImVec4 DisclosureColor(ImVec4 a_color, const bool* a_expanded) noexcept
+		{
+			if (a_expanded && !*a_expanded)
+				a_color.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
+			return a_color;
+		}
+
 		template <class Draw>
 		[[nodiscard]] bool DrawEnabled(bool a_enabled, Draw a_draw) noexcept
 		{
@@ -558,37 +566,19 @@ namespace DearModdingUI
 		}
 
 		const auto textColor = a_options.disabledColor.value_or(
-			hovered ? a_options.hoveredTextColor : a_options.textColor);
+			ImGui::ColorConvertFloat4ToU32(DisclosureColor(
+				ImGui::ColorConvertU32ToFloat4(
+					hovered ? a_options.hoveredTextColor : a_options.textColor),
+				a_options.expanded)));
 		const auto fontSize = ImGui::GetFontSize();
 		auto cursorX = rect.Min.x + ImGui::GetStyle().FramePadding.x;
-		if (a_options.leadingAffordance == RowLeadingAffordance::kArrow ||
-			a_options.leadingAffordance == RowLeadingAffordance::kBack)
+		if (a_options.back)
 		{
-			const auto back =
-				a_options.leadingAffordance == RowLeadingAffordance::kBack;
-			const auto subtle = !back &&
-				a_options.disclosureStyle == RowDisclosureStyle::kSubtle;
-			const auto interactive =
-				hovered || ImGui::IsItemFocused() || ImGui::IsItemActive();
-			const auto expanded = a_options.expanded && *a_options.expanded;
-			if ((back || a_options.expanded) &&
-				(!subtle || interactive || expanded))
-			{
-				const auto scale = subtle ? 0.6f : 1.0f;
-				const auto arrowSize = fontSize * scale;
-				ImGui::RenderArrow(
-					drawList,
-					{
-						cursorX + (fontSize - arrowSize) * 0.5f,
-						RowContentY(rect.Min.y, rect.GetHeight(), arrowSize)
-					},
-					subtle ?
-						ImGui::GetColorU32(ImGuiCol_TextDisabled) :
-						textColor,
-					back ? ImGuiDir_Left :
-						(expanded ? ImGuiDir_Down : ImGuiDir_Right),
-					scale);
-			}
+			ImGui::RenderArrow(
+				drawList,
+				{ cursorX, RowContentY(rect.Min.y, rect.GetHeight(), fontSize) },
+				textColor,
+				ImGuiDir_Left);
 			cursorX += fontSize + ImGui::GetStyle().ItemInnerSpacing.x;
 		}
 		if (HasIconGlyph(a_options.glyph))
@@ -648,29 +638,26 @@ namespace DearModdingUI
 				*a_options.count);
 			text = countedText;
 		}
-		auto color = Theme::kFeatureHeadingDefaults.colorDefault;
-		auto hoveredColor = Theme::kFeatureHeadingDefaults.colorHovered;
-		if (a_options.expanded && !*a_options.expanded)
-		{
-			color.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
-			hoveredColor.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
-		}
+		const auto defaultColor = Theme::kFeatureHeadingDefaults.colorDefault;
+		const auto defaultHoveredColor = Theme::kFeatureHeadingDefaults.colorHovered;
+		auto color = DisclosureColor(defaultColor, a_options.expanded);
+		const auto hoveredColor = DisclosureColor(defaultHoveredColor, a_options.expanded);
 		if (a_options.layout == RuledHeadingLayout::kLeadingRow)
 		{
 			const auto row = DrawSelectableRow({
 				.id = a_options.key,
 				.label = text,
-				.leadingAffordance = RowLeadingAffordance::kArrow,
 				.expanded = a_options.expanded,
 				.glyph = a_options.glyph,
-				.textColor = ImGui::GetColorU32(color),
-				.hoveredTextColor = ImGui::GetColorU32(hoveredColor),
+				.textColor = ImGui::GetColorU32(defaultColor),
+				.hoveredTextColor = ImGui::GetColorU32(defaultHoveredColor),
 				.highlightStyle = RowHighlightStyle::kRoundedFill
 			});
 			const auto textMin =
 				row.rect.Min.x + ImGui::GetStyle().FramePadding.x +
-				ImGui::GetFontSize() * 2.0f +
-				ImGui::GetStyle().ItemInnerSpacing.x * 2.0f;
+				(HasIconGlyph(a_options.glyph) ?
+						ImGui::GetFontSize() + ImGui::GetStyle().ItemInnerSpacing.x :
+						0.0f);
 			const auto textMax = (std::min)(
 				textMin + ImGui::CalcTextSize(text).x,
 				row.rect.Max.x);

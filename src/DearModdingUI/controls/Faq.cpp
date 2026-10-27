@@ -33,7 +33,6 @@ namespace DearModdingUI
 				(void)DrawSelectableRow({
 					.id = "##DearModdingUI.FaqEntry",
 					.label = entry.question.data(),
-					.leadingAffordance = RowLeadingAffordance::kArrow,
 					.expanded = &expanded->second,
 					.textColor = textColor,
 					.hoveredTextColor = textColor,

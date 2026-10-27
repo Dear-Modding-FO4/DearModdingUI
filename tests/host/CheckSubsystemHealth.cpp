@@ -3,6 +3,8 @@
 #include "../Harness.h"
 
 #include <chrono>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace vmm_tests
@@ -11,6 +13,11 @@ namespace vmm_tests
 
 	namespace
 	{
+		[[nodiscard]] Support::Message Reason(std::string_view a_text)
+		{
+			return Support::Message::Text(std::string{ a_text });
+		}
+
 		struct HealthRecord
 		{
 			HealthEvent event;
@@ -39,8 +46,8 @@ namespace vmm_tests
 		runner.test("health deadlines deduplicate escalation and distinguish recovery", [start] {
 			CapturingHealthReporter reporter;
 			SubsystemHealth health{ "fixture", reporter, start };
-			health.Observe(HealthState::kWaiting, "dependency is unavailable", start);
-			health.Observe(HealthState::kWaiting, "dependency is unavailable", start + 1s);
+			health.Observe(HealthState::kWaiting, Reason("dependency is unavailable"), start);
+			health.Observe(HealthState::kWaiting, Reason("dependency is unavailable"), start + 1s);
 			require(
 				reporter.records.size() == 1 &&
 					reporter.records.front().event == HealthEvent::kTransition &&
@@ -57,10 +64,10 @@ namespace vmm_tests
 					reporter.records.back().event ==
 						HealthEvent::kDeadlineExceeded &&
 					health.Snapshot().state == HealthState::kWaiting &&
-					health.Snapshot().reason == "dependency is unavailable",
+					health.Snapshot().reason.English() == "dependency is unavailable",
 				"a diagnostic deadline changed capability or repeated");
-			health.Observe(HealthState::kProgressing, "dependency connected", start + 21s);
-			health.Observe(HealthState::kReady, "dependency ready", start + 22s);
+			health.Observe(HealthState::kProgressing, Reason("dependency connected"), start + 21s);
+			health.Observe(HealthState::kReady, Reason("dependency ready"), start + 22s);
 			health.Evaluate(start + 30s);
 			require(
 				reporter.records.size() == 4 &&
@@ -73,20 +80,34 @@ namespace vmm_tests
 
 			CapturingHealthReporter recoveryReporter;
 			SubsystemHealth recovering{ "fixture", recoveryReporter, start };
-			recovering.Observe(HealthState::kDegraded, "using fallback", start);
-			recovering.Observe(HealthState::kProgressing, "rebuilding", start + 1s);
+			recovering.Observe(HealthState::kDegraded, Reason("using fallback"), start);
+			recovering.Observe(HealthState::kProgressing, Reason("rebuilding"), start + 1s);
 			require(recoveryReporter.records.back().event == HealthEvent::kTransition,
 				"an intervening rebuild claimed full recovery");
-			recovering.Observe(HealthState::kReady, "rebuild complete", start + 2s);
+			recovering.Observe(HealthState::kReady, Reason("rebuild complete"), start + 2s);
 			require(recoveryReporter.records.size() == 3 &&
 					recoveryReporter.records.back().event == HealthEvent::kRecovery,
 				"a rebuilt subsystem did not report full recovery");
 
-			recovering.Observe(HealthState::kFailed, "capability absent", start + 3s);
-			recovering.Observe(HealthState::kReady, "capability restored", start + 4s);
+			recovering.Observe(HealthState::kFailed, Reason("capability absent"), start + 3s);
+			recovering.Observe(HealthState::kReady, Reason("capability restored"), start + 4s);
 			require(recoveryReporter.records.size() == 5 &&
 					recoveryReporter.records.back().event == HealthEvent::kRecovery,
 				"a failed subsystem did not report full recovery");
+		});
+
+		runner.test("health observations compare whole structured reasons", [start] {
+			constexpr Support::Phrase phrase{ "$DMUI_Check_Reason", "Using {}." };
+			CapturingHealthReporter reporter;
+			SubsystemHealth health{ "fixture", reporter, start };
+			health.Observe(HealthState::kDegraded, Support::Message{ phrase, "Jost" }, start);
+			health.Observe(HealthState::kDegraded, Support::Message{ phrase, "Jost" }, start + 1s);
+			require(reporter.records.size() == 1,
+				"an identical structured reason was published twice");
+			health.Observe(HealthState::kDegraded, Support::Message{ phrase, "Arial" }, start + 2s);
+			require(reporter.records.size() == 2 &&
+					reporter.records.back().snapshot.reason.English() == "Using Arial.",
+				"a changed argument was deduplicated as the same reason");
 		});
 
 		runner.test("health registry owns snapshots and removes destroyed subsystems", [start] {
@@ -100,7 +121,7 @@ namespace vmm_tests
 				SubsystemHealth health{ identity, reporter, registry, start };
 				require(registry.Snapshots().empty(),
 					"an unobserved subsystem exposed a guessed state");
-				health.Observe(HealthState::kDegraded, reason, start);
+				health.Observe(HealthState::kDegraded, Reason(reason), start);
 				snapshot = health.Snapshot();
 				snapshots = registry.Snapshots();
 				identity.assign("changed");
@@ -118,11 +139,11 @@ namespace vmm_tests
 			require(registry.Snapshots().empty(),
 				"a destroyed subsystem left a dangling registry entry");
 			require(snapshot.identity == "dynamic.identity" &&
-					snapshot.reason == "temporary reason" &&
+					snapshot.reason.English() == "temporary reason" &&
 					snapshots.size() == 1 &&
 					snapshots.front().state == HealthState::kDegraded &&
-					snapshots.front().reason == "temporary reason" &&
-					reporter.records.front().snapshot.reason == "temporary reason",
+					snapshots.front().reason.English() == "temporary reason" &&
+					reporter.records.front().snapshot.reason.English() == "temporary reason",
 				"retained snapshots changed with their source or subsystem");
 		});
 	}

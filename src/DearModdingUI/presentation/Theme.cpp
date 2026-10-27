@@ -45,6 +45,11 @@ namespace DearModdingUI::Theme
 		// Faces load once; roles size dynamically through PushFont.
 		inline constexpr float kReferenceFontSize{ kBaselineFontSize };
 
+		constexpr Support::Phrase kTypographyRebuilding{
+			"$DMUI_Typography_Rebuilding",
+			"Rebuilding the font atlas for the requested family."
+		};
+
 		class TypographyHealthReporter final : public HealthReporter
 		{
 		public:
@@ -56,13 +61,13 @@ namespace DearModdingUI::Theme
 				{
 					REX::ERROR("[{}] Typography Failed: {}"sv,
 						a_snapshot.identity,
-						a_snapshot.reason);
+						a_snapshot.reason.English());
 				}
 				else if (a_snapshot.state == HealthState::kDegraded)
 				{
 					REX::WARN("[{}] Typography Degraded: {}"sv,
 						a_snapshot.identity,
-						a_snapshot.reason);
+						a_snapshot.reason.English());
 				}
 				else if (a_snapshot.state == HealthState::kReady)
 				{
@@ -71,7 +76,7 @@ namespace DearModdingUI::Theme
 						a_event == HealthEvent::kRecovery ?
 							"recovered" :
 							"Ready",
-						a_snapshot.reason);
+						a_snapshot.reason.English());
 				}
 			}
 		};
@@ -79,6 +84,7 @@ namespace DearModdingUI::Theme
 		TypographyHealthReporter s_typographyHealthReporter;
 		SubsystemHealth s_typographyHealth{
 			"dmui.typography",
+			{ "$DMUI_Health_SubsystemTypography", "Typography" },
 			s_typographyHealthReporter,
 			HostSubsystemHealthRegistry()
 		};
@@ -506,7 +512,7 @@ namespace DearModdingUI::Theme
 		{
 			(void)s_typographyHealth.Observe(
 				HealthState::kProgressing,
-				"Rebuilding the font atlas for the requested family.");
+				Support::Message{ kTypographyRebuilding });
 			const auto loaded = RebuildFonts(ImGui::GetIO(), settings.bodyFontFamily);
 			PublishTypographyOutcome(loaded);
 			if (!loaded.usableAtlas)

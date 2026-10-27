@@ -12,12 +12,13 @@
 #include <string_view>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 namespace DearModdingUI
 {
 	namespace
 	{
-		[[nodiscard]] Localization::Phrase StatePhrase(HealthState a_state) noexcept
+		[[nodiscard]] Support::Phrase StatePhrase(HealthState a_state) noexcept
 		{
 			const auto english = HealthStateLabel(a_state).data();
 			switch (a_state)
@@ -35,6 +36,13 @@ namespace DearModdingUI
 			default:
 				return { "$DMUI_Health_StateUnknown", english };
 			}
+		}
+
+		[[nodiscard]] std::string SubsystemDisplayName(const HealthSnapshot& a_snapshot)
+		{
+			return a_snapshot.name.key.empty() ?
+				a_snapshot.identity :
+				std::string{ Localization::Text(a_snapshot.name) };
 		}
 
 		[[nodiscard]] std::string SubsystemStateLabel(
@@ -75,45 +83,17 @@ namespace DearModdingUI
 			uint64_t a_successes,
 			uint64_t a_info)
 		{
-			std::string summary;
-			const auto append = [&](const std::string& a_part) {
-				if (!summary.empty())
-					summary.append(", ");
-				summary.append(a_part);
+			std::vector<Support::Message> parts;
+			const auto count = [&](const Support::PluralPhrase& a_phrase, uint64_t a_count) {
+				if (a_count != 0)
+					parts.push_back(Support::Message::Plural(a_phrase, a_count, a_count));
 			};
-			if (a_errors == 1)
-				append(Localization::Text(
-					"$DMUI_Health_ErrorCountOne",
-					"1 error"));
-			else if (a_errors != 0)
-				append(Localization::Format(
-					"$DMUI_Health_ErrorCountOther",
-					"{} errors",
-					a_errors));
-			if (a_warnings == 1)
-				append(Localization::Text(
-					"$DMUI_Health_WarningCountOne",
-					"1 warning"));
-			else if (a_warnings != 0)
-				append(Localization::Format(
-					"$DMUI_Health_WarningCountOther",
-					"{} warnings",
-					a_warnings));
-			if (a_successes == 1)
-				append(Localization::Text(
-					"$DMUI_Health_SuccessCountOne",
-					"1 success"));
-			else if (a_successes != 0)
-				append(Localization::Format(
-					"$DMUI_Health_SuccessCountOther",
-					"{} successes",
-					a_successes));
+			count({ "$DMUI_Health_ErrorCount", "{} error", "{} errors" }, a_errors);
+			count({ "$DMUI_Health_WarningCount", "{} warning", "{} warnings" }, a_warnings);
+			count({ "$DMUI_Health_SuccessCount", "{} success", "{} successes" }, a_successes);
 			if (a_info != 0)
-				append(Localization::Format(
-					"$DMUI_Health_InfoCount",
-					"{} info",
-					a_info));
-			return summary;
+				parts.emplace_back(Support::Phrase{ "$DMUI_Health_InfoCount", "{} info" }, a_info);
+			return Localization::Render(Support::Message::Join(std::move(parts), ", "));
 		}
 
 		[[nodiscard]] const RegisteredClient* FindClient(
@@ -131,14 +111,14 @@ namespace DearModdingUI
 
 		[[nodiscard]] std::string DroppedReportLabel(size_t a_count, bool a_localized)
 		{
-			if (a_count == 1)
-				return Localization::Text(
-					{ "$DMUI_Health_DroppedReportOne", "1 further diagnostic report was not retained." },
-					a_localized);
-			return Localization::Format(
-				{ "$DMUI_Health_DroppedReportOther", "{} further diagnostic reports were not retained." },
-				a_localized,
-				a_count);
+			return Localization::Render(
+				Support::Message::Plural(
+					{ "$DMUI_Health_DroppedReport",
+						"{} further diagnostic report was not retained.",
+						"{} further diagnostic reports were not retained." },
+					a_count,
+					a_count),
+				a_localized);
 		}
 
 		[[nodiscard]] std::string DiagnosticDescription(
@@ -254,10 +234,11 @@ namespace DearModdingUI
 		{
 			rows.push_back({
 				std::string{ snapshot.identity },
+				SubsystemDisplayName(snapshot),
 				snapshot.state,
 				SubsystemStateLabel(snapshot, a_now, true),
 				FormatHealthDuration(a_now - snapshot.enteredAt),
-				std::string{ snapshot.reason },
+				Localization::Render(snapshot.reason),
 				HealthSnapshotSeverity(snapshot, a_now)
 			});
 		}
@@ -425,7 +406,7 @@ namespace DearModdingUI
 				if (!subsystem->reason.empty())
 				{
 					report.append(" - ");
-					report.append(subsystem->reason);
+					report.append(subsystem->reason.English());
 				}
 				report.push_back('\n');
 			}

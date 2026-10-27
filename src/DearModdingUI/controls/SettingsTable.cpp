@@ -19,7 +19,7 @@ namespace DearModdingUI::SettingsTable
 {
 	namespace
 	{
-		constexpr Localization::Phrase kResetText{ "$DMUI_Controls_Reset", "Reset" };
+		constexpr Support::Phrase kResetText{ "$DMUI_Controls_Reset", "Reset" };
 
 		struct RenderState
 		{

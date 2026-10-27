@@ -82,7 +82,7 @@ $DMUI_Nav_LayoutTwoPane	Двухпанельный
 $DMUI_Nav_LayoutDrillDown	С вложенным переходом
 $DMUI_Nav_LayoutIconRail	Панель значков
 $DMUI_Nav_LayoutTree	Дерево
-$DMUI_Nav_LayoutTwoPaneHelp	Фиксированный список модов со страницами выбранного мода
+$DMUI_Nav_LayoutTwoPaneHelp	Фиксированный список модов со страницами выбранного мода.
 $DMUI_Nav_LayoutDrillDownHelp	Показывать по одному уровню; хорошо подходит для большого числа модов.
 $DMUI_Nav_LayoutIconRailHelp	Просмотр модов на компактной панели значков.
 $DMUI_Nav_LayoutTreeHelp	Просмотр всех модов и страниц одновременно.
@@ -93,14 +93,22 @@ $DMUI_Health_StateDegraded	Ухудшено
 $DMUI_Health_StateFailed	Сбой
 $DMUI_Health_StateUnknown	Неизвестно
 $DMUI_Health_DeadlineExceeded	(превышено время ожидания)
-$DMUI_Health_ErrorCountOne	1 ошибка
+$DMUI_Health_ErrorCountOne	{} ошибка
+$DMUI_Health_ErrorCountFew	{} ошибки
+$DMUI_Health_ErrorCountMany	{} ошибок
 $DMUI_Health_ErrorCountOther	{} ошибок
-$DMUI_Health_WarningCountOne	1 предупреждение
+$DMUI_Health_WarningCountOne	{} предупреждение
+$DMUI_Health_WarningCountFew	{} предупреждения
+$DMUI_Health_WarningCountMany	{} предупреждений
 $DMUI_Health_WarningCountOther	{} предупреждений
-$DMUI_Health_SuccessCountOne	1 успех
-$DMUI_Health_SuccessCountOther	{} успешных
+$DMUI_Health_SuccessCountOne	{} успех
+$DMUI_Health_SuccessCountFew	{} успеха
+$DMUI_Health_SuccessCountMany	{} успехов
+$DMUI_Health_SuccessCountOther	{} успехов
 $DMUI_Health_InfoCount	{} инфо
-$DMUI_Health_DroppedReportOne	1 дополнительный диагностический отчёт не сохранён.
+$DMUI_Health_DroppedReportOne	{} дополнительный диагностический отчёт не сохранён.
+$DMUI_Health_DroppedReportFew	{} дополнительных диагностических отчёта не сохранены.
+$DMUI_Health_DroppedReportMany	{} дополнительных диагностических отчётов не сохранено.
 $DMUI_Health_DroppedReportOther	{} дополнительных диагностических отчётов не сохранено.
 $DMUI_Health_ScopeLabel	Область: {}
 $DMUI_Health_DurationSeconds	{}с
@@ -130,7 +138,18 @@ $DMUI_Pages_SettingsReset	Сбросить
 $DMUI_Pages_SettingsRevert	Вернуть
 $DMUI_Home_AboutHeader	О программе
 $DMUI_Home_OverviewHeader	Обзор
-$DMUI_Home_RegistryCounts	{} модов | {} страниц | {} действий
+$DMUI_Count_ModsOne	{} мод
+$DMUI_Count_ModsFew	{} мода
+$DMUI_Count_ModsMany	{} модов
+$DMUI_Count_ModsOther	{} модов
+$DMUI_Count_PagesOne	{} страница
+$DMUI_Count_PagesFew	{} страницы
+$DMUI_Count_PagesMany	{} страниц
+$DMUI_Count_PagesOther	{} страниц
+$DMUI_Count_ActionsOne	{} действие
+$DMUI_Count_ActionsFew	{} действия
+$DMUI_Count_ActionsMany	{} действий
+$DMUI_Count_ActionsOther	{} действий
 $DMUI_Home_QuickLinksHeader	Быстрые ссылки
 $DMUI_Home_FaqHeader	ЧАВО
 $DMUI_Health_CopyReport	Скопировать отчёт
@@ -139,11 +158,14 @@ $DMUI_Health_HostSubsystemsHeader	Подсистемы хоста
 $DMUI_Health_NoSubsystemObservations	Данные о подсистемах хоста недоступны.
 $DMUI_Health_SubsystemStatus	Статус: {} | {} в состоянии
 $DMUI_Health_NoClientMods	В этой сессии клиентские моды не зарегистрированы.
-$DMUI_Health_ClientCounts	{} | {} страниц | {} действий
 $DMUI_Health_ClientVersion	Версия {}.{}
 $DMUI_Health_ClientStatus	Статус: {}
 $DMUI_Health_ReportedProblemsHeader	Зарегистрированные проблемы
-$DMUI_Health_NoDiagnostics	Клиентская диагностика не зарегистрирована
+$DMUI_Health_NoDiagnostics	Клиентская диагностика не зарегистрирована.
+$DMUI_Health_SubsystemTypography	Типографика
+$DMUI_Health_SubsystemConfiguration	Конфигурация
+$DMUI_Health_SubsystemGameInput	Ввод игры
+$DMUI_Health_SubsystemRenderer	Рендерер
 $DMUI_Pages_SettingsResetTooltip	Сброс немедленно сохраняет макет боковой панели по умолчанию и загружает остальные предустановленные значения интерфейса в черновик. Используйте «Применить» для их сохранения.
 $DMUI_Pages_SettingsRevertTooltip	Вернуть отменяет ожидающие изменения интерфейса и восстанавливает сохранённые настройки. Изменения макета боковой панели уже сохранены.
 $DMUI_Pages_SettingsApplyTooltip	Применить сохраняет настройки хоста в DearModdingUI.toml. Изменения макета боковой панели сохраняются немедленно; предпросмотр внешнего вида обновляется в реальном времени, а типографика пересобирается при необходимости.
@@ -226,8 +248,129 @@ $DMUI_Settings_NotRegisteredClearable	Не зарегистрировано. С�
 $DMUI_Settings_NotRegisteredInactive	Не зарегистрировано. Это сохранённое назначение неактивно и может быть очищено.
 $DMUI_Settings_HostFacts	Данные хоста (только чтение)
 $DMUI_Settings_HostFactsHelp	Значения, определённые хостом DearModdingUI.
-$DMUI_Settings_PixelSize	{:.0f} px
+$DMUI_Settings_PixelSize	{} px
 $DMUI_Settings_ResolvedTypographySize	Итоговый размер типографики
 $DMUI_Settings_ResolvedTypographySizeHelp	Выводится из высоты заднего буфера и применённого масштаба интерфейса на границе кадра.
 $DMUI_Settings_EffectiveUiScale	Эффективный масштаб интерфейса
 $DMUI_Settings_EffectiveUiScaleHelp	Выводится из разрешения и [Additional] fMenuUiScale.
+$DMUI_Typography_NoAtlas	Не удалось подготовить пригодный атлас шрифтов. Проверьте входящие в комплект файлы шрифтов и перезапустите игру.
+$DMUI_Typography_FamilyUnavailable	Запрошенное семейство «{}» недоступно; используется «{}».
+$DMUI_Typography_BodyFontFailed	Не удалось загрузить шрифт основного текста для «{}»; используется «{}».
+$DMUI_Typography_MissingRolesOne	Для встроенной роли шрифта {} используется резервный шрифт.
+$DMUI_Typography_MissingRolesFew	Для встроенных ролей шрифта {} используется резервный шрифт.
+$DMUI_Typography_MissingRolesMany	Для встроенных ролей шрифта {} используется резервный шрифт.
+$DMUI_Typography_MissingRolesOther	Для встроенных ролей шрифта {} используется резервный шрифт.
+$DMUI_Typography_IconsUnavailable	Значки Phosphor недоступны; подписи остаются только текстовыми.
+$DMUI_Typography_NoSystemFallbacks	Системные резервные шрифты не загружены; нелатинский текст может не отображаться.
+$DMUI_Typography_EmergencyFont	Встроенный аварийный шрифт сохраняет текст читаемым.
+$DMUI_Typography_ReadyOne	Загружено семейство «{}» со всеми встроенными ролями, значками Phosphor и {} системным резервным шрифтом.
+$DMUI_Typography_ReadyFew	Загружено семейство «{}» со всеми встроенными ролями, значками Phosphor и {} системными резервными шрифтами.
+$DMUI_Typography_ReadyMany	Загружено семейство «{}» со всеми встроенными ролями, значками Phosphor и {} системными резервными шрифтами.
+$DMUI_Typography_ReadyOther	Загружено семейство «{}» со всеми встроенными ролями, значками Phosphor и {} системными резервными шрифтами.
+$DMUI_Typography_Rebuilding	Пересборка атласа шрифтов для запрошенного семейства.
+$DMUI_Input_WaitingForGameData	Ожидание готовности данных игры.
+$DMUI_Input_Installing	Установка перехвата для {}, {} и {}.
+$DMUI_Input_Ready	Перехват для {}, {} и {} установлен.
+$DMUI_Input_SingletonUnavailable	Синглтон {} недоступен; перезапустите игру, когда данные игры будут готовы.
+$DMUI_Input_ReceiverOffsetMismatch	Структура приёмника {} не соответствует этой версии игры; проверьте версии игры и плагина.
+$DMUI_Input_VtableUnavailable	Таблица виртуальных функций приёмника {} недоступна; перезапустите игру.
+$DMUI_Input_TargetUnavailable	Цель PerformInputProcessing для {} недоступна; проверьте версию игры.
+$DMUI_Input_AlreadyHooked	Приёмник {} уже перенаправлен; проверьте наличие несовместимого перехвата ввода.
+$DMUI_Input_PatchFailed	Не удалось применить патч к приёмнику {}; проверьте наличие несовместимого перехвата ввода.
+$DMUI_Input_OriginalTargetLost	Перехват {} потерял исходную цель; перезапустите игру.
+$DMUI_Input_InterceptionFailed	Не удалось установить перехват для {}.
+$DMUI_Input_InterceptionUnavailable	Необходимый перехват ввода игры недоступен.
+$DMUI_Renderer_DataMissing	Данные рендерера равны null.
+$DMUI_Renderer_NotInitialized	Данные рендерера не инициализированы.
+$DMUI_Renderer_WindowObjectMissing	Текущее окно рендерера равно null.
+$DMUI_Renderer_SwapChainMissing	У текущего окна рендерера нет swapchain.
+$DMUI_Renderer_DeviceMissing	В данных рендерера нет устройства D3D11.
+$DMUI_Renderer_ContextMissing	В данных рендерера нет контекста устройства D3D11.
+$DMUI_Renderer_WindowHandleMissing	У текущего окна рендерера нет HWND.
+$DMUI_Renderer_BindingChanged	Привязка рендерера изменилась во время захвата.
+$DMUI_Renderer_InvalidBinding	Кандидат для подключения недействителен.
+$DMUI_Renderer_HookInstallationFailed	Привязка рендерера действительна, но не удалось установить перехватчики swapchain.
+$DMUI_Renderer_BindingValid	Привязка рендерера действительна.
+$DMUI_Renderer_WaitingForPresent	Привязка рендерера действительна, но вызов Present ещё не наблюдался.
+$DMUI_Config_CorrectionWrongType	{}: неверный тип значения, использовано значение по умолчанию
+$DMUI_Config_CorrectionReplaced	{} {} заменено на {}
+$DMUI_Config_BindingIgnored	{}.{} проигнорировано, так как это не текст
+$DMUI_Config_MoreCorrectionsOne	и ещё {} исправление
+$DMUI_Config_MoreCorrectionsFew	и ещё {} исправления
+$DMUI_Config_MoreCorrectionsMany	и ещё {} исправлений
+$DMUI_Config_MoreCorrectionsOther	и ещё {} исправлений
+$DMUI_Config_CorrectedSummary	Используются исправленные настройки: {}. Нажмите «{}» на странице «Настройки», чтобы сохранить принятые значения.
+$DMUI_Config_InspectFailed	Не удалось проверить {}: {}. Используются значения по умолчанию; проверьте права доступа к файлу и перезапустите игру.
+$DMUI_Config_Absent	Используются значения по умолчанию; файл конфигурации отсутствует.
+$DMUI_Config_Loaded	Настройки загружены из {}.
+$DMUI_Config_LoadFailed	Не удалось загрузить {}: {}. Используются значения по умолчанию; исправьте или удалите файл и перезапустите игру.
+$DMUI_Config_LoadFailedUnknown	Не удалось загрузить {}. Используются значения по умолчанию; исправьте или удалите файл и перезапустите игру.
+$DMUI_Config_EstablishFailed	Не удалось инициализировать настройки хоста: {}. Используются значения по умолчанию; перезапустите игру после исправления конфигурации.
+$DMUI_Config_EstablishFailedUnknown	Не удалось инициализировать настройки хоста. Используются значения по умолчанию; перезапустите игру после исправления конфигурации.
+$DMUI_Config_CreateDirectoryFailed	Не удалось создать каталог настроек для {}: {} (ошибка Windows {}).
+$DMUI_Config_OpenTemporaryFailed	Не удалось открыть временный файл настроек {}: {} (ошибка Windows {}).
+$DMUI_Config_WriteTemporaryFailed	Не удалось записать временный файл настроек {}: {} (ошибка Windows {}).
+$DMUI_Config_FlushTemporaryFailed	Не удалось сбросить буферы временного файла настроек {} на диск: {} (ошибка Windows {}).
+$DMUI_Config_CloseTemporaryFailed	Не удалось закрыть временный файл настроек {}: {} (ошибка Windows {}).
+$DMUI_Config_RemoveTemporaryFailed	Не удалось удалить временный файл настроек {}: {} (ошибка Windows {}).
+$DMUI_Config_ReplaceFallbackFailed	Не удалось заменить файл настроек {} при копировании между томами (запасной способ): {} (ошибка Windows {}).
+$DMUI_Config_ReplaceFailed	Не удалось заменить файл настроек {}: {} (ошибка Windows {}).
+$DMUI_Config_CrossVolumeAdvice	Windows сначала сообщила об ошибке ERROR_NOT_SAME_DEVICE (17): {}. Такое возможно, если менеджер модов сопоставляет временный файл и существующую конфигурацию с разными дисками. Убедитесь, что папка перезаписи или вывода менеджера модов доступна для записи и на диске достаточно места, затем сохраните ещё раз.
+$DMUI_Config_Saved	Настройки сохранены в {}.
+$DMUI_Config_SavedByCopy	Настройки сохранены в {} с помощью неатомарного копирования между томами.
+$DMUI_Config_PersistFailed	Не удалось сохранить {}: {}
+$DMUI_Config_PersistFailedUnknown	Не удалось сохранить {} по неизвестной причине.
+$DMUI_Config_SavedAccepted	Принятые настройки сохранены в {}.
+$DMUI_Config_SaveFailedActive	Настройки остаются активными, но последнее сохранение не удалось: {}
+$DMUI_MCM_General	Общие
+$DMUI_MCM_Action	Действие
+$DMUI_MCM_ButtonNoAction	У этой кнопки нет действия.
+$DMUI_MCM_SwfOnlyPage	Эта страница содержит только неотображаемые компоненты SWF.
+$DMUI_MCM_None	Нет
+$DMUI_MCM_PageName	Страница {}
+$DMUI_MCM_Unbound	Не назначено
+$DMUI_MCM_CannotBind	Невозможно назначить
+$DMUI_MCM_BindingUnavailable	Назначение недоступно
+$DMUI_MCM_Modifier	Модификатор {}
+$DMUI_MCM_Keycode	Код клавиши {}
+$DMUI_MCM_ReasonConditionFalse	Эта строка скрыта своим условием.
+$DMUI_MCM_ReasonConditionPending	Ожидается определение, нужно ли показывать эту строку.
+$DMUI_MCM_ReasonUnsupported	Этот элемент управления не поддерживается.
+$DMUI_MCM_ReasonUndeclaredModSetting	Эта настройка не объявлена в файле settings.ini MCM.
+$DMUI_MCM_ReasonKeybindUnbound	Эта горячая клавиша не назначена в MCM.
+$DMUI_MCM_ReasonKeybindDefinitionMissing	Эта горячая клавиша не объявлена в файле keybinds.json MCM этого мода.
+$DMUI_MCM_ReasonKeybindDefinitionsMissing	У этого мода нет файла keybinds.json MCM, поэтому его горячие клавиши нельзя назначить.
+$DMUI_MCM_ReasonKeybindDefinitionsInvalid	Не удалось прочитать файл keybinds.json MCM этого мода, поэтому его горячие клавиши нельзя назначить.
+$DMUI_MCM_ReasonKeybindBindingsInvalid	Не удалось прочитать пользовательские назначения клавиш MCM.
+$DMUI_MCM_ReasonMcmNotInstalled	Mod Configuration Menu не установлен.
+$DMUI_MCM_ReasonMcmNotInstalledPage	Mod Configuration Menu не установлен, поэтому настройки модов нельзя изменить.
+$DMUI_MCM_ReasonRuntimeNotReady	Загрузите сохранение, чтобы изменить эти настройки.
+$DMUI_MCM_ReasonValuePending	Ожидается значение этой настройки.
+$DMUI_MCM_ReasonValueMissing	Значение этой настройки недоступно.
+$DMUI_MCM_ReasonValueFailed	Не удалось прочитать значение этой настройки.
+$DMUI_MCM_ReasonFileChoicesPending	Ожидается обновление этого списка файлов.
+$DMUI_MCM_ReasonFileChoicesFailed	Не удалось прочитать этот список файлов.
+$DMUI_MCM_ReasonUnsupportedAction	Это действие не поддерживается.
+$DMUI_MCM_ReasonUnavailable	Эта настройка недоступна.
+$DMUI_MCM_LoadingVisibility	Загрузка видимости настроек...
+$DMUI_MCM_ConditionsNotApplied	Совместимость: неприменённые условия: {}. Управляющий элемент неработоспособен, его значение отсутствует или его не удалось прочитать; зависимое содержимое показано.
+$DMUI_MCM_ActionFailed	Действие «{}»: {}
+$DMUI_MCM_ExecutionFailed	не удалось выполнить
+$DMUI_MCM_CompatibilitySummary	Совместимость: {}.
+$DMUI_MCM_UnsupportedActions	неподдерживаемые действия: {}
+$DMUI_MCM_UndeclaredSettings	необъявленные сохраняемые настройки: {}
+$DMUI_MCM_FileListFailed	Не удалось получить список файлов по пути «{}» с маской «{}».
+$DMUI_MCM_FileListFailedDetail	Не удалось получить список файлов по пути «{}» с маской «{}»: {}.
+$DMUI_MCM_FilePathMissing	настроенный путь отсутствует или пуст
+$DMUI_SettingsPage_ResetAll	Сбросить все
+$DMUI_SettingsPage_ResetAllTooltip	Сброс загружает значения по умолчанию для всех настроек в черновик. Сохраните их кнопкой «Применить».
+$DMUI_SettingsPage_Revert	Вернуть
+$DMUI_SettingsPage_RevertTooltip	Вернуть отменяет ожидающие изменения и восстанавливает сохранённые настройки.
+$DMUI_SettingsPage_Apply	Применить ({})
+$DMUI_SettingsPage_ApplyTooltipOne	Применить сохраняет ожидающие изменения: {}.
+$DMUI_SettingsPage_ApplyTooltipOther	Применить сохраняет ожидающие изменения: {}.
+$DMUI_SettingsPage_ModifiedOnly	Только изменённые
+$DMUI_SettingsPage_SearchHint	Поиск настроек...
+$DMUI_SettingsPage_UnsupportedControl	Неподдерживаемый элемент настройки.
+$DMUI_SettingsPage_AppliesNow	Применяется сразу.
+$DMUI_SettingsPage_Unavailable	Недоступно

@@ -17,6 +17,10 @@ namespace DearModdingUI::MCM
 	using FileListingResult =
 		std::expected<std::vector<std::string>, std::string>;
 
+	// The failure may be bridge text, so it renders in the viewer's language.
+	using FileScanResult =
+		std::expected<std::vector<std::string>, Support::Message>;
+
 	class FileListingAdapter
 	{
 	public:
@@ -36,7 +40,8 @@ namespace DearModdingUI::MCM
 	class FileChoiceState
 	{
 	public:
-		FileChoiceState();
+		explicit FileChoiceState(
+			const Support::TextCatalog& a_catalog = Support::EnglishCatalog());
 		~FileChoiceState();
 
 		FileChoiceState(const FileChoiceState&) = delete;
@@ -45,9 +50,9 @@ namespace DearModdingUI::MCM
 		FileChoiceState& operator=(FileChoiceState&&) = delete;
 
 		[[nodiscard]] InertReason Reason() const noexcept;
-		[[nodiscard]] std::string Description() const;
+		[[nodiscard]] Support::Message Description() const;
 		[[nodiscard]] bool Update(
-			FileListingResult a_listing,
+			FileScanResult a_listing,
 			std::string_view a_path,
 			std::string_view a_mask);
 		void Apply(
@@ -84,7 +89,8 @@ namespace DearModdingUI::MCM
 			FileListingAdapter&,
 			TaskScheduler&,
 			DiagnosticReporter&,
-			std::string);
+			std::string,
+			const Support::TextCatalog&);
 	};
 
 	// Refresh lists files through the scheduler's background executor.
@@ -93,5 +99,6 @@ namespace DearModdingUI::MCM
 		FileListingAdapter& a_files,
 		TaskScheduler& a_scheduler,
 		DiagnosticReporter& a_diagnostics,
-		std::string a_source);
+		std::string a_source,
+		const Support::TextCatalog& a_catalog = Support::EnglishCatalog());
 }

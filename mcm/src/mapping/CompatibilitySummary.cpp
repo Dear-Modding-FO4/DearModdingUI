@@ -1,6 +1,7 @@
 #include <DearModdingUI/MCM/Compatibility.h>
 
-#include <format>
+#include <utility>
+#include <vector>
 
 namespace DearModdingUI::MCM
 {
@@ -36,7 +37,7 @@ namespace DearModdingUI::MCM
 		return result;
 	}
 
-	std::string SummarizeActionableCompatibility(const MappedPage& a_page)
+	Support::Message SummarizeActionableCompatibility(const MappedPage& a_page)
 	{
 		size_t unsupportedActions{};
 		size_t undeclaredPersistedSettings{};
@@ -54,25 +55,16 @@ namespace DearModdingUI::MCM
 				++undeclaredPersistedSettings;
 		}
 
-		std::string result;
-		const auto append =
-			[&result](size_t a_count, std::string_view a_label) {
-				if (!a_count)
-					return;
-				if (!result.empty())
-					result.append(", ");
-				result.append(std::format(
-					"{} {}{}",
-					a_count,
-					a_label,
-					a_count == 1 ? "" : "s"));
-			};
-		append(unsupportedActions, "unsupported action");
-		append(
-			undeclaredPersistedSettings,
-			"undeclared persisted setting");
-		if (result.empty())
+		std::vector<Support::Message> parts;
+		if (unsupportedActions)
+			parts.emplace_back(BridgeText::kUnsupportedActions, unsupportedActions);
+		if (undeclaredPersistedSettings)
+			parts.emplace_back(BridgeText::kUndeclaredSettings, undeclaredPersistedSettings);
+		if (parts.empty())
 			return {};
-		return "Compatibility: " + result + ".";
+		return Support::Message{
+			BridgeText::kCompatibilitySummary,
+			Support::Message::Join(std::move(parts), ", ")
+		};
 	}
 }

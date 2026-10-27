@@ -21,6 +21,8 @@ namespace vmm_tests
 	void run_registry_lifecycle_checks(Runner&);
 	void run_text_viewer_checks(Runner&);
 	void run_text_editor_checks(Runner&);
+	void run_localization_checks(Runner&);
+	void run_health_text_checks(Runner&);
 
 	void run_dear_modding_ui_checks(Runner& runner)
 	{
@@ -43,5 +45,7 @@ namespace vmm_tests
 		run_registry_lifecycle_checks(runner);
 		run_text_viewer_checks(runner);
 		run_text_editor_checks(runner);
+		run_localization_checks(runner);
+		run_health_text_checks(runner);
 	}
 }

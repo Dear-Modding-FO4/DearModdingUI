@@ -30,9 +30,23 @@ namespace DearModdingUI
 {
 	namespace
 	{
-		constexpr Localization::Phrase kSettingsApplyText{ "$DMUI_Pages_SettingsApply", "Apply" };
-		constexpr Localization::Phrase kSettingsResetText{ "$DMUI_Pages_SettingsReset", "Reset" };
-		constexpr Localization::Phrase kSettingsRevertText{ "$DMUI_Pages_SettingsRevert", "Revert" };
+		constexpr Support::Phrase kSettingsResetText{ "$DMUI_Pages_SettingsReset", "Reset" };
+		constexpr Support::Phrase kSettingsRevertText{ "$DMUI_Pages_SettingsRevert", "Revert" };
+
+		[[nodiscard]] Support::Message ModCount(uint64_t a_count)
+		{
+			return Support::Message::Plural({ "$DMUI_Count_Mods", "{} mod", "{} mods" }, a_count, a_count);
+		}
+
+		[[nodiscard]] Support::Message PageCount(uint64_t a_count)
+		{
+			return Support::Message::Plural({ "$DMUI_Count_Pages", "{} page", "{} pages" }, a_count, a_count);
+		}
+
+		[[nodiscard]] Support::Message ActionCount(uint64_t a_count)
+		{
+			return Support::Message::Plural({ "$DMUI_Count_Actions", "{} action", "{} actions" }, a_count, a_count);
+		}
 
 		struct HostSettingsTitleButton
 		{
@@ -121,12 +135,11 @@ namespace DearModdingUI
 			const auto now = HealthClock::now();
 			const auto attention =
 				CountClientsNeedingAttention(clients, statuses);
-			a_model.registry = Localization::Format(
-				"$DMUI_Home_RegistryCounts",
-				"{} mods | {} pages | {} actions",
-				clients.size(),
-				OrderedPages().size(),
-				OrderedActions().size());
+			a_model.registry = Localization::Render(Support::Message::Join(
+				{ ModCount(clients.size()),
+					PageCount(OrderedPages().size()),
+					ActionCount(OrderedActions().size()) },
+				" | "));
 			a_model.summary = BuildHomeHealthSummary(health, attention, now);
 			a_model.severity = HealthStatusSeverity(
 				HomeHealthSeverity(health, attention, now));
@@ -273,12 +286,13 @@ namespace DearModdingUI
 					group.clients.push_back({
 						client,
 						"Client/" + client->id,
-						Localization::Format(
-							"$DMUI_Health_ClientCounts",
-							"{} | {} pages | {} actions",
-							client->id,
-							std::ranges::count(pages, client->handle, &RegisteredPage::client),
-							std::ranges::count(actions, client->handle, &RegisteredAction::client)),
+						Localization::Render(Support::Message::Join(
+							{ Support::Message::Text(client->id),
+								PageCount(static_cast<uint64_t>(
+									std::ranges::count(pages, client->handle, &RegisteredPage::client))),
+								ActionCount(static_cast<uint64_t>(
+									std::ranges::count(actions, client->handle, &RegisteredAction::client))) },
+							" | ")),
 						Localization::Format(
 							"$DMUI_Health_ClientVersion",
 							"Version {}.{}",
@@ -356,7 +370,7 @@ namespace DearModdingUI
 				{
 					DrawHostDetailRow(
 						subsystem.id.c_str(),
-						subsystem.row.identity.c_str(),
+						subsystem.row.displayName.c_str(),
 						subsystem.row.reason.c_str(),
 						[&]() noexcept {
 							ImGui::TextColored(
@@ -433,7 +447,6 @@ namespace DearModdingUI
 					(void)DrawSelectableRow({
 						.id = section.clientId.c_str(),
 						.label = section.disclosureLabel.c_str(),
-						.leadingAffordance = RowLeadingAffordance::kArrow,
 						.expanded = &expanded->second,
 						.textColor = textColor,
 						.hoveredTextColor = textColor,
@@ -515,7 +528,7 @@ namespace DearModdingUI
 				HostSettingsTitleButton{
 					SettingsAction::kApply,
 					"##DearModdingUI.HostSettingsApplyButton",
-					Localization::Text(kSettingsApplyText),
+					Localization::Text(kSettingsApplyControl),
 					Localization::Text(
 						"$DMUI_Pages_SettingsApplyTooltip",
 						"Apply saves host settings to DearModdingUI.toml. "
@@ -524,7 +537,7 @@ namespace DearModdingUI
 						"needed."),
 					SettingsActionButtonWidth(
 						SettingsAction::kApply,
-						Localization::Text(kSettingsApplyText),
+						Localization::Text(kSettingsApplyControl),
 						extent) }
 			};
 			const auto dirty =

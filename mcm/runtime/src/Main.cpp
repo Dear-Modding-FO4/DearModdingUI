@@ -1,4 +1,5 @@
 #include <DearModdingUI/MCM/Availability.h>
+#include <DearModdingUI/MCM/BridgeTextCatalog.h>
 #include <DearModdingUI/MCM/DiagnosticLogging.h>
 #include <DearModdingUI/MCM/ExternalEventDispatcher.h>
 #include <DearModdingUI/MCM/F4SETaskScheduler.h>
@@ -71,6 +72,8 @@ namespace DearModdingUI::MCM
 		std::atomic_bool s_mcmInstalled{ false };
 		std::atomic_bool s_runtimeReady{ false };
 		std::atomic_bool s_configsRegistered{ false };
+		// Declared before s_mods because pages hold it by reference.
+		BridgeTextCatalog s_text;
 		GlobalValueSource s_globalValues;
 		F4SETaskScheduler s_scheduler;
 		GamePapyrusDispatcher s_dispatcher;
@@ -206,7 +209,7 @@ namespace DearModdingUI::MCM
 		{
 			try
 			{
-				auto result = LoadConfig(a_config, a_textResolver);
+				auto result = LoadConfig(a_config, a_textResolver, s_text);
 				LogErrors(result);
 				const auto folder = PathText(a_config.parent_path().filename());
 				if (!result.configuration)
@@ -299,28 +302,30 @@ namespace DearModdingUI::MCM
 						*page,
 						definitions,
 						a_keybinds,
-						*mod->diagnostics);
+						*mod->diagnostics,
+						s_text);
 					ResolveActionAvailability(*page, *mod->actions);
 					auto fileChoices = AttachFileChoices(
 						*page,
 						s_files,
 						s_scheduler,
 						*mod->diagnostics,
-						PathText(a_config));
-					BindPage(*page, *mod->values, CurrentMcmState);
+						PathText(a_config),
+						s_text);
+					BindPage(*page, *mod->values, CurrentMcmState, s_text);
 					const auto summary = SummarizeCompatibility(*page);
 					const auto compatibility =
 						SummarizeActionableCompatibility(*page);
 					if (!compatibility.empty())
 					{
 						page->settings.notes.push_back({
-							compatibility,
+							compatibility.Render(s_text),
 							false
 						});
 						mod->diagnostics->ReportSummary(
 							DMUI_STATUS_SEVERITY_WARNING,
 							page->displayName,
-							compatibility);
+							compatibility.English());
 					}
 					LogCompatibility({
 						displayName,
@@ -340,7 +345,8 @@ namespace DearModdingUI::MCM
 						*page,
 						*mod->actions,
 						*mod->values,
-						*mod->diagnostics);
+						*mod->diagnostics,
+						s_text);
 					AttachTextRendering(*page);
 					auto priorPrepare = std::move(page->settings.prepare);
 					auto* values = mod->values.get();

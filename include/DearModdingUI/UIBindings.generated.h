@@ -606,6 +606,26 @@ namespace DearModdingUI::UI::Bindings
 		return DMUI_RESULT_OK;
 	}
 
+	[[nodiscard]] inline DMUI_Result TranslateTableBgTarget(
+		DMUI_UITableBgTarget a_value,
+		ImGuiTableBgTarget& a_native) noexcept
+	{
+		switch (a_value)
+		{
+		case DMUI_UI_TABLE_BG_TARGET_ROW_BG0:
+			a_native = ImGuiTableBgTarget_RowBg0;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_TABLE_BG_TARGET_ROW_BG1:
+			a_native = ImGuiTableBgTarget_RowBg1;
+			return DMUI_RESULT_OK;
+		case DMUI_UI_TABLE_BG_TARGET_CELL:
+			a_native = ImGuiTableBgTarget_CellBg;
+			return DMUI_RESULT_OK;
+		default:
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		}
+	}
+
 	[[nodiscard]] inline DMUI_Result TranslateTreeNodeFlags(
 		DMUI_UITreeNodeFlags a_value,
 		ImGuiTreeNodeFlags& a_native) noexcept
@@ -1285,6 +1305,16 @@ namespace DearModdingUI::UI::Bindings
 	[[nodiscard]] DMUI_Result DMUI_CALL GetPointerState(
 		DMUI_ClientHandle a_client,
 		DMUI_PointerState* a_state) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL TableGetSortSpecs(
+		DMUI_ClientHandle a_client,
+		DMUI_UITableSortSpec* a_specs,
+		uint32_t a_capacity,
+		uint32_t* a_count) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL TableSetBgColor(
+		DMUI_ClientHandle a_client,
+		DMUI_UITableBgTarget a_target,
+		uint32_t a_rgba,
+		int32_t a_column) noexcept;
 
 	[[nodiscard]] inline DMUI_UIAPI MakeAPI() noexcept
 	{
@@ -1388,7 +1418,9 @@ namespace DearModdingUI::UI::Bindings
 			&EndPanel,
 			&InputTextEditor,
 			&BeginTooltipAt,
-			&GetPointerState
+			&GetPointerState,
+			&TableGetSortSpecs,
+			&TableSetBgColor
 		};
 	}
 }

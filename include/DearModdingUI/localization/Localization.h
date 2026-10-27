@@ -1,6 +1,7 @@
 #pragma once
 
-#include <format>
+#include <Support/Message.h>
+
 #include <optional>
 #include <string>
 #include <string_view>
@@ -31,15 +32,17 @@ namespace DearModdingUI::Localization
 	[[nodiscard]] const char* Text(std::string_view a_key, const char* a_english) noexcept;
 
 	// Shown translated on screen, English in reports.
-	struct Phrase
-	{
-		std::string_view key;
-		const char* english;
-	};
-
-	[[nodiscard]] inline const char* Text(const Phrase& a_phrase, bool a_localized = true) noexcept
+	[[nodiscard]] inline const char* Text(const Support::Phrase& a_phrase, bool a_localized = true) noexcept
 	{
 		return a_localized ? Text(a_phrase.key, a_phrase.english) : a_phrase.english;
+	}
+
+	// The host's own translations in the active language.
+	[[nodiscard]] const Support::TextCatalog& Catalog() noexcept;
+
+	[[nodiscard]] inline std::string Render(const Support::Message& a_message, bool a_localized = true)
+	{
+		return a_message.Render(a_localized ? Catalog() : Support::EnglishCatalog());
 	}
 
 	// A malformed translated template falls back to the English one.
@@ -49,21 +52,15 @@ namespace DearModdingUI::Localization
 		const char* a_english,
 		const Args&... a_args)
 	{
-		try
-		{
-			return std::vformat(Text(a_key, a_english), std::make_format_args(a_args...));
-		}
-		catch (const std::format_error&)
-		{
-			return std::vformat(a_english, std::make_format_args(a_args...));
-		}
+		return Render(Support::Message{ Support::Phrase{ a_key, a_english }, a_args... });
 	}
 
 	template <class... Args>
-	[[nodiscard]] std::string Format(const Phrase& a_phrase, bool a_localized, const Args&... a_args)
+	[[nodiscard]] std::string Format(
+		const Support::Phrase& a_phrase,
+		bool a_localized,
+		const Args&... a_args)
 	{
-		return a_localized ?
-			Format(a_phrase.key, a_phrase.english, a_args...) :
-			std::vformat(a_phrase.english, std::make_format_args(a_args...));
+		return Render(Support::Message{ a_phrase, a_args... }, a_localized);
 	}
 }

@@ -22,7 +22,9 @@ namespace DearModdingUI
 
 	struct HealthSubsystemRow
 	{
+		// Stable id for sorting, ids, and reports; displayName is for the page.
 		std::string identity;
+		std::string displayName;
 		HealthState state{ HealthState::kWaiting };
 		std::string stateLabel;
 		std::string durationLabel;

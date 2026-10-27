@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Support/Message.h>
 #include <Support/Revision.h>
 
 #include <algorithm>
@@ -113,7 +114,7 @@ namespace DearModdingUI
 	struct HealthObservation
 	{
 		HealthState state{ HealthState::kWaiting };
-		std::string reason;
+		Support::Message reason;
 	};
 
 	struct HealthSnapshot
@@ -122,7 +123,9 @@ namespace DearModdingUI
 		HealthState state{ HealthState::kWaiting };
 		HealthClock::time_point enteredAt{};
 		std::optional<HealthClock::time_point> deadline;
-		std::string reason;
+		Support::Message reason;
+		// Empty key means the identity is the display name.
+		Support::Phrase name{};
 	};
 
 	[[nodiscard]] inline bool HealthDeadlineExceeded(
@@ -208,25 +211,44 @@ namespace DearModdingUI
 	public:
 		SubsystemHealth(
 			std::string_view a_identity,
+			const Support::Phrase& a_name,
 			HealthReporter& a_reporter,
 			HealthClock::time_point a_now = HealthClock::now()) :
 			reporter_(a_reporter)
 		{
 			identity_ = a_identity;
+			name_ = a_name;
 			snapshot_.identity = identity_;
+			snapshot_.name = name_;
 			snapshot_.enteredAt = a_now;
 		}
+
+		SubsystemHealth(
+			std::string_view a_identity,
+			const Support::Phrase& a_name,
+			HealthReporter& a_reporter,
+			SubsystemHealthRegistry& a_registry,
+			HealthClock::time_point a_now = HealthClock::now()) :
+			SubsystemHealth(a_identity, a_name, a_reporter, a_now)
+		{
+			registry_ = &a_registry;
+			registry_->Register(*this);
+		}
+
+		SubsystemHealth(
+			std::string_view a_identity,
+			HealthReporter& a_reporter,
+			HealthClock::time_point a_now = HealthClock::now()) :
+			SubsystemHealth(a_identity, Support::Phrase{}, a_reporter, a_now)
+		{}
 
 		SubsystemHealth(
 			std::string_view a_identity,
 			HealthReporter& a_reporter,
 			SubsystemHealthRegistry& a_registry,
 			HealthClock::time_point a_now = HealthClock::now()) :
-			SubsystemHealth(a_identity, a_reporter, a_now)
-		{
-			registry_ = &a_registry;
-			registry_->Register(*this);
-		}
+			SubsystemHealth(a_identity, Support::Phrase{}, a_reporter, a_registry, a_now)
+		{}
 
 		~SubsystemHealth()
 		{
@@ -236,7 +258,7 @@ namespace DearModdingUI
 
 		bool Observe(
 			HealthState a_state,
-			std::string_view a_reason,
+			const Support::Message& a_reason,
 			HealthClock::time_point a_now = HealthClock::now()) noexcept
 		{
 			HealthSnapshot candidate;
@@ -244,6 +266,7 @@ namespace DearModdingUI
 			try
 			{
 				candidate.identity = identity_;
+				candidate.name = name_;
 				candidate.state = a_state;
 				candidate.enteredAt = a_now;
 				candidate.reason = a_reason;
@@ -365,6 +388,7 @@ namespace DearModdingUI
 
 		HealthReporter& reporter_;
 		std::string identity_;
+		Support::Phrase name_{};
 		SubsystemHealthRegistry* registry_{};
 		mutable std::mutex mutex_;
 		HealthSnapshot snapshot_;

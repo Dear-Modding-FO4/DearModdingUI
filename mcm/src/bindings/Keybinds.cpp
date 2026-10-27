@@ -168,15 +168,18 @@ namespace DearModdingUI::MCM
 		return LoadJson<UserKeybinds>(a_path, ParseUserKeybinds);
 	}
 
-	std::string KeyName(int32_t a_keycode)
+	std::string KeyName(int32_t a_keycode, const Support::TextCatalog& a_catalog)
 	{
 		const auto label = KeyCatalog::Label(static_cast<uint32_t>(a_keycode));
 		if (!label.empty())
 			return std::string{ label };
-		return "Keycode " + std::to_string(a_keycode);
+		return Support::Message{ BridgeText::kKeycode, a_keycode }.Render(a_catalog);
 	}
 
-	std::string FormatKeybind(int32_t a_keycode, uint32_t a_modifiers)
+	std::string FormatKeybind(
+		int32_t a_keycode,
+		uint32_t a_modifiers,
+		const Support::TextCatalog& a_catalog)
 	{
 		std::string result;
 		const auto append = [&result](std::string_view a_value) {
@@ -191,8 +194,8 @@ namespace DearModdingUI::MCM
 		if ((a_modifiers & 4u) != 0)
 			append("Alt");
 		if (const auto other = a_modifiers & ~7u)
-			append("Modifier " + std::to_string(other));
-		append(KeyName(a_keycode));
+			append(Support::Message{ BridgeText::kModifier, other }.Render(a_catalog));
+		append(KeyName(a_keycode, a_catalog));
 		return result;
 	}
 
@@ -200,10 +203,13 @@ namespace DearModdingUI::MCM
 		MappedPage& a_page,
 		const KeybindDefinitions& a_definitions,
 		const UserKeybinds& a_bindings,
-		DiagnosticReporter& a_diagnostics) noexcept
+		DiagnosticReporter& a_diagnostics,
+		const Support::TextCatalog& a_catalog) noexcept
 	{
 		try
 		{
+			const auto cannotBind =
+				BridgeText::Render(BridgeText::kCannotBind, a_catalog);
 			for (auto& row : a_page.rows)
 			{
 				if (!row.keybindId)
@@ -213,7 +219,7 @@ namespace DearModdingUI::MCM
 					SetKeybindState(
 						a_page,
 						row,
-						"Can't be bound",
+						cannotBind,
 						{ InertReason::kKeybindDefinitionsMissing });
 					continue;
 				}
@@ -222,7 +228,7 @@ namespace DearModdingUI::MCM
 					SetKeybindState(
 						a_page,
 						row,
-						"Can't be bound",
+						cannotBind,
 						{ InertReason::kKeybindDefinitionsInvalid });
 					continue;
 				}
@@ -231,7 +237,7 @@ namespace DearModdingUI::MCM
 					SetKeybindState(
 						a_page,
 						row,
-						"Can't be bound",
+						cannotBind,
 						{
 							InertReason::kKeybindDefinitionMissing,
 							InertReason::kKeybindDefinitionMissing
@@ -243,7 +249,7 @@ namespace DearModdingUI::MCM
 					SetKeybindState(
 						a_page,
 						row,
-						"Binding unavailable",
+						BridgeText::Render(BridgeText::kBindingUnavailable, a_catalog),
 						{ InertReason::kKeybindBindingsInvalid });
 					continue;
 				}
@@ -255,7 +261,7 @@ namespace DearModdingUI::MCM
 					SetKeybindState(
 						a_page,
 						row,
-						"Unbound",
+						BridgeText::Render(BridgeText::kUnbound, a_catalog),
 						{
 							InertReason::kKeybindUnbound,
 							InertReason::kKeybindUnbound
@@ -265,7 +271,7 @@ namespace DearModdingUI::MCM
 				SetKeybindState(
 					a_page,
 					row,
-					FormatKeybind(binding->keycode, binding->modifiers),
+					FormatKeybind(binding->keycode, binding->modifiers, a_catalog),
 					{});
 			}
 		}

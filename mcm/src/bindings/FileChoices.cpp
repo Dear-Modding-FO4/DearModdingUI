@@ -22,18 +22,19 @@ namespace DearModdingUI::MCM
 			kFailed
 		};
 
-		[[nodiscard]] std::string FailureDescription(
+		[[nodiscard]] Support::Message FailureDescription(
 			std::string_view a_path,
 			std::string_view a_mask,
-			std::string_view a_error)
+			const Support::Message& a_error)
 		{
-			auto result = "Could not list files from path '" +
-				std::string{ a_path } + "' with mask '" +
-				std::string{ a_mask } + "'";
-			if (!a_error.empty())
-				result += ": " + std::string{ a_error };
-			result.push_back('.');
-			return result;
+			if (a_error.empty())
+				return Support::Message{ BridgeText::kFileListFailed, a_path, a_mask };
+			return Support::Message{
+				BridgeText::kFileListFailedDetail,
+				a_path,
+				a_mask,
+				a_error
+			};
 		}
 
 		[[nodiscard]] bool SameOptions(
@@ -59,17 +60,23 @@ namespace DearModdingUI::MCM
 	class FileChoiceState::Impl
 	{
 	public:
+		explicit Impl(std::string a_noneLabel) :
+			noneLabel(std::move(a_noneLabel)),
+			options{ { "", noneLabel } }
+		{}
+
 		mutable std::mutex mutex;
+		// Rendered once at attach time, so scans never touch the catalog.
+		const std::string noneLabel;
 		Availability availability{ Availability::kPending };
-		std::vector<dmui::ChoiceSettingOption> options{
-			{ "", "None" }
-		};
-		std::string description;
+		std::vector<dmui::ChoiceSettingOption> options;
+		Support::Message description;
 		uint64_t generation{};
 	};
 
-	FileChoiceState::FileChoiceState() :
-		impl_(std::make_unique<Impl>())
+	FileChoiceState::FileChoiceState(const Support::TextCatalog& a_catalog) :
+		impl_(std::make_unique<Impl>(
+			BridgeText::Render(BridgeText::kNone, a_catalog)))
 	{}
 
 	FileChoiceState::~FileChoiceState() = default;
@@ -84,22 +91,22 @@ namespace DearModdingUI::MCM
 		return InertReason::kNone;
 	}
 
-	std::string FileChoiceState::Description() const
+	Support::Message FileChoiceState::Description() const
 	{
 		const std::scoped_lock lock{ impl_->mutex };
 		return impl_->description;
 	}
 
 	bool FileChoiceState::Update(
-		FileListingResult a_listing,
+		FileScanResult a_listing,
 		std::string_view a_path,
 		std::string_view a_mask)
 	{
 		std::vector<dmui::ChoiceSettingOption> options{
-			{ "", "None" }
+			{ "", impl_->noneLabel }
 		};
 		auto availability = Availability::kFailed;
-		std::string description;
+		Support::Message description;
 		if (a_listing)
 		{
 			availability = Availability::kReady;
@@ -178,24 +185,29 @@ namespace DearModdingUI::MCM
 	{
 		for (auto& entry : entries)
 		{
-			FileListingResult listing = std::unexpected(
-				"the configured path is missing or empty");
+			FileScanResult listing = std::unexpected(
+				Support::Message{ BridgeText::kFilePathMissing });
 			if (entry.metadata.path && !entry.metadata.path->empty())
 			{
 				try
 				{
-					listing = files->List(
+					auto listed = files->List(
 						*entry.metadata.path,
 						entry.metadata.mask);
+					if (listed)
+						listing = std::move(*listed);
+					else
+						listing = std::unexpected(
+							Support::Message::Text(std::move(listed.error())));
 				}
 				catch (const std::exception& a_error)
 				{
-					listing =
-						std::unexpected(std::string{ a_error.what() });
+					listing = std::unexpected(
+						Support::Message::Text(a_error.what()));
 				}
 			}
 			const auto failed = !listing;
-			const auto error = failed ? listing.error() : std::string{};
+			const auto error = failed ? listing.error() : Support::Message{};
 			if (entry.state->Update(
 					std::move(listing),
 					entry.metadata.path.value_or(std::string{}),
@@ -209,7 +221,7 @@ namespace DearModdingUI::MCM
 					FailureDescription(
 						entry.metadata.path.value_or(std::string{}),
 						entry.metadata.mask,
-						error)
+						error).English()
 				});
 			}
 		}
@@ -257,7 +269,8 @@ namespace DearModdingUI::MCM
 		FileListingAdapter& a_files,
 		TaskScheduler& a_scheduler,
 		DiagnosticReporter& a_diagnostics,
-		std::string a_source)
+		std::string a_source,
+		const Support::TextCatalog& a_catalog)
 	{
 		auto impl = std::make_shared<FileChoiceController::Impl>();
 		impl->files = &a_files;
@@ -268,7 +281,7 @@ namespace DearModdingUI::MCM
 		{
 			if (!row.fileChoices)
 				continue;
-			row.fileChoiceState = std::make_shared<FileChoiceState>();
+			row.fileChoiceState = std::make_shared<FileChoiceState>(a_catalog);
 			impl->entries.push_back({
 				row.id,
 				*row.fileChoices,

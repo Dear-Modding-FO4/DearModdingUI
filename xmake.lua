@@ -10,6 +10,14 @@ end
 local local_fixtures = os.isdir(project_dir("fixtures"))
 
 -- Project-script OS access is read-only; build callbacks supply filesystem writes.
+local function copy_translations(data_root, build_os)
+    local destination = path.join(data_root, "Interface/Translations")
+    build_os.mkdir(destination)
+    for _, translation in ipairs(build_os.files(project_dir("data/Interface/Translations/*.txt"))) do
+        build_os.cp(translation, destination .. "/")
+    end
+end
+
 local function copy_mcm_fixture_data(destination, build_os)
     local source = project_dir("fixtures/mcm/data")
     for _, required in ipairs({
@@ -380,6 +388,10 @@ target("dmui-tests", function()
     )
     add_defines("DMUI_UI_TESTING", "DMUI_PREVIEW")
     add_syslinks("d3d11", "dxgi", "d3dcompiler", "shell32", "windowscodecs", "ole32")
+
+    after_build(function(target)
+        copy_translations(path.join(target:targetdir(), "Data"), os)
+    end)
 end)
 
 target("dmui-preview", function()
@@ -441,12 +453,11 @@ target("dmui-preview", function()
             path.join(project_dir("data/F4SE/Plugins"), "*"),
             plugins
         )
-        for _, translation in ipairs(os.files(project_dir("data/Interface/Translations/*.txt"))) do
-            os.cp(translation, path.join(data_root, "Interface/Translations") .. "/")
-        end
         if local_fixtures then
             copy_mcm_fixture_data(data_root, os)
         end
+        -- The fixture copy replaces Data/Interface, so translations go last.
+        copy_translations(data_root, os)
     end)
 end)
 

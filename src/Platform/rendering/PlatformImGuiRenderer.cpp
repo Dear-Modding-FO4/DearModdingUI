@@ -82,6 +82,7 @@ namespace DearModdingUI::PlatformImGuiDetail
 		RendererHealthReporter s_rendererHealthReporter;
 		DearModdingUI::SubsystemHealth s_rendererHealth{
 			"dmui.render.reconciliation",
+			{ "$DMUI_Health_SubsystemRenderer", "Renderer" },
 			s_rendererHealthReporter,
 			DearModdingUI::HostSubsystemHealthRegistry()
 		};
@@ -90,34 +91,40 @@ namespace DearModdingUI::PlatformImGuiDetail
 		HRESULT WINAPI HKResizeBuffers(
 			IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT) noexcept;
 
-		[[nodiscard]] std::string_view DescribeRendererObservation(
+		[[nodiscard]] constexpr Support::Phrase DescribeRendererObservationPhrase(
 			RendererObservation a_observation) noexcept
 		{
 			switch (a_observation)
 			{
 			case RendererObservation::kRendererDataMissing:
-				return "renderer data is null";
+				return { "$DMUI_Renderer_DataMissing", "Renderer data is null." };
 			case RendererObservation::kRendererNotInitialized:
-				return "renderer data is not initialized";
+				return { "$DMUI_Renderer_NotInitialized", "Renderer data is not initialized." };
 			case RendererObservation::kRendererWindowMissing:
-				return "the current renderer window is null";
+				return { "$DMUI_Renderer_WindowObjectMissing", "The current renderer window is null." };
 			case RendererObservation::kSwapChainMissing:
-				return "the current renderer window has no swapchain";
+				return { "$DMUI_Renderer_SwapChainMissing", "The current renderer window has no swapchain." };
 			case RendererObservation::kDeviceMissing:
-				return "renderer data has no D3D11 device";
+				return { "$DMUI_Renderer_DeviceMissing", "Renderer data has no D3D11 device." };
 			case RendererObservation::kContextMissing:
-				return "renderer data has no D3D11 device context";
+				return { "$DMUI_Renderer_ContextMissing", "Renderer data has no D3D11 device context." };
 			case RendererObservation::kWindowMissing:
-				return "the current renderer window has no HWND";
+				return { "$DMUI_Renderer_WindowHandleMissing", "The current renderer window has no HWND." };
 			case RendererObservation::kBindingChanged:
-				return "the renderer binding changed while it was captured";
+				return { "$DMUI_Renderer_BindingChanged", "The renderer binding changed while it was captured." };
 			case RendererObservation::kInvalidBinding:
-				return "the attachment candidate is invalid";
+				return { "$DMUI_Renderer_InvalidBinding", "The attachment candidate is invalid." };
 			case RendererObservation::kHookInstallationFailed:
-				return "the renderer binding was valid but swapchain hooks could not be installed";
+				return { "$DMUI_Renderer_HookInstallationFailed", "The renderer binding was valid but swapchain hooks could not be installed." };
 			default:
-				return "the renderer binding is valid";
+				return { "$DMUI_Renderer_BindingValid", "The renderer binding is valid." };
 			}
+		}
+
+		[[nodiscard]] Support::Message DescribeRendererObservation(
+			RendererObservation a_observation) noexcept
+		{
+			return Support::Message{ DescribeRendererObservationPhrase(a_observation) };
 		}
 
 		void RendererHealthReporter::Report(
@@ -137,8 +144,8 @@ namespace DearModdingUI::PlatformImGuiDetail
 				else
 				{
 					REX::ERROR(
-						"[dmui.render.reconciliation] Platform Imgui: renderer reconciliation deadline exceeded: {}; reconciliation will continue"sv,
-						a_snapshot.reason);
+						"[dmui.render.reconciliation] Platform Imgui: renderer reconciliation deadline exceeded: {} Reconciliation will continue."sv,
+						a_snapshot.reason.English());
 				}
 				return;
 			}
@@ -147,8 +154,8 @@ namespace DearModdingUI::PlatformImGuiDetail
 			if (a_snapshot.state == HealthState::kWaiting)
 			{
 				REX::INFO(
-					"[dmui.render.reconciliation] Platform Imgui: renderer state: waiting for renderer ({})"sv,
-					a_snapshot.reason);
+					"[dmui.render.reconciliation] Platform Imgui: renderer state: waiting for renderer: {}"sv,
+					a_snapshot.reason.English());
 			}
 			else if (a_snapshot.state == HealthState::kProgressing)
 			{
@@ -193,13 +200,13 @@ namespace DearModdingUI::PlatformImGuiDetail
 			{
 				REX::WARN(
 					"[dmui.render.reconciliation] Platform Imgui: renderer state degraded: {}"sv,
-					a_snapshot.reason);
+					a_snapshot.reason.English());
 			}
 			else if (a_snapshot.state == HealthState::kFailed)
 			{
 				REX::ERROR(
 					"[dmui.render.reconciliation] Platform Imgui: renderer state failed: {}"sv,
-					a_snapshot.reason);
+					a_snapshot.reason.English());
 			}
 		}
 
@@ -215,7 +222,9 @@ namespace DearModdingUI::PlatformImGuiDetail
 		{
 			(void)s_rendererHealth.Observe(
 				DearModdingUI::HealthState::kProgressing,
-				"the renderer binding is valid but Present has not been observed");
+				Support::Message{ Support::Phrase{
+					"$DMUI_Renderer_WaitingForPresent",
+					"The renderer binding is valid but Present has not been observed." } });
 		}
 
 		void AdvanceAttachmentGenerationLocked() noexcept
@@ -861,8 +870,8 @@ namespace DearModdingUI::PlatformImGuiDetail
 				observation))
 		{
 			REX::WARN(
-				"Platform Imgui: explicit swapchain override not attached ({})"sv,
-				DescribeRendererObservation(observation));
+				"Platform Imgui: explicit swapchain override not attached: {}"sv,
+				DescribeRendererObservation(observation).English());
 			return FailedAttachmentResult(observation);
 		}
 		const auto committed = CommitRendererSnapshot(
@@ -872,8 +881,8 @@ namespace DearModdingUI::PlatformImGuiDetail
 		if (!committed)
 		{
 			REX::WARN(
-				"Platform Imgui: explicit swapchain override could not be committed ({})"sv,
-				DescribeRendererObservation(observation));
+				"Platform Imgui: explicit swapchain override could not be committed: {}"sv,
+				DescribeRendererObservation(observation).English());
 		}
 		return committed ?
 			AttachmentResult::kAttached :

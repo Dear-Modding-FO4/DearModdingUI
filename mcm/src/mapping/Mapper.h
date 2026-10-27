@@ -14,5 +14,6 @@ namespace DearModdingUI::MCM::detail
 		std::string& a_displayName,
 		std::vector<MappedPage>& a_pages,
 		std::vector<Diagnostic>& a_diagnostics,
-		const TextResolver& a_textResolver);
+		const TextResolver& a_textResolver,
+		const Support::TextCatalog& a_catalog);
 }

@@ -19,9 +19,9 @@ namespace DearModdingUI
 {
 	namespace
 	{
-		constexpr Localization::Phrase kModsText{ "$DMUI_Nav_Mods", "Mods" };
-		constexpr Localization::Phrase kPagesText{ "$DMUI_Nav_Pages", "Pages" };
-		constexpr Localization::Phrase kSelectModHintText{ "$DMUI_Nav_SelectModHint", "Select a mod to browse its pages." };
+		constexpr Support::Phrase kModsText{ "$DMUI_Nav_Mods", "Mods" };
+		constexpr Support::Phrase kPagesText{ "$DMUI_Nav_Pages", "Pages" };
+		constexpr Support::Phrase kSelectModHintText{ "$DMUI_Nav_SelectModHint", "Select a mod to browse its pages." };
 
 		inline constexpr float kSidebarModFontScale{ 0.8f };
 
@@ -62,6 +62,12 @@ namespace DearModdingUI
 				ImGui::GetColorU32(color));
 		}
 
+		// One icon plus its gap, so nested rows align under the parent label.
+		[[nodiscard]] float IconColumnIndent() noexcept
+		{
+			return ImGui::GetFontSize() + ImGui::GetStyle().ItemInnerSpacing.x;
+		}
+
 		[[nodiscard]] RowResult DrawClientRow(
 			const NavigationClient& a_client,
 			const ClientStatus* a_status,
@@ -78,10 +84,6 @@ namespace DearModdingUI
 				.id = a_client.id.c_str(),
 				.label = a_client.displayName.c_str(),
 				.selected = a_client.handle == a_selection.activeClient,
-				.leadingAffordance =
-					a_kind == SidebarClientRowKind::kTree ?
-						RowLeadingAffordance::kArrow :
-						RowLeadingAffordance::kIcon,
 				.expanded =
 					a_kind == SidebarClientRowKind::kTree ?
 						a_expanded :
@@ -95,8 +97,7 @@ namespace DearModdingUI
 						ClientStatusTrailingWidth(a_status),
 				.flushHorizontalHighlight =
 					a_kind == SidebarClientRowKind::kRail,
-				.centerGlyph = a_kind == SidebarClientRowKind::kRail,
-				.disclosureStyle = RowDisclosureStyle::kSubtle
+				.centerGlyph = a_kind == SidebarClientRowKind::kRail
 			});
 			DrawClientStatusDot(
 				row.rect,
@@ -176,7 +177,6 @@ namespace DearModdingUI
 					.label = page.displayName.c_str(),
 					.selected =
 						page.handle == a_context.selection.activePage,
-					.leadingAffordance = RowLeadingAffordance::kIcon,
 					.textColor = textColor,
 					.hoveredTextColor = textColor,
 					.disabledColor = failed ?
@@ -196,10 +196,16 @@ namespace DearModdingUI
 		{
 			const auto start = ImGui::GetCursorScreenPos();
 			const auto& style = ImGui::GetStyle();
-			const auto indent =
-				ImGui::GetFrameHeight() + style.ItemInnerSpacing.x;
+			float indent{};
+			{
+				const Theme::FontGuard font{
+					Theme::FontRole::kTitle,
+					kSidebarModFontScale
+				};
+				indent = IconColumnIndent();
+			}
 			ImGui::Indent(indent);
-			DrawSidebarPageList(a_context, a_client);
+			DrawSidebarPageList(a_context, a_client, false);
 			ImGui::Unindent(indent);
 			const auto bottom =
 				ImGui::GetCursorScreenPos().y - style.ItemSpacing.y;
@@ -376,7 +382,7 @@ namespace DearModdingUI
 				const auto row = DrawSelectableRow({
 					.id = "##DearModdingDrillDownBack",
 					.label = Localization::Text("$DMUI_Nav_AllMods", "All Mods"),
-					.leadingAffordance = RowLeadingAffordance::kBack,
+					.back = true,
 					.textColor = textColor,
 					.hoveredTextColor = textColor
 				});
@@ -412,7 +418,6 @@ namespace DearModdingUI
 					.id = "##DearModdingHostPage",
 					.label = HostPageName(page.kind),
 					.selected = a_selection.activeHostPage == page.kind,
-					.leadingAffordance = RowLeadingAffordance::kIcon,
 					.glyph = FindPhosphorSlugGlyphOrZero(page.iconName),
 					.textColor = textColor,
 					.hoveredTextColor = textColor
@@ -545,8 +550,7 @@ namespace DearModdingUI
 		const NavigationClient& a_client,
 		bool a_indented) noexcept
 	{
-		const auto indent =
-			ImGui::GetFontSize() + ImGui::GetStyle().ItemInnerSpacing.x;
+		const auto indent = IconColumnIndent();
 		for (const auto& category : a_client.categories)
 		{
 			auto expanded = true;

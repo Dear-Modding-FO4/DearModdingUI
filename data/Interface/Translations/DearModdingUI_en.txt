@@ -82,7 +82,7 @@ $DMUI_Nav_LayoutTwoPane	Two-pane
 $DMUI_Nav_LayoutDrillDown	Drill-down
 $DMUI_Nav_LayoutIconRail	Icon rail
 $DMUI_Nav_LayoutTree	Tree
-$DMUI_Nav_LayoutTwoPaneHelp	Keep a fixed mod list with the selected mod's pages
+$DMUI_Nav_LayoutTwoPaneHelp	Keep a fixed mod list with the selected mod's pages.
 $DMUI_Nav_LayoutDrillDownHelp	Show one level at a time; well suited to many mods.
 $DMUI_Nav_LayoutIconRailHelp	Browse mods from a compact icon rail.
 $DMUI_Nav_LayoutTreeHelp	Browse every mod and page at once.
@@ -93,14 +93,14 @@ $DMUI_Health_StateDegraded	Degraded
 $DMUI_Health_StateFailed	Failed
 $DMUI_Health_StateUnknown	Unknown
 $DMUI_Health_DeadlineExceeded	(deadline exceeded)
-$DMUI_Health_ErrorCountOne	1 error
+$DMUI_Health_ErrorCountOne	{} error
 $DMUI_Health_ErrorCountOther	{} errors
-$DMUI_Health_WarningCountOne	1 warning
+$DMUI_Health_WarningCountOne	{} warning
 $DMUI_Health_WarningCountOther	{} warnings
-$DMUI_Health_SuccessCountOne	1 success
+$DMUI_Health_SuccessCountOne	{} success
 $DMUI_Health_SuccessCountOther	{} successes
 $DMUI_Health_InfoCount	{} info
-$DMUI_Health_DroppedReportOne	1 further diagnostic report was not retained.
+$DMUI_Health_DroppedReportOne	{} further diagnostic report was not retained.
 $DMUI_Health_DroppedReportOther	{} further diagnostic reports were not retained.
 $DMUI_Health_ScopeLabel	Scope: {}
 $DMUI_Health_DurationSeconds	{}s
@@ -130,7 +130,12 @@ $DMUI_Pages_SettingsReset	Reset
 $DMUI_Pages_SettingsRevert	Revert
 $DMUI_Home_AboutHeader	About
 $DMUI_Home_OverviewHeader	Overview
-$DMUI_Home_RegistryCounts	{} mods | {} pages | {} actions
+$DMUI_Count_ModsOne	{} mod
+$DMUI_Count_ModsOther	{} mods
+$DMUI_Count_PagesOne	{} page
+$DMUI_Count_PagesOther	{} pages
+$DMUI_Count_ActionsOne	{} action
+$DMUI_Count_ActionsOther	{} actions
 $DMUI_Home_QuickLinksHeader	Quick Links
 $DMUI_Home_FaqHeader	FAQ
 $DMUI_Health_CopyReport	Copy report
@@ -139,11 +144,14 @@ $DMUI_Health_HostSubsystemsHeader	Host subsystems
 $DMUI_Health_NoSubsystemObservations	No host subsystem observations are available.
 $DMUI_Health_SubsystemStatus	Status: {} | {} in state
 $DMUI_Health_NoClientMods	No client mods registered this session.
-$DMUI_Health_ClientCounts	{} | {} pages | {} actions
 $DMUI_Health_ClientVersion	Version {}.{}
 $DMUI_Health_ClientStatus	Status: {}
 $DMUI_Health_ReportedProblemsHeader	Reported problems
-$DMUI_Health_NoDiagnostics	No client diagnostics have been reported
+$DMUI_Health_NoDiagnostics	No client diagnostics have been reported.
+$DMUI_Health_SubsystemTypography	Typography
+$DMUI_Health_SubsystemConfiguration	Configuration
+$DMUI_Health_SubsystemGameInput	Game input
+$DMUI_Health_SubsystemRenderer	Renderer
 $DMUI_Pages_SettingsResetTooltip	Reset saves the default sidebar layout immediately and loads other shipped interface defaults into the draft. Use Apply to save those.
 $DMUI_Pages_SettingsRevertTooltip	Revert discards pending interface edits and restores saved settings. Sidebar layout changes are already saved.
 $DMUI_Pages_SettingsApplyTooltip	Apply saves host settings to DearModdingUI.toml. Sidebar layout changes save immediately; appearance previews update live, and typography rebuilds once if needed.
@@ -187,7 +195,7 @@ $DMUI_Settings_WindowBackgroundOpacity	Window background opacity
 $DMUI_Settings_WindowBackgroundOpacityHelp	Raises or lowers the darkness of the host window without changing client content.
 $DMUI_Settings_PaletteBackground	Command palette background
 $DMUI_Settings_PaletteBackgroundHelp	Sets the elevated surface color used by the command palette.
-$DMUI_Settings_PaletteOpacity	Command palette opacit
+$DMUI_Settings_PaletteOpacity	Command palette opacity
 $DMUI_Settings_PaletteOpacityHelp	Controls how faintly the dimmed host panel shows through the palette.
 $DMUI_Settings_BackgroundBlur	Background blur
 $DMUI_Settings_BackgroundBlurHelp	Blurs the game behind the host window; disabling it avoids the blur passes.
@@ -226,8 +234,123 @@ $DMUI_Settings_NotRegisteredClearable	Not registered. Saved bindings can be clea
 $DMUI_Settings_NotRegisteredInactive	Not registered. This saved binding is inactive and can be cleared.
 $DMUI_Settings_HostFacts	Host facts (read-only)
 $DMUI_Settings_HostFactsHelp	Values resolved by the DearModdingUI host.
-$DMUI_Settings_PixelSize	{:.0f} px
+$DMUI_Settings_PixelSize	{} px
 $DMUI_Settings_ResolvedTypographySize	Resolved typography size
 $DMUI_Settings_ResolvedTypographySizeHelp	Derived from the backbuffer height and the applied UI scale at a frame boundary.
 $DMUI_Settings_EffectiveUiScale	Effective UI scale
 $DMUI_Settings_EffectiveUiScaleHelp	Derived from resolution and [Additional] fMenuUiScale.
+$DMUI_Typography_NoAtlas	No usable font atlas could be prepared. Verify the bundled font files and restart.
+$DMUI_Typography_FamilyUnavailable	Requested family "{}" was unavailable; using "{}".
+$DMUI_Typography_BodyFontFailed	Body font for "{}" could not load; using "{}".
+$DMUI_Typography_MissingRolesOne	Bundled {} role used fallback text.
+$DMUI_Typography_MissingRolesOther	Bundled {} roles used fallback text.
+$DMUI_Typography_IconsUnavailable	Phosphor icons are unavailable; labels remain text-only.
+$DMUI_Typography_NoSystemFallbacks	No system fallback fonts loaded; non-Latin text may not render.
+$DMUI_Typography_EmergencyFont	The built-in emergency font is keeping text usable.
+$DMUI_Typography_ReadyOne	Loaded "{}" with all bundled roles, Phosphor icons, and {} system fallback font.
+$DMUI_Typography_ReadyOther	Loaded "{}" with all bundled roles, Phosphor icons, and {} system fallback fonts.
+$DMUI_Typography_Rebuilding	Rebuilding the font atlas for the requested family.
+$DMUI_Input_WaitingForGameData	Waiting for the game-data-ready prerequisite.
+$DMUI_Input_Installing	Installing {}, {}, and {} interception.
+$DMUI_Input_Ready	{}, {}, and {} interception installed.
+$DMUI_Input_SingletonUnavailable	{} singleton is unavailable; restart after game data is ready.
+$DMUI_Input_ReceiverOffsetMismatch	{} receiver layout did not match this runtime; verify the game and plugin versions.
+$DMUI_Input_VtableUnavailable	{} receiver vtable is unavailable; restart the game.
+$DMUI_Input_TargetUnavailable	{} PerformInputProcessing target is unavailable; verify the game runtime.
+$DMUI_Input_AlreadyHooked	{} receiver was already redirected; check for an incompatible input hook.
+$DMUI_Input_PatchFailed	{} receiver patch failed; check for an incompatible input hook.
+$DMUI_Input_OriginalTargetLost	{} hook lost its original target; restart the game.
+$DMUI_Input_InterceptionFailed	{} interception failed.
+$DMUI_Input_InterceptionUnavailable	Required game-input interception is unavailable.
+$DMUI_Renderer_DataMissing	Renderer data is null.
+$DMUI_Renderer_NotInitialized	Renderer data is not initialized.
+$DMUI_Renderer_WindowObjectMissing	The current renderer window is null.
+$DMUI_Renderer_SwapChainMissing	The current renderer window has no swapchain.
+$DMUI_Renderer_DeviceMissing	Renderer data has no D3D11 device.
+$DMUI_Renderer_ContextMissing	Renderer data has no D3D11 device context.
+$DMUI_Renderer_WindowHandleMissing	The current renderer window has no HWND.
+$DMUI_Renderer_BindingChanged	The renderer binding changed while it was captured.
+$DMUI_Renderer_InvalidBinding	The attachment candidate is invalid.
+$DMUI_Renderer_HookInstallationFailed	The renderer binding was valid but swapchain hooks could not be installed.
+$DMUI_Renderer_BindingValid	The renderer binding is valid.
+$DMUI_Renderer_WaitingForPresent	The renderer binding is valid but Present has not been observed.
+$DMUI_Config_CorrectionWrongType	{} had the wrong value type and used its default
+$DMUI_Config_CorrectionReplaced	{} {} used {}
+$DMUI_Config_BindingIgnored	{}.{} was ignored because it was not text
+$DMUI_Config_MoreCorrectionsOne	and {} more correction
+$DMUI_Config_MoreCorrectionsOther	and {} more corrections
+$DMUI_Config_CorrectedSummary	Using corrected settings: {}. Use {} on the Settings page to persist the accepted values.
+$DMUI_Config_InspectFailed	Could not inspect {}: {}. Using defaults; check file permissions and restart.
+$DMUI_Config_Absent	Using defaults; configuration file is absent.
+$DMUI_Config_Loaded	Loaded settings from {}.
+$DMUI_Config_LoadFailed	Could not load {}: {}. Using defaults; correct or remove the file and restart.
+$DMUI_Config_LoadFailedUnknown	Could not load {}. Using defaults; correct or remove the file and restart.
+$DMUI_Config_EstablishFailed	Could not establish host settings: {}. Using defaults; restart after correcting the configuration.
+$DMUI_Config_EstablishFailedUnknown	Could not establish host settings. Using defaults; restart after correcting the configuration.
+$DMUI_Config_CreateDirectoryFailed	Creating settings directory for {} failed: {} (Windows error {}).
+$DMUI_Config_OpenTemporaryFailed	Opening temporary settings file {} failed: {} (Windows error {}).
+$DMUI_Config_WriteTemporaryFailed	Writing temporary settings file {} failed: {} (Windows error {}).
+$DMUI_Config_FlushTemporaryFailed	Flushing temporary settings file {} failed: {} (Windows error {}).
+$DMUI_Config_CloseTemporaryFailed	Closing temporary settings file {} failed: {} (Windows error {}).
+$DMUI_Config_RemoveTemporaryFailed	Removing temporary settings file {} failed: {} (Windows error {}).
+$DMUI_Config_ReplaceFallbackFailed	Replacing settings file during the cross-volume copy fallback for {} failed: {} (Windows error {}).
+$DMUI_Config_ReplaceFailed	Replacing settings file {} failed: {} (Windows error {}).
+$DMUI_Config_CrossVolumeAdvice	Windows first reported ERROR_NOT_SAME_DEVICE (17): {}. This can occur when a mod manager maps the temporary file and the existing configuration to different drives. Check that the mod manager's overwrite or output location is writable and has available disk space, then save again.
+$DMUI_Config_Saved	Saved settings to {}.
+$DMUI_Config_SavedByCopy	Saved settings to {} using a non-atomic cross-volume copy fallback.
+$DMUI_Config_PersistFailed	Persisting {} failed: {}
+$DMUI_Config_PersistFailedUnknown	Persisting {} failed for an unknown reason.
+$DMUI_Config_SavedAccepted	Saved accepted settings to {}.
+$DMUI_Config_SaveFailedActive	Settings remain active, but the latest save failed: {}
+$DMUI_MCM_General	General
+$DMUI_MCM_Action	Action
+$DMUI_MCM_ButtonNoAction	This button has no action.
+$DMUI_MCM_SwfOnlyPage	This page contains only unrendered SWF components.
+$DMUI_MCM_None	None
+$DMUI_MCM_PageName	Page {}
+$DMUI_MCM_Unbound	Unbound
+$DMUI_MCM_CannotBind	Can't be bound
+$DMUI_MCM_BindingUnavailable	Binding unavailable
+$DMUI_MCM_Modifier	Modifier {}
+$DMUI_MCM_Keycode	Keycode {}
+$DMUI_MCM_ReasonConditionFalse	This row is hidden by its condition.
+$DMUI_MCM_ReasonConditionPending	Waiting to determine whether this row should be shown.
+$DMUI_MCM_ReasonUnsupported	This control is not supported.
+$DMUI_MCM_ReasonUndeclaredModSetting	This setting is not declared in MCM settings.ini.
+$DMUI_MCM_ReasonKeybindUnbound	This hotkey is not bound in MCM.
+$DMUI_MCM_ReasonKeybindDefinitionMissing	This hotkey is not declared in the mod's MCM keybinds.json.
+$DMUI_MCM_ReasonKeybindDefinitionsMissing	This mod has no MCM keybinds.json, so its hotkeys cannot be bound.
+$DMUI_MCM_ReasonKeybindDefinitionsInvalid	This mod's MCM keybinds.json could not be read, so its hotkeys cannot be bound.
+$DMUI_MCM_ReasonKeybindBindingsInvalid	MCM's user key bindings could not be read.
+$DMUI_MCM_ReasonMcmNotInstalled	Mod Configuration Menu is not installed.
+$DMUI_MCM_ReasonMcmNotInstalledPage	Mod Configuration Menu is not installed, so mod settings cannot be changed.
+$DMUI_MCM_ReasonRuntimeNotReady	Load a save to change these settings.
+$DMUI_MCM_ReasonValuePending	Waiting for this setting's value.
+$DMUI_MCM_ReasonValueMissing	This setting's value is unavailable.
+$DMUI_MCM_ReasonValueFailed	This setting's value could not be read.
+$DMUI_MCM_ReasonFileChoicesPending	Waiting for this file list to be refreshed.
+$DMUI_MCM_ReasonFileChoicesFailed	This file list could not be read.
+$DMUI_MCM_ReasonUnsupportedAction	This action is not supported.
+$DMUI_MCM_ReasonUnavailable	This setting is unavailable.
+$DMUI_MCM_LoadingVisibility	Loading setting visibility...
+$DMUI_MCM_ConditionsNotApplied	Compatibility: conditions not applied: {}. A controller is inoperable or its value is missing or failed; dependent content is shown.
+$DMUI_MCM_ActionFailed	Action '{}': {}
+$DMUI_MCM_ExecutionFailed	execution failed
+$DMUI_MCM_CompatibilitySummary	Compatibility: {}.
+$DMUI_MCM_UnsupportedActions	unsupported actions: {}
+$DMUI_MCM_UndeclaredSettings	undeclared persisted settings: {}
+$DMUI_MCM_FileListFailed	Could not list files from path '{}' with mask '{}'.
+$DMUI_MCM_FileListFailedDetail	Could not list files from path '{}' with mask '{}': {}.
+$DMUI_MCM_FilePathMissing	the configured path is missing or empty
+$DMUI_SettingsPage_ResetAll	Reset all
+$DMUI_SettingsPage_ResetAllTooltip	Reset loads every setting's default into the draft. Use Apply to save them.
+$DMUI_SettingsPage_Revert	Revert
+$DMUI_SettingsPage_RevertTooltip	Revert discards pending edits and restores committed settings.
+$DMUI_SettingsPage_Apply	Apply ({})
+$DMUI_SettingsPage_ApplyTooltipOne	Apply saves {} pending change.
+$DMUI_SettingsPage_ApplyTooltipOther	Apply saves {} pending changes.
+$DMUI_SettingsPage_ModifiedOnly	Modified only
+$DMUI_SettingsPage_SearchHint	Search settings...
+$DMUI_SettingsPage_UnsupportedControl	Unsupported setting control.
+$DMUI_SettingsPage_AppliesNow	Applies now.
+$DMUI_SettingsPage_Unavailable	Unavailable

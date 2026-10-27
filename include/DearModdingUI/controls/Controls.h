@@ -18,24 +18,10 @@
 
 namespace DearModdingUI
 {
-	enum class RowLeadingAffordance : uint32_t
-	{
-		kNone,
-		kArrow,
-		kBack,
-		kIcon
-	};
-
 	enum class RowHighlightStyle : uint32_t
 	{
 		kSelectable,
 		kRoundedFill
-	};
-
-	enum class RowDisclosureStyle : uint32_t
-	{
-		kDefault,
-		kSubtle
 	};
 
 	struct RowOptions
@@ -44,9 +30,8 @@ namespace DearModdingUI
 		const char* label{ nullptr };
 		bool selected{ false };
 		float height{ 0.0f };
-		RowLeadingAffordance leadingAffordance{
-			RowLeadingAffordance::kNone
-		};
+		bool back{ false };
+		// A disclosure row toggles this and dims while it is collapsed.
 		bool* expanded{ nullptr };
 		char32_t glyph{ 0 };
 		ImU32 textColor{ 0 };
@@ -58,7 +43,6 @@ namespace DearModdingUI
 			RowHighlightStyle::kSelectable
 		};
 		bool centerGlyph{ false };
-		RowDisclosureStyle disclosureStyle{ RowDisclosureStyle::kDefault };
 	};
 
 	struct RowResult

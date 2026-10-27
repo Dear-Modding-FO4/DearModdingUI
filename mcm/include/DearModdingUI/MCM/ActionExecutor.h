@@ -82,10 +82,11 @@ namespace DearModdingUI::MCM
 		MappedPage& a_page,
 		const ActionExecutor& a_executor) noexcept;
 
-	// The executor and source outlive the page because its rows capture them by reference.
+	// Rows capture the executor, source, and catalog; they outlive the page.
 	void BindActions(
 		MappedPage& a_page,
 		ActionExecutor& a_executor,
 		ValueSource& a_values,
-		DiagnosticReporter& a_diagnostics);
+		DiagnosticReporter& a_diagnostics,
+		const Support::TextCatalog& a_catalog = Support::EnglishCatalog());
 }

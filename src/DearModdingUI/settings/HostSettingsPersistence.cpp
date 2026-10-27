@@ -6,10 +6,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <exception>
 #include <format>
 #include <limits>
 #include <memory>
+#include <string>
 #include <system_error>
 #include <utility>
 
@@ -17,6 +19,100 @@ namespace DearModdingUI
 {
 	namespace
 	{
+		constexpr Support::Phrase kCreateDirectoryFailed{
+			"$DMUI_Config_CreateDirectoryFailed",
+			"Creating settings directory for {} failed: {} (Windows error {})."
+		};
+		constexpr Support::Phrase kOpenTemporaryFailed{
+			"$DMUI_Config_OpenTemporaryFailed",
+			"Opening temporary settings file {} failed: {} (Windows error {})."
+		};
+		constexpr Support::Phrase kWriteTemporaryFailed{
+			"$DMUI_Config_WriteTemporaryFailed",
+			"Writing temporary settings file {} failed: {} (Windows error {})."
+		};
+		constexpr Support::Phrase kFlushTemporaryFailed{
+			"$DMUI_Config_FlushTemporaryFailed",
+			"Flushing temporary settings file {} failed: {} (Windows error {})."
+		};
+		constexpr Support::Phrase kCloseTemporaryFailed{
+			"$DMUI_Config_CloseTemporaryFailed",
+			"Closing temporary settings file {} failed: {} (Windows error {})."
+		};
+		constexpr Support::Phrase kRemoveTemporaryFailed{
+			"$DMUI_Config_RemoveTemporaryFailed",
+			"Removing temporary settings file {} failed: {} (Windows error {})."
+		};
+		constexpr Support::Phrase kReplaceFallbackFailed{
+			"$DMUI_Config_ReplaceFallbackFailed",
+			"Replacing settings file during the cross-volume copy fallback for {} failed: {} (Windows error {})."
+		};
+		constexpr Support::Phrase kReplaceFailed{
+			"$DMUI_Config_ReplaceFailed",
+			"Replacing settings file {} failed: {} (Windows error {})."
+		};
+		constexpr Support::Phrase kCrossVolumeAdvice{
+			"$DMUI_Config_CrossVolumeAdvice",
+			"Windows first reported ERROR_NOT_SAME_DEVICE (17): {}. "
+			"This can occur when a mod manager maps the temporary file and "
+			"the existing configuration to different drives. Check that "
+			"the mod manager's overwrite or output location is writable "
+			"and has available disk space, then save again."
+		};
+		constexpr Support::Phrase kCorrectionWrongType{
+			"$DMUI_Config_CorrectionWrongType",
+			"{} had the wrong value type and used its default"
+		};
+		constexpr Support::Phrase kCorrectionReplaced{
+			"$DMUI_Config_CorrectionReplaced",
+			"{} {} used {}"
+		};
+		constexpr Support::Phrase kBindingIgnored{
+			"$DMUI_Config_BindingIgnored",
+			"{}.{} was ignored because it was not text"
+		};
+		constexpr Support::PluralPhrase kMoreCorrections{
+			"$DMUI_Config_MoreCorrections",
+			"and {} more correction",
+			"and {} more corrections"
+		};
+		constexpr Support::Phrase kCorrectedSummary{
+			"$DMUI_Config_CorrectedSummary",
+			"Using corrected settings: {}. Use {} on the Settings page to persist the accepted values."
+		};
+		constexpr Support::Phrase kInspectFailed{
+			"$DMUI_Config_InspectFailed",
+			"Could not inspect {}: {}. Using defaults; check file permissions and restart."
+		};
+		constexpr Support::Phrase kAbsent{
+			"$DMUI_Config_Absent",
+			"Using defaults; configuration file is absent."
+		};
+		constexpr Support::Phrase kLoaded{
+			"$DMUI_Config_Loaded",
+			"Loaded settings from {}."
+		};
+		constexpr Support::Phrase kLoadFailed{
+			"$DMUI_Config_LoadFailed",
+			"Could not load {}: {}. Using defaults; correct or remove the file and restart."
+		};
+		constexpr Support::Phrase kLoadFailedUnknown{
+			"$DMUI_Config_LoadFailedUnknown",
+			"Could not load {}. Using defaults; correct or remove the file and restart."
+		};
+		constexpr Support::Phrase kSaved{
+			"$DMUI_Config_Saved",
+			"Saved settings to {}."
+		};
+		constexpr Support::Phrase kSavedByCopy{
+			"$DMUI_Config_SavedByCopy",
+			"Saved settings to {} using a non-atomic cross-volume copy fallback."
+		};
+		constexpr Support::Phrase kPersistFailed{
+			"$DMUI_Config_PersistFailed",
+			"Persisting {} failed: {}"
+		};
+
 		class UniqueHandle
 		{
 		public:
@@ -108,21 +204,21 @@ namespace DearModdingUI
 			return result;
 		}
 
-		[[nodiscard]] std::string WindowsFailure(
-			std::string_view a_operation,
+		// The OS explanation stays in the system language.
+		[[nodiscard]] Support::Message WindowsFailure(
+			const Support::Phrase& a_operation,
 			const std::filesystem::path& a_path,
 			uint32_t a_error)
 		{
-			auto detail = std::format(
-				"{} {} failed: {} (Windows error {}",
+			auto code = std::to_string(a_error);
+			if (a_error == ERROR_NOT_SAME_DEVICE)
+				code.append(", ERROR_NOT_SAME_DEVICE");
+			return Support::Message{
 				a_operation,
 				a_path.filename().string(),
 				DescribeWindowsError(a_error),
-				a_error);
-			if (a_error == ERROR_NOT_SAME_DEVICE)
-				detail.append(", ERROR_NOT_SAME_DEVICE");
-			detail.append(").");
-			return detail;
+				code
+			};
 		}
 
 		[[nodiscard]] bool DefaultMoveFile(
@@ -171,12 +267,13 @@ namespace DearModdingUI
 			a_result.temporaryCleanupFailed = true;
 			if (a_result.nativeError == ERROR_SUCCESS)
 				a_result.nativeError = a_cleanup.nativeError;
-			if (!a_result.detail.empty())
-				a_result.detail.push_back(' ');
-			a_result.detail.append(WindowsFailure(
-				"Removing temporary settings file",
-				a_path,
-				a_cleanup.nativeError));
+			a_result.detail = Support::Message::Join(
+				{ a_result.detail,
+					WindowsFailure(
+						kRemoveTemporaryFailed,
+						a_path,
+						a_cleanup.nativeError) },
+				" ");
 		}
 
 		[[nodiscard]] std::string SerializeSettings(
@@ -238,7 +335,7 @@ namespace DearModdingUI
 			{
 				a_result.nativeError = GetLastError();
 				a_result.detail = WindowsFailure(
-					"Opening temporary settings file",
+					kOpenTemporaryFailed,
 					a_path,
 					a_result.nativeError);
 				return false;
@@ -266,7 +363,7 @@ namespace DearModdingUI
 					if (a_result.nativeError == ERROR_SUCCESS)
 						a_result.nativeError = ERROR_WRITE_FAULT;
 					a_result.detail = WindowsFailure(
-						"Writing temporary settings file",
+						kWriteTemporaryFailed,
 						a_path,
 						a_result.nativeError);
 					succeeded = false;
@@ -279,7 +376,7 @@ namespace DearModdingUI
 			{
 				a_result.nativeError = GetLastError();
 				a_result.detail = WindowsFailure(
-					"Flushing temporary settings file",
+					kFlushTemporaryFailed,
 					a_path,
 					a_result.nativeError);
 				succeeded = false;
@@ -289,7 +386,7 @@ namespace DearModdingUI
 			{
 				a_result.nativeError = closeError;
 				a_result.detail = WindowsFailure(
-					"Closing temporary settings file",
+					kCloseTemporaryFailed,
 					a_path,
 					a_result.nativeError);
 				succeeded = false;
@@ -302,7 +399,7 @@ namespace DearModdingUI
 			const toml::value& a_section,
 			std::string_view a_key,
 			T a_fallback,
-			std::vector<std::string>& a_corrections)
+			std::vector<Support::Message>& a_corrections)
 		{
 			const std::string key{ a_key };
 			if (!a_section.contains(key))
@@ -313,23 +410,36 @@ namespace DearModdingUI
 			}
 			catch (const std::exception&)
 			{
-				a_corrections.push_back(
-					std::format("{} had the wrong value type and used its default",
-						a_key));
+				a_corrections.push_back(Support::Message{ kCorrectionWrongType, a_key });
 				return a_fallback;
 			}
 		}
 
+		// Values read as the TOML file spells them.
+		[[nodiscard]] Support::Message Quoted(std::string_view a_text)
+		{
+			return Support::Message::Text(std::format("\"{}\"", a_text));
+		}
+
+		template <class Value, class Used>
+		[[nodiscard]] Support::Message Replacement(
+			std::string_view a_key,
+			const Value& a_value,
+			const Used& a_used)
+		{
+			return Support::Message{ kCorrectionReplaced, a_key, a_value, a_used };
+		}
+
 		void AppendCorrection(
-			std::vector<std::string>& a_corrections,
-			std::string a_correction)
+			std::vector<Support::Message>& a_corrections,
+			Support::Message a_correction)
 		{
 			a_corrections.push_back(std::move(a_correction));
 		}
 
 		[[nodiscard]] HostInterfaceSettings NormalizeSettings(
 			PersistedHostInterfaceSettings a_settings,
-			std::vector<std::string>& a_corrections)
+			std::vector<Support::Message>& a_corrections)
 		{
 			const auto runtime = DecodeHostInterfaceSettings(a_settings);
 
@@ -337,27 +447,27 @@ namespace DearModdingUI
 			{
 				AppendCorrection(
 					a_corrections,
-					std::format(
-						"sMenuLogoColors \"{}\" used \"{}\"",
-						a_settings.logoColors,
-						LogoColorModeName(runtime.logoColors)));
+					Replacement(
+						"sMenuLogoColors",
+						Quoted(a_settings.logoColors),
+						Quoted(LogoColorModeName(runtime.logoColors))));
 			}
 			if (!ParseUserSidebarLayout(a_settings.sidebarLayout))
 			{
 				AppendCorrection(
 					a_corrections,
-					std::format(
-						"sMenuSidebarLayout \"{}\" used \"{}\"",
-						a_settings.sidebarLayout,
-						SidebarLayoutKindName(runtime.sidebarLayout)));
+					Replacement(
+						"sMenuSidebarLayout",
+						Quoted(a_settings.sidebarLayout),
+						Quoted(SidebarLayoutKindName(runtime.sidebarLayout))));
 			}
 			if (!TryDecodeHostColor(a_settings.accentColor))
 			{
 				AppendCorrection(
 					a_corrections,
-					std::format(
-						"sMenuAccentColor \"{}\" used {}",
-						a_settings.accentColor,
+					Replacement(
+						"sMenuAccentColor",
+						Quoted(a_settings.accentColor),
 						EncodeHostAccentColor(runtime.accentColor)));
 			}
 			if (runtime.windowBackgroundOpacity !=
@@ -365,8 +475,8 @@ namespace DearModdingUI
 			{
 				AppendCorrection(
 					a_corrections,
-					std::format(
-						"fMenuWindowOpacity {} used {}",
+					Replacement(
+						"fMenuWindowOpacity",
 						a_settings.windowBackgroundOpacity,
 						runtime.windowBackgroundOpacity));
 			}
@@ -374,19 +484,18 @@ namespace DearModdingUI
 			{
 				AppendCorrection(
 					a_corrections,
-					std::format(
-						"sMenuPaletteBackgroundColor \"{}\" used {}",
-						a_settings.paletteBackgroundColor,
-						EncodeHostAccentColor(
-							runtime.paletteBackgroundColor)));
+					Replacement(
+						"sMenuPaletteBackgroundColor",
+						Quoted(a_settings.paletteBackgroundColor),
+						EncodeHostAccentColor(runtime.paletteBackgroundColor)));
 			}
 			if (runtime.paletteBackgroundOpacity !=
 				a_settings.paletteBackgroundOpacity)
 			{
 				AppendCorrection(
 					a_corrections,
-					std::format(
-						"fMenuPaletteOpacity {} used {}",
+					Replacement(
+						"fMenuPaletteOpacity",
 						a_settings.paletteBackgroundOpacity,
 						runtime.paletteBackgroundOpacity));
 			}
@@ -395,8 +504,8 @@ namespace DearModdingUI
 			{
 				AppendCorrection(
 					a_corrections,
-					std::format(
-						"fMenuBackgroundBlurStrength {} used {}",
+					Replacement(
+						"fMenuBackgroundBlurStrength",
 						a_settings.backgroundBlurStrength,
 						runtime.backgroundBlurStrength));
 			}
@@ -404,8 +513,8 @@ namespace DearModdingUI
 			{
 				AppendCorrection(
 					a_corrections,
-					std::format(
-						"fMenuUiScale {} used {}",
+					Replacement(
+						"fMenuUiScale",
 						a_settings.uiScale,
 						runtime.uiScale));
 			}
@@ -413,35 +522,37 @@ namespace DearModdingUI
 			{
 				AppendCorrection(
 					a_corrections,
-					std::format(
-						"sMenuBodyFontFamily \"{}\" used \"{}\"",
-						a_settings.bodyFontFamily,
-						runtime.bodyFontFamily));
+					Replacement(
+						"sMenuBodyFontFamily",
+						Quoted(a_settings.bodyFontFamily),
+						Quoted(runtime.bodyFontFamily)));
 			}
 			if (!ParseMenuToggleChord(a_settings.menuToggleKey).recognized)
 			{
 				AppendCorrection(
 					a_corrections,
-					std::format(
-						"sMenuToggleKey \"{}\" used \"{}\"",
-						a_settings.menuToggleKey,
-						runtime.menuToggleKey));
+					Replacement(
+						"sMenuToggleKey",
+						Quoted(a_settings.menuToggleKey),
+						Quoted(runtime.menuToggleKey)));
 			}
 			if (!ParseMenuToggleChord(a_settings.menuToggleGamepad, HotkeySlot::kGamepad).recognized)
 			{
-				AppendCorrection(a_corrections, std::format(
-					"sMenuToggleGamepad \"{}\" used \"{}\"",
-					a_settings.menuToggleGamepad, runtime.menuToggleGamepad));
+				AppendCorrection(
+					a_corrections,
+					Replacement(
+						"sMenuToggleGamepad",
+						Quoted(a_settings.menuToggleGamepad),
+						Quoted(runtime.menuToggleGamepad)));
 			}
 			if (!ParseFieldFeedbackLayout(a_settings.feedbackPlacement))
 			{
 				AppendCorrection(
 					a_corrections,
-					std::format(
-						"sFieldFeedbackLayout \"{}\" used \"{}\"",
-						a_settings.feedbackPlacement,
-						FieldFeedbackLayoutName(
-							runtime.feedbackPlacement)));
+					Replacement(
+						"sFieldFeedbackLayout",
+						Quoted(a_settings.feedbackPlacement),
+						Quoted(FieldFeedbackLayoutName(runtime.feedbackPlacement))));
 			}
 			const auto checkFeedbackColor =
 				[&](std::string_view a_key,
@@ -451,10 +562,9 @@ namespace DearModdingUI
 					{
 						AppendCorrection(
 							a_corrections,
-							std::format(
-								"{} \"{}\" used {}",
+							Replacement(
 								a_key,
-								a_value,
+								Quoted(a_value),
 								EncodeHostAccentColor(a_runtime)));
 					}
 				};
@@ -473,29 +583,29 @@ namespace DearModdingUI
 			return runtime;
 		}
 
-		[[nodiscard]] std::string CorrectionSummary(
-			const std::vector<std::string>& a_corrections)
+		[[nodiscard]] Support::Message CorrectionSummary(
+			const std::vector<Support::Message>& a_corrections)
 		{
 			constexpr size_t kVisibleCorrectionLimit = 5;
-			std::string result{ "Using corrected settings: " };
 			const auto visible = (std::min)(
 				a_corrections.size(),
 				kVisibleCorrectionLimit);
-			for (size_t index = 0; index < visible; ++index)
-			{
-				if (index != 0)
-					result.append("; ");
-				result.append(a_corrections[index]);
-			}
+			std::vector<Support::Message> listed(
+				a_corrections.begin(),
+				a_corrections.begin() + static_cast<std::ptrdiff_t>(visible));
 			if (a_corrections.size() > visible)
 			{
-				result.append(std::format(
-					"; and {} more correction{}",
-					a_corrections.size() - visible,
-					a_corrections.size() - visible == 1 ? "" : "s"));
+				const auto hidden = a_corrections.size() - visible;
+				listed.push_back(Support::Message::Plural(
+					kMoreCorrections,
+					hidden,
+					hidden));
 			}
-			result.append(". Save Settings to persist the accepted values.");
-			return result;
+			return Support::Message{
+				kCorrectedSummary,
+				Support::Message::Join(std::move(listed), "; "),
+				Support::Message{ kSettingsApplyControl }
+			};
 		}
 	}
 
@@ -509,16 +619,17 @@ namespace DearModdingUI
 		if (existsError)
 		{
 			result.disposition = HostSettingsLoadDisposition::kFailed;
-			result.detail = std::format(
-				"Could not inspect {}: {}. Using defaults; check file permissions and restart.",
+			result.detail = Support::Message{
+				kInspectFailed,
 				result.path,
-				existsError.message());
+				existsError.message()
+			};
 			return result;
 		}
 		if (!exists)
 		{
 			result.disposition = HostSettingsLoadDisposition::kMissing;
-			result.detail = "Using defaults; configuration file is absent.";
+			result.detail = Support::Message{ kAbsent };
 			return result;
 		}
 
@@ -627,8 +738,7 @@ namespace DearModdingUI
 						a_bindings.emplace(id, value.as_string());
 					else
 						result.corrections.push_back(
-							std::format("{}.{} was ignored because it was not text",
-								a_name, id));
+							Support::Message{ kBindingIgnored, a_name, id });
 				}
 			};
 			readBindings("Hotkeys", result.hotkeys);
@@ -640,7 +750,7 @@ namespace DearModdingUI
 				HostSettingsLoadDisposition::kLoaded :
 				HostSettingsLoadDisposition::kCorrected;
 			result.detail = result.corrections.empty() ?
-				std::format("Loaded settings from {}.", result.path) :
+				Support::Message{ kLoaded, result.path } :
 				CorrectionSummary(result.corrections);
 		}
 		catch (const std::exception& error)
@@ -649,10 +759,7 @@ namespace DearModdingUI
 			result.hotkeys.clear();
 			result.gamepadHotkeys.clear();
 			result.disposition = HostSettingsLoadDisposition::kFailed;
-			result.detail = std::format(
-				"Could not load {}: {}. Using defaults; correct or remove the file and restart.",
-				result.path,
-				error.what());
+			result.detail = Support::Message{ kLoadFailed, result.path, error.what() };
 		}
 		catch (...)
 		{
@@ -660,9 +767,7 @@ namespace DearModdingUI
 			result.hotkeys.clear();
 			result.gamepadHotkeys.clear();
 			result.disposition = HostSettingsLoadDisposition::kFailed;
-			result.detail = std::format(
-				"Could not load {}. Using defaults; correct or remove the file and restart.",
-				result.path);
+			result.detail = Support::Message{ kLoadFailedUnknown, result.path };
 		}
 		return result;
 	}
@@ -709,7 +814,7 @@ namespace DearModdingUI
 				result.nativeError = static_cast<uint32_t>(
 					directoryError.value());
 				result.detail = WindowsFailure(
-					"Creating settings directory for",
+					kCreateDirectoryFailed,
 					a_path,
 					result.nativeError);
 				return result;
@@ -743,9 +848,7 @@ namespace DearModdingUI
 					moveError))
 			{
 				result.saved = true;
-				result.detail = std::format(
-					"Saved settings to {}.",
-					a_path.filename().string());
+				result.detail = Support::Message{ kSaved, a_path.filename().string() };
 				AppendCleanupFailure(result, temporary, RemoveTemporary(temporary));
 				return result;
 			}
@@ -762,33 +865,27 @@ namespace DearModdingUI
 						fallbackError))
 				{
 					result.saved = true;
-					result.detail = std::format(
-						"Saved settings to {} using a non-atomic cross-volume copy fallback.",
-						a_path.filename().string());
+					result.detail = Support::Message{
+						kSavedByCopy,
+						a_path.filename().string()
+					};
 					AppendCleanupFailure(result, temporary, RemoveTemporary(temporary));
 					return result;
 				}
 
 				result.nativeError = fallbackError;
-				result.detail = WindowsFailure(
-					"Replacing settings file during the cross-volume copy fallback for",
-					a_path,
-					fallbackError);
-				result.detail.append(
-					std::format(
-						" Windows first reported ERROR_NOT_SAME_DEVICE (17): {}. ",
-						DescribeWindowsError(ERROR_NOT_SAME_DEVICE)));
-				result.detail.append(
-					"This can occur when a mod manager maps the temporary file and "
-					"the existing configuration to different drives. Check that "
-					"the mod manager's overwrite or output location is writable "
-					"and has available disk space, then save again.");
+				result.detail = Support::Message::Join(
+					{ WindowsFailure(kReplaceFallbackFailed, a_path, fallbackError),
+						Support::Message{
+							kCrossVolumeAdvice,
+							DescribeWindowsError(ERROR_NOT_SAME_DEVICE) } },
+					" ");
 			}
 			else
 			{
 				result.nativeError = moveError;
 				result.detail = WindowsFailure(
-					"Replacing settings file",
+					kReplaceFailed,
 					a_path,
 					moveError);
 			}
@@ -799,10 +896,11 @@ namespace DearModdingUI
 		{
 			const auto cleanup = temporaryCreated ?
 				RemoveTemporary(temporary) : TemporaryCleanupResult{};
-			result.detail = std::format(
-				"Persisting {} failed: {}",
+			result.detail = Support::Message{
+				kPersistFailed,
 				a_path.filename().string(),
-				error.what());
+				error.what()
+			};
 			AppendCleanupFailure(result, temporary, cleanup);
 			return result;
 		}
@@ -810,9 +908,10 @@ namespace DearModdingUI
 		{
 			const auto cleanup = temporaryCreated ?
 				RemoveTemporary(temporary) : TemporaryCleanupResult{};
-			result.detail = std::format(
-				"Persisting {} failed for an unknown reason.",
-				a_path.filename().string());
+			result.detail = Support::Message{
+				kPersistFailedUnknown,
+				a_path.filename().string()
+			};
 			AppendCleanupFailure(result, temporary, cleanup);
 			return result;
 		}

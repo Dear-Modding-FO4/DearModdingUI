@@ -1,8 +1,10 @@
 #pragma once
 
+#include <DearModdingUI/MCM/BridgeText.h>
 #include <DearModdingUI/MCM/TextMarkup.h>
 
 #include <DearModdingUI/Client.h>
+#include <Support/Message.h>
 
 #include <cstddef>
 #include <concepts>
@@ -328,124 +330,125 @@ namespace DearModdingUI::MCM
 	struct InertReasonMetadata
 	{
 		InertReasonScope scope{ InertReasonScope::kRow };
-		std::string_view text;
-		std::string_view pageText;
+		std::optional<Support::Phrase> text;
+		std::optional<Support::Phrase> pageText;
 	};
 
 	[[nodiscard]] constexpr InertReasonMetadata Describe(
 		InertReason a_reason) noexcept
 	{
+		namespace Text = BridgeText;
 		switch (a_reason)
 		{
 		case InertReason::kNone:
-			return { InertReasonScope::kRow, {}, {} };
+			return { InertReasonScope::kRow, std::nullopt, std::nullopt };
 		case InertReason::kConditionFalse:
 			return {
 				InertReasonScope::kRow,
-				"This row is hidden by its condition.",
-				{}
+				Text::kReasonConditionFalse,
+				std::nullopt
 			};
 		case InertReason::kConditionPending:
 			return {
 				InertReasonScope::kRow,
-				"Waiting to determine whether this row should be shown.",
-				{}
+				Text::kReasonConditionPending,
+				std::nullopt
 			};
 		case InertReason::kUnsupported:
 			return {
 				InertReasonScope::kRow,
-				"This control is not supported.",
-				{}
+				Text::kReasonUnsupported,
+				std::nullopt
 			};
 		case InertReason::kUndeclaredModSetting:
 			return {
 				InertReasonScope::kRow,
-				"This setting is not declared in MCM settings.ini.",
-				{}
+				Text::kReasonUndeclaredModSetting,
+				std::nullopt
 			};
 		case InertReason::kKeybindUnbound:
 			return {
 				InertReasonScope::kRow,
-				"This hotkey is not bound in MCM.",
-				{}
+				Text::kReasonKeybindUnbound,
+				std::nullopt
 			};
 		case InertReason::kKeybindDefinitionMissing:
 			return {
 				InertReasonScope::kRow,
-				"This hotkey is not declared in the mod's MCM keybinds.json.",
-				{}
+				Text::kReasonKeybindDefinitionMissing,
+				std::nullopt
 			};
 		case InertReason::kKeybindDefinitionsMissing:
 			return {
 				InertReasonScope::kEnvironment,
-				{},
-				"This mod has no MCM keybinds.json, so its hotkeys cannot be bound."
+				std::nullopt,
+				Text::kReasonKeybindDefinitionsMissing
 			};
 		case InertReason::kKeybindDefinitionsInvalid:
 			return {
 				InertReasonScope::kEnvironment,
-				{},
-				"This mod's MCM keybinds.json could not be read, so its hotkeys cannot be bound."
+				std::nullopt,
+				Text::kReasonKeybindDefinitionsInvalid
 			};
 		case InertReason::kKeybindBindingsInvalid:
 			return {
 				InertReasonScope::kEnvironment,
-				{},
-				"MCM's user key bindings could not be read."
+				std::nullopt,
+				Text::kReasonKeybindBindingsInvalid
 			};
 		case InertReason::kMcmNotInstalled:
 			return {
 				InertReasonScope::kEnvironment,
-				"Mod Configuration Menu is not installed.",
-				"Mod Configuration Menu is not installed, so mod settings cannot be changed."
+				Text::kReasonMcmNotInstalled,
+				Text::kReasonMcmNotInstalledPage
 			};
 		case InertReason::kRuntimeNotReady:
 			return {
 				InertReasonScope::kEnvironment,
-				"Load a save to change these settings.",
-				"Load a save to change these settings."
+				Text::kReasonRuntimeNotReady,
+				Text::kReasonRuntimeNotReady
 			};
 		case InertReason::kValuePending:
 			return {
 				InertReasonScope::kRow,
-				"Waiting for this setting's value.",
-				{}
+				Text::kReasonValuePending,
+				std::nullopt
 			};
 		case InertReason::kValueMissing:
 			return {
 				InertReasonScope::kRow,
-				"This setting's value is unavailable.",
-				{}
+				Text::kReasonValueMissing,
+				std::nullopt
 			};
 		case InertReason::kValueFailed:
 			return {
 				InertReasonScope::kRow,
-				"This setting's value could not be read.",
-				{}
+				Text::kReasonValueFailed,
+				std::nullopt
 			};
 		case InertReason::kFileChoicesPending:
 			return {
 				InertReasonScope::kRow,
-				"Waiting for this file list to be refreshed.",
-				{}
+				Text::kReasonFileChoicesPending,
+				std::nullopt
 			};
 		case InertReason::kFileChoicesFailed:
 			return {
 				InertReasonScope::kRow,
-				"This file list could not be read.",
-				{}
+				Text::kReasonFileChoicesFailed,
+				std::nullopt
 			};
 		case InertReason::kUnsupportedAction:
 			return {
 				InertReasonScope::kRow,
-				"This action is not supported.",
-				{}
+				Text::kReasonUnsupportedAction,
+				std::nullopt
 			};
 		}
 		return {
 			InertReasonScope::kRow,
-			"This setting is unavailable.",
-			{}
+			Text::kReasonUnavailable,
+			std::nullopt
 		};
 	}
 
@@ -527,16 +530,18 @@ namespace DearModdingUI::MCM
 	[[nodiscard]] LoadResult ParseConfig(
 		std::string_view a_json,
 		std::string_view a_source = "<memory>",
-		const TextResolver& a_textResolver = {}) noexcept;
+		const TextResolver& a_textResolver = {},
+		const Support::TextCatalog& a_catalog = Support::EnglishCatalog()) noexcept;
 
 	[[nodiscard]] LoadResult LoadConfig(
 		const std::filesystem::path& a_path,
-		const TextResolver& a_textResolver = {}) noexcept;
+		const TextResolver& a_textResolver = {},
+		const Support::TextCatalog& a_catalog = Support::EnglishCatalog()) noexcept;
 
 	[[nodiscard]] PageCompatibilitySummary SummarizeCompatibility(
 		const MappedPage& a_page) noexcept;
 
 	// Parser-owned faults and transient availability do not belong in this summary.
-	[[nodiscard]] std::string SummarizeActionableCompatibility(
+	[[nodiscard]] Support::Message SummarizeActionableCompatibility(
 		const MappedPage& a_page);
 }

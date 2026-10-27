@@ -1,10 +1,10 @@
 #pragma once
 
+#include <Support/Message.h>
 #include <Support/SubsystemHealth.h>
 
 #include <array>
 #include <cstdint>
-#include <format>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -68,61 +68,69 @@ namespace DearModdingUI::GameInput
 		}
 	}
 
+	// Receiver names stay literal class names inside one translated sentence.
+	[[nodiscard]] inline Support::Message AllReceiversMessage(
+		const Support::Phrase& a_phrase)
+	{
+		return Support::Message{
+			a_phrase,
+			InputReceiverName(InputReceiver::kMenuControls),
+			InputReceiverName(InputReceiver::kPlayerControls),
+			InputReceiverName(InputReceiver::kPlayerCamera)
+		};
+	}
+
+	[[nodiscard]] constexpr Support::Phrase InputFailureClause(
+		InputHookFailure a_failure) noexcept
+	{
+		switch (a_failure)
+		{
+		case InputHookFailure::kSingletonUnavailable:
+			return { "$DMUI_Input_SingletonUnavailable", "{} singleton is unavailable; restart after game data is ready." };
+		case InputHookFailure::kReceiverOffsetMismatch:
+			return { "$DMUI_Input_ReceiverOffsetMismatch", "{} receiver layout did not match this runtime; verify the game and plugin versions." };
+		case InputHookFailure::kVtableUnavailable:
+			return { "$DMUI_Input_VtableUnavailable", "{} receiver vtable is unavailable; restart the game." };
+		case InputHookFailure::kTargetUnavailable:
+			return { "$DMUI_Input_TargetUnavailable", "{} PerformInputProcessing target is unavailable; verify the game runtime." };
+		case InputHookFailure::kAlreadyHooked:
+			return { "$DMUI_Input_AlreadyHooked", "{} receiver was already redirected; check for an incompatible input hook." };
+		case InputHookFailure::kPatchFailed:
+			return { "$DMUI_Input_PatchFailed", "{} receiver patch failed; check for an incompatible input hook." };
+		case InputHookFailure::kOriginalTargetLost:
+			return { "$DMUI_Input_OriginalTargetLost", "{} hook lost its original target; restart the game." };
+		default:
+			return { "$DMUI_Input_InterceptionFailed", "{} interception failed." };
+		}
+	}
+
 	[[nodiscard]] inline DearModdingUI::HealthObservation
 		ClassifyInputHookHealth(
 			const std::array<InputReceiverHookOutcome, 3>& a_outcomes)
 	{
+		using Support::Message;
+
 		for (const auto& outcome : a_outcomes)
 		{
 			if (outcome.failure == InputHookFailure::kNone)
 				continue;
 
-			std::string detail;
-			switch (outcome.failure)
-			{
-			case InputHookFailure::kSingletonUnavailable:
-				detail =
-					"singleton is unavailable; restart after game data is ready";
-				break;
-			case InputHookFailure::kReceiverOffsetMismatch:
-				detail =
-					"receiver layout did not match this runtime; verify the game and plugin versions";
-				break;
-			case InputHookFailure::kVtableUnavailable:
-				detail =
-					"receiver vtable is unavailable; restart the game";
-				break;
-			case InputHookFailure::kTargetUnavailable:
-				detail =
-					"PerformInputProcessing target is unavailable; verify the game runtime";
-				break;
-			case InputHookFailure::kAlreadyHooked:
-				detail =
-					"receiver was already redirected; check for an incompatible input hook";
-				break;
-			case InputHookFailure::kPatchFailed:
-				detail =
-					"receiver patch failed; check for an incompatible input hook";
-				break;
-			case InputHookFailure::kOriginalTargetLost:
-				detail =
-					"hook lost its original target; restart the game";
-				break;
-			default:
-				detail = "interception failed";
-				break;
-			}
 			return {
 				DearModdingUI::HealthState::kFailed,
-				std::format(
-					"{} {}. Required game-input interception is unavailable.",
-					InputReceiverName(outcome.receiver),
-					detail)
+				Message::Join(
+					{ Message{ InputFailureClause(outcome.failure), InputReceiverName(outcome.receiver) },
+						Message{ Support::Phrase{
+							"$DMUI_Input_InterceptionUnavailable",
+							"Required game-input interception is unavailable." } } },
+					" ")
 			};
 		}
 		return {
 			DearModdingUI::HealthState::kReady,
-			"MenuControls, PlayerControls, and PlayerCamera interception installed."
+			AllReceiversMessage({
+				"$DMUI_Input_Ready",
+				"{}, {}, and {} interception installed."
+			})
 		};
 	}
 

@@ -3,12 +3,13 @@
 #include <DearModdingUI/MCM/Availability.h>
 #include <DearModdingUI/MCM/Compatibility.h>
 
+#include <Support/TextMap.h>
+
 #include <cstdint>
 #include <functional>
 #include <mutex>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -64,27 +65,13 @@ namespace DearModdingUI::MCM
 			ValueSnapshot a_snapshot);
 
 	private:
-		struct TransparentHash
-		{
-			using is_transparent = void;
-
-			[[nodiscard]] size_t operator()(std::string_view a_value) const noexcept
-			{
-				return std::hash<std::string_view>{}(a_value);
-			}
-		};
-
 		mutable std::mutex mutex_;
 		struct Entry
 		{
 			ValueSnapshot snapshot;
 			uint64_t writeToken{};
 		};
-		std::unordered_map<
-			std::string,
-			Entry,
-			TransparentHash,
-			std::equal_to<>> values_;
+		Support::TextMap<Entry> values_;
 	};
 
 	enum class ConditionResult : uint8_t
@@ -193,10 +180,11 @@ namespace DearModdingUI::MCM
 		std::vector<std::reference_wrapper<ValueSource>> sources_;
 	};
 
-	// The source must outlive the page, whose descriptors capture it by reference.
+	// The source and catalog must outlive the page, which captures them.
 	void BindPage(MappedPage& a_page, ValueSource& a_source);
 	void BindPage(
 		MappedPage& a_page,
 		ValueSource& a_source,
-		McmStateResolver a_resolveState);
+		McmStateResolver a_resolveState,
+		const Support::TextCatalog& a_catalog = Support::EnglishCatalog());
 }

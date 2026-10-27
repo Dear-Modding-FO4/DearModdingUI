@@ -15,7 +15,6 @@
 #include <atomic>
 #include <exception>
 #include <filesystem>
-#include <format>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -28,7 +27,15 @@ namespace DearModdingUI::HostSettings
 
 	namespace
 	{
-		constexpr Localization::Phrase kSettingsSavedText{ "$DMUI_Settings_SettingsSaved", "Settings saved." };
+		constexpr Support::Phrase kSettingsSavedText{ "$DMUI_Settings_SettingsSaved", "Settings saved." };
+		constexpr Support::Phrase kEstablishFailed{
+			"$DMUI_Config_EstablishFailed",
+			"Could not establish host settings: {}. Using defaults; restart after correcting the configuration."
+		};
+		constexpr Support::Phrase kEstablishFailedUnknown{
+			"$DMUI_Config_EstablishFailedUnknown",
+			"Could not establish host settings. Using defaults; restart after correcting the configuration."
+		};
 
 		std::atomic<bool> s_pageActive{ false };
 		std::atomic<uint64_t> s_pageRevision{ 0 };
@@ -55,7 +62,7 @@ namespace DearModdingUI::HostSettings
 				{
 					REX::INFO("[{}] Configuration recovered: {}"sv,
 						a_snapshot.identity,
-						a_snapshot.reason);
+						a_snapshot.reason.English());
 					return;
 				}
 				if (a_snapshot.state == HealthState::kDegraded)
@@ -63,14 +70,14 @@ namespace DearModdingUI::HostSettings
 					REX::WARN("[{}] Configuration {}: {}"sv,
 						a_snapshot.identity,
 						HealthStateLabel(a_snapshot.state),
-						a_snapshot.reason);
+						a_snapshot.reason.English());
 				}
 				else
 				{
 					REX::INFO("[{}] Configuration {}: {}"sv,
 						a_snapshot.identity,
 						HealthStateLabel(a_snapshot.state),
-						a_snapshot.reason);
+						a_snapshot.reason.English());
 				}
 			}
 		};
@@ -78,6 +85,7 @@ namespace DearModdingUI::HostSettings
 		ConfigurationHealthReporter s_configurationHealthReporter;
 		SubsystemHealth s_configurationHealth{
 			"dmui.configuration",
+			{ "$DMUI_Health_SubsystemConfiguration", "Configuration" },
 			s_configurationHealthReporter,
 			HostSubsystemHealthRegistry()
 		};
@@ -114,7 +122,7 @@ namespace DearModdingUI::HostSettings
 			}
 		}
 
-		void RecordSaveFailure(std::string_view a_error) noexcept
+		void RecordSaveFailure(const Support::Message& a_error) noexcept
 		{
 			try
 			{
@@ -190,9 +198,7 @@ namespace DearModdingUI::HostSettings
 						failed.disposition =
 							HostSettingsLoadDisposition::kFailed;
 						failed.path = ConfigPath().filename().string();
-						failed.detail = std::format(
-							"Could not establish host settings: {}. Using defaults; restart after correcting the configuration.",
-							error.what());
+						failed.detail = Support::Message{ kEstablishFailed, error.what() };
 						{
 							const std::scoped_lock lock{
 								s_configurationHealthMutex
@@ -214,8 +220,7 @@ namespace DearModdingUI::HostSettings
 						failed.disposition =
 							HostSettingsLoadDisposition::kFailed;
 						failed.path = ConfigPath().filename().string();
-						failed.detail =
-							"Could not establish host settings. Using defaults; restart after correcting the configuration.";
+						failed.detail = Support::Message{ kEstablishFailedUnknown };
 						{
 							const std::scoped_lock lock{
 								s_configurationHealthMutex
@@ -234,7 +239,7 @@ namespace DearModdingUI::HostSettings
 		[[nodiscard]] bool SaveSettings(
 			const HostInterfaceSettings& a_settings,
 			const OverridesBySlot& a_hotkeyOverrides,
-			std::string& a_error) noexcept
+			Support::Message& a_error) noexcept
 		{
 			try
 			{
@@ -255,24 +260,24 @@ namespace DearModdingUI::HostSettings
 				{
 					REX::WARN(
 						"DearModdingUI: {} The fallback is copy-and-delete, not an atomic rename."sv,
-						result.detail);
+						result.detail.English());
 				}
 				else if (result.temporaryCleanupFailed)
 				{
-					REX::WARN("DearModdingUI: {}"sv, result.detail);
+					REX::WARN("DearModdingUI: {}"sv, result.detail.English());
 				}
 				RecordSaveSuccess();
 				return true;
 			}
 			catch (const std::exception& error)
 			{
-				a_error = error.what();
+				a_error = Support::Message::Text(error.what());
 				RecordSaveFailure(a_error);
 				return false;
 			}
 			catch (...)
 			{
-				a_error = "DearModdingUI.toml could not be persisted.";
+				a_error = Support::Message{ kPersistFailedUnknown, "DearModdingUI.toml" };
 				RecordSaveFailure(a_error);
 				return false;
 			}
@@ -296,7 +301,7 @@ namespace DearModdingUI::HostSettings
 		[[nodiscard]] bool PersistHotkeyChange(
 			HotkeySlot a_slot, std::map<std::string, std::string> a_previous) noexcept
 		{
-			std::string error;
+			Support::Message error;
 			{
 				const std::scoped_lock lock{ s_settingsMutex };
 				auto updated = s_hotkeyOverrides;
@@ -308,7 +313,7 @@ namespace DearModdingUI::HostSettings
 				}
 			}
 			Hotkeys::InitializeOverrides(std::move(a_previous), a_slot);
-			(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, error);
+			(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, Localization::Render(error));
 			return false;
 		}
 	}
@@ -351,7 +356,7 @@ namespace DearModdingUI::HostSettings
 	{
 		EnsureLoaded();
 		a_settings = NormalizeHostInterfaceSettings(std::move(a_settings));
-		std::string error;
+		Support::Message error;
 		{
 			const std::scoped_lock lock{ s_settingsMutex };
 			if (a_settings == s_settings)
@@ -365,8 +370,8 @@ namespace DearModdingUI::HostSettings
 			{
 				REX::WARN(
 					"DearModdingUI: interface settings could not be persisted: {}"sv,
-					error);
-				(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, error);
+					error.English());
+				(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, Localization::Render(error));
 				return false;
 			}
 			s_settings = std::move(a_settings);
@@ -383,7 +388,7 @@ namespace DearModdingUI::HostSettings
 	{
 		EnsureLoaded();
 		const auto layout = NormalizeUserSidebarLayout(a_layout);
-		std::string error;
+		Support::Message error;
 		auto saved = true;
 		{
 			const std::scoped_lock lock{ s_settingsMutex };
@@ -404,8 +409,8 @@ namespace DearModdingUI::HostSettings
 		{
 			REX::WARN(
 				"DearModdingUI: sidebar layout could not be persisted: {}"sv,
-				error);
-			(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, error);
+				error.English());
+			(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, Localization::Render(error));
 			return false;
 		}
 

@@ -222,8 +222,10 @@ namespace DearModdingUI::MCM
 		public:
 			PageActionState(
 				std::vector<MappedBinding> a_bindings,
-				DiagnosticReporter& a_diagnostics) :
+				DiagnosticReporter& a_diagnostics,
+				const Support::TextCatalog& a_catalog) :
 				diagnostics_(a_diagnostics),
+				catalog_(a_catalog),
 				bindings_(std::move(a_bindings))
 			{}
 
@@ -270,10 +272,13 @@ namespace DearModdingUI::MCM
 							refresh = true;
 							continue;
 						}
-						auto message = std::format(
-							"Action '{}': {}",
+						auto message = Support::Message{
+							BridgeText::kActionFailed,
 							completion.row,
-							completion.result.message.value_or("execution failed"));
+							completion.result.message ?
+								Support::Message::Text(*completion.result.message) :
+								Support::Message{ BridgeText::kExecutionFailed }
+						}.Render(catalog_);
 						const auto noteId =
 							"dearmodding.mcm.action." + completion.row;
 						const auto found = std::ranges::find(
@@ -315,6 +320,7 @@ namespace DearModdingUI::MCM
 			std::mutex mutex_;
 			std::vector<PendingResult> pending_;
 			DiagnosticReporter& diagnostics_;
+			const Support::TextCatalog& catalog_;
 			std::vector<MappedBinding> bindings_;
 		};
 
@@ -597,7 +603,8 @@ namespace DearModdingUI::MCM
 		MappedPage& a_page,
 		ActionExecutor& a_executor,
 		ValueSource& a_values,
-		DiagnosticReporter& a_diagnostics)
+		DiagnosticReporter& a_diagnostics,
+		const Support::TextCatalog& a_catalog)
 	{
 		std::shared_ptr<PageActionState> state;
 		const auto bindState = [&]() {
@@ -609,7 +616,8 @@ namespace DearModdingUI::MCM
 					bindings.push_back(*row.binding);
 			state = std::make_shared<PageActionState>(
 				std::move(bindings),
-				a_diagnostics);
+				a_diagnostics,
+				a_catalog);
 			auto priorPrepare = std::move(a_page.settings.prepareView);
 			a_page.settings.prepareView =
 				[priorPrepare = std::move(priorPrepare),

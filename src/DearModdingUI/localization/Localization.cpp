@@ -1,6 +1,7 @@
 #include <DearModdingUI/localization/Localization.h>
 #include <Platform/localization/TranslationFiles.h>
 #include <Support/Runtime.h>
+#include <Support/TextMap.h>
 
 #include <REX/REX.h>
 
@@ -8,7 +9,6 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
-#include <unordered_map>
 #include <vector>
 
 namespace DearModdingUI::Localization
@@ -17,19 +17,7 @@ namespace DearModdingUI::Localization
 
 	namespace
 	{
-		struct TextHash
-		{
-			using is_transparent = void;
-
-			[[nodiscard]] size_t operator()(std::string_view a_text) const noexcept
-			{
-				return std::hash<std::string_view>{}(a_text);
-			}
-		};
-
-		template <class Value>
-		using TextMap = std::unordered_map<std::string, Value, TextHash, std::equal_to<>>;
-		using TranslationTable = TextMap<std::string>;
+		using TranslationTable = Support::TextMap<std::string>;
 
 		struct OwnerTables
 		{
@@ -43,7 +31,7 @@ namespace DearModdingUI::Localization
 			std::mutex mutex;
 			std::string languageOverride;
 			std::string language;
-			TextMap<OwnerTables> owners;
+			Support::TextMap<OwnerTables> owners;
 			std::vector<std::unique_ptr<const TranslationTable>> tables;
 		};
 
@@ -165,26 +153,39 @@ namespace DearModdingUI::Localization
 		}
 	}
 
+	namespace
+	{
+		[[nodiscard]] const std::string* Lookup(
+			std::string_view a_owner,
+			std::string_view a_key,
+			bool a_englishFallback) noexcept
+		{
+			try
+			{
+				auto& catalog = Instance();
+				const std::scoped_lock lock{ catalog.mutex };
+				if (!ValidOwner(a_owner) || !IsTextKey(a_key) || !EnsureLanguageLocked(catalog))
+					return nullptr;
+				const auto& owner = OwnerLocked(catalog, a_owner);
+				for (const auto* table : { owner.language, a_englishFallback ? owner.english : nullptr })
+				{
+					if (!table)
+						continue;
+					if (const auto found = table->find(a_key); found != table->end())
+						return &found->second;
+				}
+				return nullptr;
+			}
+			catch (...)
+			{
+				return nullptr;
+			}
+		}
+	}
+
 	const std::string* FindTranslation(std::string_view a_owner, std::string_view a_key) noexcept
 	{
-		try
-		{
-			auto& catalog = Instance();
-			const std::scoped_lock lock{ catalog.mutex };
-			if (!ValidOwner(a_owner) || !IsTextKey(a_key) || !EnsureLanguageLocked(catalog))
-				return nullptr;
-			const auto& owner = OwnerLocked(catalog, a_owner);
-			for (const auto* table : { owner.language, owner.english })
-			{
-				if (const auto found = table->find(a_key); found != table->end())
-					return &found->second;
-			}
-			return nullptr;
-		}
-		catch (...)
-		{
-			return nullptr;
-		}
+		return Lookup(a_owner, a_key, true);
 	}
 
 	void Translate(std::string& a_text, std::string_view a_owner)
@@ -197,5 +198,26 @@ namespace DearModdingUI::Localization
 	{
 		const auto* translated = FindTranslation(kHostOwner, a_key);
 		return translated ? translated->c_str() : a_english;
+	}
+
+	const Support::TextCatalog& Catalog() noexcept
+	{
+		struct HostCatalog final : Support::TextCatalog
+		{
+			[[nodiscard]] std::optional<std::string_view> Find(
+				std::string_view a_key) const noexcept override
+			{
+				// English text would pair with this language's plural category.
+				const auto* translated = Lookup(kHostOwner, a_key, false);
+				return translated ? std::optional<std::string_view>{ *translated } : std::nullopt;
+			}
+
+			[[nodiscard]] Support::PluralCategory Plural(uint64_t a_count) const noexcept override
+			{
+				return Support::PluralCategoryFor(Language(), a_count);
+			}
+		};
+		static const HostCatalog catalog;
+		return catalog;
 	}
 }

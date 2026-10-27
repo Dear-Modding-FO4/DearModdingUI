@@ -14,9 +14,13 @@ the host links no MCM or JSON code.
 
 - **Total parsing.** `ParseConfig` and `LoadConfig` are `noexcept`: third-party JSON failures are
   diagnosed and skipped, never thrown.
-- **Localization.** An optional resolver translates exact `$KEY` display text, including HTML text
-  nodes. Identities, bindings, stored values, and action arguments are never translated. Missing keys
-  stay visible with bounded diagnostics.
+- **Localization.** Mod text and bridge text resolve separately. An optional resolver translates exact
+  `$KEY` display text from the mod, including HTML text nodes, against the config-folder owner. Text
+  the bridge writes itself (fallback labels, availability reasons, page notes) is a `Support::Message`
+  rendered through a `Support::TextCatalog` against the host owner `DearModdingUI`; the library
+  defaults to English and the runtime plugin passes the host catalog. Identities, bindings, stored
+  values, action arguments, diagnostics, and logs are never translated. Missing keys stay visible with
+  bounded diagnostics.
 - **MCM fidelity.** Text markup, slider ranges and quantization, `dropdownFiles` enumeration, and
   keybind matching follow the shipped MCM widgets, not the core settings API's conventions.
 - **Snapshots.** `ValueSource::Read` returns a generation-stamped ready, pending, missing, or failed

@@ -4,6 +4,7 @@
 #include <DearModdingUI/controls/FieldFeedback.h>
 #include <DearModdingUI/navigation/Sidebar.h>
 #include <DearModdingUI/ThemeDefaults.h>
+#include <Support/Message.h>
 
 #include <algorithm>
 #include <cmath>
@@ -15,6 +16,9 @@
 
 namespace DearModdingUI
 {
+	// The Settings page control that persists edits; messages point to it.
+	inline constexpr Support::Phrase kSettingsApplyControl{ "$DMUI_Pages_SettingsApply", "Apply" };
+
 	enum class LogoColorMode
 	{
 		kOriginal,

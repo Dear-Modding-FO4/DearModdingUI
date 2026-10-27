@@ -10,13 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Localization (ABI 2.2)**: `$KEY` registration text is translated from `Interface\Translations\<client id>_<language>.txt`, falling back to `_en`; `resolveText` translates drawn text.
 - **Pointer state (ABI 2.2)**: `getPointerState` reports clicks, wheel input, and cursor position that no DMUI window took to the focused overlay; ImGui does not see those clicks.
+- **Table sorting and backgrounds (ABI 2.2)**: `tableGetSortSpecs` reads the current table's active sort, primary column first, and `tableSetBgColor` colors rows or cells with packed RGBA.
 - **Screen-position overlays (ABI 2.2)**: `DMUI_OVERLAY_ANCHOR_SCREEN_POSITION` places a managed overlay's top-left at `offset` in screen pixels, the units of its size, at any UI scale.
-- **Translatable host interface**: The host's own text is translated by `DearModdingUI_<language>.txt`, falling back to English.
+- **Translatable host interface**: The host's own text is translated by `DearModdingUI_<language>.txt`, falling back to English. Health subsystem descriptions, settings save errors, and the MCM bridge's own labels and notes are translated on screen, while copied reports and logs stay English. Counts follow each language's plural rules.
 - **Non-Latin text**: Cyrillic, Greek, Chinese, Japanese, and Korean text renders through Windows system fallback fonts, ordered for the game language.
 
 ### Changed
 - ABI mismatch warnings name the plugin that requested the API.
 - **MCM bridge**: Translates MCM text through the host's translation files, named after each mod's config folder, instead of the game translator.
+- Built-in settings pages translate their search hint, "Modified only" filter, Reset all, Revert, and Apply controls, and their fallback labels.
+- Collapsible sidebar headings, mods, FAQ entries, and Health reports show their state by brightness instead of arrows: expanded is bright, collapsed is dim.
 - `beginField` / `FieldScope` accept an empty label and a description without a label, matching settings rows.
 - Declarative settings pages use the host search input and space groups by the theme's section gap.
 
@@ -25,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clients built with newer headers connect to older hosts of the same major; newer-minor operations report `UNSUPPORTED_ABI`.
 - Keys DMUI acts on (hotkeys, Escape, controller B) no longer reach the game or type into text fields, and held game actions release when DMUI takes input.
 - Imported D3D11 images are accepted when a proxy such as ReShade reports the wrapped device from views.
+- MCM buttons no longer keep a stale "hidden by its condition" or "Waiting" description after their condition changes.
 
 ## [0.2.1] - 2026-10-05
 

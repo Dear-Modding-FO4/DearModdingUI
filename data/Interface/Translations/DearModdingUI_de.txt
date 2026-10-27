@@ -82,7 +82,7 @@ $DMUI_Nav_LayoutTwoPane	Zweigeteilt
 $DMUI_Nav_LayoutDrillDown	Hierarchische Navigation
 $DMUI_Nav_LayoutIconRail	Icon-Leiste
 $DMUI_Nav_LayoutTree	Baumstruktur
-$DMUI_Nav_LayoutTwoPaneHelp	Feste Mod-Liste mit den Seiten des ausgewählten Mods beibehalten
+$DMUI_Nav_LayoutTwoPaneHelp	Feste Mod-Liste mit den Seiten des ausgewählten Mods beibehalten.
 $DMUI_Nav_LayoutDrillDownHelp	Eine Ebene nach der anderen anzeigen; gut geeignet für viele Mods.
 $DMUI_Nav_LayoutIconRailHelp	Mods über eine kompakte Icon-Leiste durchsuchen.
 $DMUI_Nav_LayoutTreeHelp	Alle Mods und Seiten gleichzeitig durchsuchen.
@@ -93,14 +93,14 @@ $DMUI_Health_StateDegraded	Beeinträchtigt
 $DMUI_Health_StateFailed	Fehlgeschlagen
 $DMUI_Health_StateUnknown	Unbekannt
 $DMUI_Health_DeadlineExceeded	(Zeitlimit überschritten)
-$DMUI_Health_ErrorCountOne	1 Fehler
+$DMUI_Health_ErrorCountOne	{} Fehler
 $DMUI_Health_ErrorCountOther	{} Fehler
-$DMUI_Health_WarningCountOne	1 Warnung
+$DMUI_Health_WarningCountOne	{} Warnung
 $DMUI_Health_WarningCountOther	{} Warnungen
-$DMUI_Health_SuccessCountOne	1 Erfolg
+$DMUI_Health_SuccessCountOne	{} Erfolg
 $DMUI_Health_SuccessCountOther	{} Erfolge
 $DMUI_Health_InfoCount	{} Info
-$DMUI_Health_DroppedReportOne	1 weiterer Diagnosebericht wurde nicht gespeichert.
+$DMUI_Health_DroppedReportOne	{} weiterer Diagnosebericht wurde nicht gespeichert.
 $DMUI_Health_DroppedReportOther	{} weitere Diagnoseberichte wurden nicht gespeichert.
 $DMUI_Health_ScopeLabel	Bereich: {}
 $DMUI_Health_DurationSeconds	{}s
@@ -130,7 +130,12 @@ $DMUI_Pages_SettingsReset	Zurücksetzen
 $DMUI_Pages_SettingsRevert	Verwerfen
 $DMUI_Home_AboutHeader	Über
 $DMUI_Home_OverviewHeader	Überblick
-$DMUI_Home_RegistryCounts	{} Mods | {} Seiten | {} Aktionen
+$DMUI_Count_ModsOne	{} Mod
+$DMUI_Count_ModsOther	{} Mods
+$DMUI_Count_PagesOne	{} Seite
+$DMUI_Count_PagesOther	{} Seiten
+$DMUI_Count_ActionsOne	{} Aktion
+$DMUI_Count_ActionsOther	{} Aktionen
 $DMUI_Home_QuickLinksHeader	Schnelllinks
 $DMUI_Home_FaqHeader	FAQ
 $DMUI_Health_CopyReport	Bericht kopieren
@@ -139,11 +144,14 @@ $DMUI_Health_HostSubsystemsHeader	Host-Subsysteme
 $DMUI_Health_NoSubsystemObservations	Keine Host-Subsystembeobachtungen verfügbar.
 $DMUI_Health_SubsystemStatus	Status: {} | {} im Zustand
 $DMUI_Health_NoClientMods	Diese Sitzung wurden keine Client-Mods registriert.
-$DMUI_Health_ClientCounts	{} | {} Seiten | {} Aktionen
 $DMUI_Health_ClientVersion	Version {}.{}
 $DMUI_Health_ClientStatus	Status: {}
 $DMUI_Health_ReportedProblemsHeader	Gemeldete Probleme
-$DMUI_Health_NoDiagnostics	Keine Client-Diagnosen wurden gemeldet
+$DMUI_Health_NoDiagnostics	Keine Client-Diagnosen wurden gemeldet.
+$DMUI_Health_SubsystemTypography	Typografie
+$DMUI_Health_SubsystemConfiguration	Konfiguration
+$DMUI_Health_SubsystemGameInput	Spieleingabe
+$DMUI_Health_SubsystemRenderer	Renderer
 $DMUI_Pages_SettingsResetTooltip	Zurücksetzen speichert das Standard-Seitenleistenlayout sofort und lädt andere mitgelieferte Schnittstellenstandards in den Entwurf. Verwenden Sie Anwenden, um diese zu speichern.
 $DMUI_Pages_SettingsRevertTooltip	Verwerfen verwirft ausstehende Schnittstellenbearbeitungen und stellt gespeicherte Einstellungen wieder her. Änderungen am Seitenleistenlayout wurden bereits gespeichert.
 $DMUI_Pages_SettingsApplyTooltip	Anwenden speichert die Host-Einstellungen in DearModdingUI.toml. Änderungen am Seitenleistenlayout werden sofort gespeichert; Vorschau der Darstellung wird live aktualisiert und die Typografie wird bei Bedarf einmal neu aufgebaut.
@@ -226,8 +234,123 @@ $DMUI_Settings_NotRegisteredClearable	Nicht registriert. Gespeicherte Belegungen
 $DMUI_Settings_NotRegisteredInactive	Nicht registriert. Diese gespeicherte Belegung ist inaktiv und kann gelöscht werden.
 $DMUI_Settings_HostFacts	Host-Informationen (schreibgeschützt)
 $DMUI_Settings_HostFactsHelp	Vom DearModdingUI-Host aufgelöste Werte.
-$DMUI_Settings_PixelSize	{:.0f} px
+$DMUI_Settings_PixelSize	{} px
 $DMUI_Settings_ResolvedTypographySize	Aufgelöste Typografiegröße
 $DMUI_Settings_ResolvedTypographySizeHelp	Abgeleitet aus der Backbuffer-Höhe und der angewendeten UI-Skalierung an einer Frame-Grenze.
 $DMUI_Settings_EffectiveUiScale	Effektive UI-Skalierung
 $DMUI_Settings_EffectiveUiScaleHelp	Abgeleitet aus Auflösung und [Additional] fMenuUiScale.
+$DMUI_Typography_NoAtlas	Es konnte kein verwendbarer Schriftatlas vorbereitet werden. Prüfen Sie die mitgelieferten Schriftdateien und starten Sie neu.
+$DMUI_Typography_FamilyUnavailable	Die angeforderte Schriftfamilie "{}" war nicht verfügbar; stattdessen wird "{}" verwendet.
+$DMUI_Typography_BodyFontFailed	Die Textschrift für "{}" konnte nicht geladen werden; stattdessen wird "{}" verwendet.
+$DMUI_Typography_MissingRolesOne	Für den mitgelieferten Schriftstil {} wird eine Ersatzschrift verwendet.
+$DMUI_Typography_MissingRolesOther	Für die mitgelieferten Schriftstile {} wird eine Ersatzschrift verwendet.
+$DMUI_Typography_IconsUnavailable	Phosphor-Symbole sind nicht verfügbar; Beschriftungen bleiben reiner Text.
+$DMUI_Typography_NoSystemFallbacks	Es wurden keine System-Ersatzschriften geladen; nicht lateinischer Text wird möglicherweise nicht dargestellt.
+$DMUI_Typography_EmergencyFont	Die integrierte Notfallschrift sorgt dafür, dass Text lesbar bleibt.
+$DMUI_Typography_ReadyOne	Schriftfamilie "{}" mit allen mitgelieferten Schriftstilen, Phosphor-Symbolen und {} System-Ersatzschrift geladen.
+$DMUI_Typography_ReadyOther	Schriftfamilie "{}" mit allen mitgelieferten Schriftstilen, Phosphor-Symbolen und {} System-Ersatzschriften geladen.
+$DMUI_Typography_Rebuilding	Der Schriftatlas wird für die angeforderte Familie neu aufgebaut.
+$DMUI_Input_WaitingForGameData	Wartet darauf, dass die Spieldaten bereit sind.
+$DMUI_Input_Installing	Das Abfangen von {}, {} und {} wird installiert.
+$DMUI_Input_Ready	Das Abfangen von {}, {} und {} ist installiert.
+$DMUI_Input_SingletonUnavailable	Das Singleton von {} ist nicht verfügbar; starten Sie neu, sobald die Spieldaten bereit sind.
+$DMUI_Input_ReceiverOffsetMismatch	Das Receiver-Layout von {} stimmt nicht mit dieser Laufzeit überein; prüfen Sie die Spiel- und Plugin-Versionen.
+$DMUI_Input_VtableUnavailable	Die vtable des Receivers {} ist nicht verfügbar; starten Sie das Spiel neu.
+$DMUI_Input_TargetUnavailable	Das Ziel PerformInputProcessing von {} ist nicht verfügbar; prüfen Sie die Spielversion.
+$DMUI_Input_AlreadyHooked	Der Receiver {} wurde bereits umgeleitet; prüfen Sie, ob ein inkompatibler Eingabe-Hook vorhanden ist.
+$DMUI_Input_PatchFailed	Der Patch des Receivers {} ist fehlgeschlagen; prüfen Sie, ob ein inkompatibler Eingabe-Hook vorhanden ist.
+$DMUI_Input_OriginalTargetLost	Der Hook von {} hat sein ursprüngliches Ziel verloren; starten Sie das Spiel neu.
+$DMUI_Input_InterceptionFailed	Das Abfangen von {} ist fehlgeschlagen.
+$DMUI_Input_InterceptionUnavailable	Das erforderliche Abfangen der Spieleingaben ist nicht verfügbar.
+$DMUI_Renderer_DataMissing	Die Renderer-Daten sind null.
+$DMUI_Renderer_NotInitialized	Die Renderer-Daten sind nicht initialisiert.
+$DMUI_Renderer_WindowObjectMissing	Das aktuelle Renderer-Fenster ist null.
+$DMUI_Renderer_SwapChainMissing	Das aktuelle Renderer-Fenster hat keine Swapchain.
+$DMUI_Renderer_DeviceMissing	Die Renderer-Daten enthalten kein D3D11-Gerät.
+$DMUI_Renderer_ContextMissing	Die Renderer-Daten enthalten keinen D3D11-Gerätekontext.
+$DMUI_Renderer_WindowHandleMissing	Das aktuelle Renderer-Fenster hat kein HWND.
+$DMUI_Renderer_BindingChanged	Die Renderer-Bindung hat sich während der Erfassung geändert.
+$DMUI_Renderer_InvalidBinding	Der Kandidat für die Anbindung ist ungültig.
+$DMUI_Renderer_HookInstallationFailed	Die Renderer-Bindung war gültig, aber die Swapchain-Hooks konnten nicht installiert werden.
+$DMUI_Renderer_BindingValid	Die Renderer-Bindung ist gültig.
+$DMUI_Renderer_WaitingForPresent	Die Renderer-Bindung ist gültig, aber Present wurde noch nicht beobachtet.
+$DMUI_Config_CorrectionWrongType	{}: falscher Werttyp, Standardwert verwendet
+$DMUI_Config_CorrectionReplaced	{} {} wurde durch {} ersetzt
+$DMUI_Config_BindingIgnored	{}.{} wurde ignoriert, da es kein Text war
+$DMUI_Config_MoreCorrectionsOne	und {} weitere Korrektur
+$DMUI_Config_MoreCorrectionsOther	und {} weitere Korrekturen
+$DMUI_Config_CorrectedSummary	Korrigierte Einstellungen werden verwendet: {}. Verwenden Sie auf der Einstellungsseite {}, um die übernommenen Werte zu speichern.
+$DMUI_Config_InspectFailed	{} konnte nicht geprüft werden: {}. Es werden die Standardwerte verwendet; prüfen Sie die Dateiberechtigungen und starten Sie neu.
+$DMUI_Config_Absent	Es werden die Standardwerte verwendet; die Konfigurationsdatei fehlt.
+$DMUI_Config_Loaded	Einstellungen aus {} geladen.
+$DMUI_Config_LoadFailed	{} konnte nicht geladen werden: {}. Es werden die Standardwerte verwendet; korrigieren oder entfernen Sie die Datei und starten Sie neu.
+$DMUI_Config_LoadFailedUnknown	{} konnte nicht geladen werden. Es werden die Standardwerte verwendet; korrigieren oder entfernen Sie die Datei und starten Sie neu.
+$DMUI_Config_EstablishFailed	Die Host-Einstellungen konnten nicht eingerichtet werden: {}. Es werden die Standardwerte verwendet; starten Sie nach der Korrektur der Konfiguration neu.
+$DMUI_Config_EstablishFailedUnknown	Die Host-Einstellungen konnten nicht eingerichtet werden. Es werden die Standardwerte verwendet; starten Sie nach der Korrektur der Konfiguration neu.
+$DMUI_Config_CreateDirectoryFailed	Das Erstellen des Einstellungsverzeichnisses für {} ist fehlgeschlagen: {} (Windows-Fehler {}).
+$DMUI_Config_OpenTemporaryFailed	Das Öffnen der temporären Einstellungsdatei {} ist fehlgeschlagen: {} (Windows-Fehler {}).
+$DMUI_Config_WriteTemporaryFailed	Das Schreiben der temporären Einstellungsdatei {} ist fehlgeschlagen: {} (Windows-Fehler {}).
+$DMUI_Config_FlushTemporaryFailed	Das Leeren der Puffer der temporären Einstellungsdatei {} ist fehlgeschlagen: {} (Windows-Fehler {}).
+$DMUI_Config_CloseTemporaryFailed	Das Schließen der temporären Einstellungsdatei {} ist fehlgeschlagen: {} (Windows-Fehler {}).
+$DMUI_Config_RemoveTemporaryFailed	Das Entfernen der temporären Einstellungsdatei {} ist fehlgeschlagen: {} (Windows-Fehler {}).
+$DMUI_Config_ReplaceFallbackFailed	Das Ersetzen der Einstellungsdatei {} während des Ersatzkopierens zwischen Laufwerken ist fehlgeschlagen: {} (Windows-Fehler {}).
+$DMUI_Config_ReplaceFailed	Das Ersetzen der Einstellungsdatei {} ist fehlgeschlagen: {} (Windows-Fehler {}).
+$DMUI_Config_CrossVolumeAdvice	Windows meldete zuerst ERROR_NOT_SAME_DEVICE (17): {}. Das kann auftreten, wenn ein Mod-Manager die temporäre Datei und die vorhandene Konfiguration unterschiedlichen Laufwerken zuordnet. Prüfen Sie, ob der Überschreibungs- oder Ausgabeort des Mod-Managers beschreibbar ist und genügend freien Speicherplatz hat, und speichern Sie dann erneut.
+$DMUI_Config_Saved	Einstellungen in {} gespeichert.
+$DMUI_Config_SavedByCopy	Einstellungen in {} gespeichert, wobei ersatzweise ein nicht atomares Kopieren zwischen Laufwerken verwendet wurde.
+$DMUI_Config_PersistFailed	Das Speichern von {} ist fehlgeschlagen: {}
+$DMUI_Config_PersistFailedUnknown	Das Speichern von {} ist aus unbekanntem Grund fehlgeschlagen.
+$DMUI_Config_SavedAccepted	Übernommene Einstellungen in {} gespeichert.
+$DMUI_Config_SaveFailedActive	Die Einstellungen bleiben aktiv, aber das letzte Speichern ist fehlgeschlagen: {}
+$DMUI_MCM_General	Allgemein
+$DMUI_MCM_Action	Aktion
+$DMUI_MCM_ButtonNoAction	Diese Schaltfläche hat keine Aktion.
+$DMUI_MCM_SwfOnlyPage	Diese Seite enthält nur nicht dargestellte SWF-Komponenten.
+$DMUI_MCM_None	Keine
+$DMUI_MCM_PageName	Seite {}
+$DMUI_MCM_Unbound	Nicht belegt
+$DMUI_MCM_CannotBind	Kann nicht belegt werden
+$DMUI_MCM_BindingUnavailable	Belegung nicht verfügbar
+$DMUI_MCM_Modifier	Modifikator {}
+$DMUI_MCM_Keycode	Tastencode {}
+$DMUI_MCM_ReasonConditionFalse	Diese Zeile ist durch ihre Bedingung ausgeblendet.
+$DMUI_MCM_ReasonConditionPending	Es wird noch geprüft, ob diese Zeile angezeigt werden soll.
+$DMUI_MCM_ReasonUnsupported	Dieses Steuerelement wird nicht unterstützt.
+$DMUI_MCM_ReasonUndeclaredModSetting	Diese Einstellung ist in der MCM-Datei settings.ini nicht deklariert.
+$DMUI_MCM_ReasonKeybindUnbound	Dieser Hotkey ist in MCM nicht belegt.
+$DMUI_MCM_ReasonKeybindDefinitionMissing	Dieser Hotkey ist in der MCM-Datei keybinds.json des Mods nicht deklariert.
+$DMUI_MCM_ReasonKeybindDefinitionsMissing	Dieser Mod hat keine MCM-Datei keybinds.json, daher können seine Hotkeys nicht belegt werden.
+$DMUI_MCM_ReasonKeybindDefinitionsInvalid	Die MCM-Datei keybinds.json dieses Mods konnte nicht gelesen werden, daher können seine Hotkeys nicht belegt werden.
+$DMUI_MCM_ReasonKeybindBindingsInvalid	Die Tastenbelegungen des Benutzers in MCM konnten nicht gelesen werden.
+$DMUI_MCM_ReasonMcmNotInstalled	Mod Configuration Menu ist nicht installiert.
+$DMUI_MCM_ReasonMcmNotInstalledPage	Mod Configuration Menu ist nicht installiert, daher können Mod-Einstellungen nicht geändert werden.
+$DMUI_MCM_ReasonRuntimeNotReady	Laden Sie einen Spielstand, um diese Einstellungen zu ändern.
+$DMUI_MCM_ReasonValuePending	Warten auf den Wert dieser Einstellung.
+$DMUI_MCM_ReasonValueMissing	Der Wert dieser Einstellung ist nicht verfügbar.
+$DMUI_MCM_ReasonValueFailed	Der Wert dieser Einstellung konnte nicht gelesen werden.
+$DMUI_MCM_ReasonFileChoicesPending	Warten auf die Aktualisierung dieser Dateiliste.
+$DMUI_MCM_ReasonFileChoicesFailed	Diese Dateiliste konnte nicht gelesen werden.
+$DMUI_MCM_ReasonUnsupportedAction	Diese Aktion wird nicht unterstützt.
+$DMUI_MCM_ReasonUnavailable	Diese Einstellung ist nicht verfügbar.
+$DMUI_MCM_LoadingVisibility	Sichtbarkeit der Einstellungen wird geladen...
+$DMUI_MCM_ConditionsNotApplied	Kompatibilität: nicht angewendete Bedingungen: {}. Ein steuerndes Element ist nicht verwendbar oder sein Wert fehlt bzw. konnte nicht gelesen werden; abhängige Inhalte werden angezeigt.
+$DMUI_MCM_ActionFailed	Aktion '{}': {}
+$DMUI_MCM_ExecutionFailed	Ausführung fehlgeschlagen
+$DMUI_MCM_CompatibilitySummary	Kompatibilität: {}.
+$DMUI_MCM_UnsupportedActions	nicht unterstützte Aktionen: {}
+$DMUI_MCM_UndeclaredSettings	nicht deklarierte gespeicherte Einstellungen: {}
+$DMUI_MCM_FileListFailed	Dateien aus dem Pfad '{}' mit der Maske '{}' konnten nicht aufgelistet werden.
+$DMUI_MCM_FileListFailedDetail	Dateien aus dem Pfad '{}' mit der Maske '{}' konnten nicht aufgelistet werden: {}.
+$DMUI_MCM_FilePathMissing	der konfigurierte Pfad fehlt oder ist leer
+$DMUI_SettingsPage_ResetAll	Alle zurücksetzen
+$DMUI_SettingsPage_ResetAllTooltip	Zurücksetzen lädt die Standardwerte aller Einstellungen in den Entwurf. Mit Anwenden speichern.
+$DMUI_SettingsPage_Revert	Verwerfen
+$DMUI_SettingsPage_RevertTooltip	Verwerfen verwirft ausstehende Änderungen und stellt die gespeicherten Einstellungen wieder her.
+$DMUI_SettingsPage_Apply	Anwenden ({})
+$DMUI_SettingsPage_ApplyTooltipOne	Anwenden speichert {} ausstehende Änderung.
+$DMUI_SettingsPage_ApplyTooltipOther	Anwenden speichert {} ausstehende Änderungen.
+$DMUI_SettingsPage_ModifiedOnly	Nur geänderte
+$DMUI_SettingsPage_SearchHint	Einstellungen durchsuchen...
+$DMUI_SettingsPage_UnsupportedControl	Nicht unterstütztes Einstellungssteuerelement.
+$DMUI_SettingsPage_AppliesNow	Wird sofort angewendet.
+$DMUI_SettingsPage_Unavailable	Nicht verfügbar

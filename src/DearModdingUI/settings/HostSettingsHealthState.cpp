@@ -1,9 +1,19 @@
 #include <DearModdingUI/settings/HostSettingsHealthState.h>
 
-#include <format>
-
 namespace DearModdingUI
 {
+	namespace
+	{
+		constexpr Support::Phrase kSavedAccepted{
+			"$DMUI_Config_SavedAccepted",
+			"Saved accepted settings to {}."
+		};
+		constexpr Support::Phrase kSaveFailedActive{
+			"$DMUI_Config_SaveFailedActive",
+			"Settings remain active, but the latest save failed: {}"
+		};
+	}
+
 	void HostSettingsHealthState::RecordLoad(
 		const HostSettingsLoadResult& a_result)
 	{
@@ -11,7 +21,8 @@ namespace DearModdingUI
 		loadDetail_ = a_result.detail;
 	}
 
-	void HostSettingsHealthState::RecordSaveFailure(std::string_view a_error)
+	void HostSettingsHealthState::RecordSaveFailure(
+		const Support::Message& a_error)
 	{
 		saveError_ = a_error;
 	}
@@ -20,7 +31,7 @@ namespace DearModdingUI
 	{
 		saveError_.reset();
 		loadDisposition_ = HostSettingsLoadDisposition::kLoaded;
-		loadDetail_ = std::format("Saved accepted settings to {}.", a_path);
+		loadDetail_ = Support::Message{ kSavedAccepted, a_path };
 	}
 
 	HealthObservation HostSettingsHealthState::Observation() const
@@ -35,11 +46,9 @@ namespace DearModdingUI
 		if (saveError_)
 		{
 			observation.state = HealthState::kDegraded;
-			if (!observation.reason.empty())
-				observation.reason.push_back(' ');
-			observation.reason.append(
-				"Settings remain active, but the latest save failed: ");
-			observation.reason.append(*saveError_);
+			observation.reason = Support::Message::Join(
+				{ loadDetail_, Support::Message{ kSaveFailedActive, *saveError_ } },
+				" ");
 		}
 		return observation;
 	}
