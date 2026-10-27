@@ -162,7 +162,7 @@ namespace DearModdingUI
 
 		void DrawHome() noexcept
 		{
-			static Addictol::Support::Derived<HostPageInputs, HomeModel> cache;
+			static Support::Derived<HostPageInputs, HomeModel> cache;
 			const auto& model = cache.Get(CurrentHostPageInputs(), &BuildHome);
 			(void)DrawTitleRow({
 				.title = HostPageName(HostPageKind::kHome),
@@ -312,7 +312,7 @@ namespace DearModdingUI
 
 		void DrawHealth(HostPageViewState& a_state) noexcept
 		{
-			static Addictol::Support::Derived<HostPageInputs, HealthModel> cache;
+			static Support::Derived<HostPageInputs, HealthModel> cache;
 			const auto& model = cache.Get(CurrentHostPageInputs(), &BuildHealth);
 			constexpr auto extentPolicy =
 				TitleRowButtonExtentPolicy::kTitleBar;

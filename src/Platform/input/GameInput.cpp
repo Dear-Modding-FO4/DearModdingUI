@@ -23,7 +23,7 @@
 #include <mutex>
 #include <string_view>
 
-namespace Addictol::GameInput
+namespace DearModdingUI::GameInput
 {
 	using namespace std::literals;
 
@@ -221,15 +221,15 @@ namespace Addictol::GameInput
 		{
 			if (const auto* connection = a_event.As<RE::DeviceConnectEvent>();
 				connection && connection->device == RE::INPUT_DEVICE::kGamepad && !connection->connected)
-				PlatformImgui::ReleaseGamepad();
+				PlatformImGui::ReleaseGamepad();
 			if (const auto* stick = a_event.As<RE::ThumbstickEvent>();
 				stick && stick->device == RE::INPUT_DEVICE::kGamepad)
-				PlatformImgui::ObserveStick(
+				PlatformImGui::ObserveStick(
 					stick->idCode == RE::ThumbstickEvent::kLeft,
 					stick->xValue, stick->yValue);
 			if (const auto* move = a_event.As<RE::MouseMoveEvent>();
 				move && (move->mouseInputX || move->mouseInputY))
-				PlatformImgui::ObserveMouseMove();
+				PlatformImGui::ObserveMouseMove();
 			const auto* button = a_event.As<RE::ButtonEvent>();
 			if (!button)
 				return false;
@@ -240,7 +240,7 @@ namespace Addictol::GameInput
 			bool pulse = false;
 			if (button->device == RE::INPUT_DEVICE::kMouse)
 			{
-				code = ImguiPlatform::MouseKeyCode(button->idCode);
+				code = PlatformImGui::MouseKeyCode(button->idCode);
 				pulse = button->idCode == static_cast<uint32_t>(RE::BS_BUTTON_CODE::kWheelUp) ||
 					button->idCode == static_cast<uint32_t>(RE::BS_BUTTON_CODE::kWheelDown);
 			}
@@ -248,7 +248,7 @@ namespace Addictol::GameInput
 				code = F4SE::InputMap::GamepadMaskToKeycode(button->idCode);
 			// Only edges hide; a held owned button still reaches the game.
 			return code && code < F4SE::InputMap::kMaxMacros &&
-				PlatformImgui::ObserveButton(
+				PlatformImGui::ObserveButton(
 					code, button->QPressed(), !pulse && button->QHeldDown(), pulse, button->value) &&
 				(pulse || !button->QHeldDown());
 		}

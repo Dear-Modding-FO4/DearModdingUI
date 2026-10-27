@@ -246,7 +246,7 @@ namespace DearModdingUI
 			DMUI_HotkeyActionHandle a_action) const noexcept;
 
 		mutable std::mutex m_mutex;
-		Addictol::Support::Revision m_revision;
+		Support::Revision m_revision;
 		std::vector<Action> m_actions;
 		std::array<std::map<std::string, std::string>, 2> m_overrides;
 		std::array<Event, kHotkeyEventQueueCapacity> m_events{};

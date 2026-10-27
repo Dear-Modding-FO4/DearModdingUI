@@ -15,7 +15,7 @@
 
 #include <atomic>
 
-namespace Addictol::platformImguiDetail
+namespace DearModdingUI::PlatformImGuiDetail
 {
 	namespace
 	{
@@ -49,7 +49,7 @@ namespace Addictol::platformImguiDetail
 			const ContextLock lock;
 			auto& context = Context();
 			if (context.backend.load(std::memory_order_acquire) != Backend::kReady ||
-				context.attachmentLifecycle != ImguiPlatform::AttachmentLifecycle::kActive ||
+				context.attachmentLifecycle != PlatformImGui::AttachmentLifecycle::kActive ||
 				!DearModdingUI::CursorLoader::HasFocus())
 				return accepted;
 

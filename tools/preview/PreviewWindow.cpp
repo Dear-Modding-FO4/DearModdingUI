@@ -171,28 +171,28 @@ namespace DearModdingUIPreview
 				a_window, a_message, static_cast<uint64_t>(a_lparam)))
 			return 1;
 		const auto escapeDecision =
-			Addictol::ImguiPlatform::DecideEscapeMessage(
+			DearModdingUI::PlatformImGui::DecideEscapeMessage(
 				a_message,
 				static_cast<uint32_t>(a_wparam),
 				static_cast<uint64_t>(a_lparam),
 				CurrentInputMode() != HostInputMode::kGameplay,
-				Hotkeys::OwnsKey(Addictol::ImguiPlatform::kEscapeKeyCode));
+				Hotkeys::OwnsKey(DearModdingUI::PlatformImGui::kEscapeKeyCode));
 		if (escapeDecision ==
-			Addictol::ImguiPlatform::EscapeMessageDecision::kCapture)
+			DearModdingUI::PlatformImGui::EscapeMessageDecision::kCapture)
 		{
-			Hotkeys::Claim(Addictol::ImguiPlatform::kEscapeKeyCode);
+			Hotkeys::Claim(DearModdingUI::PlatformImGui::kEscapeKeyCode);
 			CaptureMenuEscapePress(
 				CurrentInputMode(),
 				PresentationServices::HasActiveDialog(),
 				PresentationServices::ActiveDialogPopupId());
 		}
 		else if (escapeDecision ==
-				Addictol::ImguiPlatform::EscapeMessageDecision::
+				DearModdingUI::PlatformImGui::EscapeMessageDecision::
 					kConsumeAndRelease ||
 			escapeDecision ==
-				Addictol::ImguiPlatform::EscapeMessageDecision::
+				DearModdingUI::PlatformImGui::EscapeMessageDecision::
 					kReleaseAndForward)
-			(void)Hotkeys::HandleKey(Addictol::ImguiPlatform::kEscapeKeyCode, 0, false, false);
+			(void)Hotkeys::HandleKey(DearModdingUI::PlatformImGui::kEscapeKeyCode, 0, false, false);
 
 		const auto imguiHandled =
 			m_imguiBackendReady &&
@@ -202,9 +202,9 @@ namespace DearModdingUIPreview
 				a_wparam,
 				a_lparam);
 		if (escapeDecision !=
-				Addictol::ImguiPlatform::EscapeMessageDecision::kForward &&
+				DearModdingUI::PlatformImGui::EscapeMessageDecision::kForward &&
 			escapeDecision !=
-				Addictol::ImguiPlatform::EscapeMessageDecision::
+				DearModdingUI::PlatformImGui::EscapeMessageDecision::
 					kReleaseAndForward)
 			return 1;
 		if (imguiHandled)

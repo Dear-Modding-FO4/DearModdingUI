@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace Addictol::Support
+namespace DearModdingUI::Support
 {
 	[[nodiscard]] uintptr_t DetourVTable(
 		uintptr_t a_target,

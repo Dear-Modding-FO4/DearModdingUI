@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace Support
+namespace DearModdingUI::Support
 {
 	[[nodiscard]] inline bool IsValidUtf8(const char* a_text, size_t a_length) noexcept
 	{

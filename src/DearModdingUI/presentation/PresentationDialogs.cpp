@@ -60,7 +60,7 @@ namespace DearModdingUI::PresentationServices
 
 		[[nodiscard]] auto LockDialogs(DialogService& a_service)
 		{
-			return Addictol::Support::PublishingLock{ a_service.mutex, [&a_service]() noexcept {
+			return Support::PublishingLock{ a_service.mutex, [&a_service]() noexcept {
 				const auto& dialog = a_service.dialog;
 				a_service.active.store(
 					dialog.handle != DMUI_INVALID_DIALOG_HANDLE &&
@@ -110,27 +110,27 @@ namespace DearModdingUI::PresentationServices
 		try
 		{
 			Dialog dialog;
-			if (!Internal::CopyBoundedString(
+			if (!Support::CopyBoundedString(
 					a_descriptor->title,
 					kDialogStringLimit,
 					false,
 					dialog.title) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->body,
 					kDialogStringLimit,
 					true,
 					dialog.body) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->acceptLabel,
 					64,
 					false,
 					dialog.acceptLabel) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->cancelLabel,
 					64,
 					false,
 					dialog.cancelLabel) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->hint,
 					kDialogStringLimit,
 					true,
@@ -143,7 +143,7 @@ namespace DearModdingUI::PresentationServices
 			if (!maximum || maximum > kDialogTextLimit)
 				return DMUI_RESULT_INVALID_ARGUMENT;
 			std::string initial;
-			if (!Internal::CopyBoundedString(
+			if (!Support::CopyBoundedString(
 					a_descriptor->initialText,
 					maximum - 1u,
 					true,
@@ -226,7 +226,7 @@ namespace DearModdingUI::PresentationServices
 		{
 			std::string error;
 			if (!a_accepted &&
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_error, kDialogStringLimit, true, error))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 			auto& service = GetDialogService();

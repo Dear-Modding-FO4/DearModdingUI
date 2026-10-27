@@ -7,7 +7,7 @@
 #include <fstream>
 #include <cassert>
 
-namespace Addictol::Support
+namespace DearModdingUI::Support
 {
 	std::string GetRuntimePath() noexcept
 	{

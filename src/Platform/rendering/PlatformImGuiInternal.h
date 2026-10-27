@@ -17,7 +17,7 @@
 
 #undef ERROR
 
-namespace Addictol::platformImguiDetail
+namespace DearModdingUI::PlatformImGuiDetail
 {
 	enum class Backend : uint32_t
 	{
@@ -34,7 +34,7 @@ namespace Addictol::platformImguiDetail
 		Microsoft::WRL::ComPtr<IDXGIAdapter3> videoMemoryAdapter;
 		HWND window{ nullptr };
 
-		[[nodiscard]] ImguiPlatform::AttachmentIdentity Identity() const noexcept
+		[[nodiscard]] PlatformImGui::AttachmentIdentity Identity() const noexcept
 		{
 			return {
 				reinterpret_cast<uintptr_t>(swapChain.Get()),
@@ -51,16 +51,16 @@ namespace Addictol::platformImguiDetail
 	{
 		Attachment attachment;
 		uint64_t attachmentGeneration{ 1 };
-		ImguiPlatform::AttachmentLifecycle attachmentLifecycle{
-			ImguiPlatform::AttachmentLifecycle::kVacant
+		PlatformImGui::AttachmentLifecycle attachmentLifecycle{
+			PlatformImGui::AttachmentLifecycle::kVacant
 		};
-		ImguiPlatform::AttachmentSource attachmentSource{
-			ImguiPlatform::AttachmentSource::kRenderer
+		PlatformImGui::AttachmentSource attachmentSource{
+			PlatformImGui::AttachmentSource::kRenderer
 		};
-		ImguiPlatform::RendererProbe reconciledProbe{};
-		PlatformImgui::Callbacks callbacks{};
-		std::atomic<ImguiPlatform::InstallState> installState{
-			ImguiPlatform::InstallState::kNotAttempted
+		PlatformImGui::RendererProbe reconciledProbe{};
+		PlatformImGui::Callbacks callbacks{};
+		std::atomic<PlatformImGui::InstallState> installState{
+			PlatformImGui::InstallState::kNotAttempted
 		};
 		std::atomic<IDXGISwapChain*> activeSwapChain{ nullptr };
 		std::atomic<HWND> activeWindow{ nullptr };
@@ -68,7 +68,7 @@ namespace Addictol::platformImguiDetail
 		std::atomic<bool> windowReady{ false };
 		std::atomic<bool> gameLoaded{ false };
 		std::atomic<Backend> backend{ Backend::kUninitialized };
-		ImguiPlatform::FrameSubmission frameSubmission;
+		PlatformImGui::FrameSubmission frameSubmission;
 	};
 
 	[[nodiscard]] PlatformContext& Context() noexcept;
@@ -88,7 +88,7 @@ namespace Addictol::platformImguiDetail
 
 	[[nodiscard]] bool InstallRendererReconciliation() noexcept;
 	[[nodiscard]] bool InitializeRendererReconciliation() noexcept;
-	[[nodiscard]] ImguiPlatform::AttachmentResult AttachExplicitSwapChain(
+	[[nodiscard]] PlatformImGui::AttachmentResult AttachExplicitSwapChain(
 		IDXGISwapChain* a_swapChain) noexcept;
 	void PollRendererReconciliation() noexcept;
 	void RequestRendererReconciliation() noexcept;
@@ -99,7 +99,7 @@ namespace Addictol::platformImguiDetail
 
 	void DrawFrameLocked(IDXGISwapChain* a_swapChain) noexcept;
 	[[nodiscard]] bool InstallGameCursorHook() noexcept;
-	void DrawBeforeGameCursorLocked(ImguiPlatform::MousePosition a_position) noexcept;
+	void DrawBeforeGameCursorLocked(PlatformImGui::MousePosition a_position) noexcept;
 	void NoteGameCursorUnavailableLocked(std::string_view a_reason) noexcept;
 	void ResetGameCursorWaitLocked() noexcept;
 	void ReleaseBackBufferLocked() noexcept;

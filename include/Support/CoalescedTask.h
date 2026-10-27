@@ -4,7 +4,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace Addictol::Support
+namespace DearModdingUI::Support
 {
 	// The owner must outlive its queued work.
 	class CoalescedTask

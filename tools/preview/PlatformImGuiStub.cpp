@@ -1,10 +1,10 @@
 #include <Platform/rendering/PlatformImGui.h>
 
-namespace Addictol::PlatformImgui
+namespace DearModdingUI::PlatformImGui
 {
-	ImguiPlatform::AttachmentResult AttachSwapChain(IDXGISwapChain*) noexcept
+	PlatformImGui::AttachmentResult AttachSwapChain(IDXGISwapChain*) noexcept
 	{
-		return ImguiPlatform::AttachmentResult::kRejected;
+		return PlatformImGui::AttachmentResult::kRejected;
 	}
 
 	bool QueryVideoMemory(uint64_t& a_used, uint64_t& a_budget) noexcept

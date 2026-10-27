@@ -106,7 +106,7 @@ namespace DearModdingUI::Localization
 			std::string_view a_language)
 		{
 			const auto name = std::format("{}_{}", a_owner, a_language);
-			const auto path = std::filesystem::path{ Addictol::Support::GetRuntimeDirectory() } /
+			const auto path = std::filesystem::path{ Support::GetRuntimeDirectory() } /
 				"Data/Interface/Translations" / (name + ".txt");
 			auto table = std::make_unique<const TranslationTable>(
 				ParseTranslations(ReadTranslationFile(path).value_or(std::string{})));

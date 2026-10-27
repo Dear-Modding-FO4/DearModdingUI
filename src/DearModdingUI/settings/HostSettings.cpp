@@ -42,7 +42,7 @@ namespace DearModdingUI::HostSettings
 		std::mutex s_configurationHealthMutex;
 		HostSettingsHealthState s_configurationHealthState;
 		// Covers both Current() and EffectivePreview().
-		Addictol::Support::Revision s_revision;
+		Support::Revision s_revision;
 
 		class ConfigurationHealthReporter final : public HealthReporter
 		{
@@ -84,7 +84,7 @@ namespace DearModdingUI::HostSettings
 
 		[[nodiscard]] std::filesystem::path ConfigPath()
 		{
-			return std::filesystem::path{ Addictol::Support::GetRuntimeDirectory() } /
+			return std::filesystem::path{ Support::GetRuntimeDirectory() } /
 				L"Data/F4SE/Plugins/DearModdingUI.toml";
 		}
 
@@ -326,7 +326,7 @@ namespace DearModdingUI::HostSettings
 
 	const HostInterfaceSettings& Current() noexcept
 	{
-		thread_local Addictol::Support::Derived<uint64_t, HostInterfaceSettings> cache;
+		thread_local Support::Derived<uint64_t, HostInterfaceSettings> cache;
 		return cache.Get(Revision(), []() {
 			const std::scoped_lock lock{ s_settingsMutex };
 			return s_settings;
@@ -335,7 +335,7 @@ namespace DearModdingUI::HostSettings
 
 	HostInterfacePreviewSettings EffectivePreview() noexcept
 	{
-		thread_local Addictol::Support::Derived<uint64_t, HostInterfacePreviewSettings> cache;
+		thread_local Support::Derived<uint64_t, HostInterfacePreviewSettings> cache;
 		return cache.Get(Revision(), []() noexcept {
 			{
 				const std::scoped_lock lock{ s_previewMutex };

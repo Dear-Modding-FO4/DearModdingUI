@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <Support/KeyCatalog.h>
 
-namespace Addictol::ImguiPlatform
+namespace DearModdingUI::PlatformImGui
 {
 	[[nodiscard]] constexpr uint32_t KeyboardKeyCode(
 		uint8_t a_scanCode,

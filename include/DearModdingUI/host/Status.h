@@ -187,6 +187,6 @@ namespace DearModdingUI
 		std::optional<StatusMessage> m_current;
 		std::vector<std::pair<DMUI_ClientHandle, StatusMessage>> m_clientStatuses;
 		uint64_t m_generation{ 0 };
-		Addictol::Support::Revision m_revision;
+		Support::Revision m_revision;
 	};
 }

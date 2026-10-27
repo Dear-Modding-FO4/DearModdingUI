@@ -35,7 +35,7 @@ namespace DearModdingUI
 		{
 			if (!a_value)
 				return a_optional;
-			const auto value = Internal::ReadBoundedString(
+			const auto value = Support::ReadBoundedString(
 				a_value, kExternalValueCapacity, a_optional);
 			if (!value)
 				return false;

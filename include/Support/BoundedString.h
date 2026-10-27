@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-namespace DearModdingUI::Internal
+namespace DearModdingUI::Support
 {
 	[[nodiscard]] inline std::optional<std::string_view> ReadBoundedString(
 		const char* a_value,

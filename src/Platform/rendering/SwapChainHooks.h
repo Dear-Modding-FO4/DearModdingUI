@@ -9,7 +9,7 @@
 
 struct IDXGISwapChain;
 
-namespace Addictol::platformImguiDetail
+namespace DearModdingUI::PlatformImGuiDetail
 {
 	using PresentHook = HRESULT(WINAPI*)(IDXGISwapChain*, UINT, UINT);
 	using ResizeBuffersHook = HRESULT(WINAPI*)(
@@ -25,7 +25,7 @@ namespace Addictol::platformImguiDetail
 	public:
 		[[nodiscard]] static bool Install(
 			IDXGISwapChain* a_swapChain,
-			ImguiPlatform::AttachmentLifecycle a_lifecycle,
+			PlatformImGui::AttachmentLifecycle a_lifecycle,
 			PresentHook a_presentHook,
 			ResizeBuffersHook a_resizeBuffersHook) noexcept;
 

@@ -8,10 +8,10 @@
 #include <atomic>
 #include <memory>
 
-namespace Addictol::platformImguiDetail
+namespace DearModdingUI::PlatformImGuiDetail
 {
 	using namespace std::literals;
-	using namespace ImguiPlatform;
+	using namespace PlatformImGui;
 
 	namespace
 	{

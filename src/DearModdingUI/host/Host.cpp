@@ -455,7 +455,7 @@ namespace DearModdingUI
 	bool PageFailed(DMUI_PageHandle a_page) noexcept
 	{
 		// Sidebar rows ask every frame; derive the set once per registry change.
-		thread_local Addictol::Support::Derived<uint64_t, std::vector<DMUI_PageHandle>> usable;
+		thread_local Support::Derived<uint64_t, std::vector<DMUI_PageHandle>> usable;
 		const auto& registry = GetService().registry;
 		return !std::ranges::binary_search(
 			usable.Get(registry.Revision(), [&]() noexcept { return registry.UsablePages(); }),
@@ -647,7 +647,7 @@ DMUI_EXPORT const DMUI_HostAPI* DMUI_CALL DMUI_GetAPI(
 	if (!DearModdingUI::ServesAbiVersion(a_requestedAbiVersion))
 	{
 		// A mismatched client cannot describe itself, so name its module.
-		const auto plugin = Addictol::Support::GetModuleNameAt(_ReturnAddress());
+		const auto plugin = DearModdingUI::Support::GetModuleNameAt(_ReturnAddress());
 		REX::WARN(
 			"DearModdingUI ABI mismatch: {} requires {}.{}, host provides {}.{}",
 			plugin.empty() ? std::string_view{ "<unknown plugin>" } : plugin,

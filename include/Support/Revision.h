@@ -6,7 +6,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace Addictol::Support
+namespace DearModdingUI::Support
 {
 	// Owners advance after a change is visible; readers compare it lock-free.
 	class Revision

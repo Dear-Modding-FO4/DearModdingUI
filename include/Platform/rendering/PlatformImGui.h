@@ -4,10 +4,10 @@
 
 struct IDXGISwapChain;
 
-namespace Addictol
+namespace DearModdingUI
 {
 	// The vtable and window hooks stay installed because process-exit teardown order is unsafe.
-	namespace PlatformImgui
+	namespace PlatformImGui
 	{
 		struct Callbacks
 		{
@@ -29,7 +29,7 @@ namespace Addictol
 		[[nodiscard]] bool InitializeWindow() noexcept;
 
 		// Deliberate external override for a final or proxy game swapchain.
-		[[nodiscard]] ImguiPlatform::AttachmentResult AttachSwapChain(
+		[[nodiscard]] PlatformImGui::AttachmentResult AttachSwapChain(
 			IDXGISwapChain* a_swapChain) noexcept;
 
 		void SetDrawingEnabled(bool a_enabled) noexcept;

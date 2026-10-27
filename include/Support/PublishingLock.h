@@ -4,7 +4,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace Addictol::Support
+namespace DearModdingUI::Support
 {
 	// Holds an owner's lock and republishes its lock-free mirrors before unlocking.
 	template <class Publish>

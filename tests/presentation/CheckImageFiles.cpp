@@ -238,7 +238,7 @@ namespace vmm_tests
 
 		runner.test("Device changes reload from the file instead of retaining encoded or decoded data", [&] {
 			ImageEnvironment env;
-			const auto folder = std::filesystem::path{ Addictol::Support::GetRuntimeDirectory() } / "Data/ImageFileTests";
+			const auto folder = std::filesystem::path{ DearModdingUI::Support::GetRuntimeDirectory() } / "Data/ImageFileTests";
 			std::filesystem::create_directories(folder);
 			const auto file = folder / "Reload.png";
 			std::filesystem::copy_file(files.Path("Alpha.png"), file, std::filesystem::copy_options::overwrite_existing);

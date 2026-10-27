@@ -36,7 +36,7 @@ namespace DearModdingUI::PresentationServices
 
 		[[nodiscard]] auto LockNotifications(NotificationService& a_service)
 		{
-			return Addictol::Support::PublishingLock{ a_service.mutex, [&a_service]() noexcept {
+			return Support::PublishingLock{ a_service.mutex, [&a_service]() noexcept {
 				a_service.queued.store(!a_service.queue.Empty(), std::memory_order_release);
 			} };
 		}
@@ -148,8 +148,8 @@ namespace DearModdingUI::PresentationServices
 				return ownerResult;
 			toast.owner = a_client;
 			toast.severity = a_descriptor->severity;
-			if (!Internal::CopyBoundedString(a_descriptor->message, 1024, false, toast.message) ||
-				!Internal::CopyBoundedString(a_descriptor->title, 256, true, toast.title))
+			if (!Support::CopyBoundedString(a_descriptor->message, 1024, false, toast.message) ||
+				!Support::CopyBoundedString(a_descriptor->title, 256, true, toast.title))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 			toast.duration = std::chrono::milliseconds{
 				(std::clamp)(a_descriptor->durationMilliseconds ?

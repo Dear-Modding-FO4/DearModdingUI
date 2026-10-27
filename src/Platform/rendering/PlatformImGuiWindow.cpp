@@ -21,10 +21,10 @@
 #include <cstddef>
 #include <memory>
 
-namespace Addictol::platformImguiDetail
+namespace DearModdingUI::PlatformImGuiDetail
 {
 	using namespace std::literals;
-	using namespace ImguiPlatform;
+	using namespace PlatformImGui;
 
 	namespace
 	{
@@ -538,12 +538,12 @@ namespace Addictol::platformImguiDetail
 
 }
 
-namespace Addictol::PlatformImgui
+namespace DearModdingUI::PlatformImGui
 {
 	bool ObserveButton(uint32_t a_keyCode, bool a_pressed, bool a_repeat, bool a_pulse, float a_value) noexcept
 	{
 		{
-			const platformImguiDetail::ContextLock lock;
+			const PlatformImGuiDetail::ContextLock lock;
 			if (a_pressed && !DearModdingUI::CursorLoader::HasFocus())
 				return false;
 		}
@@ -551,41 +551,41 @@ namespace Addictol::PlatformImgui
 		{
 			DearModdingUI::HotkeyMessageResult result;
 			{
-				const platformImguiDetail::ContextLock lock;
+				const PlatformImGuiDetail::ContextLock lock;
 				result = DearModdingUI::ControllerNavigation::RouteButton(
 					a_keyCode, a_pressed, a_repeat,
 					a_keyCode >= DearModdingUI::KeyCatalog::kPadLT ?
 						DearModdingUI::ControllerNavigation::AnalogValue(a_value) : a_value,
-					platformImguiDetail::CurrentHotkeyContextState());
+					PlatformImGuiDetail::CurrentHotkeyContextState());
 			}
 			// Toggle callbacks reacquire the platform lock.
 			if (result == DearModdingUI::HotkeyMessageResult::kMenuToggle &&
-				platformImguiDetail::Context().callbacks.toggle)
-				platformImguiDetail::Context().callbacks.toggle();
+				PlatformImGuiDetail::Context().callbacks.toggle)
+				PlatformImGuiDetail::Context().callbacks.toggle();
 			// Dismissal claims B without a hotkey result.
 			return result != DearModdingUI::HotkeyMessageResult::kPassThrough ||
 				DearModdingUI::Hotkeys::OwnsKey(a_keyCode);
 		}
 		// Engine events trail their window messages, so read the live state.
-		const auto modifiers = platformImguiDetail::HeldModifiers(&GetAsyncKeyState);
-		auto consumed = platformImguiDetail::HandleHotkey(a_keyCode, modifiers, a_pressed, a_repeat) !=
+		const auto modifiers = PlatformImGuiDetail::HeldModifiers(&GetAsyncKeyState);
+		auto consumed = PlatformImGuiDetail::HandleHotkey(a_keyCode, modifiers, a_pressed, a_repeat) !=
 			DearModdingUI::HotkeyMessageResult::kPassThrough;
 		if (a_pulse && a_pressed)
-			consumed = platformImguiDetail::HandleHotkey(a_keyCode, modifiers, false, false) !=
+			consumed = PlatformImGuiDetail::HandleHotkey(a_keyCode, modifiers, false, false) !=
 				DearModdingUI::HotkeyMessageResult::kPassThrough || consumed;
 		return consumed;
 	}
 
 	void ObserveMouseMove() noexcept
 	{
-		const platformImguiDetail::ContextLock lock;
+		const PlatformImGuiDetail::ContextLock lock;
 		if (ImGui::GetCurrentContext() && DearModdingUI::IsMenuVisible())
 			DearModdingUI::ControllerNavigation::UseCursor();
 	}
 
 	void ObserveStick(bool a_left, float a_x, float a_y) noexcept
 	{
-		const platformImguiDetail::ContextLock lock;
+		const PlatformImGuiDetail::ContextLock lock;
 		if (ImGui::GetCurrentContext() && DearModdingUI::IsMenuVisible() &&
 			DearModdingUI::CursorLoader::HasFocus())
 			DearModdingUI::ControllerNavigation::QueueStick(a_left, a_x, a_y);
@@ -593,7 +593,7 @@ namespace Addictol::PlatformImgui
 
 	void ReleaseGamepad() noexcept
 	{
-		const platformImguiDetail::ContextLock lock;
+		const PlatformImGuiDetail::ContextLock lock;
 		DearModdingUI::ControllerNavigation::Reset();
 		DearModdingUI::Hotkeys::ReleaseActiveKeys();
 	}

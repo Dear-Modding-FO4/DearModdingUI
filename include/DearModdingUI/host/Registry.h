@@ -247,7 +247,7 @@ namespace DearModdingUI
 		DMUI_PageActivityObserverHandle m_nextPageActivityObserver{ 1 };
 		std::atomic<size_t> m_activeFrameObserverCount{ 0 };
 		std::atomic<size_t> m_demandedOverlayCount{ 0 };
-		Addictol::Support::Revision m_revision;
+		Support::Revision m_revision;
 		Notification m_notification{ Notification::kNone };
 		// Written under the lock; once false the registration vectors are immutable.
 		std::atomic<bool> m_open{ true };

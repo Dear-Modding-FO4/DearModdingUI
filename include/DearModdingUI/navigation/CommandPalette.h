@@ -45,7 +45,7 @@ namespace DearModdingUI
 	struct CommandPaletteState
 	{
 		std::string query;
-		Addictol::Support::Derived<CommandPaletteRowsKey, std::vector<CommandPaletteRow>> rows;
+		Support::Derived<CommandPaletteRowsKey, std::vector<CommandPaletteRow>> rows;
 		size_t selection{ 0 };
 		bool openRequested{ false };
 		bool focusRequested{ false };

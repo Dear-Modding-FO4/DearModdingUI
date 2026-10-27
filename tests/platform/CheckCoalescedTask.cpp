@@ -10,7 +10,7 @@ namespace vmm_tests
 {
 	void run_coalesced_task_checks(Runner& runner)
 	{
-		using Addictol::Support::CoalescedTask;
+		using DearModdingUI::Support::CoalescedTask;
 		runner.test("coalesced tasks reject one duplicate and self-requeue attempt", [] {
 			CoalescedTask task;
 			std::deque<std::function<void()>> queue;

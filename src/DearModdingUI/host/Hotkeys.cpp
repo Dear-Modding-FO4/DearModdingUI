@@ -283,21 +283,21 @@ namespace DearModdingUI
 			action.callback = a_descriptor->callback;
 			action.userData = a_descriptor->userData;
 			action.contextPolicy = contextPolicy;
-			if (!Internal::CopyBoundedString(
+			if (!Support::CopyBoundedString(
 					a_descriptor->id,
 					kActionIdCapacity,
 					false,
 					action.id) ||
 				!ValidHotkeyActionId(action.id))
 				return DMUI_RESULT_MALFORMED_ACTION_ID;
-			if (!Internal::CopyBoundedString(
+			if (!Support::CopyBoundedString(
 					a_descriptor->displayName,
 					kDisplayNameCapacity,
 					false,
 					action.displayName) ||
 				!ValidDisplayName(action.displayName))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
-			if (!Internal::CopyBoundedString(
+			if (!Support::CopyBoundedString(
 					a_descriptor->suggestedDefaultChord,
 					kChordCapacity,
 					false,

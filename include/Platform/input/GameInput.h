@@ -9,7 +9,7 @@
 #include <string_view>
 #include <utility>
 
-namespace Addictol::GameInput
+namespace DearModdingUI::GameInput
 {
 	inline constexpr uint32_t kPerformInputProcessingSlot = 0;
 	inline constexpr uintptr_t kPlayerCameraReceiverOffset = 0x38;

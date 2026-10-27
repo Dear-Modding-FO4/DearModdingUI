@@ -74,7 +74,7 @@ namespace DearModdingUI::PresentationServices
 
 		[[nodiscard]] ImageService& GetImageService() noexcept
 		{
-			static Addictol::Support::ProcessLifetime<ImageService> service;
+			static Support::ProcessLifetime<ImageService> service;
 			return service.value;
 		}
 
@@ -135,7 +135,7 @@ namespace DearModdingUI::PresentationServices
 		// Guards device or file-image state changes; reads use the plain lock.
 		[[nodiscard]] auto LockImages(ImageService& a_service)
 		{
-			return Addictol::Support::PublishingLock{ a_service.mutex, [&a_service]() noexcept {
+			return Support::PublishingLock{ a_service.mutex, [&a_service]() noexcept {
 				a_service.hasDevice.store(a_service.device != nullptr, std::memory_order_release);
 				a_service.unsubmittedLoads.store(
 					std::ranges::any_of(a_service.images, [](const auto& a_image) {
@@ -368,7 +368,7 @@ namespace DearModdingUI::PresentationServices
 		if (!a_image || !a_client)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_image = DMUI_INVALID_IMAGE_HANDLE;
-		const auto path = Internal::ReadBoundedString(a_utf8Path, 32767, false);
+		const auto path = Support::ReadBoundedString(a_utf8Path, 32767, false);
 		if (!path)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		try

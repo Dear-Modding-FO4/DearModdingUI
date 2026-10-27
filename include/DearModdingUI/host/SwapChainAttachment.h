@@ -6,9 +6,9 @@
 namespace DearModdingUI
 {
 	[[nodiscard]] constexpr DMUI_Result SwapChainAttachmentResult(
-		Addictol::ImguiPlatform::AttachmentResult a_result) noexcept
+		PlatformImGui::AttachmentResult a_result) noexcept
 	{
-		using enum Addictol::ImguiPlatform::AttachmentResult;
+		using enum PlatformImGui::AttachmentResult;
 		switch (a_result)
 		{
 		case kAttached:

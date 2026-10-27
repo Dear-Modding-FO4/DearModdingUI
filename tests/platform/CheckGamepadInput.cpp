@@ -68,7 +68,7 @@ namespace vmm_tests
 	{
 		runner.test("toggle queues stay blocked through chord release and recover on focus loss", [] {
 			using namespace DearModdingUI;
-			using namespace Addictol::GameInput;
+			using namespace DearModdingUI::GameInput;
 			HotkeyRegistry registry;
 			registry.SetReservedChord(kMenuDefaultGamepadToggleChord, HotkeySlot::kGamepad);
 			bool blocked = false;

@@ -18,15 +18,15 @@ namespace DearModdingUI::HostAPIInternal
 			return DMUI_RESULT_INVALID_ARGUMENT;
 
 		const auto explicitName =
-			Internal::ReadBoundedString(a_request->explicitName, 128, true);
+			Support::ReadBoundedString(a_request->explicitName, 128, true);
 		const auto primaryMetadata =
-			Internal::ReadBoundedString(a_request->primaryMetadata, 256, true);
+			Support::ReadBoundedString(a_request->primaryMetadata, 256, true);
 		const auto secondaryMetadata =
-			Internal::ReadBoundedString(a_request->secondaryMetadata, 256, true);
+			Support::ReadBoundedString(a_request->secondaryMetadata, 256, true);
 		if (!explicitName || !primaryMetadata || !secondaryMetadata ||
-			!Internal::ValidText(*explicitName, true) ||
-			!Internal::ValidText(*primaryMetadata, true) ||
-			!Internal::ValidText(*secondaryMetadata, true))
+			!Support::ValidText(*explicitName, true) ||
+			!Support::ValidText(*primaryMetadata, true) ||
+			!Support::ValidText(*secondaryMetadata, true))
 			return DMUI_RESULT_INVALID_ARGUMENT;
 
 		try

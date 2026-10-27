@@ -4,7 +4,7 @@
 
 #include <cstddef>
 
-namespace Addictol::Support
+namespace DearModdingUI::Support
 {
 	namespace
 	{

@@ -113,7 +113,7 @@ namespace DearModdingUI::Theme
 
 		[[nodiscard]] std::filesystem::path AssetPath(std::string_view a_relative)
 		{
-			auto path = std::filesystem::path{ Addictol::Support::GetRuntimeDirectory() };
+			auto path = std::filesystem::path{ Support::GetRuntimeDirectory() };
 			path /= kFontRoot;
 			path /= a_relative;
 			return path;
@@ -569,7 +569,7 @@ namespace DearModdingUI::Theme
 
 	DMUI_ThemeColors ColorSnapshot() noexcept
 	{
-		thread_local Addictol::Support::Derived<uint64_t, DMUI_ThemeColors> cache;
+		thread_local Support::Derived<uint64_t, DMUI_ThemeColors> cache;
 		return cache.Get(HostSettings::Revision(), []() noexcept {
 			return MakeColorSnapshot(colors::Accent());
 		});

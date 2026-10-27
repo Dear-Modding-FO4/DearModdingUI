@@ -194,7 +194,7 @@ namespace DearModdingUI
 
 		mutable std::mutex mutex_;
 		std::vector<const SubsystemHealth*> subsystems_;
-		Addictol::Support::Revision revision_;
+		Support::Revision revision_;
 	};
 
 	[[nodiscard]] inline SubsystemHealthRegistry& HostSubsystemHealthRegistry()

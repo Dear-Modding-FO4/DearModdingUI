@@ -44,10 +44,10 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandlerEx(
 	LPARAM lParam,
 	ImGuiIO& io);
 
-namespace Addictol::platformImguiDetail
+namespace DearModdingUI::PlatformImGuiDetail
 {
 	using namespace std::literals;
-	using namespace ImguiPlatform;
+	using namespace PlatformImGui;
 
 	namespace
 	{

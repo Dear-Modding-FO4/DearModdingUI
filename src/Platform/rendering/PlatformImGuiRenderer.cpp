@@ -19,10 +19,10 @@
 #include <optional>
 #include <utility>
 
-namespace Addictol::platformImguiDetail
+namespace DearModdingUI::PlatformImGuiDetail
 {
 	using namespace std::literals;
-	using namespace ImguiPlatform;
+	using namespace PlatformImGui;
 
 	namespace
 	{
@@ -848,7 +848,7 @@ namespace Addictol::platformImguiDetail
 		return true;
 	}
 
-	ImguiPlatform::AttachmentResult AttachExplicitSwapChain(
+	PlatformImGui::AttachmentResult AttachExplicitSwapChain(
 		IDXGISwapChain* a_swapChain) noexcept
 	{
 		RendererSnapshot snapshot;

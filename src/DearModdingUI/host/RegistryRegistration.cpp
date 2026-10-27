@@ -57,27 +57,27 @@ namespace DearModdingUI
 			client.onHostReady = a_descriptor->onHostReady;
 			client.onHostUnavailable = a_descriptor->onHostUnavailable;
 			client.userData = a_descriptor->userData;
-			if (!Internal::CopyBoundedString(
+			if (!Support::CopyBoundedString(
 					a_descriptor->id, kIdCapacity, false, client.id) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->displayName,
 					kDisplayNameCapacity,
 					false,
 					client.displayName) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->iconName,
 					kIconNameCapacity,
 					true,
 					client.iconName) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->bridgeSourceLabel,
 					kBridgeSourceLabelCapacity,
 					true,
 					client.bridgeSourceLabel) ||
 				!ValidId(client.id) ||
-				!Internal::ValidText(client.displayName, false) ||
-				!Internal::ValidText(client.iconName, true) ||
-				!Internal::ValidText(client.bridgeSourceLabel, true) ||
+				!Support::ValidText(client.displayName, false) ||
+				!Support::ValidText(client.iconName, true) ||
+				!Support::ValidText(client.bridgeSourceLabel, true) ||
 				(client.origin == DMUI_CLIENT_ORIGIN_NATIVE &&
 					!client.bridgeSourceLabel.empty()))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
@@ -129,30 +129,30 @@ namespace DearModdingUI
 			page.userData = a_descriptor->userData;
 			const auto* iconName =
 				a_descriptor->iconName;
-			if (!Internal::CopyBoundedString(
+			if (!Support::CopyBoundedString(
 					a_descriptor->id, kIdCapacity, false, page.id) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->displayName,
 					kDisplayNameCapacity,
 					false,
 					page.displayName) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->categoryId,
 					kCategoryIdCapacity,
 					true,
 					page.categoryId) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->summary,
 					kSummaryCapacity,
 					true,
 					page.summary) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					iconName, kIconNameCapacity, true, page.iconName) ||
 				!ValidId(page.id) ||
-				!Internal::ValidText(page.displayName, false) ||
+				!Support::ValidText(page.displayName, false) ||
 				(!page.categoryId.empty() && !ValidId(page.categoryId)) ||
-				!Internal::ValidText(page.summary, true) ||
-				!Internal::ValidText(page.iconName, true))
+				!Support::ValidText(page.summary, true) ||
+				!Support::ValidText(page.iconName, true))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 
 			const std::scoped_lock lock{ m_mutex };
@@ -203,24 +203,24 @@ namespace DearModdingUI
 			category.sortKey = a_descriptor->sortKey;
 			const auto* iconName =
 				a_descriptor->iconName;
-			if (!Internal::CopyBoundedString(
+			if (!Support::CopyBoundedString(
 					a_descriptor->id,
 					kCategoryIdCapacity,
 					false,
 					category.id) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->displayName,
 					kDisplayNameCapacity,
 					false,
 					category.displayName) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					iconName,
 					kIconNameCapacity,
 					true,
 					category.iconName) ||
 				!ValidId(category.id) ||
-				!Internal::ValidText(category.displayName, false) ||
-				!Internal::ValidText(category.iconName, true))
+				!Support::ValidText(category.displayName, false) ||
+				!Support::ValidText(category.iconName, true))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 
 			const std::scoped_lock lock{ m_mutex };
@@ -262,27 +262,27 @@ namespace DearModdingUI
 			action.sortKey = a_descriptor->sortKey;
 			action.callback = a_descriptor->callback;
 			action.userData = a_descriptor->userData;
-			if (!Internal::CopyBoundedString(
+			if (!Support::CopyBoundedString(
 					a_descriptor->id, kIdCapacity, false, action.id) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->displayLabel,
 					kDisplayNameCapacity,
 					false,
 					action.displayLabel) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->iconName,
 					kIconNameCapacity,
 					true,
 					action.iconName) ||
-				!Internal::CopyBoundedString(
+				!Support::CopyBoundedString(
 					a_descriptor->tooltip,
 					kSummaryCapacity,
 					true,
 					action.tooltip) ||
 				!ValidId(action.id) ||
-				!Internal::ValidText(action.displayLabel, false) ||
-				!Internal::ValidText(action.iconName, true) ||
-				!Internal::ValidText(action.tooltip, true))
+				!Support::ValidText(action.displayLabel, false) ||
+				!Support::ValidText(action.iconName, true) ||
+				!Support::ValidText(action.tooltip, true))
 				return DMUI_RESULT_INVALID_DESCRIPTOR;
 
 			const std::scoped_lock lock{ m_mutex };

@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace Addictol::Support
+namespace DearModdingUI::Support
 {
 	[[nodiscard]] std::string GetRuntimePath() noexcept;
 	[[nodiscard]] std::string GetRuntimeDirectory() noexcept;

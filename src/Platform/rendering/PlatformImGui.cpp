@@ -8,11 +8,11 @@
 
 #include <memory>
 
-namespace Addictol
+namespace DearModdingUI
 {
 	using namespace std::literals;
 
-	namespace platformImguiDetail
+	namespace PlatformImGuiDetail
 	{
 		namespace
 		{
@@ -51,21 +51,21 @@ namespace Addictol
 		}
 	}
 
-	bool PlatformImgui::InstallHooks(Callbacks a_callbacks) noexcept
+	bool PlatformImGui::InstallHooks(Callbacks a_callbacks) noexcept
 	{
-		using namespace platformImguiDetail;
+		using namespace PlatformImGuiDetail;
 		auto& context = Context();
-		auto expected = ImguiPlatform::InstallState::kNotAttempted;
+		auto expected = PlatformImGui::InstallState::kNotAttempted;
 		if (!context.installState.compare_exchange_strong(
 				expected,
-				ImguiPlatform::InstallState::kAttempted,
+				PlatformImGui::InstallState::kAttempted,
 				std::memory_order_acq_rel))
-			return ImguiPlatform::IsInstalled(expected);
+			return PlatformImGui::IsInstalled(expected);
 
 		if (!a_callbacks.Valid())
 		{
 			context.installState.store(
-				ImguiPlatform::InstallState::kRejected,
+				PlatformImGui::InstallState::kRejected,
 				std::memory_order_release);
 			REX::ERROR(
 				"[dmui.render.reconciliation] Platform Imgui: required callback bundle is incomplete"sv);
@@ -77,24 +77,24 @@ namespace Addictol
 		if (!InstallGameCursorHook() || !InstallRendererReconciliation())
 		{
 			context.installState.store(
-				ImguiPlatform::InstallState::kRejected,
+				PlatformImGui::InstallState::kRejected,
 				std::memory_order_release);
 			DearModdingUI::FailBackendInitialization();
 			return false;
 		}
 
 		context.installState.store(
-			ImguiPlatform::InstallState::kInstalled,
+			PlatformImGui::InstallState::kInstalled,
 			std::memory_order_release);
 		REX::INFO(
 			"[dmui.render.reconciliation] Platform Imgui: renderer reconciliation installed"sv);
 		return true;
 	}
 
-	bool PlatformImgui::InitializeWindow() noexcept
+	bool PlatformImGui::InitializeWindow() noexcept
 	{
-		using namespace platformImguiDetail;
-		if (!ImguiPlatform::IsInstalled(
+		using namespace PlatformImGuiDetail;
+		if (!PlatformImGui::IsInstalled(
 				Context().installState.load(std::memory_order_acquire)))
 		{
 			REX::ERROR(
@@ -104,19 +104,19 @@ namespace Addictol
 		return InitializeRendererReconciliation();
 	}
 
-	ImguiPlatform::AttachmentResult PlatformImgui::AttachSwapChain(
+	PlatformImGui::AttachmentResult PlatformImGui::AttachSwapChain(
 		IDXGISwapChain* a_swapChain) noexcept
 	{
-		return platformImguiDetail::AttachExplicitSwapChain(a_swapChain);
+		return PlatformImGuiDetail::AttachExplicitSwapChain(a_swapChain);
 	}
 
-	void PlatformImgui::SetDrawingEnabled(bool a_enabled) noexcept
+	void PlatformImGui::SetDrawingEnabled(bool a_enabled) noexcept
 	{
-		using namespace platformImguiDetail;
+		using namespace PlatformImGuiDetail;
 		const ContextLock lock;
 		auto& context = Context();
 		const auto enable = a_enabled &&
-			ImguiPlatform::IsInstalled(
+			PlatformImGui::IsInstalled(
 				context.installState.load(std::memory_order_acquire)) &&
 			context.activeSwapChain.load(std::memory_order_acquire) != nullptr &&
 			context.windowReady.load(std::memory_order_acquire) &&
@@ -124,30 +124,30 @@ namespace Addictol
 		ApplyDrawingRequestLocked(enable);
 	}
 
-	void PlatformImgui::HandleGameTransition() noexcept
+	void PlatformImGui::HandleGameTransition() noexcept
 	{
-		using namespace platformImguiDetail;
+		using namespace PlatformImGuiDetail;
 		const ContextLock lock;
 		CloseModalStateLocked(
 			DearModdingUI::CarrierMenu::Event::kGameTransition);
 	}
 
-	bool PlatformImgui::IsReady() noexcept
+	bool PlatformImGui::IsReady() noexcept
 	{
-		using namespace platformImguiDetail;
+		using namespace PlatformImGuiDetail;
 		auto& context = Context();
-		return ImguiPlatform::IsInstalled(
+		return PlatformImGui::IsInstalled(
 				context.installState.load(std::memory_order_acquire)) &&
 			context.activeSwapChain.load(std::memory_order_acquire) != nullptr &&
 			context.windowReady.load(std::memory_order_acquire) &&
 			context.backend.load(std::memory_order_acquire) == Backend::kReady;
 	}
 
-	bool PlatformImgui::QueryVideoMemory(
+	bool PlatformImGui::QueryVideoMemory(
 		uint64_t& a_used,
 		uint64_t& a_budget) noexcept
 	{
-		using namespace platformImguiDetail;
+		using namespace PlatformImGuiDetail;
 		const ContextLock lock;
 		const auto& adapter = Context().attachment.videoMemoryAdapter;
 		if (!adapter)

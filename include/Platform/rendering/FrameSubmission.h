@@ -2,7 +2,7 @@
 
 #include <Platform/rendering/ImGuiPlatformTargets.h>
 
-namespace Addictol::ImguiPlatform
+namespace DearModdingUI::PlatformImGui
 {
 	class FrameSubmission
 	{

@@ -43,7 +43,7 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 			{
 				if (path.has_root_path() || *normalized.begin() == L"..")
 					return DMUI_RESULT_ACCESS_DENIED;
-				normalized = std::filesystem::path{ Addictol::Support::GetRuntimeDirectory() } /
+				normalized = std::filesystem::path{ Support::GetRuntimeDirectory() } /
 					L"Data" / normalized;
 			}
 			// Win32 strips trailing dots/spaces; reject aliases before opening the virtual path.

@@ -91,7 +91,7 @@ namespace DearModdingUI
 		// Game colors change only in game menus, so each page visit reads them once.
 		std::optional<HostAccentColor> g_hudColor;
 		std::optional<HostAccentColor> g_pipboyColor;
-		Addictol::Support::Derived<uint64_t, std::vector<HotkeyActionSnapshot>> g_hotkeys;
+		Support::Derived<uint64_t, std::vector<HotkeyActionSnapshot>> g_hotkeys;
 
 		[[nodiscard]] float ControlWidth() noexcept
 		{

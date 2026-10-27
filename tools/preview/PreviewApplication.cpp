@@ -203,7 +203,7 @@ namespace DearModdingUIPreview
 			std::wstring& a_error)
 		{
 			std::filesystem::path directory{
-				Addictol::Support::GetRuntimeDirectory()
+				DearModdingUI::Support::GetRuntimeDirectory()
 			};
 			directory /= L"Data\\F4SE\\Plugins\\DearModdingUI";
 			std::error_code error;

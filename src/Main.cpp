@@ -16,7 +16,7 @@
 #include <atomic>
 #include <mutex>
 
-namespace Addictol
+namespace DearModdingUI::Plugin
 {
 	using namespace std::literals;
 
@@ -52,9 +52,9 @@ namespace Addictol
 		{
 			const auto open = DearModdingUI::DecideMenuToggle(
 				DearModdingUI::IsMenuVisible(),
-				PlatformImgui::IsReady());
+				PlatformImGui::IsReady());
 			const auto result = DearModdingUI::SetMenuVisible(open);
-			PlatformImgui::SetDrawingEnabled(
+			PlatformImGui::SetDrawingEnabled(
 				result == DMUI_RESULT_OK && open);
 			if (open && result != DMUI_RESULT_OK &&
 				!s_backendFailureLogged.exchange(true, std::memory_order_acq_rel))
@@ -75,10 +75,10 @@ namespace Addictol
 			case F4SE::MessagingInterface::kPreLoadGame:
 			case F4SE::MessagingInterface::kNewGame:
 			case F4SE::MessagingInterface::kGameLoaded:
-				PlatformImgui::HandleGameTransition();
+				PlatformImGui::HandleGameTransition();
 				break;
 			case F4SE::MessagingInterface::kGameDataReady:
-				PlatformImgui::HandleGameTransition();
+				PlatformImGui::HandleGameTransition();
 				if (a_message->data)
 					(void)GameInput::InstallHooks();
 				break;
@@ -91,7 +91,7 @@ namespace Addictol
 
 			if (!DearModdingUI::CarrierMenu::Register())
 				REX::ERROR("DearModdingUI: carrier menu registration failed"sv);
-			if (!PlatformImgui::InitializeWindow())
+			if (!PlatformImGui::InitializeWindow())
 				REX::ERROR("DearModdingUI: render-window initialization failed"sv);
 		}
 
@@ -115,7 +115,7 @@ namespace Addictol
 					return;
 				}
 
-				const auto hooksInstalled = PlatformImgui::InstallHooks({
+				const auto hooksInstalled = PlatformImGui::InstallHooks({
 					&SetupHost,
 					&DrawHost,
 					&ToggleHost
@@ -151,5 +151,5 @@ F4SE_PLUGIN_QUERY(
 
 F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* a_f4se)
 {
-	return Addictol::InitializePlugin(a_f4se);
+	return DearModdingUI::Plugin::InitializePlugin(a_f4se);
 }

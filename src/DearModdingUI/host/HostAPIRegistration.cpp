@@ -229,7 +229,7 @@ namespace DearModdingUI::HostAPIInternal
 		const auto clientResult = service.registry.ValidateSwapChainClient(a_client);
 		if (clientResult != DMUI_RESULT_OK)
 			return clientResult;
-		return SwapChainAttachmentResult(Addictol::PlatformImgui::AttachSwapChain(
+		return SwapChainAttachmentResult(PlatformImGui::AttachSwapChain(
 			static_cast<IDXGISwapChain *>(a_nativeSwapChain)));
 	}
 
@@ -271,7 +271,7 @@ namespace DearModdingUI::HostAPIInternal
 		const auto validation = ValidateDrawingClient(a_client);
 		if (validation != DMUI_RESULT_OK)
 			return validation;
-		return Addictol::PlatformImgui::QueryVideoMemory(*a_used, *a_budget)
+		return PlatformImGui::QueryVideoMemory(*a_used, *a_budget)
 				   ? DMUI_RESULT_OK
 				   : DMUI_RESULT_BACKEND_FAILED;
 	}

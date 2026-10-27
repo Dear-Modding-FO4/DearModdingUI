@@ -5,8 +5,8 @@
 
 namespace
 {
-	using namespace Addictol::GameInput;
-	using namespace Addictol::ImguiPlatform;
+	using namespace DearModdingUI::GameInput;
+	using namespace DearModdingUI::PlatformImGui;
 
 	static_assert(kPresentSlot == 8, "Present must use DXGI vtable slot 8");
 	static_assert(kResizeBuffersSlot == 13, "ResizeBuffers must use DXGI vtable slot 13");

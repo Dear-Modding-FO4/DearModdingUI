@@ -57,6 +57,6 @@ namespace DearModdingUI
 	private:
 		mutable std::mutex mutex_;
 		std::vector<ClientDiagnosticSnapshot> clients_;
-		Addictol::Support::Revision revision_;
+		Support::Revision revision_;
 	};
 }

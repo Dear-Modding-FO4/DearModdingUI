@@ -2,7 +2,7 @@
 
 #include <type_traits>
 
-namespace Addictol::Support
+namespace DearModdingUI::Support
 {
 	// Permanent hooks outlive static teardown; resources must be retired explicitly.
 	template <class T>
