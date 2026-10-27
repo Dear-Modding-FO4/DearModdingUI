@@ -33,6 +33,7 @@ sidebar layout; Health provides host and client diagnostics.
 | File under `Data\F4SE\Plugins\` | Purpose |
 |---|---|
 | `DearModdingUI.toml` | Host settings, including the menu toggle key. |
+| `DearModdingUI\Themes\*.toml` | Theme presets; `Default.toml` lists every supported key. |
 | `DearModdingUI\imgui.ini` | Saved window state and layout. |
 
 Preserve both files when upgrading.

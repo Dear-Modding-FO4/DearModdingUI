@@ -1,5 +1,7 @@
 #include "UIAdapterInternal.h"
 #include <DearModdingUI/UIBindings.generated.h>
+#include <DearModdingUI/controls/ControlRenderer.h>
+#include <DearModdingUI/controls/Section.h>
 #include <DearModdingUI/host/UILayoutState.h>
 #include <DearModdingUI/presentation/ThemeLayout.h>
 #include <DearModdingUI/presentation/Theme.h>
@@ -28,6 +30,14 @@ namespace DearModdingUI::UI
 			DMUI_ClientHandle client;
 			ImGuiWindow* window;
 		};
+		struct SectionEntry
+		{
+			DMUI_ClientHandle client;
+			ImGuiWindow* window;
+			int idDepth;
+			size_t panels;
+			bool boxed;
+		};
 		struct LastPanel
 		{
 			ImGuiWindow* parent{};
@@ -39,6 +49,7 @@ namespace DearModdingUI::UI
 
 		thread_local std::vector<StyleEntry> s_styles;
 		thread_local std::vector<PanelEntry> s_panels;
+		thread_local std::vector<SectionEntry> s_sections;
 		thread_local LayoutDepths s_floor;
 		thread_local LastPanel s_lastPanel;
 
@@ -111,9 +122,74 @@ namespace DearModdingUI::UI
 				ImGui::PushStyleVar(native, a_value);
 			return DMUI_RESULT_OK;
 		}
+
+		// The panel bracket that BeginPanel and boxed sections share.
+		DMUI_Result OpenPanel(DMUI_ClientHandle a_client, const char* a_id,
+			DMUI_Vec2 a_size, DMUI_UIPanelFlags a_flags, uint32_t* a_visible) noexcept
+		{
+			constexpr auto known = DMUI_UI_PANEL_FLAGS_NO_BACKGROUND | DMUI_UI_PANEL_FLAGS_SCROLLABLE;
+			if (!a_id || !*a_id || !std::isfinite(a_size.x) || !std::isfinite(a_size.y) ||
+				(a_flags & ~known) != 0)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			try
+			{
+				s_panels.reserve(s_panels.size() + 1);
+			}
+			catch (...)
+			{
+				return DMUI_RESULT_RESOURCE_EXHAUSTED;
+			}
+			auto* parent = ImGui::GetCurrentWindow();
+			const auto cursor = ImGui::GetCursorScreenPos();
+			if (FollowsPanel() && !parent->DC.IsSetPos &&
+				cursor.x == s_lastPanel.cursor.x && cursor.y == s_lastPanel.cursor.y)
+			{
+				if (parent->DC.IsSameLine && s_lastPanel.defaultSameLine)
+					ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+						Theme::Layout().sectionGap - ImGui::GetStyle().ItemSpacing.x);
+				else if (!parent->DC.IsSameLine)
+					Theme::SectionSpacing();
+			}
+			const auto background = (a_flags & DMUI_UI_PANEL_FLAGS_NO_BACKGROUND) == 0;
+			ImGuiChildFlags childFlags = background ?
+				ImGuiChildFlags_FrameStyle : ImGuiChildFlags_AlwaysUseWindowPadding;
+			if (a_size.y == 0.0f)
+				childFlags |= ImGuiChildFlags_AutoResizeY;
+			ImGuiWindowFlags windowFlags = ImGuiWindowFlags_None;
+			if ((a_flags & DMUI_UI_PANEL_FLAGS_SCROLLABLE) == 0)
+				windowFlags |= ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+			if (!background)
+				windowFlags |= ImGuiWindowFlags_NoBackground;
+			const auto style = CurrentControlRenderer().PushBoxStyle(background);
+			const auto visible = ImGui::BeginChild(a_id, Native(a_size), childFlags, windowFlags);
+			PopStyle(style);
+			if (!visible)
+			{
+				EndPanelWindow();
+				return DMUI_RESULT_OK;
+			}
+			s_panels.push_back({ a_client, ImGui::GetCurrentWindow() });
+			*a_visible = 1;
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result ClosePanel(DMUI_ClientHandle a_client) noexcept
+		{
+			if (s_panels.size() <= s_floor.panels || s_panels.back().client != a_client ||
+				s_panels.back().window != ImGui::GetCurrentWindow() ||
+				(GImGui->CurrentTable && GImGui->CurrentTable->InnerWindow == ImGui::GetCurrentWindow()))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto result = EndDrawWindow(a_client, &EndPanelWindow);
+			if (result == DMUI_RESULT_OK)
+				s_panels.pop_back();
+			return result;
+		}
 	}
 
-	LayoutDepths GetLayoutDepths() noexcept { return { s_styles.size(), s_panels.size() }; }
+	LayoutDepths GetLayoutDepths() noexcept
+	{
+		return { s_styles.size(), s_panels.size(), s_sections.size() };
+	}
 
 	LayoutRecovery::LayoutRecovery() noexcept :
 		m_depth(GetLayoutDepths()), m_previousFloor(s_floor)
@@ -140,6 +216,7 @@ namespace DearModdingUI::UI
 			s_styles.pop_back();
 		}
 		s_panels.resize(m_depth.panels);
+		s_sections.resize(m_depth.sections);
 		s_floor = m_previousFloor;
 		s_lastPanel = {};
 	}
@@ -208,55 +285,7 @@ namespace DearModdingUI::UI
 			const auto validation = Validate(a_client);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
-			constexpr auto known = DMUI_UI_PANEL_FLAGS_NO_BACKGROUND | DMUI_UI_PANEL_FLAGS_SCROLLABLE;
-			if (!a_id || !*a_id || !std::isfinite(a_size.x) || !std::isfinite(a_size.y) ||
-				(a_flags & ~known) != 0)
-				return DMUI_RESULT_INVALID_ARGUMENT;
-			try
-			{
-				s_panels.reserve(s_panels.size() + 1);
-			}
-			catch (...)
-			{
-				return DMUI_RESULT_RESOURCE_EXHAUSTED;
-			}
-			auto* parent = ImGui::GetCurrentWindow();
-			const auto cursor = ImGui::GetCursorScreenPos();
-			if (FollowsPanel() && !parent->DC.IsSetPos &&
-				cursor.x == s_lastPanel.cursor.x && cursor.y == s_lastPanel.cursor.y)
-			{
-				if (parent->DC.IsSameLine && s_lastPanel.defaultSameLine)
-					ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
-						Theme::Layout().sectionGap - ImGui::GetStyle().ItemSpacing.x);
-				else if (!parent->DC.IsSameLine)
-					Theme::SectionSpacing();
-			}
-			const auto background = (a_flags & DMUI_UI_PANEL_FLAGS_NO_BACKGROUND) == 0;
-			ImGuiChildFlags childFlags = background ?
-				ImGuiChildFlags_FrameStyle : ImGuiChildFlags_AlwaysUseWindowPadding;
-			if (a_size.y == 0.0f)
-				childFlags |= ImGuiChildFlags_AutoResizeY;
-			ImGuiWindowFlags windowFlags = ImGuiWindowFlags_None;
-			if ((a_flags & DMUI_UI_PANEL_FLAGS_SCROLLABLE) == 0)
-				windowFlags |= ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-			if (!background)
-				windowFlags |= ImGuiWindowFlags_NoBackground;
-			ImGui::PushStyleVar(background ? ImGuiStyleVar_FramePadding : ImGuiStyleVar_WindowPadding,
-				Theme::Layout().panelPadding);
-			if (background)
-				ImGui::PushStyleColor(ImGuiCol_FrameBg, Native(Theme::ColorSnapshot().panel));
-			const auto visible = ImGui::BeginChild(a_id, Native(a_size), childFlags, windowFlags);
-			if (background)
-				ImGui::PopStyleColor();
-			ImGui::PopStyleVar();
-			if (!visible)
-			{
-				EndPanelWindow();
-				return DMUI_RESULT_OK;
-			}
-			s_panels.push_back({ a_client, ImGui::GetCurrentWindow() });
-			*a_visible = 1;
-			return DMUI_RESULT_OK;
+			return OpenPanel(a_client, a_id, a_size, a_flags, a_visible);
 		}
 
 		DMUI_Result DMUI_CALL EndPanel(DMUI_ClientHandle a_client) noexcept
@@ -264,14 +293,90 @@ namespace DearModdingUI::UI
 			const auto validation = Validate(a_client);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
-			if (s_panels.size() <= s_floor.panels || s_panels.back().client != a_client ||
-				s_panels.back().window != ImGui::GetCurrentWindow() ||
-				(GImGui->CurrentTable && GImGui->CurrentTable->InnerWindow == ImGui::GetCurrentWindow()))
+			return ClosePanel(a_client);
+		}
+
+		DMUI_Result DMUI_CALL BeginSection(DMUI_ClientHandle a_client,
+			const DMUI_SectionDescriptor* a_section, uint32_t* a_visible) noexcept
+		{
+			if (!a_visible)
 				return DMUI_RESULT_INVALID_ARGUMENT;
-			const auto result = EndDrawWindow(a_client, &EndPanelWindow);
-			if (result == DMUI_RESULT_OK)
-				s_panels.pop_back();
-			return result;
+			*a_visible = 0;
+			constexpr auto known = DMUI_SECTION_BOX | DMUI_SECTION_HAS_COUNT;
+			if (!a_section || !a_section->id || !*a_section->id ||
+				a_section->reserved != 0 || (a_section->flags & ~known) != 0)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			try
+			{
+				s_sections.reserve(s_sections.size() + 1);
+			}
+			catch (...)
+			{
+				return DMUI_RESULT_RESOURCE_EXHAUSTED;
+			}
+
+			bool expanded = !a_section->expanded || *a_section->expanded != 0;
+			SectionSpec spec{
+				.id = a_section->id,
+				.title = a_section->title,
+				.glyph = static_cast<char32_t>(a_section->glyph),
+				.expanded = a_section->expanded ? &expanded : nullptr
+			};
+			if ((a_section->flags & DMUI_SECTION_HAS_COUNT) != 0)
+				spec.count = a_section->count;
+			// The ID scope holds the header and everything the client draws inside.
+			ImGui::PushID(a_section->id);
+			auto* const parent = ImGui::GetCurrentWindow();
+			const auto idDepth = parent->IDStack.Size;
+			const auto shown = DrawSection(spec);
+			if (a_section->expanded)
+				*a_section->expanded = expanded ? 1u : 0u;
+			const auto boxed = (a_section->flags & DMUI_SECTION_BOX) != 0;
+			uint32_t opened = shown ? 1u : 0u;
+			auto result = DMUI_RESULT_OK;
+			if (shown && boxed)
+			{
+				opened = 0;
+				result = OpenPanel(
+					a_client, "##DearModdingUI.SectionBox", {}, 0, &opened);
+			}
+			if (result != DMUI_RESULT_OK || !opened)
+			{
+				ImGui::PopID();
+				return result;
+			}
+			s_sections.push_back({ a_client, parent, idDepth, s_panels.size(), boxed });
+			*a_visible = 1;
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL EndSection(DMUI_ClientHandle a_client) noexcept
+		{
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			if (s_sections.size() <= s_floor.sections ||
+				s_sections.back().client != a_client)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto entry = s_sections.back();
+			// Anything the client left open inside the section is unbalanced.
+			if (s_panels.size() != entry.panels)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			if (entry.boxed)
+			{
+				const auto closed = ClosePanel(a_client);
+				if (closed != DMUI_RESULT_OK)
+					return closed;
+			}
+			auto* window = ImGui::GetCurrentWindow();
+			if (window != entry.window || window->IDStack.Size != entry.idDepth)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			ImGui::PopID();
+			s_sections.pop_back();
+			return DMUI_RESULT_OK;
 		}
 	}
 }

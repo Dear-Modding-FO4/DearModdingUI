@@ -15,6 +15,9 @@ namespace DearModdingUI::PresentationServices
 {
 	[[nodiscard]] DMUI_Result LoadImageFile(
 		DMUI_ClientHandle a_client, const char* a_utf8Path, DMUI_ImageHandle* a_image) noexcept;
+	// Copies the bytes before returning.
+	[[nodiscard]] DMUI_Result LoadImageMemory(
+		DMUI_ClientHandle a_client, const void* a_bytes, size_t a_size, DMUI_ImageHandle* a_image) noexcept;
 
 	void SetDevice(ID3D11Device* a_device) noexcept;
 	void InvalidateDevice() noexcept;

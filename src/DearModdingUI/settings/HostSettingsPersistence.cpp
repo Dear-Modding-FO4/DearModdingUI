@@ -10,7 +10,10 @@
 #include <format>
 #include <limits>
 #include <memory>
+#include <optional>
+#include <string_view>
 #include <system_error>
+#include <type_traits>
 #include <utility>
 
 namespace DearModdingUI
@@ -179,37 +182,61 @@ namespace DearModdingUI
 				a_cleanup.nativeError));
 		}
 
+		template <class T>
+		void WriteOverride(
+			toml::value& a_section,
+			const char* a_key,
+			const std::optional<T>& a_value)
+		{
+			if (!a_value)
+				return;
+			if constexpr (std::is_floating_point_v<T>)
+				a_section[a_key] = static_cast<double>(*a_value);
+			else
+				a_section[a_key] = *a_value;
+		}
+
+		void WriteOverride(
+			toml::value& a_section,
+			const char* a_key,
+			const std::string& a_value)
+		{
+			if (!a_value.empty())
+				a_section[a_key] = a_value;
+		}
+
 		[[nodiscard]] std::string SerializeSettings(
 			const PersistedHostInterfaceSettings& a_settings)
 		{
 			toml::value root{ toml::table{} };
 			root["Additional"] = toml::table{};
 			auto& section = root["Additional"];
-			section["bMenuMonochromeIcons"] = a_settings.monochromeIcons;
-			section["sMenuLogoColors"] = a_settings.logoColors;
+			section["sMenuThemePreset"] = a_settings.themePreset;
 			section["sMenuSidebarLayout"] = a_settings.sidebarLayout;
-			section["sMenuAccentColor"] = a_settings.accentColor;
-			section["fMenuWindowOpacity"] = static_cast<double>(
-				a_settings.windowBackgroundOpacity);
-			section["sMenuPaletteBackgroundColor"] =
-				a_settings.paletteBackgroundColor;
-			section["fMenuPaletteOpacity"] = static_cast<double>(
-				a_settings.paletteBackgroundOpacity);
-			section["bMenuBackgroundBlur"] = a_settings.backgroundBlur;
-			section["fMenuBackgroundBlurStrength"] = static_cast<double>(
-				a_settings.backgroundBlurStrength);
 			section["fMenuUiScale"] = static_cast<double>(a_settings.uiScale);
-			section["sMenuBodyFontFamily"] = a_settings.bodyFontFamily;
+			WriteOverride(section, "bMenuMonochromeIcons", a_settings.monochromeIcons);
+			WriteOverride(section, "sMenuLogoColors", a_settings.logoColors);
+			WriteOverride(section, "sMenuAccentColor", a_settings.accentColor);
+			WriteOverride(
+				section, "fMenuWindowOpacity", a_settings.windowBackgroundOpacity);
+			WriteOverride(
+				section,
+				"sMenuPaletteBackgroundColor",
+				a_settings.paletteBackgroundColor);
+			WriteOverride(
+				section, "fMenuPaletteOpacity", a_settings.paletteBackgroundOpacity);
+			WriteOverride(section, "bMenuBackgroundBlur", a_settings.backgroundBlur);
+			WriteOverride(
+				section,
+				"fMenuBackgroundBlurStrength",
+				a_settings.backgroundBlurStrength);
+			WriteOverride(section, "sMenuBodyFontFamily", a_settings.bodyFontFamily);
+			WriteOverride(
+				section, "sMenuMonospaceFontFamily", a_settings.monospaceFontFamily);
 			section["sMenuToggleKey"] = a_settings.menuToggleKey;
 			section["sMenuToggleGamepad"] = a_settings.menuToggleGamepad;
 			section["bMenuFallSoulsMode"] = a_settings.fallSoulsMode;
 			section["sFieldFeedbackLayout"] = a_settings.feedbackPlacement;
-			section["sFieldFeedbackInfoColor"] =
-				a_settings.feedbackInfoColor;
-			section["sFieldFeedbackWarningColor"] =
-				a_settings.feedbackWarningColor;
-			section["sFieldFeedbackErrorColor"] =
-				a_settings.feedbackErrorColor;
 			const auto writeBindings = [&](const char* a_name, const auto& a_bindings) {
 				root[a_name] = toml::table{};
 				for (const auto& [id, chord] : a_bindings)
@@ -320,6 +347,28 @@ namespace DearModdingUI
 			}
 		}
 
+		template <class T>
+		[[nodiscard]] std::optional<T> ReadOptionalSetting(
+			const toml::value& a_section,
+			std::string_view a_key,
+			std::vector<std::string>& a_corrections)
+		{
+			const std::string key{ a_key };
+			if (!a_section.contains(key))
+				return std::nullopt;
+			try
+			{
+				return toml::find<T>(a_section, key);
+			}
+			catch (const std::exception&)
+			{
+				a_corrections.push_back(
+					std::format("{} had the wrong value type and used the theme preset",
+						a_key));
+				return std::nullopt;
+			}
+		}
+
 		void AppendCorrection(
 			std::vector<std::string>& a_corrections,
 			std::string a_correction)
@@ -327,21 +376,46 @@ namespace DearModdingUI
 			a_corrections.push_back(std::move(a_correction));
 		}
 
+		void CorrectOverrideFloat(
+			std::vector<std::string>& a_corrections,
+			std::string_view a_key,
+			const std::optional<float>& a_persisted,
+			const std::optional<float>& a_accepted)
+		{
+			if (!a_persisted || a_persisted == a_accepted)
+				return;
+			AppendCorrection(
+				a_corrections,
+				a_accepted ?
+					std::format("{} {} used {}", a_key, *a_persisted, *a_accepted) :
+					std::format("{} {} used the theme preset", a_key, *a_persisted));
+		}
+
+		void CorrectOverrideText(
+			std::vector<std::string>& a_corrections,
+			std::string_view a_key,
+			const std::string& a_persisted,
+			bool a_accepted)
+		{
+			if (a_persisted.empty() || a_accepted)
+				return;
+			AppendCorrection(
+				a_corrections,
+				std::format("{} \"{}\" used the theme preset", a_key, a_persisted));
+		}
+
 		[[nodiscard]] HostInterfaceSettings NormalizeSettings(
 			PersistedHostInterfaceSettings a_settings,
 			std::vector<std::string>& a_corrections)
 		{
 			const auto runtime = DecodeHostInterfaceSettings(a_settings);
+			const auto& appearance = runtime.appearance;
 
-			if (!ParseLogoColorMode(a_settings.logoColors))
-			{
-				AppendCorrection(
-					a_corrections,
-					std::format(
-						"sMenuLogoColors \"{}\" used \"{}\"",
-						a_settings.logoColors,
-						LogoColorModeName(runtime.logoColors)));
-			}
+			CorrectOverrideText(
+				a_corrections,
+				"sMenuLogoColors",
+				a_settings.logoColors,
+				appearance.logoColors.has_value());
 			if (!ParseUserSidebarLayout(a_settings.sidebarLayout))
 			{
 				AppendCorrection(
@@ -351,55 +425,40 @@ namespace DearModdingUI
 						a_settings.sidebarLayout,
 						SidebarLayoutKindName(runtime.sidebarLayout)));
 			}
-			if (!TryDecodeHostColor(a_settings.accentColor))
+			if (!IsPlainFileName(a_settings.themePreset))
 			{
 				AppendCorrection(
 					a_corrections,
 					std::format(
-						"sMenuAccentColor \"{}\" used {}",
-						a_settings.accentColor,
-						EncodeHostAccentColor(runtime.accentColor)));
+						"sMenuThemePreset \"{}\" used \"{}\"",
+						a_settings.themePreset,
+						runtime.themePreset));
 			}
-			if (runtime.windowBackgroundOpacity !=
-				a_settings.windowBackgroundOpacity)
-			{
-				AppendCorrection(
-					a_corrections,
-					std::format(
-						"fMenuWindowOpacity {} used {}",
-						a_settings.windowBackgroundOpacity,
-						runtime.windowBackgroundOpacity));
-			}
-			if (!TryDecodeHostColor(a_settings.paletteBackgroundColor))
-			{
-				AppendCorrection(
-					a_corrections,
-					std::format(
-						"sMenuPaletteBackgroundColor \"{}\" used {}",
-						a_settings.paletteBackgroundColor,
-						EncodeHostAccentColor(
-							runtime.paletteBackgroundColor)));
-			}
-			if (runtime.paletteBackgroundOpacity !=
-				a_settings.paletteBackgroundOpacity)
-			{
-				AppendCorrection(
-					a_corrections,
-					std::format(
-						"fMenuPaletteOpacity {} used {}",
-						a_settings.paletteBackgroundOpacity,
-						runtime.paletteBackgroundOpacity));
-			}
-			if (runtime.backgroundBlurStrength !=
-				a_settings.backgroundBlurStrength)
-			{
-				AppendCorrection(
-					a_corrections,
-					std::format(
-						"fMenuBackgroundBlurStrength {} used {}",
-						a_settings.backgroundBlurStrength,
-						runtime.backgroundBlurStrength));
-			}
+			CorrectOverrideText(
+				a_corrections,
+				"sMenuAccentColor",
+				a_settings.accentColor,
+				appearance.accentColor.has_value());
+			CorrectOverrideFloat(
+				a_corrections,
+				"fMenuWindowOpacity",
+				a_settings.windowBackgroundOpacity,
+				appearance.windowBackgroundOpacity);
+			CorrectOverrideText(
+				a_corrections,
+				"sMenuPaletteBackgroundColor",
+				a_settings.paletteBackgroundColor,
+				appearance.paletteBackgroundColor.has_value());
+			CorrectOverrideFloat(
+				a_corrections,
+				"fMenuPaletteOpacity",
+				a_settings.paletteBackgroundOpacity,
+				appearance.paletteBackgroundOpacity);
+			CorrectOverrideFloat(
+				a_corrections,
+				"fMenuBackgroundBlurStrength",
+				a_settings.backgroundBlurStrength,
+				appearance.backgroundBlurStrength);
 			if (runtime.uiScale != a_settings.uiScale)
 			{
 				AppendCorrection(
@@ -409,15 +468,16 @@ namespace DearModdingUI
 						a_settings.uiScale,
 						runtime.uiScale));
 			}
-			if (!IsValidBodyFontFamily(a_settings.bodyFontFamily))
-			{
-				AppendCorrection(
-					a_corrections,
-					std::format(
-						"sMenuBodyFontFamily \"{}\" used \"{}\"",
-						a_settings.bodyFontFamily,
-						runtime.bodyFontFamily));
-			}
+			CorrectOverrideText(
+				a_corrections,
+				"sMenuBodyFontFamily",
+				a_settings.bodyFontFamily,
+				appearance.bodyFontFamily.has_value());
+			CorrectOverrideText(
+				a_corrections,
+				"sMenuMonospaceFontFamily",
+				a_settings.monospaceFontFamily,
+				appearance.monospaceFontFamily.has_value());
 			if (!ParseMenuToggleChord(a_settings.menuToggleKey).recognized)
 			{
 				AppendCorrection(
@@ -443,33 +503,6 @@ namespace DearModdingUI
 						FieldFeedbackLayoutName(
 							runtime.feedbackPlacement)));
 			}
-			const auto checkFeedbackColor =
-				[&](std::string_view a_key,
-					const std::string& a_value,
-					HostPaletteColor a_runtime) {
-					if (!TryDecodeHostColor(a_value))
-					{
-						AppendCorrection(
-							a_corrections,
-							std::format(
-								"{} \"{}\" used {}",
-								a_key,
-								a_value,
-								EncodeHostAccentColor(a_runtime)));
-					}
-				};
-			checkFeedbackColor(
-				"sFieldFeedbackInfoColor",
-				a_settings.feedbackInfoColor,
-				runtime.feedbackInfoColor);
-			checkFeedbackColor(
-				"sFieldFeedbackWarningColor",
-				a_settings.feedbackWarningColor,
-				runtime.feedbackWarningColor);
-			checkFeedbackColor(
-				"sFieldFeedbackErrorColor",
-				a_settings.feedbackErrorColor,
-				runtime.feedbackErrorColor);
 			return runtime;
 		}
 
@@ -527,60 +560,65 @@ namespace DearModdingUI
 			const auto root = toml::parse(a_path.string());
 			const auto& section = toml::find(root, "Additional");
 			PersistedHostInterfaceSettings settings;
-			settings.logoColors = ReadSetting<std::string>(
+			settings.themePreset = ReadSetting<std::string>(
 				section,
-				"sMenuLogoColors",
-				settings.logoColors,
-				result.corrections);
-			settings.monochromeIcons = ReadSetting<bool>(
-				section,
-				"bMenuMonochromeIcons",
-				settings.monochromeIcons,
+				"sMenuThemePreset",
+				settings.themePreset,
 				result.corrections);
 			settings.sidebarLayout = ReadSetting<std::string>(
 				section,
 				"sMenuSidebarLayout",
 				settings.sidebarLayout,
 				result.corrections);
+			settings.uiScale = ReadSetting<float>(
+				section,
+				"fMenuUiScale",
+				settings.uiScale,
+				result.corrections);
+			settings.monochromeIcons = ReadOptionalSetting<bool>(
+				section,
+				"bMenuMonochromeIcons",
+				result.corrections);
+			settings.logoColors = ReadSetting<std::string>(
+				section,
+				"sMenuLogoColors",
+				settings.logoColors,
+				result.corrections);
 			settings.accentColor = ReadSetting<std::string>(
 				section,
 				"sMenuAccentColor",
 				settings.accentColor,
 				result.corrections);
-			settings.windowBackgroundOpacity = ReadSetting<float>(
+			settings.windowBackgroundOpacity = ReadOptionalSetting<float>(
 				section,
 				"fMenuWindowOpacity",
-				settings.windowBackgroundOpacity,
 				result.corrections);
 			settings.paletteBackgroundColor = ReadSetting<std::string>(
 				section,
 				"sMenuPaletteBackgroundColor",
 				settings.paletteBackgroundColor,
 				result.corrections);
-			settings.paletteBackgroundOpacity = ReadSetting<float>(
+			settings.paletteBackgroundOpacity = ReadOptionalSetting<float>(
 				section,
 				"fMenuPaletteOpacity",
-				settings.paletteBackgroundOpacity,
 				result.corrections);
-			settings.backgroundBlur = ReadSetting<bool>(
+			settings.backgroundBlur = ReadOptionalSetting<bool>(
 				section,
 				"bMenuBackgroundBlur",
-				settings.backgroundBlur,
 				result.corrections);
-			settings.backgroundBlurStrength = ReadSetting<float>(
+			settings.backgroundBlurStrength = ReadOptionalSetting<float>(
 				section,
 				"fMenuBackgroundBlurStrength",
-				settings.backgroundBlurStrength,
-				result.corrections);
-			settings.uiScale = ReadSetting<float>(
-				section,
-				"fMenuUiScale",
-				settings.uiScale,
 				result.corrections);
 			settings.bodyFontFamily = ReadSetting<std::string>(
 				section,
 				"sMenuBodyFontFamily",
 				settings.bodyFontFamily,
+				result.corrections);
+			settings.monospaceFontFamily = ReadSetting<std::string>(
+				section,
+				"sMenuMonospaceFontFamily",
+				settings.monospaceFontFamily,
 				result.corrections);
 			settings.menuToggleKey = ReadSetting<std::string>(
 				section,
@@ -601,21 +639,6 @@ namespace DearModdingUI
 				section,
 				"sFieldFeedbackLayout",
 				settings.feedbackPlacement,
-				result.corrections);
-			settings.feedbackInfoColor = ReadSetting<std::string>(
-				section,
-				"sFieldFeedbackInfoColor",
-				settings.feedbackInfoColor,
-				result.corrections);
-			settings.feedbackWarningColor = ReadSetting<std::string>(
-				section,
-				"sFieldFeedbackWarningColor",
-				settings.feedbackWarningColor,
-				result.corrections);
-			settings.feedbackErrorColor = ReadSetting<std::string>(
-				section,
-				"sFieldFeedbackErrorColor",
-				settings.feedbackErrorColor,
 				result.corrections);
 
 			const auto readBindings = [&](const char* a_name, auto& a_bindings) {

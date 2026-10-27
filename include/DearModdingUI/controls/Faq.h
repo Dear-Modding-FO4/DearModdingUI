@@ -4,7 +4,6 @@
 
 #include <cstddef>
 #include <span>
-#include <string>
 #include <string_view>
 
 namespace DearModdingUI
@@ -13,21 +12,13 @@ namespace DearModdingUI
 	{
 		std::string_view question;
 		std::string_view answer;
+		// Caller-owned state the row toggles.
+		bool* expanded{};
 	};
 
 	void DrawFaq(
 		const char* a_id,
 		std::span<const FaqRowEntry> a_entries) noexcept;
-
-	[[nodiscard]] inline std::string BuildFaqExpansionKey(
-		std::string_view a_id,
-		size_t a_index)
-	{
-		std::string key{ a_id };
-		key.push_back('\x1F');
-		key.append(std::to_string(a_index));
-		return key;
-	}
 
 	[[nodiscard]] inline DMUI_Result DMUI_CALL ValidateFaqArguments(
 		DMUI_ClientHandle,
@@ -41,7 +32,7 @@ namespace DearModdingUI
 		{
 			const auto& entry = a_entries[index];
 			if (!entry.question || !entry.question[0] ||
-				!entry.answer || !entry.answer[0])
+				!entry.answer || !entry.answer[0] || !entry.expanded)
 				return DMUI_RESULT_INVALID_ARGUMENT;
 		}
 		return DMUI_RESULT_OK;

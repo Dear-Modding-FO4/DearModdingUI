@@ -10,6 +10,8 @@
 #include <DearModdingUI/UI.h>
 #include <imgui/imgui_internal.h>
 
+#include <cmath>
+
 namespace vmm_tests
 {
 	using namespace DearModdingUI;
@@ -148,6 +150,48 @@ namespace vmm_tests
 			ModalCoordinator::NotifyMenuClosed();
 			ModalCoordinator::BeginFrame();
 			require(!dmui::ui::IsPopupOpen("Menu close"), "menu close retained a pending open");
+			frame.End();
+		});
+
+		runner.test("placements put the pivot of tooltips and popups at the position", [] {
+			PopupFrame frame;
+			const dmui::ui::Placement tooltipAt{ { 400.0f, 300.0f }, { 0.5f, 0.5f } };
+			const dmui::ui::Placement popupAt{ { 700.0f, 200.0f }, { 1.0f, 0.0f } };
+			ImVec2 tooltipPos, tooltipSize, popupPos, popupSize;
+			for (int index = 0; index < 4; ++index)
+			{
+				RenderExecution::ClientGuard page{ 77, true, 105 };
+				frame.Begin();
+				if (index == 0)
+					dmui::ui::OpenPopup("Placed");
+				if (dmui::ui::BeginTooltipAt(tooltipAt))
+				{
+					ImGui::TextUnformatted("Tooltip body");
+					tooltipPos = ImGui::GetWindowPos();
+					tooltipSize = ImGui::GetWindowSize();
+					dmui::ui::EndTooltip();
+				}
+				if (dmui::ui::BeginPopupAt("Placed", popupAt))
+				{
+					ImGui::TextUnformatted("Popup body");
+					popupPos = ImGui::GetWindowPos();
+					popupSize = ImGui::GetWindowSize();
+					dmui::ui::EndPopup();
+				}
+				frame.End();
+			}
+			// ImGui rounds window positions to whole pixels.
+			const auto within = [](float a_left, float a_right) { return std::abs(a_left - a_right) <= 1.0f; };
+			require(tooltipSize.x > 0.0f && within(tooltipPos.x + tooltipSize.x * 0.5f, 400.0f) &&
+					within(tooltipPos.y + tooltipSize.y * 0.5f, 300.0f),
+				"the tooltip pivot was not placed at the position");
+			require(popupSize.x > 0.0f && within(popupPos.x + popupSize.x, 700.0f) && within(popupPos.y, 200.0f),
+				"the popup pivot was not placed at the position");
+
+			frame.Begin();
+			require(!dmui::ui::BeginTooltipAt({ { std::nanf(""), 0.0f }, {} }) &&
+					frame.ui.Result() == DMUI_RESULT_INVALID_ARGUMENT,
+				"a non-finite placement was accepted");
 			frame.End();
 		});
 	}

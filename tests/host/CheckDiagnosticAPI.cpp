@@ -20,7 +20,7 @@ namespace vmm_tests
 			const DMUI_ReportDiagnosticFn reportDiagnostic =
 				&ValidateDiagnosticArguments;
 			DMUI_DiagnosticDescriptor diagnostic{
-				DMUI_STATUS_SEVERITY_WARNING,
+				DMUI_SEVERITY_WARNING,
 				nullptr,
 				"Expected a boolean value.",
 				nullptr
@@ -43,7 +43,7 @@ namespace vmm_tests
 					DMUI_INVALID_CLIENT_HANDLE,
 					&diagnostic) == DMUI_RESULT_INVALID_ARGUMENT,
 				"an unknown diagnostic severity was accepted");
-			diagnostic.severity = DMUI_STATUS_SEVERITY_WARNING;
+			diagnostic.severity = DMUI_SEVERITY_WARNING;
 		});
 
 	}

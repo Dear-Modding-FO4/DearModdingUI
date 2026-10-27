@@ -235,78 +235,6 @@ namespace DearModdingUI::UI::Bindings
 		}
 	}
 
-	[[nodiscard]] inline DMUI_Result TranslateDataType(
-		DMUI_UIDataType a_value,
-		ImGuiDataType& a_native) noexcept
-	{
-		switch (a_value)
-		{
-		case DMUI_UI_DATA_TYPE_S8:
-			a_native = ImGuiDataType_S8;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_DATA_TYPE_U8:
-			a_native = ImGuiDataType_U8;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_DATA_TYPE_S16:
-			a_native = ImGuiDataType_S16;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_DATA_TYPE_U16:
-			a_native = ImGuiDataType_U16;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_DATA_TYPE_S32:
-			a_native = ImGuiDataType_S32;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_DATA_TYPE_U32:
-			a_native = ImGuiDataType_U32;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_DATA_TYPE_S64:
-			a_native = ImGuiDataType_S64;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_DATA_TYPE_U64:
-			a_native = ImGuiDataType_U64;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_DATA_TYPE_FLOAT:
-			a_native = ImGuiDataType_Float;
-			return DMUI_RESULT_OK;
-		case DMUI_UI_DATA_TYPE_DOUBLE:
-			a_native = ImGuiDataType_Double;
-			return DMUI_RESULT_OK;
-		default:
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		}
-	}
-
-	[[nodiscard]] inline DMUI_Result TranslateComboFlags(
-		DMUI_UIComboFlags a_value,
-		ImGuiComboFlags& a_native) noexcept
-	{
-		constexpr uint32_t known{ DMUI_UI_COMBO_FLAGS_POPUP_ALIGN_LEFT | DMUI_UI_COMBO_FLAGS_HEIGHT_SMALL | DMUI_UI_COMBO_FLAGS_HEIGHT_REGULAR | DMUI_UI_COMBO_FLAGS_HEIGHT_LARGE | DMUI_UI_COMBO_FLAGS_HEIGHT_LARGEST | DMUI_UI_COMBO_FLAGS_NO_ARROW_BUTTON | DMUI_UI_COMBO_FLAGS_NO_PREVIEW | DMUI_UI_COMBO_FLAGS_WIDTH_FIT_PREVIEW };
-		if ((a_value & ~known) != 0)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		constexpr uint32_t heightSmallMask{ DMUI_UI_COMBO_FLAGS_HEIGHT_SMALL | DMUI_UI_COMBO_FLAGS_HEIGHT_REGULAR | DMUI_UI_COMBO_FLAGS_HEIGHT_LARGE | DMUI_UI_COMBO_FLAGS_HEIGHT_LARGEST };
-		const auto heightSmallBits = a_value & heightSmallMask;
-		if (heightSmallBits != 0 && (heightSmallBits & (heightSmallBits - 1u)) != 0)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		a_native = 0;
-		if ((a_value & DMUI_UI_COMBO_FLAGS_POPUP_ALIGN_LEFT) != 0)
-			a_native |= ImGuiComboFlags_PopupAlignLeft;
-		if ((a_value & DMUI_UI_COMBO_FLAGS_HEIGHT_SMALL) != 0)
-			a_native |= ImGuiComboFlags_HeightSmall;
-		if ((a_value & DMUI_UI_COMBO_FLAGS_HEIGHT_REGULAR) != 0)
-			a_native |= ImGuiComboFlags_HeightRegular;
-		if ((a_value & DMUI_UI_COMBO_FLAGS_HEIGHT_LARGE) != 0)
-			a_native |= ImGuiComboFlags_HeightLarge;
-		if ((a_value & DMUI_UI_COMBO_FLAGS_HEIGHT_LARGEST) != 0)
-			a_native |= ImGuiComboFlags_HeightLargest;
-		if ((a_value & DMUI_UI_COMBO_FLAGS_NO_ARROW_BUTTON) != 0)
-			a_native |= ImGuiComboFlags_NoArrowButton;
-		if ((a_value & DMUI_UI_COMBO_FLAGS_NO_PREVIEW) != 0)
-			a_native |= ImGuiComboFlags_NoPreview;
-		if ((a_value & DMUI_UI_COMBO_FLAGS_WIDTH_FIT_PREVIEW) != 0)
-			a_native |= ImGuiComboFlags_WidthFitPreview;
-		return DMUI_RESULT_OK;
-	}
-
 	[[nodiscard]] inline DMUI_Result TranslateHoveredFlags(
 		DMUI_UIHoveredFlags a_value,
 		ImGuiHoveredFlags& a_native) noexcept
@@ -427,33 +355,6 @@ namespace DearModdingUI::UI::Bindings
 			a_native |= ImGuiSelectableFlags_Highlight;
 		if ((a_value & DMUI_UI_SELECTABLE_FLAGS_SELECT_ON_NAV) != 0)
 			a_native |= ImGuiSelectableFlags_SelectOnNav;
-		return DMUI_RESULT_OK;
-	}
-
-	[[nodiscard]] inline DMUI_Result TranslateSliderFlags(
-		DMUI_UISliderFlags a_value,
-		ImGuiSliderFlags& a_native) noexcept
-	{
-		constexpr uint32_t known{ DMUI_UI_SLIDER_FLAGS_LOGARITHMIC | DMUI_UI_SLIDER_FLAGS_NO_ROUND_TO_FORMAT | DMUI_UI_SLIDER_FLAGS_NO_INPUT | DMUI_UI_SLIDER_FLAGS_WRAP_AROUND | DMUI_UI_SLIDER_FLAGS_CLAMP_ON_INPUT | DMUI_UI_SLIDER_FLAGS_CLAMP_ZERO_RANGE | DMUI_UI_SLIDER_FLAGS_NO_SPEED_TWEAKS | DMUI_UI_SLIDER_FLAGS_COLOR_MARKERS };
-		if ((a_value & ~known) != 0)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		a_native = 0;
-		if ((a_value & DMUI_UI_SLIDER_FLAGS_LOGARITHMIC) != 0)
-			a_native |= ImGuiSliderFlags_Logarithmic;
-		if ((a_value & DMUI_UI_SLIDER_FLAGS_NO_ROUND_TO_FORMAT) != 0)
-			a_native |= ImGuiSliderFlags_NoRoundToFormat;
-		if ((a_value & DMUI_UI_SLIDER_FLAGS_NO_INPUT) != 0)
-			a_native |= ImGuiSliderFlags_NoInput;
-		if ((a_value & DMUI_UI_SLIDER_FLAGS_WRAP_AROUND) != 0)
-			a_native |= ImGuiSliderFlags_WrapAround;
-		if ((a_value & DMUI_UI_SLIDER_FLAGS_CLAMP_ON_INPUT) != 0)
-			a_native |= ImGuiSliderFlags_ClampOnInput;
-		if ((a_value & DMUI_UI_SLIDER_FLAGS_CLAMP_ZERO_RANGE) != 0)
-			a_native |= ImGuiSliderFlags_ClampZeroRange;
-		if ((a_value & DMUI_UI_SLIDER_FLAGS_NO_SPEED_TWEAKS) != 0)
-			a_native |= ImGuiSliderFlags_NoSpeedTweaks;
-		if ((a_value & DMUI_UI_SLIDER_FLAGS_COLOR_MARKERS) != 0)
-			a_native |= ImGuiSliderFlags_ColorMarkers;
 		return DMUI_RESULT_OK;
 	}
 
@@ -606,57 +507,6 @@ namespace DearModdingUI::UI::Bindings
 		return DMUI_RESULT_OK;
 	}
 
-	[[nodiscard]] inline DMUI_Result TranslateTreeNodeFlags(
-		DMUI_UITreeNodeFlags a_value,
-		ImGuiTreeNodeFlags& a_native) noexcept
-	{
-		constexpr uint32_t known{ DMUI_UI_TREE_NODE_FLAGS_SELECTED | DMUI_UI_TREE_NODE_FLAGS_FRAMED | DMUI_UI_TREE_NODE_FLAGS_ALLOW_OVERLAP | DMUI_UI_TREE_NODE_FLAGS_NO_TREE_PUSH_ON_OPEN | DMUI_UI_TREE_NODE_FLAGS_NO_AUTO_OPEN_ON_LOG | DMUI_UI_TREE_NODE_FLAGS_DEFAULT_OPEN | DMUI_UI_TREE_NODE_FLAGS_OPEN_ON_DOUBLE_CLICK | DMUI_UI_TREE_NODE_FLAGS_OPEN_ON_ARROW | DMUI_UI_TREE_NODE_FLAGS_LEAF | DMUI_UI_TREE_NODE_FLAGS_BULLET | DMUI_UI_TREE_NODE_FLAGS_FRAME_PADDING | DMUI_UI_TREE_NODE_FLAGS_SPAN_AVAIL_WIDTH | DMUI_UI_TREE_NODE_FLAGS_SPAN_FULL_WIDTH | DMUI_UI_TREE_NODE_FLAGS_SPAN_LABEL_WIDTH | DMUI_UI_TREE_NODE_FLAGS_SPAN_ALL_COLUMNS | DMUI_UI_TREE_NODE_FLAGS_LABEL_SPAN_ALL_COLUMNS | DMUI_UI_TREE_NODE_FLAGS_NAV_LEFT_JUMPS_TO_PARENT | DMUI_UI_TREE_NODE_FLAGS_DRAW_LINES_NONE | DMUI_UI_TREE_NODE_FLAGS_DRAW_LINES_FULL | DMUI_UI_TREE_NODE_FLAGS_DRAW_LINES_TO_NODES };
-		if ((a_value & ~known) != 0)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		a_native = 0;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_SELECTED) != 0)
-			a_native |= ImGuiTreeNodeFlags_Selected;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_FRAMED) != 0)
-			a_native |= ImGuiTreeNodeFlags_Framed;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_ALLOW_OVERLAP) != 0)
-			a_native |= ImGuiTreeNodeFlags_AllowOverlap;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_NO_TREE_PUSH_ON_OPEN) != 0)
-			a_native |= ImGuiTreeNodeFlags_NoTreePushOnOpen;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_NO_AUTO_OPEN_ON_LOG) != 0)
-			a_native |= ImGuiTreeNodeFlags_NoAutoOpenOnLog;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_DEFAULT_OPEN) != 0)
-			a_native |= ImGuiTreeNodeFlags_DefaultOpen;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_OPEN_ON_DOUBLE_CLICK) != 0)
-			a_native |= ImGuiTreeNodeFlags_OpenOnDoubleClick;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_OPEN_ON_ARROW) != 0)
-			a_native |= ImGuiTreeNodeFlags_OpenOnArrow;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_LEAF) != 0)
-			a_native |= ImGuiTreeNodeFlags_Leaf;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_BULLET) != 0)
-			a_native |= ImGuiTreeNodeFlags_Bullet;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_FRAME_PADDING) != 0)
-			a_native |= ImGuiTreeNodeFlags_FramePadding;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_SPAN_AVAIL_WIDTH) != 0)
-			a_native |= ImGuiTreeNodeFlags_SpanAvailWidth;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_SPAN_FULL_WIDTH) != 0)
-			a_native |= ImGuiTreeNodeFlags_SpanFullWidth;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_SPAN_LABEL_WIDTH) != 0)
-			a_native |= ImGuiTreeNodeFlags_SpanLabelWidth;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_SPAN_ALL_COLUMNS) != 0)
-			a_native |= ImGuiTreeNodeFlags_SpanAllColumns;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_LABEL_SPAN_ALL_COLUMNS) != 0)
-			a_native |= ImGuiTreeNodeFlags_LabelSpanAllColumns;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_NAV_LEFT_JUMPS_TO_PARENT) != 0)
-			a_native |= ImGuiTreeNodeFlags_NavLeftJumpsToParent;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_DRAW_LINES_NONE) != 0)
-			a_native |= ImGuiTreeNodeFlags_DrawLinesNone;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_DRAW_LINES_FULL) != 0)
-			a_native |= ImGuiTreeNodeFlags_DrawLinesFull;
-		if ((a_value & DMUI_UI_TREE_NODE_FLAGS_DRAW_LINES_TO_NODES) != 0)
-			a_native |= ImGuiTreeNodeFlags_DrawLinesToNodes;
-		return DMUI_RESULT_OK;
-	}
-
 	[[nodiscard]] inline DMUI_Result TranslateStyleVar(
 		DMUI_UIStyleVar a_value,
 		ImGuiStyleVar& a_native) noexcept
@@ -806,14 +656,6 @@ namespace DearModdingUI::UI::Bindings
 	[[nodiscard]] DMUI_Result DMUI_CALL GetStyleMetrics(
 		DMUI_ClientHandle a_client,
 		DMUI_StyleMetrics* a_metrics) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL BeginCombo(
-		DMUI_ClientHandle a_client,
-		const char* a_label,
-		const char* a_previewValue,
-		DMUI_UIComboFlags a_flags,
-		uint32_t* a_visible) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL EndCombo(
-		DMUI_ClientHandle a_client) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL BeginDisabled(
 		DMUI_ClientHandle a_client,
 		uint32_t a_disabled) noexcept;
@@ -834,11 +676,37 @@ namespace DearModdingUI::UI::Bindings
 		uint32_t* a_visible) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL EndTooltip(
 		DMUI_ClientHandle a_client) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL BeginItemTooltip(
+		DMUI_ClientHandle a_client,
+		uint32_t* a_visible) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL Button(
 		DMUI_ClientHandle a_client,
-		const char* a_label,
-		DMUI_Vec2 a_size,
+		const DMUI_ButtonDescriptor* a_button,
 		uint32_t* a_pressed) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL MeasureButton(
+		DMUI_ClientHandle a_client,
+		const DMUI_ButtonDescriptor* a_button,
+		DMUI_Vec2* a_size) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL Choice(
+		DMUI_ClientHandle a_client,
+		const DMUI_ChoiceDescriptor* a_choice,
+		DMUI_ChoiceResult* a_result) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL Toggle(
+		DMUI_ClientHandle a_client,
+		const DMUI_ToggleDescriptor* a_toggle,
+		DMUI_ToggleResult* a_result) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL Numeric(
+		DMUI_ClientHandle a_client,
+		const DMUI_NumericDescriptor* a_numeric,
+		DMUI_NumericResult* a_result) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL ColorEdit(
+		DMUI_ClientHandle a_client,
+		const DMUI_ColorEditDescriptor* a_color,
+		DMUI_ColorEditResult* a_result) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL KeyCapture(
+		DMUI_ClientHandle a_client,
+		const DMUI_KeyCaptureDescriptor* a_capture,
+		DMUI_KeyCaptureResult* a_result) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL CalcTextSize(
 		DMUI_ClientHandle a_client,
 		const char* a_text,
@@ -846,36 +714,6 @@ namespace DearModdingUI::UI::Bindings
 		uint32_t a_hideTextAfterDoubleHash,
 		float a_wrapWidth,
 		DMUI_Vec2* a_size) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL Checkbox(
-		DMUI_ClientHandle a_client,
-		const char* a_label,
-		uint32_t* a_value,
-		uint32_t* a_changed) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL CollapsingHeader(
-		DMUI_ClientHandle a_client,
-		const char* a_label,
-		DMUI_UITreeNodeFlags a_flags,
-		uint32_t* a_open) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL CollapsingHeaderVisible(
-		DMUI_ClientHandle a_client,
-		const char* a_label,
-		uint32_t* a_visible,
-		DMUI_UITreeNodeFlags a_flags,
-		uint32_t* a_open) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL DragScalar(
-		DMUI_ClientHandle a_client,
-		const char* a_label,
-		DMUI_UIDataType a_dataType,
-		void* a_data,
-		uint32_t a_dataSize,
-		float a_speed,
-		const void* a_minimum,
-		uint32_t a_minimumSize,
-		const void* a_maximum,
-		uint32_t a_maximumSize,
-		const char* a_format,
-		DMUI_UISliderFlags a_flags,
-		uint32_t* a_changed) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL Dummy(
 		DMUI_ClientHandle a_client,
 		DMUI_Vec2 a_size) noexcept;
@@ -901,42 +739,12 @@ namespace DearModdingUI::UI::Bindings
 	[[nodiscard]] DMUI_Result DMUI_CALL Indent(
 		DMUI_ClientHandle a_client,
 		float a_width) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL InputScalar(
-		DMUI_ClientHandle a_client,
-		const char* a_label,
-		DMUI_UIDataType a_dataType,
-		void* a_data,
-		uint32_t a_dataSize,
-		const void* a_step,
-		uint32_t a_stepSize,
-		const void* a_fastStep,
-		uint32_t a_fastStepSize,
-		const char* a_format,
-		DMUI_UIInputTextFlags a_flags,
-		uint32_t* a_changed) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL InputText(
 		DMUI_ClientHandle a_client,
-		const char* a_label,
-		char* a_buffer,
-		uint32_t a_capacity,
-		DMUI_UIInputTextFlags a_flags,
-		uint32_t* a_changed) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL InputTextMultiline(
-		DMUI_ClientHandle a_client,
-		const char* a_label,
-		char* a_buffer,
-		uint32_t a_capacity,
-		DMUI_Vec2 a_size,
-		DMUI_UIInputTextFlags a_flags,
-		uint32_t* a_changed) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL InputTextWithHint(
-		DMUI_ClientHandle a_client,
-		const char* a_label,
-		const char* a_hint,
-		char* a_buffer,
-		uint32_t a_capacity,
-		DMUI_UIInputTextFlags a_flags,
-		uint32_t* a_changed) noexcept;
+		const char* a_id,
+		DMUI_TextBuffer* a_buffer,
+		const DMUI_TextFieldOptions* a_options,
+		DMUI_TextEditState* a_state) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL IsItemDeactivatedAfterEdit(
 		DMUI_ClientHandle a_client,
 		uint32_t* a_deactivated) noexcept;
@@ -946,9 +754,6 @@ namespace DearModdingUI::UI::Bindings
 		uint32_t* a_hovered) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL PopID(
 		DMUI_ClientHandle a_client) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL PopStyleColor(
-		DMUI_ClientHandle a_client,
-		int32_t a_count) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL PopTextWrapPos(
 		DMUI_ClientHandle a_client) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL ProgressBar(
@@ -967,14 +772,6 @@ namespace DearModdingUI::UI::Bindings
 	[[nodiscard]] DMUI_Result DMUI_CALL PushIDValue(
 		DMUI_ClientHandle a_client,
 		uint64_t a_id) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL PushStyleColorU32(
-		DMUI_ClientHandle a_client,
-		DMUI_UIColor a_color,
-		uint32_t a_rgba) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL PushStyleColor(
-		DMUI_ClientHandle a_client,
-		DMUI_UIColor a_color,
-		DMUI_Vec4 a_value) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL PushTextWrapPos(
 		DMUI_ClientHandle a_client,
 		float a_localX) noexcept;
@@ -1010,23 +807,6 @@ namespace DearModdingUI::UI::Bindings
 	[[nodiscard]] DMUI_Result DMUI_CALL SetNextItemWidth(
 		DMUI_ClientHandle a_client,
 		float a_width) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL SetTooltipText(
-		DMUI_ClientHandle a_client,
-		const char* a_text,
-		size_t a_textLength) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL SliderScalar(
-		DMUI_ClientHandle a_client,
-		const char* a_label,
-		DMUI_UIDataType a_dataType,
-		void* a_data,
-		uint32_t a_dataSize,
-		const void* a_minimum,
-		uint32_t a_minimumSize,
-		const void* a_maximum,
-		uint32_t a_maximumSize,
-		const char* a_format,
-		DMUI_UISliderFlags a_flags,
-		uint32_t* a_changed) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL Spacing(
 		DMUI_ClientHandle a_client) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL TableHeadersRow(
@@ -1055,20 +835,10 @@ namespace DearModdingUI::UI::Bindings
 	[[nodiscard]] DMUI_Result DMUI_CALL Text(
 		DMUI_ClientHandle a_client,
 		const char* a_text,
-		size_t a_textLength) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL TextColored(
-		DMUI_ClientHandle a_client,
-		DMUI_Vec4 a_color,
-		const char* a_text,
-		size_t a_textLength) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL TextDisabled(
-		DMUI_ClientHandle a_client,
-		const char* a_text,
-		size_t a_textLength) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL TextWrapped(
-		DMUI_ClientHandle a_client,
-		const char* a_text,
-		size_t a_textLength) noexcept;
+		size_t a_textLength,
+		const DMUI_TextSpan* a_spans,
+		uint32_t a_spanCount,
+		const DMUI_TextOptions* a_options) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL Unindent(
 		DMUI_ClientHandle a_client,
 		float a_width) noexcept;
@@ -1257,9 +1027,9 @@ namespace DearModdingUI::UI::Bindings
 	[[nodiscard]] DMUI_Result DMUI_CALL DrawListPopClipRect(
 		DMUI_ClientHandle a_client,
 		DMUI_DrawTarget a_target) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL GetThemeColors(
+	[[nodiscard]] DMUI_Result DMUI_CALL GetThemeTokens(
 		DMUI_ClientHandle a_client,
-		DMUI_ThemeColors* a_colors) noexcept;
+		DMUI_ThemeTokens* a_tokens) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL BeginPanel(
 		DMUI_ClientHandle a_client,
 		const char* a_id,
@@ -1268,42 +1038,59 @@ namespace DearModdingUI::UI::Bindings
 		uint32_t* a_visible) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL EndPanel(
 		DMUI_ClientHandle a_client) noexcept;
-	[[nodiscard]] DMUI_Result DMUI_CALL InputTextEditor(
+	[[nodiscard]] DMUI_Result DMUI_CALL BeginSection(
 		DMUI_ClientHandle a_client,
-		const char* a_label,
-		const char* a_hint,
-		DMUI_TextBuffer* a_buffer,
-		DMUI_UIInputTextFlags a_flags,
-		DMUI_UITextEditFlags a_editFlags,
-		size_t a_cursor,
-		DMUI_TextEditState* a_state) noexcept;
+		const DMUI_SectionDescriptor* a_section,
+		uint32_t* a_visible) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL EndSection(
+		DMUI_ClientHandle a_client) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL BeginTooltipAt(
 		DMUI_ClientHandle a_client,
-		DMUI_Vec2 a_position,
-		DMUI_Vec2 a_pivot,
+		DMUI_Placement a_placement,
 		uint32_t* a_visible) noexcept;
 	[[nodiscard]] DMUI_Result DMUI_CALL GetPointerState(
 		DMUI_ClientHandle a_client,
 		DMUI_PointerState* a_state) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL BeginPopupAt(
+		DMUI_ClientHandle a_client,
+		const char* a_id,
+		DMUI_Placement a_placement,
+		DMUI_UIWindowFlags a_flags,
+		uint32_t* a_visible) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL GetTime(
+		DMUI_ClientHandle a_client,
+		double* a_seconds) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL GetDeltaTime(
+		DMUI_ClientHandle a_client,
+		float* a_seconds) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL Spinner(
+		DMUI_ClientHandle a_client,
+		const DMUI_SpinnerDescriptor* a_spinner) noexcept;
+	[[nodiscard]] DMUI_Result DMUI_CALL Shortcut(
+		DMUI_ClientHandle a_client,
+		const char* a_chord,
+		DMUI_UIShortcutFlags a_flags,
+		uint32_t* a_pressed) noexcept;
 
 	[[nodiscard]] inline DMUI_UIAPI MakeAPI() noexcept
 	{
 		return {
 			&GetStyleMetrics,
-			&BeginCombo,
-			&EndCombo,
 			&BeginDisabled,
 			&EndDisabled,
 			&BeginTable,
 			&EndTable,
 			&BeginTooltip,
 			&EndTooltip,
+			&BeginItemTooltip,
 			&Button,
+			&MeasureButton,
+			&Choice,
+			&Toggle,
+			&Numeric,
+			&ColorEdit,
+			&KeyCapture,
 			&CalcTextSize,
-			&Checkbox,
-			&CollapsingHeader,
-			&CollapsingHeaderVisible,
-			&DragScalar,
 			&Dummy,
 			&GetContentRegionAvail,
 			&GetCursorScreenPos,
@@ -1312,21 +1099,15 @@ namespace DearModdingUI::UI::Bindings
 			&GetStyleColor,
 			&GetTextLineHeightWithSpacing,
 			&Indent,
-			&InputScalar,
 			&InputText,
-			&InputTextMultiline,
-			&InputTextWithHint,
 			&IsItemDeactivatedAfterEdit,
 			&IsItemHovered,
 			&PopID,
-			&PopStyleColor,
 			&PopTextWrapPos,
 			&ProgressBar,
 			&PushIDString,
 			&PushIDRange,
 			&PushIDValue,
-			&PushStyleColorU32,
-			&PushStyleColor,
 			&PushTextWrapPos,
 			&SameLine,
 			&Selectable,
@@ -1336,8 +1117,6 @@ namespace DearModdingUI::UI::Bindings
 			&SetCursorScreenPos,
 			&SetItemDefaultFocus,
 			&SetNextItemWidth,
-			&SetTooltipText,
-			&SliderScalar,
 			&Spacing,
 			&TableHeadersRow,
 			&TableNextColumn,
@@ -1346,9 +1125,6 @@ namespace DearModdingUI::UI::Bindings
 			&TableSetupColumn,
 			&TableSetupScrollFreeze,
 			&Text,
-			&TextColored,
-			&TextDisabled,
-			&TextWrapped,
 			&Unindent,
 			&NewLine,
 			&PlotLines,
@@ -1383,12 +1159,18 @@ namespace DearModdingUI::UI::Bindings
 			&DrawListAddImage,
 			&DrawListPushClipRect,
 			&DrawListPopClipRect,
-			&GetThemeColors,
+			&GetThemeTokens,
 			&BeginPanel,
 			&EndPanel,
-			&InputTextEditor,
+			&BeginSection,
+			&EndSection,
 			&BeginTooltipAt,
-			&GetPointerState
+			&GetPointerState,
+			&BeginPopupAt,
+			&GetTime,
+			&GetDeltaTime,
+			&Spinner,
+			&Shortcut
 		};
 	}
 }

@@ -32,7 +32,7 @@ namespace DearModdingUI
 
 	struct HealthDiagnosticRow
 	{
-		DMUI_StatusSeverity severity{ DMUI_STATUS_SEVERITY_INFO };
+		DMUI_Severity severity{ DMUI_SEVERITY_INFO };
 		std::string scope;
 		std::string summary;
 		std::string detail;
@@ -46,7 +46,7 @@ namespace DearModdingUI
 		DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
 		std::string clientId;
 		std::string clientDisplayName;
-		DMUI_StatusSeverity worstSeverity{ DMUI_STATUS_SEVERITY_INFO };
+		DMUI_Severity worstSeverity{ DMUI_SEVERITY_INFO };
 		std::string severitySummary;
 		std::string disclosureLabel;
 		std::vector<HealthDiagnosticRow> rows;
@@ -54,19 +54,20 @@ namespace DearModdingUI
 		std::string droppedReportLabel;
 	};
 
-	[[nodiscard]] constexpr DMUI_StatusSeverity HealthStatusSeverity(
+	// HealthSeverity stays internal to Support; it maps to the ABI here.
+	[[nodiscard]] constexpr DMUI_Severity HealthStatusSeverity(
 		HealthSeverity a_severity) noexcept
 	{
 		switch (a_severity)
 		{
 		case HealthSeverity::kSuccess:
-			return DMUI_STATUS_SEVERITY_SUCCESS;
+			return DMUI_SEVERITY_SUCCESS;
 		case HealthSeverity::kWarning:
-			return DMUI_STATUS_SEVERITY_WARNING;
+			return DMUI_SEVERITY_WARNING;
 		case HealthSeverity::kError:
-			return DMUI_STATUS_SEVERITY_ERROR;
+			return DMUI_SEVERITY_ERROR;
 		default:
-			return DMUI_STATUS_SEVERITY_INFO;
+			return DMUI_SEVERITY_INFO;
 		}
 	}
 

@@ -1,11 +1,11 @@
 #include "../support/DearModdingUITestSupport.h"
-#include <DearModdingUI/SettingsActions.h>
 #include <DearModdingUI/controls/SettingsTable.h>
 #include <algorithm>
 #include <array>
 #include <filesystem>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -21,30 +21,30 @@ namespace vmm_tests
 			constexpr DMUI_ClientHandle owner{ 7 };
 			constexpr DMUI_ClientHandle other{ 8 };
 			SettingsTable::BracketState state;
-			require(state.BeginRow(owner) == DMUI_RESULT_UNBALANCED_BRACKET,
-				"row began without a table");
+			require(state.BeginField(owner) == DMUI_RESULT_UNBALANCED_BRACKET,
+				"field began without a table");
 			require(state.EndTable(owner) == DMUI_RESULT_UNBALANCED_BRACKET,
 				"idle table ended");
 			require(state.BeginTable(owner) == DMUI_RESULT_OK,
 				"table did not begin");
 			require(state.BeginTable(owner) == DMUI_RESULT_UNBALANCED_BRACKET,
 				"settings table nested");
-			require(state.BeginRow(other) == DMUI_RESULT_UNBALANCED_BRACKET,
-				"another owner began a row");
-			require(state.BeginRow(owner) == DMUI_RESULT_OK,
-				"row did not begin");
+			require(state.BeginField(other) == DMUI_RESULT_UNBALANCED_BRACKET,
+				"another owner began a field");
+			require(state.BeginField(owner) == DMUI_RESULT_OK,
+				"field did not begin");
 			require(state.EndTable(owner) == DMUI_RESULT_UNBALANCED_BRACKET,
-				"table ended with an open row");
-			require(state.EndRow(other) == DMUI_RESULT_UNBALANCED_BRACKET,
-				"another owner ended a row");
-			require(state.EndRow(owner) == DMUI_RESULT_OK,
-				"row did not end");
+				"table ended with an open field");
+			require(state.EndField(other) == DMUI_RESULT_UNBALANCED_BRACKET,
+				"another owner ended a field");
+			require(state.EndField(owner) == DMUI_RESULT_OK,
+				"field did not end");
 			require(state.EndTable(owner) == DMUI_RESULT_OK,
 				"table did not end");
 			require(state.CurrentPhase() == SettingsTable::Phase::kIdle,
 				"balanced table did not return to idle");
 			require(state.BeginTable(owner) == DMUI_RESULT_OK &&
-					state.BeginRow(owner) == DMUI_RESULT_OK,
+					state.BeginField(owner) == DMUI_RESULT_OK,
 				"state could not be reused");
 			state.Reset();
 			require(state.CurrentPhase() == SettingsTable::Phase::kIdle &&
@@ -75,11 +75,11 @@ namespace vmm_tests
 			require(SettingsTable::ValidateFieldFeedback(nullptr) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"null field feedback was accepted");
-			feedback.severity = 3;
+			feedback.severity = DMUI_SEVERITY_ERROR + 1u;
 			require(SettingsTable::ValidateFieldFeedback(&feedback) ==
 					DMUI_RESULT_INVALID_ARGUMENT,
 				"unknown field feedback severity was accepted");
-			feedback.severity = DMUI_FIELD_FEEDBACK_SEVERITY_INFO;
+			feedback.severity = DMUI_SEVERITY_INFO;
 			const std::string oversized(
 				FieldFeedback::kMaximumMessageBytes + 1,
 				'x');
@@ -259,6 +259,56 @@ namespace vmm_tests
 					setterCalls == 2 &&
 					editEvents.size() == 1,
 				"disabled reset wrote or emitted completion");
+		});
+
+		runner.test("declarative color settings hold packed RGBA and force opacity without alpha", [] {
+			dmui::SettingDescriptor setting{
+				.id = "tint",
+				.control = dmui::ColorSettingControl{},
+				.defaultValue = uint64_t{ 0x112233FFu }
+			};
+			const auto presentation =
+				dmui::ResolveSettingControlPresentation(setting.control);
+			require(presentation.kind == dmui::SettingControlKind::kColor &&
+					presentation.editable &&
+					dmui::SettingValueMatchesControl(
+						setting.control, setting.defaultValue) &&
+					!dmui::SettingValueMatchesControl(
+						setting.control, dmui::SettingValue{ true }),
+				"a color control did not resolve to an editable packed value");
+			const dmui::SettingValue wide{ uint64_t{ 0x1122334455u } };
+			require(std::get<uint64_t>(dmui::NormalizeSettingValue(setting, wide)) ==
+					0x223344FFu,
+				"an opaque color kept bits above 32 or a partial alpha");
+			setting.control = dmui::ColorSettingControl{ .alpha = true };
+			require(std::get<uint64_t>(dmui::NormalizeSettingValue(setting, wide)) ==
+					0x22334455u,
+				"an alpha color lost its alpha byte");
+		});
+
+		runner.test("settings page text prefers translations and falls back to English", [] {
+			const auto translated = [](const char* a_key, DMUI_Result& a_result)
+				-> std::optional<std::string> {
+				a_result = DMUI_RESULT_OK;
+				if (std::string_view{ a_key } == "$DMUI_SettingsPage_Revert")
+					return "Verwerfen";
+				a_result = DMUI_RESULT_TEXT_NOT_FOUND;
+				return std::nullopt;
+			};
+			auto isFinal = false;
+			auto text = dmui::LoadSettingsPageText(translated, isFinal);
+			require(isFinal && text.revert == "Verwerfen" && text.resetAll == "Reset all" &&
+					text.apply == "Apply ({})" && text.modifiedOnly == "Modified only",
+				"translated and untranslated settings text did not mix per key");
+
+			text = dmui::LoadSettingsPageText(
+				[](const char*, DMUI_Result& a_result) -> std::optional<std::string> {
+					a_result = DMUI_RESULT_HOST_NOT_READY;
+					return std::nullopt;
+				},
+				isFinal);
+			require(!isFinal && text.unavailable == "Unavailable",
+				"an unready host was cached instead of retried");
 		});
 
 		runner.test("unknown declarative controls resolve to a disabled fallback", [] {

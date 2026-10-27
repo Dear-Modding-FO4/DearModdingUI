@@ -1,6 +1,6 @@
 #include <DearModdingUI/presentation/PresentationServices.h>
+#include <DearModdingUI/host/Status.h>
 #include <DearModdingUI/presentation/Theme.h>
-#include <DearModdingUI/controls/FieldFeedback.h>
 #include <DearModdingUI/host/Registry.h>
 #include <Support/BoundedString.h>
 #include <Support/PublishingLock.h>
@@ -115,21 +115,6 @@ namespace DearModdingUI::PresentationServices
 			if (overflow)
 				a_draw.AddText({ a_position.x, a_position.y + height }, a_color, "...");
 		}
-
-		[[nodiscard]] ImVec4 SeverityColor(DMUI_StatusSeverity a_severity) noexcept
-		{
-			switch (a_severity)
-			{
-			case DMUI_STATUS_SEVERITY_INFO:
-				return FieldFeedback::SeverityColor(DMUI_FIELD_FEEDBACK_SEVERITY_INFO);
-			case DMUI_STATUS_SEVERITY_WARNING:
-				return FieldFeedback::SeverityColor(DMUI_FIELD_FEEDBACK_SEVERITY_WARNING);
-			case DMUI_STATUS_SEVERITY_ERROR:
-				return FieldFeedback::SeverityColor(DMUI_FIELD_FEEDBACK_SEVERITY_ERROR);
-			default:
-				return Theme::StatusTextColor(a_severity);
-			}
-		}
 	}
 
 	DMUI_Result PostNotification(
@@ -138,7 +123,7 @@ namespace DearModdingUI::PresentationServices
 		const DMUI_NotificationDescriptor* a_descriptor) noexcept
 	{
 		if (!a_descriptor || a_client == DMUI_INVALID_CLIENT_HANDLE ||
-			a_descriptor->severity > DMUI_STATUS_SEVERITY_ERROR)
+			!IsValidSeverity(a_descriptor->severity))
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		try
 		{
@@ -193,7 +178,7 @@ namespace DearModdingUI::PresentationServices
 				draw->AddRectFilled(minimum, maximum, ImGui::GetColorU32(background), style.WindowRounding);
 				draw->AddRect(minimum, maximum, ImGui::GetColorU32(ImGuiCol_Border), style.WindowRounding,
 					0, style.WindowBorderSize);
-				const auto accent = ImGui::GetColorU32(SeverityColor(toast.severity));
+				const auto accent = ImGui::GetColorU32(Theme::StatusTextColor(toast.severity));
 				draw->AddRectFilled({ minimum.x, minimum.y + padding },
 					{ minimum.x + fontSize * 0.18f, maximum.y - padding }, accent, fontSize * 0.09f);
 				ImVec2 position{ minimum.x + padding, minimum.y + padding };

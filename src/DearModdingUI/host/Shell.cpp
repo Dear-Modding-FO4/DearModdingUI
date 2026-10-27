@@ -3,6 +3,8 @@
 #include <DearModdingUI/presentation/BackgroundBlur.h>
 #include <DearModdingUI/presentation/Logo.h>
 #include <DearModdingUI/controls/Controls.h>
+#include <DearModdingUI/controls/TextSpans.h>
+#include <DearModdingUI/controls/Tooltip.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/IconGlyphs.h>
@@ -16,7 +18,7 @@
 #include <DearModdingUI/host/Status.h>
 #include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/presentation/Theme.h>
-#include <DearModdingUI/VisualDecisions.h>
+#include <DearModdingUI/presentation/VisualDecisions.h>
 #include <DearModdingUI/navigation/CommandPalette.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/pages/HostPageViews.h>
@@ -102,7 +104,7 @@ namespace DearModdingUI
 			if (!result.accepted)
 			{
 				(void)SetHostStatus(
-					DMUI_STATUS_SEVERITY_WARNING,
+					DMUI_SEVERITY_WARNING,
 					Localization::Text(
 						"$DMUI_Shell_NavigationRejected",
 						"Navigation request was rejected."));
@@ -189,42 +191,26 @@ namespace DearModdingUI
 					client ?
 						std::string_view{ client->displayName } :
 						std::string_view{});
-			constexpr auto extentPolicy =
-				TitleRowButtonExtentPolicy::kHostChrome;
-			const auto extent = ResolveTitleRowButtonExtent(
-				extentPolicy,
-				ImGui::GetFontSize(),
-				TitleBarButtonPadding());
-			const auto hasGlyph = HasIconGlyph(PhosphorGlyph::kX);
-			const auto* const closeLabel = Localization::Text(kCloseText);
-			const TitleRowButton closeButton{
+			const auto closeButton = MakeIconButtonSpec(
 				"##DearModdingUI.HostCloseButton",
-				ActionButtonWidth(
-					hasGlyph,
-					ImGui::CalcTextSize(closeLabel).x,
-					extent,
-					ImGui::GetStyle().FramePadding.x),
-				hasGlyph ? PhosphorGlyph::kX : char32_t{},
-				closeLabel,
-				Localization::Text("$DMUI_Shell_CloseMenu", "Close menu")
-			};
+				dmui::PhosphorGlyph::kX,
+				Localization::Text(kCloseText),
+				Localization::Text("$DMUI_Shell_CloseMenu", "Close menu"));
 			return DrawTitleRow({
 				.title = breadcrumb.c_str(),
-				.titleScale = Theme::kHeaderFallbackTextScale,
+				.titleScale = Theme::Current().chrome.headerFallbackTextScale,
 				.buttons = {
 					&closeButton,
 					a_drawClose ? size_t{ 1 } : size_t{}
 				},
-				.buttonExtentPolicy = extentPolicy,
+				.buttonGlyphSize = HostChromeIconSize(ImGui::GetFontSize()),
 				.drawLeadingMark = [](ImDrawList* a_drawList, ImVec2 a_center,
 					float a_radius) noexcept {
-					LogoColors colors;
-					if (HostSettings::EffectivePreview().logoColors == LogoColorMode::kAccent)
-					{
-						const auto accent = ImGui::GetColorU32(Theme::colors::Accent());
-						colors = { accent, accent, accent, accent };
-					}
-					DrawLogo(a_drawList, a_center, a_radius * 0.85f, colors);
+					DrawLogo(
+						a_drawList,
+						a_center,
+						a_radius * 0.85f,
+						ResolveLogoColors(Theme::Current()));
 				}
 			}).has_value();
 		}
@@ -237,10 +223,7 @@ namespace DearModdingUI
 					"$DMUI_Shell_PageFailedTitle",
 					"{} could not be displayed",
 					a_page.displayName);
-				ImGui::TextColored(
-					Theme::StatusTextColor(DMUI_STATUS_SEVERITY_ERROR),
-					"%s",
-					title.c_str());
+				(void)DrawTextSpans(title, dmui::TextStyle{}.Tone(dmui::TextTone::kError));
 			}
 			ImGui::Spacing();
 			ImGui::TextWrapped(
@@ -251,40 +234,28 @@ namespace DearModdingUI
 					"this session. Other pages remain available."));
 		}
 
-		[[nodiscard]] bool ActionHasGlyph(
-			const RegisteredAction& a_action,
-			char32_t& a_glyph) noexcept
+		// Failed actions stay listed; they report the failure when run.
+		[[nodiscard]] bool ActionRunnable(DMUI_ActionHandle a_action) noexcept
 		{
-			a_glyph = a_action.iconSelection.GlyphOr({});
-			return HasIconGlyph(a_glyph);
+			const auto state = StateOfAction(a_action);
+			return state == ActionState::kReady || state == ActionState::kFailed;
 		}
 
 		void DrawPageHeader(const NavigationPage& a_page) noexcept
 		{
-			constexpr auto extentPolicy =
-				TitleRowButtonExtentPolicy::kTitleBar;
-			const auto extent = ResolveTitleRowButtonExtent(
-				extentPolicy,
-				ImGui::GetFontSize(),
-				TitleBarButtonPadding());
-			std::vector<TitleRowButton> buttons;
+			std::vector<ButtonSpec> buttons;
 			std::vector<DMUI_ActionHandle> actions;
 			for (const auto& action : OrderedActions())
 			{
 				if (action.client != a_page.client)
 					continue;
-				char32_t glyph{};
-				const auto hasGlyph = ActionHasGlyph(action, glyph);
-				const auto failed = ActionFailed(action.handle);
-				buttons.push_back({
+				const auto state = StateOfAction(action.handle);
+				if (state == ActionState::kRemoved)
+					continue;
+				const auto failed = state == ActionState::kFailed;
+				auto button = MakeIconButtonSpec(
 					action.id.c_str(),
-					ActionButtonWidth(
-						hasGlyph,
-						ImGui::CalcTextSize(
-							action.displayLabel.c_str()).x,
-						extent,
-						ImGui::GetStyle().FramePadding.x),
-					hasGlyph ? glyph : char32_t{},
+					action.iconSelection.GlyphOr({}),
 					action.displayLabel.c_str(),
 					failed ?
 						Localization::Text(
@@ -292,16 +263,15 @@ namespace DearModdingUI
 							"Action disabled after its callback failed.") :
 						(action.tooltip.empty() ?
 							action.displayLabel.c_str() :
-							action.tooltip.c_str()),
-					!failed
-				});
+							action.tooltip.c_str()));
+				button.enabled = state == ActionState::kReady;
+				buttons.push_back(button);
 				actions.push_back(action.handle);
 			}
 			const auto pressed = DrawTitleRow({
 				.title = a_page.displayName.c_str(),
-				.titleScale = Theme::kFeatureTitleScale,
+				.titleScale = Theme::Current().chrome.featureTitleScale,
 				.buttons = buttons,
-				.buttonExtentPolicy = extentPolicy,
 				.summary = a_page.summary.empty() ?
 					nullptr :
 					a_page.summary.c_str()
@@ -388,20 +358,14 @@ namespace DearModdingUI
 						a_value.data(),
 						a_value.data() + a_value.size()).x;
 				});
-			ImGui::Bullet();
-			ImGui::PushStyleColor(
-				ImGuiCol_Text,
-				Theme::StatusTextColor(a_status.severity));
-			ImGui::TextUnformatted(
-				presentation.visible.data(),
-				presentation.visible.data() +
-					presentation.visible.size());
-			ImGui::PopStyleColor();
+			(void)DrawBulletText(
+				presentation.visible,
+				Theme::StatusTone(a_status.severity),
+				false);
 			const auto hasDetails =
-				a_status.severity == DMUI_STATUS_SEVERITY_ERROR;
-			if (presentation.truncated &&
-				ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
-				ImGui::SetTooltip("%s", presentation.full.c_str());
+				a_status.severity == DMUI_SEVERITY_ERROR;
+			if (presentation.truncated)
+				Tooltip::Item(presentation.full);
 			if (!hasDetails)
 				return false;
 			if (ImGui::IsItemHovered())
@@ -434,18 +398,18 @@ namespace DearModdingUI
 				ImGui::Spacing();
 				ImGui::Separator();
 				ImGui::Spacing();
-				const auto copyLabel = std::format(
-					"{}###DearModdingUI.StatusDetailsCopy",
-					Localization::Text(
-						"$DMUI_Shell_CopyDetails",
-						"Copy details"));
-				if (ImGui::Button(copyLabel.c_str()))
+				if (DrawButton({
+						.id = "##DearModdingUI.StatusDetailsCopy",
+						.label = Localization::Text(
+							"$DMUI_Shell_CopyDetails",
+							"Copy details")
+					}))
 					ImGui::SetClipboardText(status.attributedText.c_str());
 				ImGui::SameLine();
-				const auto closeLabel = std::format(
-					"{}###DearModdingUI.StatusDetailsClose",
-					Localization::Text(kCloseText));
-				if (ImGui::Button(closeLabel.c_str()))
+				if (DrawButton({
+						.id = "##DearModdingUI.StatusDetailsClose",
+						.label = Localization::Text(kCloseText)
+					}))
 				{
 					ImGui::CloseCurrentPopup();
 					closeRequested = true;
@@ -463,39 +427,33 @@ namespace DearModdingUI
 			const auto status = CurrentStatus();
 			const auto start = ImGui::GetCursorScreenPos();
 			const auto maxX = start.x + ImGui::GetContentRegionAvail().x;
-			const auto iconSize = HostChromeIconSize(ImGui::GetFontSize());
-			const auto settingsExtent = HostChromeButtonExtent(
-				ImGui::GetFontSize(),
-				TitleBarButtonPadding());
-			const auto dismissExtent = TitleBarButtonExtent(
-				ImGui::GetFontSize(),
-				TitleBarButtonPadding());
+			auto settingsButton = MakeIconButtonSpec(
+				"##DearModdingUI.HostSettingsButton",
+				dmui::PhosphorGlyph::kGear,
+				Localization::Text("$DMUI_Shell_Settings", "Settings"),
+				Localization::Text(
+					"$DMUI_Shell_InterfaceSettings",
+					"Interface settings"));
+			settingsButton.glyphSize = HostChromeIconSize(ImGui::GetFontSize());
+			settingsButton.active =
+				a_state.activeHostPage == HostPageKind::kSettings;
+			const auto dismissButton = MakeIconButtonSpec(
+				"##DearModdingUI.StatusDismissButton",
+				dmui::PhosphorGlyph::kX,
+				Localization::Text("$DMUI_Shell_Dismiss", "Dismiss"),
+				Localization::Text(
+					"$DMUI_Shell_DismissStatus",
+					"Dismiss status"));
+			const auto settingsSize = MeasureButton(settingsButton);
+			const auto dismissSize = MeasureButton(dismissButton);
 			const auto rowHeight =
-				(std::max)(ImGui::GetFrameHeight(), settingsExtent);
-			const auto hasGear = HasIconGlyph(PhosphorGlyph::kGear);
-			const auto* const settingsLabel = Localization::Text(
-				"$DMUI_Shell_Settings",
-				"Settings");
-			const auto settingsWidth = ActionButtonWidth(
-				hasGear,
-				ImGui::CalcTextSize(settingsLabel).x,
-				settingsExtent,
-				ImGui::GetStyle().FramePadding.x);
+				(std::max)(ImGui::GetFrameHeight(), settingsSize.y);
 			const auto persistent = status && status->persistent;
-			const auto hasDismiss = HasIconGlyph(PhosphorGlyph::kX);
-			const auto* const dismissLabel = Localization::Text(
-				"$DMUI_Shell_Dismiss",
-				"Dismiss");
-			const auto dismissWidth = ActionButtonWidth(
-				hasDismiss,
-				ImGui::CalcTextSize(dismissLabel).x,
-				dismissExtent,
-				ImGui::GetStyle().FramePadding.x);
 			const auto controls = ResolveFooterControlsLayout(
 				start.x,
 				maxX,
-				settingsWidth,
-				persistent ? dismissWidth : 0.0f,
+				settingsSize.x,
+				persistent ? dismissSize.x : 0.0f,
 				ImGui::GetStyle().ItemSpacing.x);
 			const auto hintsWidth = ControllerNavigation::HintsWidth();
 			const auto hintsMinX = (std::max)(start.x,
@@ -555,40 +513,21 @@ namespace DearModdingUI
 			}
 
 			if (persistent && controls.dismissMaxX > controls.dismissMinX &&
-				DrawCompactChromeButton(
-					"##DearModdingUI.StatusDismissButton",
+				DrawButtonAt(
+					dismissButton,
 					{
 						controls.dismissMinX,
-						RowContentY(start.y, rowHeight, dismissExtent)
-					},
-					{
-						controls.dismissMaxX - controls.dismissMinX,
-						dismissExtent
-					},
-					hasDismiss ? PhosphorGlyph::kX : char32_t{},
-					hasDismiss ? nullptr : dismissLabel,
-					Localization::Text("$DMUI_Shell_DismissStatus", "Dismiss status"),
-					hasDismiss ?
-						IconColor(ImGui::GetColorU32(ImGuiCol_Text)) :
-						ImGui::GetColorU32(ImGuiCol_Text)))
+						RowContentY(start.y, rowHeight, dismissSize.y)
+					}))
 			{
 				(void)DismissStatus(status->generation);
 			}
-			if (DrawCompactChromeButton(
-					"##DearModdingUI.HostSettingsButton",
+			if (DrawButtonAt(
+					settingsButton,
 					{
 						controls.settingsMinX,
-						RowContentY(start.y, rowHeight, settingsExtent)
-					},
-					{ settingsWidth, settingsExtent },
-					hasGear ? PhosphorGlyph::kGear : char32_t{},
-					hasGear ? nullptr : settingsLabel,
-					Localization::Text("$DMUI_Shell_InterfaceSettings", "Interface settings"),
-					hasGear ?
-						IconColor(ImGui::GetColorU32(ImGuiCol_Text)) :
-						ImGui::GetColorU32(ImGuiCol_Text),
-					a_state.activeHostPage == HostPageKind::kSettings,
-					iconSize))
+						RowContentY(start.y, rowHeight, settingsSize.y)
+					}))
 			{
 				NavigateToHostPage(HostPageKind::kSettings, a_state);
 			}
@@ -814,7 +753,11 @@ namespace DearModdingUI
 			ImGui::EndChild();
 
 			if (const auto* activation =
-					DrawCommandPalette(model, state, state.palette))
+					DrawCommandPalette(
+						model,
+						state,
+						state.palette,
+						{ CurrentHostStateRevision().registry, &ActionRunnable }))
 			{
 				if (activation->kind == NavigationItemKind::kClient)
 					(void)ApplyShellNavigationRequest(

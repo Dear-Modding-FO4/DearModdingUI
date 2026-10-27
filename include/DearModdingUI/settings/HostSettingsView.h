@@ -1,7 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/settings/HostSettings.h>
-#include <DearModdingUI/SettingsActions.h>
+#include <DearModdingUI/controls/SettingsActions.h>
 
 namespace DearModdingUI
 {

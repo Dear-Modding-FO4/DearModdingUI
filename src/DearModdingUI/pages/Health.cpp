@@ -1,6 +1,6 @@
 #include <DearModdingUI/pages/Health.h>
 
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 #include <DearModdingUI/host/Registry.h>
 #include <DearModdingUI/localization/Localization.h>
 
@@ -54,15 +54,15 @@ namespace DearModdingUI
 		}
 
 		[[nodiscard]] uint32_t DiagnosticSeverityRank(
-			DMUI_StatusSeverity a_severity) noexcept
+			DMUI_Severity a_severity) noexcept
 		{
 			switch (a_severity)
 			{
-			case DMUI_STATUS_SEVERITY_ERROR:
+			case DMUI_SEVERITY_ERROR:
 				return 0;
-			case DMUI_STATUS_SEVERITY_WARNING:
+			case DMUI_SEVERITY_WARNING:
 				return 1;
-			case DMUI_STATUS_SEVERITY_SUCCESS:
+			case DMUI_SEVERITY_SUCCESS:
 				return 2;
 			default:
 				return 3;
@@ -210,7 +210,7 @@ namespace DearModdingUI
 			Localization::Text(
 				"$DMUI_Health_RegisteredMods",
 				"Registered mods"),
-			PhosphorGlyph::kPuzzlePiece,
+			dmui::PhosphorGlyph::kPuzzlePiece,
 			{}
 		};
 		std::map<std::string, std::vector<const RegisteredClient*>> bridged;
@@ -225,7 +225,7 @@ namespace DearModdingUI
 		std::vector<HealthClientSection> sections;
 		if (!native.clients.empty() || bridged.empty())
 			sections.push_back(std::move(native));
-		const auto bridgeGlyph = FindPhosphorSlugGlyphOrZero("share-network");
+		const auto bridgeGlyph = dmui::FindPhosphorSlugGlyphOrZero("share-network");
 		for (auto& [sourceLabel, clients] : bridged)
 		{
 			sections.push_back({
@@ -287,7 +287,7 @@ namespace DearModdingUI
 				.client = diagnostic.client,
 				.clientId = client->id,
 				.clientDisplayName = client->displayName,
-				.worstSeverity = DMUI_STATUS_SEVERITY_INFO,
+				.worstSeverity = DMUI_SEVERITY_INFO,
 				.droppedReportCount = diagnostic.droppedReportCount,
 				.droppedReportLabel = diagnostic.droppedReportCount == 0 ?
 					std::string{} :
@@ -304,13 +304,13 @@ namespace DearModdingUI
 			{
 				switch (record.severity)
 				{
-				case DMUI_STATUS_SEVERITY_ERROR:
+				case DMUI_SEVERITY_ERROR:
 					errors += record.occurrenceCount;
 					break;
-				case DMUI_STATUS_SEVERITY_WARNING:
+				case DMUI_SEVERITY_WARNING:
 					warnings += record.occurrenceCount;
 					break;
-				case DMUI_STATUS_SEVERITY_SUCCESS:
+				case DMUI_SEVERITY_SUCCESS:
 					successes += record.occurrenceCount;
 					break;
 				default:
@@ -331,12 +331,12 @@ namespace DearModdingUI
 				});
 			}
 			section.worstSeverity = errors != 0 ?
-				DMUI_STATUS_SEVERITY_ERROR :
+				DMUI_SEVERITY_ERROR :
 				(warnings != 0 ?
-					DMUI_STATUS_SEVERITY_WARNING :
+					DMUI_SEVERITY_WARNING :
 					(successes != 0 ?
-						DMUI_STATUS_SEVERITY_SUCCESS :
-						DMUI_STATUS_SEVERITY_INFO));
+						DMUI_SEVERITY_SUCCESS :
+						DMUI_SEVERITY_INFO));
 			section.severitySummary = DiagnosticSeveritySummary(
 				errors,
 				warnings,
@@ -354,12 +354,12 @@ namespace DearModdingUI
 				[](const HealthDiagnosticRow& a_left,
 					const HealthDiagnosticRow& a_right) {
 					return std::tuple{
-						static_cast<uint32_t>(DMUI_STATUS_SEVERITY_ERROR -
+						static_cast<uint32_t>(DMUI_SEVERITY_ERROR -
 							a_left.severity),
 						a_left.scope,
 						a_left.summary
 					} < std::tuple{
-						static_cast<uint32_t>(DMUI_STATUS_SEVERITY_ERROR -
+						static_cast<uint32_t>(DMUI_SEVERITY_ERROR -
 							a_right.severity),
 						a_right.scope,
 						a_right.summary

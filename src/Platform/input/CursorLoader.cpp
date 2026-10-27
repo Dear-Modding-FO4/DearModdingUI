@@ -1,5 +1,5 @@
 #include <Platform/input/CursorLoader.h>
-#include <DearModdingUI/VisualDecisions.h>
+#include <DearModdingUI/presentation/VisualDecisions.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
 
 #include <Windows.h>

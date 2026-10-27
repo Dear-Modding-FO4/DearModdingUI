@@ -4,9 +4,9 @@
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/settings/HostSettingsHealthState.h>
 #include <DearModdingUI/settings/HostSettingsView.h>
-#include <DearModdingUI/SettingsActions.h>
+#include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/presentation/Theme.h>
-#include <DearModdingUI/ThemeDefaults.h>
+#include <DearModdingUI/presentation/FontMetrics.h>
 #include <Platform/settings/GameColors.h>
 #include <algorithm>
 #include <array>
@@ -26,28 +26,30 @@ namespace vmm_tests
 	void run_host_settings_checks(Runner& runner)
 	{
 		runner.test("host settings draft reverts and resets safely", [] {
-			const HostInterfaceSettings changed{
-				Theme::IconColorMode::kMonochrome,
-				SidebarLayoutKind::DrillDown,
-				{ 0xD5, 0x5E, 0x00 },
-				0.80f,
-				{ 0x12, 0x12, 0x12 },
-				0.70f,
-				false,
-				0.75f,
-				1.75f,
-				"Atkinson Hyperlegible",
-				"Home"
-			};
+			HostInterfaceSettings changed;
+			changed.sidebarLayout = SidebarLayoutKind::DrillDown;
+			changed.themePreset = "Stress";
+			changed.appearance.iconColorMode = Theme::IconColorMode::kMonochrome;
+			changed.appearance.accentColor = HostAccentColor{ 0xD5, 0x5E, 0x00 };
+			changed.appearance.windowBackgroundOpacity = 0.80f;
+			changed.appearance.paletteBackgroundColor =
+				HostPaletteColor{ 0x12, 0x12, 0x12 };
+			changed.appearance.paletteBackgroundOpacity = 0.70f;
+			changed.appearance.backgroundBlur = false;
+			changed.appearance.backgroundBlurStrength = 0.75f;
+			changed.appearance.bodyFontFamily = "Atkinson Hyperlegible";
+			changed.appearance.monospaceFontFamily = "ImGui";
+			changed.uiScale = 1.75f;
+			changed.menuToggleKey = "Home";
 			auto state = BeginHostSettingsDraft(changed);
-			state.draft.accentColor = { 0xE6, 0x9F, 0x00 };
+			state.draft.appearance.accentColor = HostAccentColor{ 0xE6, 0x9F, 0x00 };
 			state.draft.fallSoulsMode = true;
 			RevertHostSettingsDraft(state);
 			require(state.draft == changed &&
 					!HostSettingsDraftDiffers(state),
 				"revert did not restore committed preview fields");
 
-			state.draft.accentColor = { 0xE6, 0x9F, 0x00 };
+			state.draft.appearance.accentColor = HostAccentColor{ 0xE6, 0x9F, 0x00 };
 			LeaveHostSettingsDraft(state);
 			require(!state.active && state.draft == changed,
 				"leaving settings did not discard the draft");
@@ -61,13 +63,12 @@ namespace vmm_tests
 				"reset committed instead of updating the draft");
 
 			state = BeginHostSettingsDraft(DefaultHostInterfaceSettings());
-			state.draft.accentColor = { 0x00, 0x72, 0xB2 };
+			state.draft.appearance.accentColor = HostAccentColor{ 0x00, 0x72, 0xB2 };
 			CommitHostSettingsSidebarLayout(state, SidebarLayoutKind::DrillDown);
 			LeaveHostSettingsDraft(state);
 			require(
 				state.draft.sidebarLayout == SidebarLayoutKind::DrillDown &&
-					state.draft.accentColor ==
-						DefaultHostInterfaceSettings().accentColor &&
+					!state.draft.appearance.accentColor &&
 					!HostSettingsDraftDiffers(state),
 				"discarding cosmetic previews also discarded the saved layout");
 			state = BeginHostSettingsDraft(state.committed);
@@ -81,43 +82,39 @@ namespace vmm_tests
 		});
 
 		runner.test("host settings persistence round trips every stored value", [] {
-			std::array settings{
-				DefaultHostInterfaceSettings(),
-				HostInterfaceSettings{
-					Theme::IconColorMode::kMonochrome,
-					SidebarLayoutKind::TwoPane,
-					{ 0x00, 0x72, 0xB2 },
-					0.80f,
-					{ 0x12, 0x12, 0x12 },
-					0.70f,
-					false,
-					0.75f,
-					1.75f,
-					"Atkinson Hyperlegible",
-					"F11"
-				},
-				HostInterfaceSettings{
-					Theme::IconColorMode::kColored,
-					SidebarLayoutKind::DrillDown,
-					{ 0xD5, 0x5E, 0x00 },
-					kMinWindowBackgroundOpacity,
-					{ 0x02, 0x02, 0x02 },
-					kMinPaletteBackgroundOpacity,
-					true,
-					kMinBackgroundBlurStrength,
-					Theme::kMinUserScale,
-					"Jost",
-					"Delete",
-					"PadBack+PadLB+PadRB",
-					FieldFeedbackPlacement::kUnderControl,
-					{ 0x12, 0x34, 0x56 },
-					{ 0x65, 0x43, 0x21 },
-					{ 0xAA, 0xBB, 0xCC },
-					true
-				}
-			};
-			settings[2].logoColors = LogoColorMode::kAccent;
-			for (const auto& runtime : settings)
+			HostInterfaceSettings monochrome;
+			monochrome.sidebarLayout = SidebarLayoutKind::TwoPane;
+			monochrome.themePreset = "Stress";
+			monochrome.appearance.iconColorMode = Theme::IconColorMode::kMonochrome;
+			monochrome.appearance.accentColor = HostAccentColor{ 0x00, 0x72, 0xB2 };
+			monochrome.appearance.windowBackgroundOpacity = 0.80f;
+			monochrome.appearance.paletteBackgroundColor =
+				HostPaletteColor{ 0x12, 0x12, 0x12 };
+			monochrome.appearance.paletteBackgroundOpacity = 0.70f;
+			monochrome.appearance.backgroundBlur = false;
+			monochrome.appearance.backgroundBlurStrength = 0.75f;
+			monochrome.appearance.bodyFontFamily = "Atkinson Hyperlegible";
+			monochrome.appearance.monospaceFontFamily = "ImGui";
+			monochrome.uiScale = 1.75f;
+			monochrome.menuToggleKey = "F11";
+			HostInterfaceSettings minimums;
+			minimums.sidebarLayout = SidebarLayoutKind::DrillDown;
+			minimums.appearance.iconColorMode = Theme::IconColorMode::kColored;
+			minimums.appearance.accentColor = HostAccentColor{ 0xD5, 0x5E, 0x00 };
+			minimums.appearance.windowBackgroundOpacity =
+				kMinWindowBackgroundOpacity;
+			minimums.appearance.paletteBackgroundOpacity =
+				kMinPaletteBackgroundOpacity;
+			minimums.appearance.backgroundBlur = true;
+			minimums.appearance.backgroundBlurStrength =
+				kMinBackgroundBlurStrength;
+			minimums.appearance.logoColors = LogoColorMode::kAccent;
+			minimums.uiScale = Theme::kMinUserScale;
+			minimums.menuToggleKey = "Delete";
+			minimums.feedbackPlacement = FieldFeedbackPlacement::kUnderControl;
+			minimums.fallSoulsMode = true;
+			for (const auto& runtime :
+				{ DefaultHostInterfaceSettings(), monochrome, minimums })
 			{
 				const auto persisted = EncodeHostInterfaceSettings(runtime);
 				require(
@@ -128,6 +125,104 @@ namespace vmm_tests
 						DecodeHostInterfaceSettings(persisted)) == persisted,
 					"encoded host settings did not round trip");
 			}
+		});
+
+		runner.test("appearance overrides are written only when set and clear back to the preset", [] {
+			const auto root =
+				std::filesystem::current_path() / ".Build" / "Tests" / "override-persistence";
+			std::error_code error;
+			std::filesystem::remove_all(root, error);
+			std::filesystem::create_directories(root, error);
+			const auto path = root / "DearModdingUI.toml";
+			const auto readFile = [&] {
+				std::ifstream file(path);
+				return std::string{ std::istreambuf_iterator<char>(file), {} };
+			};
+
+			auto settings = DefaultHostInterfaceSettings();
+			settings.themePreset = "Stress";
+			require(PersistHostInterfaceSettings(
+						path, EncodeHostInterfaceSettings(settings)).saved,
+				"default appearance could not be saved");
+			auto text = readFile();
+			for (const auto key : { "sMenuAccentColor", "fMenuWindowOpacity",
+									"sMenuPaletteBackgroundColor", "fMenuPaletteOpacity",
+									"bMenuMonochromeIcons", "bMenuBackgroundBlur",
+									"fMenuBackgroundBlurStrength", "sMenuLogoColors",
+									"sMenuBodyFontFamily", "sMenuMonospaceFontFamily" })
+			{
+				require(text.find(key) == std::string::npos,
+					std::string{ key } + " was written without an override");
+			}
+			auto loaded = LoadHostInterfaceSettings(path);
+			require(loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
+					loaded.settings == settings &&
+					loaded.settings.themePreset == "Stress",
+				"absent overrides did not load as the preset's values");
+
+			settings.appearance.accentColor = HostAccentColor{ 0x00, 0x72, 0xB2 };
+			settings.appearance.backgroundBlur = false;
+			settings.appearance.iconColorMode = Theme::IconColorMode::kMonochrome;
+			require(PersistHostInterfaceSettings(
+						path, EncodeHostInterfaceSettings(settings)).saved,
+				"overrides could not be saved");
+			text = readFile();
+			require(text.find("sMenuAccentColor") != std::string::npos &&
+					text.find("bMenuBackgroundBlur") != std::string::npos &&
+					text.find("fMenuWindowOpacity") == std::string::npos,
+				"only the set overrides should be written");
+			loaded = LoadHostInterfaceSettings(path);
+			require(loaded.settings == settings,
+				"set overrides did not load back");
+
+			settings.appearance.accentColor.reset();
+			require(PersistHostInterfaceSettings(
+						path, EncodeHostInterfaceSettings(settings)).saved,
+				"cleared override could not be saved");
+			loaded = LoadHostInterfaceSettings(path);
+			require(!loaded.settings.appearance.accentColor &&
+					loaded.settings.appearance.backgroundBlur == false,
+				"a cleared override came back");
+
+			std::ofstream(path, std::ios::trunc)
+				<< "[Additional]\n"
+				<< "sMenuAccentColor = \"bad\"\n"
+				<< "fMenuWindowOpacity = 0.5\n"
+				<< "sMenuThemePreset = \"..\\\\escaped\"\n";
+			loaded = LoadHostInterfaceSettings(path);
+			require(loaded.disposition == HostSettingsLoadDisposition::kCorrected &&
+					!loaded.settings.appearance.accentColor &&
+					loaded.settings.appearance.windowBackgroundOpacity == 0.5f &&
+					loaded.settings.themePreset == kDefaultThemePreset &&
+					loaded.detail.find("sMenuAccentColor") != std::string::npos,
+				"a malformed override was not reported and dropped");
+			std::filesystem::remove_all(root, error);
+		});
+
+		runner.test("icon set maps Phosphor names, reports unknown, and resolves lookups", [] {
+			const std::array named{
+				Theme::NamedIconGlyph{ "x", 0xE001 },
+				Theme::NamedIconGlyph{ "gear", 0xE002 },
+				Theme::NamedIconGlyph{ "no-such-icon", 0xE003 },
+				Theme::NamedIconGlyph{ "gear", 0xE004 }
+			};
+			const auto mapped = Theme::MapIconNames(named);
+			require(
+				mapped.unknownNames == std::vector<std::string>{ "no-such-icon" },
+				"unknown icon name was not returned");
+			require(
+				mapped.glyphs.size() == 2 &&
+					mapped.glyphs[0].phosphor < mapped.glyphs[1].phosphor,
+				"mapping was not sorted and deduplicated");
+			Theme::IconSet icons;
+			icons.glyphs = mapped.glyphs;
+			require(
+				icons.Find(dmui::PhosphorGlyph::kGear) == 0xE004 &&
+					icons.Find(dmui::PhosphorGlyph::kX) == 0xE001,
+				"mapped icons did not resolve to the last entry");
+			require(
+				icons.Find(dmui::PhosphorGlyph::kQuestion) == 0,
+				"unmapped icon resolved to a glyph");
 		});
 
 		runner.test("host settings clamp malformed persisted values and reset", [] {
@@ -141,52 +236,45 @@ namespace vmm_tests
 				std::numeric_limits<float>::infinity();
 			persisted.uiScale = 99.0f;
 			persisted.bodyFontFamily = "..\\escaped";
+			persisted.monospaceFontFamily = "..\\escaped";
 			persisted.menuToggleKey = "Hyper";
 			persisted.feedbackPlacement = "beside";
-			persisted.feedbackInfoColor = "blue";
-			persisted.feedbackWarningColor = "#GG0000";
-			persisted.feedbackErrorColor = "12345";
 			persisted.sidebarLayout = "columns";
+			persisted.themePreset = "..\\escaped";
 			const auto decoded = DecodeHostInterfaceSettings(persisted);
+			const auto& appearance = decoded.appearance;
 			require(
-				decoded.accentColor == kDefaultHostAccentColor,
-				"malformed accent did not fall back");
+				!appearance.accentColor,
+				"malformed accent did not fall back to the preset");
 			require(
-				decoded.windowBackgroundOpacity ==
+				appearance.windowBackgroundOpacity ==
 					kMinWindowBackgroundOpacity,
 				"window opacity did not clamp");
 			require(
-				decoded.paletteBackgroundColor ==
-					kDefaultPaletteBackgroundColor,
-				"malformed palette background did not fall back");
+				!appearance.paletteBackgroundColor,
+				"malformed palette background did not fall back to the preset");
 			require(
-				decoded.paletteBackgroundOpacity ==
-					kDefaultPaletteBackgroundOpacity,
-				"non-finite palette opacity did not fall back");
+				!appearance.paletteBackgroundOpacity,
+				"non-finite palette opacity did not fall back to the preset");
 			require(
-				decoded.backgroundBlurStrength ==
-					kDefaultBackgroundBlurStrength,
-				"non-finite blur strength did not fall back");
+				!appearance.backgroundBlurStrength,
+				"non-finite blur strength did not fall back to the preset");
 			require(
 				decoded.uiScale == Theme::kMaxUserScale,
 				"UI scale did not clamp");
 			require(
-				decoded.bodyFontFamily == kDefaultBodyFontFamily,
-				"malformed font family did not fall back");
+				!appearance.bodyFontFamily && !appearance.monospaceFontFamily,
+				"malformed font family did not fall back to the preset");
+			require(
+				decoded.themePreset == kDefaultThemePreset,
+				"malformed theme preset did not fall back");
 			require(
 				decoded.menuToggleKey ==
 					SerializeHotkeyChord(kMenuDefaultToggleChord),
 				"malformed toggle key did not fall back");
 			require(
-				decoded.feedbackPlacement ==
-						DEFAULT_FIELD_FEEDBACK_LAYOUT &&
-					decoded.feedbackInfoColor ==
-						kDefaultFeedbackInfoColor &&
-					decoded.feedbackWarningColor ==
-						kDefaultFeedbackWarningColor &&
-					decoded.feedbackErrorColor ==
-						kDefaultFeedbackErrorColor,
-				"malformed feedback appearance did not fall back");
+				decoded.feedbackPlacement == DEFAULT_FIELD_FEEDBACK_LAYOUT,
+				"malformed feedback placement did not fall back");
 			require(decoded.sidebarLayout == SidebarLayoutKind::Tree,
 				"an unavailable sidebar layout did not fall back to tree");
 		});
@@ -347,9 +435,6 @@ namespace vmm_tests
 				"settings encoding did not preserve the canonical toggle chord");
 			settings.sidebarLayout = "twopane";
 			settings.feedbackPlacement = "strip";
-			settings.feedbackInfoColor = "#123456";
-			settings.feedbackWarningColor = "#654321";
-			settings.feedbackErrorColor = "#ABCDEF";
 			settings.fallSoulsMode = true;
 			settings.hotkeys.emplace("example.action", "Ctrl+H");
 			settings.gamepadHotkeys = { { "example.action", "PadA+PadLB" }, { "removed.action", "none" } };
@@ -463,7 +548,7 @@ namespace vmm_tests
 			std::filesystem::remove_all(root, error);
 		});
 
-		runner.test("font families enumerate regular faces and fall back", [] {
+		runner.test("font families enumerate faces and resolve variants", [] {
 			struct RemoveTree
 			{
 				std::filesystem::path path;
@@ -485,6 +570,13 @@ namespace vmm_tests
 				root / "Atkinson Hyperlegible", error);
 			std::filesystem::create_directories(root / "Phosphor", error);
 			std::ofstream(root / "Jost" / "Jost-Regular.ttf").put('\0');
+			std::ofstream(root / "Jost" / "Jost-SemiBold.ttf").put('\0');
+			// Sorts first but names no face, so it must not claim Regular.
+			std::ofstream(root / "Jost" / "Jost-Book.ttf").put('\0');
+			std::ofstream(
+				root /
+				"Atkinson Hyperlegible" /
+				"AtkinsonHyperlegible-BoldItalic.ttf").put('\0');
 			std::ofstream(
 				root /
 				"Atkinson Hyperlegible" /
@@ -504,11 +596,46 @@ namespace vmm_tests
 			const auto* atkinson = FontCatalog::Resolve(
 				"atkinson hyperlegible", families, "Jost");
 			require(
-				atkinson &&
-					atkinson->name == "Atkinson Hyperlegible" &&
-					atkinson->regularFile.ends_with(
-						"AtkinsonHyperlegible-Regular.ttf"),
-				"font family did not choose its regular face");
+				atkinson && atkinson->name == "Atkinson Hyperlegible" &&
+					atkinson->faces.size() == 3,
+				"font family faces were not parsed from file names");
+			const auto ends = [](const FontCatalog::ResolvedFace& a_face,
+								 std::string_view a_suffix) {
+				return a_face.face && a_face.face->file.ends_with(a_suffix);
+			};
+			using FontCatalog::FontWeight;
+			const auto boldItalic = FontCatalog::ResolveFace(
+				*atkinson, FontWeight::kBold, true);
+			require(
+				boldItalic.exact && ends(boldItalic, "-BoldItalic.ttf"),
+				"an exact face was not chosen");
+			const auto italic = FontCatalog::ResolveFace(
+				*atkinson, FontWeight::kRegular, true);
+			require(
+				!italic.exact && ends(italic, "-BoldItalic.ttf"),
+				"a missing italic did not use the nearest italic weight");
+			const auto heavy = FontCatalog::ResolveFace(
+				*atkinson, FontWeight::kBlack, false);
+			require(
+				!heavy.exact && ends(heavy, "-Bold.ttf"),
+				"a missing black did not use the nearest upright weight");
+			const auto* jost = FontCatalog::Find("Jost", families);
+			require(jost, "Jost was not enumerated");
+			const auto medium = FontCatalog::ResolveFace(
+				*jost, FontWeight::kMedium, false);
+			require(
+				ends(medium, "Jost-SemiBold.ttf"),
+				"a weight tie did not prefer the heavier face from Medium up");
+			const auto light = FontCatalog::ResolveFace(
+				*jost, FontWeight::kLight, false);
+			require(
+				ends(light, "Jost-Regular.ttf"),
+				"a light request did not choose the nearest weight");
+			const auto regular = FontCatalog::ResolveFace(
+				*jost, FontWeight::kRegular, false);
+			require(
+				regular.exact && ends(regular, "Jost-Regular.ttf"),
+				"an unnamed file claimed the explicit Regular face");
 			const auto* fallback = FontCatalog::Resolve(
 				"Missing Family", families, "Jost");
 			require(fallback && fallback->name == "Jost",

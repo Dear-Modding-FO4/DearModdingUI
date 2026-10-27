@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <memory>
 #include <new>
 #include <string>
 #include <vector>
@@ -72,69 +73,6 @@ namespace DearModdingUI::HostAPIInternal
 		return DMUI_RESULT_OK;
 	}
 
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSectionHeader(DMUI_ClientHandle a_client,
-															 const char *a_text,
-															 uint32_t a_glyph) noexcept
-	{
-		if (!a_text)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		const auto validation = ValidateDrawingClient(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-		DrawSectionHeader(a_text, static_cast<char32_t>(a_glyph));
-		return DMUI_RESULT_OK;
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawBulletText(DMUI_ClientHandle a_client,
-														  const char *a_text) noexcept
-	{
-		if (!a_text)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		const auto validation = ValidateDrawingClient(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-		DrawBulletText(a_text);
-		return DMUI_RESULT_OK;
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSearchInput(DMUI_ClientHandle a_client,
-														   const char *a_id, const char *a_hint,
-														   char *a_buffer, size_t a_capacity,
-														   uint32_t *a_changed) noexcept
-	{
-		DMUI_TextBuffer buffer{
-			.data = a_buffer,
-			.capacity = a_capacity
-		};
-		return ApiDrawSearchInputBuffer(a_client, a_id, a_hint, &buffer, a_changed);
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSearchInputBuffer(
-		DMUI_ClientHandle a_client,
-		const char* a_id,
-		const char* a_hint,
-		DMUI_TextBuffer* a_buffer,
-		uint32_t* a_changed) noexcept
-	{
-		if (!a_changed)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_changed = 0u;
-		if (!a_id || !a_hint || !a_buffer)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		const auto validation = ValidateDrawingClient(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-		if (!RenderExecution::IsActiveClient(a_client, true))
-			return DMUI_RESULT_WRONG_THREAD;
-		if (!ImGui::GetCurrentContext())
-			return DMUI_RESULT_HOST_NOT_READY;
-		bool changed{};
-		const auto result = DrawSearchInput(a_id, a_hint, *a_buffer, changed);
-		if (result == DMUI_RESULT_OK)
-			*a_changed = changed ? 1u : 0u;
-		return result;
-	}
-
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawTextView(
 		DMUI_ClientHandle a_client,
 		const DMUI_TextViewDescriptor* a_descriptor,
@@ -161,23 +99,6 @@ namespace DearModdingUI::HostAPIInternal
 		{
 			return DMUI_RESULT_CALLBACK_FAILED;
 		}
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawCollapsingSectionHeader(
-		DMUI_ClientHandle a_client, const char *a_key, const char *a_text, uint32_t a_glyph,
-		uint32_t *a_expanded, size_t a_count) noexcept
-	{
-		if (!a_key || !a_text || !a_expanded)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		const auto validation = ValidateDrawingClient(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-
-		auto expanded = *a_expanded != 0;
-		DrawCollapsingSectionHeader(a_key, a_text, static_cast<char32_t>(a_glyph), expanded,
-									a_count);
-		*a_expanded = expanded ? 1u : 0u;
-		return DMUI_RESULT_OK;
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawLinkRow(DMUI_ClientHandle a_client, const char *a_id,
@@ -255,11 +176,16 @@ namespace DearModdingUI::HostAPIInternal
 		{
 			std::vector<FaqRowEntry> entries;
 			entries.reserve(a_count);
+			const std::unique_ptr<bool[]> expanded{new bool[a_count]};
 			for (size_t index = 0; index < a_count; ++index)
 			{
-				entries.push_back({a_entries[index].question, a_entries[index].answer});
+				expanded[index] = *a_entries[index].expanded != 0;
+				entries.push_back({a_entries[index].question, a_entries[index].answer,
+								   &expanded[index]});
 			}
 			DrawFaq(a_id, entries);
+			for (size_t index = 0; index < a_count; ++index)
+				*a_entries[index].expanded = expanded[index] ? 1u : 0u;
 			return DMUI_RESULT_OK;
 		}
 		catch (const std::bad_alloc &)
@@ -270,58 +196,6 @@ namespace DearModdingUI::HostAPIInternal
 		{
 			return DMUI_RESULT_CALLBACK_FAILED;
 		}
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiDrawSettingsActionButton(
-		DMUI_ClientHandle a_client, const char *a_id, DMUI_Vec2 a_origin, DMUI_Vec2 a_size,
-		DMUI_SettingsAction a_action, const char *a_fallbackLabel, const char *a_tooltip,
-		uint32_t a_enabled, uint32_t *a_pressed) noexcept
-	{
-		if (!a_id || !a_pressed || a_action > DMUI_SETTINGS_ACTION_APPLY)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_pressed = 0u;
-		const auto validation = ValidateDrawingClient(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-
-		*a_pressed = DrawSettingsActionButton(a_id, {a_origin.x, a_origin.y}, {a_size.x, a_size.y},
-											  static_cast<SettingsAction>(a_action),
-											  a_fallbackLabel, a_tooltip, a_enabled != 0)
-						 ? 1u
-						 : 0u;
-		return DMUI_RESULT_OK;
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiSettingsActionButtonWidth(DMUI_ClientHandle a_client,
-																	 DMUI_SettingsAction a_action,
-																	 const char *a_fallbackLabel,
-																	 float a_buttonExtent,
-																	 float *a_width) noexcept
-	{
-		if (!a_width || a_action > DMUI_SETTINGS_ACTION_APPLY)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_width = 0.0f;
-		const auto validation = ValidateDrawingClient(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-
-		*a_width = SettingsActionButtonWidth(static_cast<SettingsAction>(a_action), a_fallbackLabel,
-											 a_buttonExtent);
-		return DMUI_RESULT_OK;
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiSettingsActionButtonExtent(DMUI_ClientHandle a_client,
-																	  float *a_extent) noexcept
-	{
-		if (!a_extent)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_extent = 0.0f;
-		const auto validation = ValidateDrawingClient(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-
-		*a_extent = SettingsActionButtonExtent();
-		return DMUI_RESULT_OK;
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiBeginSettingsTable(DMUI_ClientHandle a_client,
@@ -350,97 +224,5 @@ namespace DearModdingUI::HostAPIInternal
 		if (!SettingsTable::AcceptsClient(a_client))
 			return DMUI_RESULT_WRONG_THREAD;
 		return SettingsTable::End(a_client);
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiBeginField(
-		DMUI_ClientHandle a_client,
-		const char* a_id,
-		const char* a_label,
-		const char* a_description,
-		const DMUI_FieldBeginOptions* a_options,
-		uint32_t* a_visible) noexcept
-	{
-		if (!a_visible)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_visible = 0u;
-		const auto optionsValidation =
-			SettingsTable::ValidateFieldBeginOptions(a_options);
-		if (optionsValidation != DMUI_RESULT_OK)
-			return optionsValidation;
-		if (!a_id || a_id[0] == '\0')
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		const auto validation = ValidateDrawingClient(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-		if (!SettingsTable::AcceptsFieldClient(a_client))
-			return DMUI_RESULT_WRONG_THREAD;
-
-		const auto result = SettingsTable::BeginField(
-			a_client,
-			a_id,
-			a_label,
-			a_description,
-			a_options->layout == DMUI_FIELD_LAYOUT_FULL_SPAN ?
-				SettingsTable::RowLayout::kFullSpan :
-				SettingsTable::RowLayout::kLabelValue);
-		*a_visible = result.visible ? 1u : 0u;
-		return result.result;
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiSetFieldFeedback(
-		DMUI_ClientHandle a_client,
-		const DMUI_FieldFeedback* a_feedback) noexcept
-	{
-		size_t messageLength{};
-		const auto feedbackValidation =
-			SettingsTable::ValidateFieldFeedback(
-				a_feedback,
-				&messageLength);
-		if (feedbackValidation != DMUI_RESULT_OK)
-			return feedbackValidation;
-		const auto validation = ValidateDrawingClient(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-		if (!SettingsTable::AcceptsFieldClient(a_client))
-			return DMUI_RESULT_WRONG_THREAD;
-
-		const std::string_view message{
-			a_feedback->message ? a_feedback->message : "",
-			messageLength
-		};
-		return SettingsTable::SetFieldFeedback(
-			a_client,
-			a_feedback->severity,
-			message);
-	}
-
-	[[nodiscard]] DMUI_Result DMUI_CALL ApiEndField(
-		DMUI_ClientHandle a_client,
-		const DMUI_FieldEndOptions* a_options,
-		uint32_t* a_resetPressed) noexcept
-	{
-		if (!a_resetPressed)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_resetPressed = 0u;
-		const auto optionsValidation =
-			SettingsTable::ValidateFieldEndOptions(a_options);
-		if (optionsValidation != DMUI_RESULT_OK)
-			return optionsValidation;
-		const auto validation = ValidateDrawingClient(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-		if (!SettingsTable::AcceptsFieldClient(a_client))
-			return DMUI_RESULT_WRONG_THREAD;
-		bool resetPressed{};
-		const auto result = SettingsTable::EndField(
-			a_client,
-			{
-				a_options->resetVisible != 0,
-				a_options->resetEnabled != 0
-			},
-			resetPressed);
-		if (result == DMUI_RESULT_OK)
-			*a_resetPressed = resetPressed ? 1u : 0u;
-		return result;
 	}
 } // namespace DearModdingUI::HostAPIInternal

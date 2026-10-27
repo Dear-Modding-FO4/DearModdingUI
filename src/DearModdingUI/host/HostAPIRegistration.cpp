@@ -65,6 +65,25 @@ namespace DearModdingUI::HostAPIInternal
 		return service.registry.RegisterAction(a_client, a_descriptor, a_action);
 	}
 
+	[[nodiscard]] DMUI_Result DMUI_CALL ApiUnregisterAction(DMUI_ClientHandle a_client,
+															DMUI_ActionHandle a_action) noexcept
+	{
+		const auto clientResult = GetService().registry.ValidateClient(a_client);
+		if (clientResult != DMUI_RESULT_OK)
+			return clientResult;
+		return GetService().registry.UnregisterAction(a_client, a_action);
+	}
+
+	[[nodiscard]] DMUI_Result DMUI_CALL ApiSetActionEnabled(DMUI_ClientHandle a_client,
+															DMUI_ActionHandle a_action,
+															uint32_t a_enabled) noexcept
+	{
+		const auto clientResult = GetService().registry.ValidateClient(a_client);
+		if (clientResult != DMUI_RESULT_OK)
+			return clientResult;
+		return GetService().registry.SetActionEnabled(a_client, a_action, a_enabled != 0);
+	}
+
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiRegisterFrameObserver(
 		DMUI_ClientHandle a_client, const DMUI_FrameObserverDescriptor *a_descriptor,
 		DMUI_FrameObserverHandle *a_observer) noexcept
@@ -234,7 +253,7 @@ namespace DearModdingUI::HostAPIInternal
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiSetStatus(DMUI_ClientHandle a_client,
-													 DMUI_StatusSeverity a_severity,
+													 DMUI_Severity a_severity,
 													 const char *a_message) noexcept
 	{
 		auto &service = GetService();

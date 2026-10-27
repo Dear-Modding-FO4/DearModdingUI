@@ -109,7 +109,7 @@ namespace vmm_tests
 		{
 			const auto field = SettingsTable::BeginField(
 				a_owner, a_id, a_id, nullptr,
-				SettingsTable::RowLayout::kLabelValue);
+				SettingsTable::FieldLayout::kLabelValue);
 			require(field.result == DMUI_RESULT_OK && field.visible,
 				"feedback field did not begin");
 		}
@@ -186,8 +186,8 @@ namespace vmm_tests
 			const std::array raw{
 				dmui::ChoiceOption<int>{ .value = 1, .label = "100% ## duplicate", .key = "first" }
 			};
-			const auto unknown = dmui::DrawChoice("unknown", 99, raw, "Unknown selection");
-			const auto empty = dmui::DrawChoice("empty", 99, {});
+			const auto unknown = dmui::ui::Choice("unknown", 99, raw, "Unknown selection");
+			const auto empty = dmui::ui::Choice("empty", 99, {});
 			require(!unknown.changed && !unknown.completed && !unknown.selected &&
 					!empty.changed && !empty.completed && !empty.selected,
 				"unknown or empty choice was clamped or produced a selection");
@@ -237,8 +237,9 @@ namespace vmm_tests
 					"settings table did not begin");
 				require(tables.Buf.Capacity == capacity,
 					"outer settings table unexpectedly grew the table pool");
-				const auto row = SettingsTable::BeginRow(
-					owner, "row", "Setting", "Description");
+				const auto row = SettingsTable::BeginField(
+					owner, "row", "Setting", "Description",
+					SettingsTable::FieldLayout::kLabelValue);
 				require(row.result == DMUI_RESULT_OK && row.visible,
 					"settings row did not begin");
 				require(tables.Buf.Capacity > capacity,
@@ -246,7 +247,7 @@ namespace vmm_tests
 				bool value{};
 				(void)ImGui::Checkbox("##Value", &value);
 				bool resetPressed{};
-				require(SettingsTable::EndRow(
+				require(SettingsTable::EndField(
 							owner, { true, false }, resetPressed) ==
 						DMUI_RESULT_OK,
 					"table pool growth invalidated the settings row");
@@ -260,13 +261,13 @@ namespace vmm_tests
 				"table pool growth changed the ImGui stack");
 		});
 
-		runner.test("label-value fields accept hidden labels like rows", [] {
+		runner.test("label-value fields accept hidden labels", [] {
 			constexpr DMUI_ClientHandle owner{ 7 };
 			ImGuiTestFrame frame;
 			const auto drawField = [&](const char* a_id, const char* a_label) {
 				const auto field = SettingsTable::BeginField(
 					owner, a_id, a_label, "Description",
-					SettingsTable::RowLayout::kLabelValue);
+					SettingsTable::FieldLayout::kLabelValue);
 				require(field.result == DMUI_RESULT_OK && field.visible,
 					"hidden-label field did not begin");
 				bool value{};
@@ -317,14 +318,15 @@ namespace vmm_tests
 				const auto table = SettingsTable::Begin(owner, "settings");
 				require(table.result == DMUI_RESULT_OK && table.visible,
 					"client settings table did not begin");
-				const auto row = SettingsTable::BeginRow(
-					owner, "row", "Setting", "Description");
+				const auto row = SettingsTable::BeginField(
+					owner, "row", "Setting", "Description",
+					SettingsTable::FieldLayout::kLabelValue);
 				require(row.result == DMUI_RESULT_OK && row.visible,
 					"client settings row did not begin");
 				bool value{};
 				(void)ImGui::Checkbox("##Value", &value);
 				bool resetPressed{};
-				require(SettingsTable::EndRow(
+				require(SettingsTable::EndField(
 							owner, { true, false }, resetPressed) ==
 						DMUI_RESULT_OK,
 					"client settings row did not end");
@@ -359,8 +361,9 @@ namespace vmm_tests
 				const auto table = SettingsTable::Begin(owner, "settings");
 				require(table.result == DMUI_RESULT_OK && table.visible,
 					"settings table did not begin");
-				const auto row = SettingsTable::BeginRow(
-					owner, "row", "Setting", nullptr);
+				const auto row = SettingsTable::BeginField(
+					owner, "row", "Setting", nullptr,
+					SettingsTable::FieldLayout::kLabelValue);
 				require(row.result == DMUI_RESULT_OK && row.visible,
 					"settings row did not begin");
 				require(SettingsTable::End(owner) ==
@@ -368,16 +371,16 @@ namespace vmm_tests
 					"settings table ended with an open row");
 				bool resetPressed{};
 				ImGui::PushID("client-damage");
-				require(SettingsTable::EndRow(
+				require(SettingsTable::EndField(
 							owner, {}, resetPressed) ==
 						DMUI_RESULT_UNBALANCED_BRACKET,
 					"row ended through client stack damage");
 				ImGui::PopID();
-				require(SettingsTable::EndRow(
+				require(SettingsTable::EndField(
 							other, {}, resetPressed) ==
 						DMUI_RESULT_UNBALANCED_BRACKET,
 					"foreign owner ended the row");
-				require(SettingsTable::EndRow(
+				require(SettingsTable::EndField(
 							owner, {}, resetPressed) ==
 						DMUI_RESULT_OK,
 					"row could not recover from a rejected end");
@@ -389,8 +392,9 @@ namespace vmm_tests
 					"settings table did not begin");
 				ImGui::GetCurrentTable()->TempData->ReconcileColumnsRequests[1].Flags |=
 					ImGuiTableColumnFlags_Disabled;
-				const auto invisibleRow = SettingsTable::BeginRow(
-					owner, "row", "Setting", nullptr);
+				const auto invisibleRow = SettingsTable::BeginField(
+					owner, "row", "Setting", nullptr,
+					SettingsTable::FieldLayout::kLabelValue);
 				require(invisibleRow.result == DMUI_RESULT_OK && !invisibleRow.visible,
 					"disabled value column did not produce an invisible row");
 				require(SettingsTable::End(owner) == DMUI_RESULT_OK,
@@ -398,7 +402,9 @@ namespace vmm_tests
 
 				const auto abandoned = SettingsTable::Begin(owner, "abandoned");
 				require(abandoned.result == DMUI_RESULT_OK && abandoned.visible &&
-						SettingsTable::BeginRow(owner, "row", "Setting", nullptr).visible,
+						SettingsTable::BeginField(
+					owner, "row", "Setting", nullptr,
+					SettingsTable::FieldLayout::kLabelValue).visible,
 					"abandoned row fixture did not begin");
 			}
 			require(frame.IsAtBaseline() && frame.Errors() == 0,
@@ -409,12 +415,7 @@ namespace vmm_tests
 			constexpr DMUI_ClientHandle owner{ 7 };
 			constexpr DMUI_ClientHandle other{ 8 };
 			FeedbackAppearanceGuard appearance;
-			FieldFeedback::SetAppearance({
-				FieldFeedbackPlacement::kUnderLabel,
-				FieldFeedback::kDefaultInfoColor,
-				FieldFeedback::kDefaultWarningColor,
-				FieldFeedback::kDefaultErrorColor
-			});
+			FieldFeedback::SetAppearance({ FieldFeedbackPlacement::kUnderLabel });
 
 			ImGuiTestFrame frame;
 			{
@@ -433,12 +434,12 @@ namespace vmm_tests
 					ImGui::GetCurrentContext()->LastItemData.ID;
 				require(SettingsTable::SetFieldFeedback(
 							other,
-							DMUI_FIELD_FEEDBACK_SEVERITY_WARNING,
+							DMUI_SEVERITY_WARNING,
 							"foreign") ==
 						DMUI_RESULT_UNBALANCED_BRACKET &&
 						SettingsTable::SetFieldFeedback(
 							owner,
-							DMUI_FIELD_FEEDBACK_SEVERITY_WARNING,
+							DMUI_SEVERITY_WARNING,
 							message) == DMUI_RESULT_OK &&
 						ImGui::GetCurrentContext()->LastItemData.ID ==
 							controlId,
@@ -456,11 +457,32 @@ namespace vmm_tests
 						!logged.contains(std::string(16, 'x')),
 					"feedback did not retain and draw the literal client text");
 
+				ImGui::LogToBuffer();
+				BeginFeedbackField(owner, "success");
+				ImGui::Button("Value");
+				require(SettingsTable::SetFieldFeedback(
+							owner,
+							DMUI_SEVERITY_SUCCESS,
+							"Saved.") == DMUI_RESULT_OK &&
+						SettingsTable::SetFieldFeedback(
+							owner,
+							DMUI_SEVERITY_ERROR + 1u,
+							"Rejected.") == DMUI_RESULT_INVALID_ARGUMENT,
+					"feedback severity validation did not match the unified set");
+				EndFeedbackField(owner);
+				const std::string successLog{
+					ImGui::GetCurrentContext()->LogBuffer.c_str()
+				};
+				ImGui::LogFinish();
+				require(successLog.contains("Success: Saved.") &&
+						!successLog.contains("Rejected."),
+					"success feedback was not drawn with its own label");
+
 				BeginFeedbackField(owner, "abandoned");
 				ImGui::Button("Value");
 				require(SettingsTable::SetFieldFeedback(
 							owner,
-							DMUI_FIELD_FEEDBACK_SEVERITY_ERROR,
+							DMUI_SEVERITY_ERROR,
 							"Abandoned") == DMUI_RESULT_OK,
 					"abandoned field feedback was rejected");
 			}

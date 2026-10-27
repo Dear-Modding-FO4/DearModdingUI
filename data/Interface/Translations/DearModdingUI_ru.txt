@@ -166,10 +166,13 @@ $DMUI_Settings_OkabeVermillion	Киноварный Окамэ-Ито, разл�
 $DMUI_Settings_AccessiblePurple	Доступный пурпурный
 $DMUI_Settings_OkabePurple	Пурпурный Окамэ-Ито, различим при распространённых нарушениях цветового зрения
 $DMUI_Settings_FeedbackExampleInfo	Изменения вступят в силу после повторного открытия меню.
+$DMUI_Settings_FeedbackExampleSuccess	Сохранено в активном профиле.
 $DMUI_Settings_FeedbackExampleWarning	Эта настройка может повлиять на тайминг геймплея.
 $DMUI_Settings_FeedbackExampleError	Минимум не может превышать максимум.
 $DMUI_Settings_FeedbackPreview	Предпросмотр отзыва поля
 $DMUI_Settings_Appearance	Внешний вид
+$DMUI_Settings_ThemePreset	Тема оформления
+$DMUI_Settings_ThemePresetHelp	Перечисляет файлы тем в Data/F4SE/Plugins/DearModdingUI/Themes. Параметры ниже переопределяют тему; сброс возвращает строку к значению темы.
 $DMUI_Settings_SidebarLayout	Макет боковой панели (сохраняется немедленно)
 $DMUI_Settings_AccentColor	Акцентный цвет
 $DMUI_Settings_AccentColorHelp	Перекрашивает выделение, элементы, ссылки и все значки меню Phosphor в цветном режиме.
@@ -194,17 +197,13 @@ $DMUI_Settings_BackgroundBlurHelp	Размывает игру за окном х
 $DMUI_Settings_BlurStrength	Сила размытия
 $DMUI_Settings_BlurStrengthHelp	Регулирует разброс выборки размытия по кадрам без перераспределения графических ресурсов.
 $DMUI_Settings_FeedbackPlacement	Расположение отзыва поля
-$DMUI_Settings_FeedbackInfo	Отзыв поля: информация
-$DMUI_Settings_FeedbackInfoHelp	Цвет, используемый только для информационного отзыва поля.
-$DMUI_Settings_FeedbackWarning	Отзыв поля: предупреждение
-$DMUI_Settings_FeedbackWarningHelp	Цвет, используемый только для отзыва-предупреждения поля.
-$DMUI_Settings_FeedbackError	Отзыв поля: ошибка
-$DMUI_Settings_FeedbackErrorHelp	Цвет, используемый только для отзыва-ошибки поля.
 $DMUI_Settings_Readability	Читаемость
 $DMUI_Settings_UiScale	Масштаб интерфейса (требуется «Применить»)
 $DMUI_Settings_UiScaleHelp	Умножает размеры на основе разрешения; «Применить» пересобирает типографику один раз перед следующим кадром.
 $DMUI_Settings_BodyFontFamily	Семейство шрифта основного текста (требуется «Применить»)
 $DMUI_Settings_BodyFontFamilyHelp	Показывает папки семейств шрифтов в Data/F4SE/Plugins/DearModdingUI/Fonts; «Применить» пересобирает выбранное семейство один раз.
+$DMUI_Settings_MonospaceFontFamily	Семейство моноширинного шрифта (требуется «Применить»)
+$DMUI_Settings_MonospaceFontFamilyHelp	Для кода и журналов. Показывает те же папки семейств шрифтов и встроенный шрифт; «Применить» пересобирает выбранное семейство один раз.
 $DMUI_Settings_AppliedThisFrame	Применено в этом кадре: {}
 $DMUI_Settings_HotkeyConflictDefault	Конфликт: предлагаемое значение по умолчанию уже назначено.
 $DMUI_Settings_HotkeyConflictOverride	Конфликт: сохранённое назначение привязано к другому действию или переключателю меню.
@@ -231,3 +230,15 @@ $DMUI_Settings_ResolvedTypographySize	Итоговый размер типогр
 $DMUI_Settings_ResolvedTypographySizeHelp	Выводится из высоты заднего буфера и применённого масштаба интерфейса на границе кадра.
 $DMUI_Settings_EffectiveUiScale	Эффективный масштаб интерфейса
 $DMUI_Settings_EffectiveUiScaleHelp	Выводится из разрешения и [Additional] fMenuUiScale.
+$DMUI_SettingsPage_ResetAll	Сбросить все
+$DMUI_SettingsPage_ResetAllTooltip	Сброс загружает значения по умолчанию для всех настроек в черновик. Сохраните их кнопкой «Применить».
+$DMUI_SettingsPage_Revert	Вернуть
+$DMUI_SettingsPage_RevertTooltip	Вернуть отменяет ожидающие изменения и восстанавливает сохранённые настройки.
+$DMUI_SettingsPage_Apply	Применить ({})
+$DMUI_SettingsPage_ApplyTooltipOne	Применить сохраняет ожидающие изменения: {}.
+$DMUI_SettingsPage_ApplyTooltipMany	Применить сохраняет ожидающие изменения: {}.
+$DMUI_SettingsPage_ModifiedOnly	Только изменённые
+$DMUI_SettingsPage_SearchHint	Поиск настроек...
+$DMUI_SettingsPage_UnsupportedControl	Неподдерживаемый элемент настройки.
+$DMUI_SettingsPage_AppliesNow	Применяется сразу.
+$DMUI_SettingsPage_Unavailable	Недоступно

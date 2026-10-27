@@ -17,7 +17,7 @@ namespace DearModdingUI::PresentationServices::Notifications
 	struct Toast
 	{
 		DMUI_ClientHandle owner{};
-		DMUI_StatusSeverity severity{};
+		DMUI_Severity severity{};
 		std::string clientName;
 		std::string title;
 		std::string message;

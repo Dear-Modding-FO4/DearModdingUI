@@ -1,6 +1,6 @@
 #pragma once
 
-#include <DearModdingUI/ThemeDefaults.h>
+#include <DearModdingUI/presentation/FontMetrics.h>
 #include <Support/SubsystemHealth.h>
 
 #include <array>
@@ -17,8 +17,11 @@ namespace DearModdingUI::Theme
 		std::string effectiveFamily;
 		bool requestedFamilyFound{ false };
 		bool requestedBodyLoaded{ false };
-		std::array<bool, static_cast<size_t>(FontRole::kCount)> rolesLoaded{};
+		std::array<bool, kFontRoleCount> rolesLoaded{};
 		bool iconsLoaded{ false };
+		std::string iconSetFont;
+		bool iconSetMapped{ true };
+		bool iconSetLoaded{ true };
 		size_t systemFallbacksLoaded{ 0 };
 		bool emergencyFontUsed{ false };
 		bool usableAtlas{ false };
@@ -63,7 +66,7 @@ namespace DearModdingUI::Theme
 				continue;
 			if (!missingRoles.empty())
 				missingRoles.append(", ");
-			missingRoles.append(kFontRoleDefaults[index].key);
+			missingRoles.append(kFontRoleKeys[index]);
 		}
 		if (!missingRoles.empty())
 		{
@@ -74,6 +77,18 @@ namespace DearModdingUI::Theme
 		}
 		if (!a_outcome.iconsLoaded)
 			append("Phosphor icons are unavailable; labels remain text-only.");
+		if (!a_outcome.iconSetMapped)
+		{
+			append(std::format(
+				"Theme icon font \"{}\" maps no icons; using Phosphor icons.",
+				a_outcome.iconSetFont));
+		}
+		else if (!a_outcome.iconSetLoaded)
+		{
+			append(std::format(
+				"Theme icon font \"{}\" could not load; using Phosphor icons.",
+				a_outcome.iconSetFont));
+		}
 		if (a_outcome.systemFallbacksLoaded == 0)
 			append("No system fallback fonts loaded; non-Latin text may not render.");
 		if (a_outcome.emergencyFontUsed)

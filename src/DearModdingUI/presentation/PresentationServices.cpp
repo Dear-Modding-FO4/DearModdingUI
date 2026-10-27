@@ -101,10 +101,9 @@ namespace DearModdingUI::PresentationServices
 		if (visible)
 		{
 			// Plots are display surfaces, not input fields, so they share the panel surface.
-			const auto surface = Theme::ColorSnapshot().panel;
 			ImGui::RenderFrame(itemMinimum,
 				{ itemMinimum.x + frameSize.x, itemMinimum.y + frameSize.y },
-				ImGui::GetColorU32(ImVec4{ surface.x, surface.y, surface.z, surface.w }), true,
+				ImGui::GetColorU32(Theme::Current().tokens.rowAlt), true,
 				ImGui::GetStyle().FrameRounding);
 			drawList->PushClipRect(plotMinimum, plotMaximum, true);
 			for (size_t index = 0; index < a_descriptor->referenceLineCount; ++index)

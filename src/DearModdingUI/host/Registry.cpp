@@ -1,6 +1,8 @@
 #include <DearModdingUI/host/Registry.h>
 #include "RegistryCallbackDispatch.h"
 
+#include <DearModdingUI/host/RenderExecution.h>
+
 #include <algorithm>
 #include <limits>
 #include <new>
@@ -392,7 +394,7 @@ namespace DearModdingUI
 		{
 			const std::scoped_lock lock{ m_mutex };
 			auto* action = FindAction(a_action);
-			if (!action)
+			if (!action || !action->enabled)
 				return DMUI_RESULT_ACTION_NOT_FOUND;
 			if (action->callbackFailed)
 				return DMUI_RESULT_CALLBACK_FAILED;
@@ -418,6 +420,69 @@ namespace DearModdingUI
 		const std::scoped_lock lock{ m_mutex };
 		const auto* action = FindAction(a_action);
 		return !action || action->callbackFailed;
+	}
+
+	ActionState Registry::StateOfAction(DMUI_ActionHandle a_action) const noexcept
+	{
+		const std::scoped_lock lock{ m_mutex };
+		const auto* action = FindAction(a_action);
+		if (!action)
+			return ActionState::kRemoved;
+		if (!action->enabled)
+			return ActionState::kDisabled;
+		return action->callbackFailed ? ActionState::kFailed : ActionState::kReady;
+	}
+
+	size_t Registry::ActionCount(DMUI_ClientHandle a_client) const noexcept
+	{
+		const std::scoped_lock lock{ m_mutex };
+		return static_cast<size_t>(std::ranges::count_if(m_actions, [&](const auto& a_action) {
+			return !a_action.unregistered &&
+				(a_client == DMUI_INVALID_CLIENT_HANDLE || a_action.client == a_client);
+		}));
+	}
+
+	DMUI_Result Registry::UnregisterAction(
+		DMUI_ClientHandle a_client,
+		DMUI_ActionHandle a_action) noexcept
+	{
+		if (a_client == DMUI_INVALID_CLIENT_HANDLE ||
+			a_action == DMUI_INVALID_ACTION_HANDLE)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+
+		const std::scoped_lock lock{ m_mutex };
+		if (!RenderExecution::IsActive())
+			return DMUI_RESULT_WRONG_THREAD;
+		auto* action = FindAction(a_action);
+		if (!action || action->client != a_client)
+			return DMUI_RESULT_ACTION_NOT_FOUND;
+		// A running callback keeps its own copy of the function and userData.
+		action->unregistered = true;
+		action->callback = nullptr;
+		action->userData = nullptr;
+		PublishLocked();
+		return DMUI_RESULT_OK;
+	}
+
+	DMUI_Result Registry::SetActionEnabled(
+		DMUI_ClientHandle a_client,
+		DMUI_ActionHandle a_action,
+		bool a_enabled) noexcept
+	{
+		if (a_client == DMUI_INVALID_CLIENT_HANDLE ||
+			a_action == DMUI_INVALID_ACTION_HANDLE)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+
+		const std::scoped_lock lock{ m_mutex };
+		auto* action = FindAction(a_action);
+		if (!action || action->client != a_client)
+			return DMUI_RESULT_ACTION_NOT_FOUND;
+		if (action->enabled != a_enabled)
+		{
+			action->enabled = a_enabled;
+			PublishLocked();
+		}
+		return DMUI_RESULT_OK;
 	}
 
 	void Registry::MarkActionFailed(DMUI_ActionHandle a_action) noexcept
@@ -696,7 +761,7 @@ namespace DearModdingUI
 	RegisteredAction* Registry::FindAction(DMUI_ActionHandle a_action) noexcept
 	{
 		const auto found = std::ranges::find_if(m_actions, [&](const auto& a_existing) {
-			return a_existing.handle == a_action;
+			return a_existing.handle == a_action && !a_existing.unregistered;
 		});
 		return found != m_actions.end() ? &*found : nullptr;
 	}
@@ -704,7 +769,7 @@ namespace DearModdingUI
 	const RegisteredAction* Registry::FindAction(DMUI_ActionHandle a_action) const noexcept
 	{
 		const auto found = std::ranges::find_if(m_actions, [&](const auto& a_existing) {
-			return a_existing.handle == a_action;
+			return a_existing.handle == a_action && !a_existing.unregistered;
 		});
 		return found != m_actions.end() ? &*found : nullptr;
 	}

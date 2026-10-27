@@ -1,7 +1,9 @@
 #include <DearModdingUI/controls/SettingsTable.h>
 
-#include <DearModdingUI/SettingsActions.h>
+#include <DearModdingUI/controls/Button.h>
+#include <DearModdingUI/controls/ControlRenderer.h>
 #include <DearModdingUI/controls/Controls.h>
+#include <DearModdingUI/controls/SettingsActions.h>
 #include <DearModdingUI/controls/FieldFeedback.h>
 #include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/presentation/Theme.h>
@@ -39,10 +41,10 @@ namespace DearModdingUI::SettingsTable
 			std::string label;
 			std::string description;
 			std::string feedback;
-			DMUI_FieldFeedbackSeverity feedbackSeverity{
-				DMUI_FIELD_FEEDBACK_SEVERITY_INFO
+			DMUI_Severity feedbackSeverity{
+				DMUI_SEVERITY_INFO
 			};
-			RowLayout layout{ RowLayout::kLabelValue };
+			FieldLayout layout{ FieldLayout::kLabelValue };
 			bool fullSpanClipPushed{ false };
 			bool standalone{ false };
 		};
@@ -72,40 +74,6 @@ namespace DearModdingUI::SettingsTable
 				context->CurrentTable->ID == a_tableId &&
 				context->CurrentWindow == s_state.window &&
 				context->CurrentWindow->IDStack.Size == a_idDepth;
-		}
-
-		[[nodiscard]] float LabelBlockHeight(
-			const char* a_label,
-			const char* a_description,
-			float a_wrapWidth) noexcept
-		{
-			// An empty label is still one line tall in ImGui; label-less rows reserve no header.
-			if ((!a_label || a_label[0] == '\0') && (!a_description || a_description[0] == '\0'))
-				return 0.0f;
-			float labelHeight{};
-			{
-				const Theme::FontGuard font{ Theme::FontRole::kSubheading };
-				labelHeight = ImGui::CalcTextSize(
-					a_label,
-					nullptr,
-					false,
-					a_wrapWidth).y;
-			}
-			if (!a_description || a_description[0] == '\0')
-				return labelHeight;
-
-			float descriptionHeight{};
-			{
-				const Theme::FontGuard font{ Theme::FontRole::kSubtext };
-				descriptionHeight = ImGui::CalcTextSize(
-					a_description,
-					nullptr,
-					false,
-					a_wrapWidth).y;
-			}
-			return labelHeight +
-				ImGui::GetStyle().ItemSpacing.y +
-				descriptionHeight;
 		}
 
 		[[nodiscard]] ImRect TableRowContentRect(
@@ -143,40 +111,41 @@ namespace DearModdingUI::SettingsTable
 				FieldFeedback::RequiredExtent(
 					a_feedback,
 					FieldFeedback::Region::kLabel);
-			PlaceRowContent({
-				a_contentRect.Min.x,
-				RowContentY(
-					a_contentRect.Min.y,
-					a_contentRect.GetHeight(),
-					totalHeight)
-			});
-			// Wrap positions are window-local, unlike the content rectangle.
-			ImGui::PushTextWrapPos(
-				ImGui::GetCursorPosX() +
-					(std::max)(
-						a_contentRect.GetWidth(),
-						ImGui::GetFontSize()));
-			{
-				const Theme::FontGuard font{ Theme::FontRole::kSubheading };
-				ImGui::TextUnformatted(s_state.label.c_str());
-			}
-			if (!s_state.description.empty())
-			{
-				const Theme::FontGuard font{ Theme::FontRole::kSubtext };
-				ImGui::TextDisabled("%s", s_state.description.c_str());
-			}
-			ImGui::PopTextWrapPos();
+			CurrentControlRenderer().DrawFieldLabel(
+				{
+					a_contentRect.Min.x,
+					RowContentY(
+						a_contentRect.Min.y,
+						a_contentRect.GetHeight(),
+						totalHeight)
+				},
+				a_contentRect.GetWidth(),
+				s_state.label.c_str(),
+				s_state.description.c_str());
 			FieldFeedback::Draw(
 				a_feedback,
 				FieldFeedback::Region::kLabel);
 		}
 
-		[[nodiscard]] float ResetColumnWidth(float a_buttonExtent) noexcept
+		[[nodiscard]] ButtonSpec ResetButton(bool a_enabled) noexcept
 		{
-			return SettingsActionButtonWidth(
-				SettingsAction::kReset,
+			constexpr auto glyph = SettingsActionGlyph(SettingsAction::kReset);
+			// The reset column is a square one frame tall while an icon draws.
+			const auto frame = ImGui::GetFrameHeight();
+			auto reset = MakeIconButtonSpec(
+				"##DearModdingUI.SettingsRowReset",
+				glyph,
 				Localization::Text(kResetText),
-				a_buttonExtent);
+				a_enabled ?
+					Localization::Text(
+						"$DMUI_Controls_ResetSettingTooltip",
+						"Reset this setting to its default.") :
+					Localization::Text(
+						"$DMUI_Controls_AlreadyDefaultTooltip",
+						"This setting already uses its default."));
+			reset.enabled = a_enabled;
+			reset.size = { HasIconGlyph(glyph) ? frame : 0.0f, frame };
+			return reset;
 		}
 
 		void ClearRowState() noexcept
@@ -194,8 +163,8 @@ namespace DearModdingUI::SettingsTable
 			s_state.description.clear();
 			s_state.feedback.clear();
 			s_state.feedbackSeverity =
-				DMUI_FIELD_FEEDBACK_SEVERITY_INFO;
-			s_state.layout = RowLayout::kLabelValue;
+				DMUI_SEVERITY_INFO;
+			s_state.layout = FieldLayout::kLabelValue;
 			s_state.fullSpanClipPushed = false;
 			s_state.standalone = false;
 		}
@@ -221,7 +190,7 @@ namespace DearModdingUI::SettingsTable
 			const auto owner = s_state.bracket.Owner();
 			const auto standalone = s_state.standalone;
 			auto tableClosed = false;
-			if (s_state.bracket.CurrentPhase() == Phase::kRow &&
+			if (s_state.bracket.CurrentPhase() == Phase::kField &&
 				HasExpectedTable(
 					s_state.controlsId,
 					s_state.controlsIdDepth))
@@ -232,7 +201,7 @@ namespace DearModdingUI::SettingsTable
 				{
 					ImGui::PopID();
 					ClearRowState();
-					(void)s_state.bracket.EndRow(owner);
+					(void)s_state.bracket.EndField(owner);
 				}
 			}
 
@@ -337,266 +306,258 @@ namespace DearModdingUI::SettingsTable
 		return { DMUI_RESULT_OK, true };
 	}
 
-	BeginResult BeginRow(
-		DMUI_ClientHandle a_owner,
-		const char* a_id,
-		const char* a_label,
-		const char* a_description,
-		RowLayout a_layout) noexcept
+	namespace
 	{
-		if (!a_id || a_id[0] == '\0' || !a_label)
-			return { DMUI_RESULT_INVALID_ARGUMENT, false };
-		if (!HasExpectedTable(s_state.tableId, s_state.tableIdDepth))
-			return { DMUI_RESULT_UNBALANCED_BRACKET, false };
+		BeginResult BeginRow(
+			DMUI_ClientHandle a_owner,
+			const char* a_id,
+			const char* a_label,
+			const char* a_description,
+			FieldLayout a_layout) noexcept
+		{
+			if (!a_id || a_id[0] == '\0' || !a_label)
+				return { DMUI_RESULT_INVALID_ARGUMENT, false };
+			if (!HasExpectedTable(s_state.tableId, s_state.tableIdDepth))
+				return { DMUI_RESULT_UNBALANCED_BRACKET, false };
 
-		try
-		{
-			s_state.label = a_label;
-			s_state.description = a_description ? a_description : "";
-			s_state.layout = a_layout;
-		}
-		catch (const std::bad_alloc&)
-		{
-			ClearRowState();
-			return { DMUI_RESULT_RESOURCE_EXHAUSTED, false };
-		}
-		catch (...)
-		{
-			ClearRowState();
-			return { DMUI_RESULT_CALLBACK_FAILED, false };
-		}
-
-		const auto transition = s_state.bracket.BeginRow(a_owner);
-		if (transition != DMUI_RESULT_OK)
-		{
-			ClearRowState();
-			return { transition, false };
-		}
-
-		ImGui::PushID(a_id);
-		s_state.rowIdDepth = s_state.window->IDStack.Size;
-		ImGui::TableNextRow();
-		(void)ImGui::TableSetColumnIndex(0);
-		const auto labelOrigin = ImGui::GetCursorScreenPos();
-		if (a_layout == RowLayout::kFullSpan)
-		{
-			const auto* table = ImGui::GetCurrentTable();
-			const auto finalCell = ImGui::TableGetCellBgRect(table, 1);
-			s_state.fullSpanMaxX =
-				finalCell.Max.x - table->CellPaddingX;
-			s_state.savedWorkRectMaxX = s_state.window->WorkRect.Max.x;
-			s_state.window->WorkRect.Max.x = s_state.fullSpanMaxX;
-			const auto clip = s_state.window->ClipRect;
-			ImGui::PushClipRect(
-				clip.Min,
-				{ s_state.fullSpanMaxX, clip.Max.y },
-				false);
-			s_state.fullSpanClipPushed = true;
-		}
-		const auto wrapWidth = (std::max)(
-			ImGui::GetContentRegionAvail().x,
-			ImGui::GetFontSize());
-		s_state.labelHeight = LabelBlockHeight(
-			s_state.label.c_str(),
-			s_state.description.c_str(),
-			wrapWidth);
-		if (s_state.labelHeight > 0.0f)
-		{
-			s_state.labelRect = {
-				labelOrigin,
-				{
-					labelOrigin.x + wrapWidth,
-					labelOrigin.y + s_state.labelHeight
-				}
-			};
-			ImGui::Dummy({ 0.0f, s_state.labelHeight });
-		}
-		if (a_layout == RowLayout::kLabelValue)
-			(void)ImGui::TableSetColumnIndex(1);
-
-		s_state.buttonExtent = ImGui::GetFrameHeight();
-		s_state.resetWidth = ResetColumnWidth(s_state.buttonExtent);
-		const auto visible = ImGui::BeginTable(
-			"##DearModdingUI.SettingsRowControls",
-			2,
-			ImGuiTableFlags_SizingStretchProp,
-			a_layout == RowLayout::kFullSpan ?
-				ImVec2{
-					(std::max)(
-						s_state.fullSpanMaxX -
-							ImGui::GetCursorScreenPos().x,
-						0.0f),
-					0.0f
-				} :
-				ImVec2{});
-		if (!visible)
-		{
-			RestoreFullSpanContent();
-			ImGui::PopID();
-			(void)s_state.bracket.EndRow(a_owner);
-			ClearRowState();
-			return { DMUI_RESULT_OK, false };
-		}
-		s_state.controlsId = ImGui::GetCurrentTable()->ID;
-		s_state.controlsIdDepth = s_state.window->IDStack.Size;
-
-		ImGui::TableSetupColumn(
-			"##Value",
-			ImGuiTableColumnFlags_WidthStretch);
-		ImGui::TableSetupColumn(
-			"##Reset",
-			ImGuiTableColumnFlags_WidthFixed,
-			s_state.resetWidth);
-		ImGui::TableNextRow(
-			ImGuiTableRowFlags_None,
-			s_state.buttonExtent + ImGui::GetStyle().CellPadding.y * 2.0f);
-		(void)ImGui::TableSetColumnIndex(0);
-		ImGui::SetNextItemWidth(-FLT_MIN);
-		// The value cell is a frame line, so client text centers beside frame controls.
-		if (a_layout == RowLayout::kLabelValue)
-			ImGui::AlignTextToFramePadding();
-		return { DMUI_RESULT_OK, true };
-	}
-
-	DMUI_Result EndRow(
-		DMUI_ClientHandle a_owner,
-		const FieldEndOptions& a_options,
-		bool& a_resetPressed) noexcept
-	{
-		a_resetPressed = false;
-		if (s_state.bracket.CurrentPhase() != Phase::kRow ||
-			s_state.bracket.Owner() != a_owner ||
-			!HasExpectedTable(
-				s_state.controlsId,
-				s_state.controlsIdDepth))
-			return DMUI_RESULT_UNBALANCED_BRACKET;
-		const auto* controls = ImGui::GetCurrentTable();
-		const auto controlsMaxY = controls->OuterRect.Max.y;
-		const auto controlContentRect = TableRowContentRect(controls, 0);
-		const auto controlContentEnd = ImGui::GetCursorScreenPos();
-		(void)ImGui::TableSetColumnIndex(1);
-		const auto resetContentRect = TableRowContentRect(controls, 1);
-		const auto* outerTable =
-			ImGui::GetCurrentContext()->Tables.GetByKey(s_state.tableId);
-		if (!outerTable)
-			return DMUI_RESULT_UNBALANCED_BRACKET;
-		const auto labelWidth = (std::max)(
-			outerTable->Columns[0].WorkMaxX -
-				outerTable->Columns[0].WorkMinX,
-			1.0f);
-		const auto containerWidth = (std::max)(
-			outerTable->Columns[1].WorkMaxX -
-				outerTable->Columns[0].WorkMinX,
-			1.0f);
-		const auto feedback = FieldFeedback::ResolveLayout({
-			s_state.feedback,
-			s_state.feedbackSeverity,
-			s_state.layout == RowLayout::kLabelValue,
-			labelWidth,
-			controlContentRect.GetWidth(),
-			containerWidth
-		});
-		(void)ImGui::TableSetColumnIndex(0);
-		if (FieldFeedback::RequiredExtent(
-				feedback,
-				FieldFeedback::Region::kControl) > 0.0f)
-		{
-			PlaceRowContent(controlContentEnd);
-			FieldFeedback::Draw(
-				feedback,
-				FieldFeedback::Region::kControl);
-		}
-		(void)ImGui::TableSetColumnIndex(1);
-		if (a_options.resetVisible)
-		{
-			a_resetPressed = DrawSettingsActionButton(
-				"##DearModdingUI.SettingsRowReset",
-				{
-					resetContentRect.Min.x,
-					RowContentY(
-						resetContentRect.Min.y,
-						resetContentRect.GetHeight(),
-						s_state.buttonExtent)
-				},
-				{ s_state.resetWidth, s_state.buttonExtent },
-				SettingsAction::kReset,
-				Localization::Text(kResetText),
-				a_options.resetEnabled ?
-					Localization::Text(
-						"$DMUI_Controls_ResetSettingTooltip",
-						"Reset this setting to its default.") :
-					Localization::Text(
-						"$DMUI_Controls_AlreadyDefaultTooltip",
-						"This setting already uses its default."),
-				a_options.resetEnabled);
-			a_resetPressed |= ControllerNavigation::ResetFocusedRow(
-				a_options.resetEnabled,
-				{ s_state.labelRect.Min.x, resetContentRect.Min.y },
-				{ resetContentRect.Max.x, (std::max)(controlsMaxY, resetContentRect.Max.y) });
-		}
-		ImGui::EndTable();
-		RestoreFullSpanContent();
-
-		if (!HasExpectedTable(s_state.tableId, s_state.rowIdDepth))
-			return DMUI_RESULT_UNBALANCED_BRACKET;
-		const auto* table = ImGui::GetCurrentTable();
-		(void)ImGui::TableSetColumnIndex(0);
-		const auto labelExtent = FieldFeedback::RequiredExtent(
-			feedback,
-			FieldFeedback::Region::kLabel);
-		if (labelExtent > 0.0f)
-		{
-			ImGui::Dummy({ 0.0f, labelExtent });
-		}
-		const auto containerExtent = FieldFeedback::RequiredExtent(
-			feedback,
-			FieldFeedback::Region::kContainer);
-		const auto contentMaxY =
-			(std::max)(s_state.labelRect.Max.y, controlsMaxY);
-		if (containerExtent > 0.0f)
-		{
-			const auto first = TableRowContentRect(table, 0);
-			PlaceRowContent({
-				first.Min.x,
-				contentMaxY
-			});
-			const auto clip = s_state.window->ClipRect;
-			ImGui::PushClipRect(
-				clip.Min,
-				{ first.Min.x + feedback.width, clip.Max.y },
-				false);
-			FieldFeedback::Draw(
-				feedback,
-				FieldFeedback::Region::kContainer);
-			ImGui::PopClipRect();
-		}
-		const auto drawLabel =
-			s_state.layout != RowLayout::kFullSpan ||
-			s_state.labelHeight > 0.0f;
-		if (drawLabel)
-		{
-			auto labelRect =
-				s_state.layout == RowLayout::kFullSpan ?
-					s_state.labelRect :
-					TableRowContentRect(table, 0);
-			if (containerExtent > 0.0f)
-				labelRect.Max.y = contentMaxY;
-			if (s_state.layout == RowLayout::kFullSpan)
+			try
 			{
+				s_state.label = a_label;
+				s_state.description = a_description ? a_description : "";
+				s_state.layout = a_layout;
+			}
+			catch (const std::bad_alloc&)
+			{
+				ClearRowState();
+				return { DMUI_RESULT_RESOURCE_EXHAUSTED, false };
+			}
+			catch (...)
+			{
+				ClearRowState();
+				return { DMUI_RESULT_CALLBACK_FAILED, false };
+			}
+
+			const auto transition = s_state.bracket.BeginField(a_owner);
+			if (transition != DMUI_RESULT_OK)
+			{
+				ClearRowState();
+				return { transition, false };
+			}
+
+			ImGui::PushID(a_id);
+			s_state.rowIdDepth = s_state.window->IDStack.Size;
+			ImGui::TableNextRow();
+			(void)ImGui::TableSetColumnIndex(0);
+			const auto labelOrigin = ImGui::GetCursorScreenPos();
+			if (a_layout == FieldLayout::kFullSpan)
+			{
+				const auto* table = ImGui::GetCurrentTable();
+				const auto finalCell = ImGui::TableGetCellBgRect(table, 1);
+				s_state.fullSpanMaxX =
+					finalCell.Max.x - table->CellPaddingX;
+				s_state.savedWorkRectMaxX = s_state.window->WorkRect.Max.x;
+				s_state.window->WorkRect.Max.x = s_state.fullSpanMaxX;
 				const auto clip = s_state.window->ClipRect;
 				ImGui::PushClipRect(
 					clip.Min,
 					{ s_state.fullSpanMaxX, clip.Max.y },
 					false);
-				DrawLabel(labelRect, feedback);
+				s_state.fullSpanClipPushed = true;
+			}
+			const auto wrapWidth = (std::max)(
+				ImGui::GetContentRegionAvail().x,
+				ImGui::GetFontSize());
+			s_state.labelHeight = CurrentControlRenderer().MeasureFieldLabel(
+				s_state.label.c_str(),
+				s_state.description.c_str(),
+				wrapWidth);
+			if (s_state.labelHeight > 0.0f)
+			{
+				s_state.labelRect = {
+					labelOrigin,
+					{
+						labelOrigin.x + wrapWidth,
+						labelOrigin.y + s_state.labelHeight
+					}
+				};
+				ImGui::Dummy({ 0.0f, s_state.labelHeight });
+			}
+			if (a_layout == FieldLayout::kLabelValue)
+				(void)ImGui::TableSetColumnIndex(1);
+
+			s_state.buttonExtent = ImGui::GetFrameHeight();
+			s_state.resetWidth = MeasureButton(ResetButton(false)).x;
+			const auto visible = ImGui::BeginTable(
+				"##DearModdingUI.SettingsRowControls",
+				2,
+				ImGuiTableFlags_SizingStretchProp,
+				a_layout == FieldLayout::kFullSpan ?
+					ImVec2{
+						(std::max)(
+							s_state.fullSpanMaxX -
+								ImGui::GetCursorScreenPos().x,
+							0.0f),
+						0.0f
+					} :
+					ImVec2{});
+			if (!visible)
+			{
+				RestoreFullSpanContent();
+				ImGui::PopID();
+				(void)s_state.bracket.EndField(a_owner);
+				ClearRowState();
+				return { DMUI_RESULT_OK, false };
+			}
+			s_state.controlsId = ImGui::GetCurrentTable()->ID;
+			s_state.controlsIdDepth = s_state.window->IDStack.Size;
+
+			ImGui::TableSetupColumn(
+				"##Value",
+				ImGuiTableColumnFlags_WidthStretch);
+			ImGui::TableSetupColumn(
+				"##Reset",
+				ImGuiTableColumnFlags_WidthFixed,
+				s_state.resetWidth);
+			ImGui::TableNextRow(
+				ImGuiTableRowFlags_None,
+				s_state.buttonExtent + ImGui::GetStyle().CellPadding.y * 2.0f);
+			(void)ImGui::TableSetColumnIndex(0);
+			ImGui::SetNextItemWidth(-FLT_MIN);
+			// The value cell is a frame line, so client text centers beside frame controls.
+			if (a_layout == FieldLayout::kLabelValue)
+				ImGui::AlignTextToFramePadding();
+			return { DMUI_RESULT_OK, true };
+		}
+
+		DMUI_Result EndRow(
+			DMUI_ClientHandle a_owner,
+			const FieldEndOptions& a_options,
+			bool& a_resetPressed) noexcept
+		{
+			a_resetPressed = false;
+			if (s_state.bracket.CurrentPhase() != Phase::kField ||
+				s_state.bracket.Owner() != a_owner ||
+				!HasExpectedTable(
+					s_state.controlsId,
+					s_state.controlsIdDepth))
+				return DMUI_RESULT_UNBALANCED_BRACKET;
+			const auto* controls = ImGui::GetCurrentTable();
+			const auto controlsMaxY = controls->OuterRect.Max.y;
+			const auto controlContentRect = TableRowContentRect(controls, 0);
+			const auto controlContentEnd = ImGui::GetCursorScreenPos();
+			(void)ImGui::TableSetColumnIndex(1);
+			const auto resetContentRect = TableRowContentRect(controls, 1);
+			const auto* outerTable =
+				ImGui::GetCurrentContext()->Tables.GetByKey(s_state.tableId);
+			if (!outerTable)
+				return DMUI_RESULT_UNBALANCED_BRACKET;
+			const auto labelWidth = (std::max)(
+				outerTable->Columns[0].WorkMaxX -
+					outerTable->Columns[0].WorkMinX,
+				1.0f);
+			const auto containerWidth = (std::max)(
+				outerTable->Columns[1].WorkMaxX -
+					outerTable->Columns[0].WorkMinX,
+				1.0f);
+			const auto feedback = FieldFeedback::ResolveLayout({
+				s_state.feedback,
+				s_state.feedbackSeverity,
+				s_state.layout == FieldLayout::kLabelValue,
+				labelWidth,
+				controlContentRect.GetWidth(),
+				containerWidth
+			});
+			(void)ImGui::TableSetColumnIndex(0);
+			if (FieldFeedback::RequiredExtent(
+					feedback,
+					FieldFeedback::Region::kControl) > 0.0f)
+			{
+				PlaceRowContent(controlContentEnd);
+				FieldFeedback::Draw(
+					feedback,
+					FieldFeedback::Region::kControl);
+			}
+			(void)ImGui::TableSetColumnIndex(1);
+			if (a_options.resetVisible)
+			{
+				a_resetPressed = DrawButtonAt(
+					ResetButton(a_options.resetEnabled),
+					{
+						resetContentRect.Min.x,
+						RowContentY(
+							resetContentRect.Min.y,
+							resetContentRect.GetHeight(),
+							s_state.buttonExtent)
+					});
+				a_resetPressed |= ControllerNavigation::ResetFocusedRow(
+					a_options.resetEnabled,
+					{ s_state.labelRect.Min.x, resetContentRect.Min.y },
+					{ resetContentRect.Max.x, (std::max)(controlsMaxY, resetContentRect.Max.y) });
+			}
+			ImGui::EndTable();
+			RestoreFullSpanContent();
+
+			if (!HasExpectedTable(s_state.tableId, s_state.rowIdDepth))
+				return DMUI_RESULT_UNBALANCED_BRACKET;
+			const auto* table = ImGui::GetCurrentTable();
+			(void)ImGui::TableSetColumnIndex(0);
+			const auto labelExtent = FieldFeedback::RequiredExtent(
+				feedback,
+				FieldFeedback::Region::kLabel);
+			if (labelExtent > 0.0f)
+			{
+				ImGui::Dummy({ 0.0f, labelExtent });
+			}
+			const auto containerExtent = FieldFeedback::RequiredExtent(
+				feedback,
+				FieldFeedback::Region::kContainer);
+			const auto contentMaxY =
+				(std::max)(s_state.labelRect.Max.y, controlsMaxY);
+			if (containerExtent > 0.0f)
+			{
+				const auto first = TableRowContentRect(table, 0);
+				PlaceRowContent({
+					first.Min.x,
+					contentMaxY
+				});
+				const auto clip = s_state.window->ClipRect;
+				ImGui::PushClipRect(
+					clip.Min,
+					{ first.Min.x + feedback.width, clip.Max.y },
+					false);
+				FieldFeedback::Draw(
+					feedback,
+					FieldFeedback::Region::kContainer);
 				ImGui::PopClipRect();
 			}
-			else
-				DrawLabel(labelRect, feedback);
+			const auto drawLabel =
+				s_state.layout != FieldLayout::kFullSpan ||
+				s_state.labelHeight > 0.0f;
+			if (drawLabel)
+			{
+				auto labelRect =
+					s_state.layout == FieldLayout::kFullSpan ?
+						s_state.labelRect :
+						TableRowContentRect(table, 0);
+				if (containerExtent > 0.0f)
+					labelRect.Max.y = contentMaxY;
+				if (s_state.layout == FieldLayout::kFullSpan)
+				{
+					const auto clip = s_state.window->ClipRect;
+					ImGui::PushClipRect(
+						clip.Min,
+						{ s_state.fullSpanMaxX, clip.Max.y },
+						false);
+					DrawLabel(labelRect, feedback);
+					ImGui::PopClipRect();
+				}
+				else
+					DrawLabel(labelRect, feedback);
+			}
+			ImGui::PopID();
+			ClearRowState();
+			return s_state.bracket.EndField(a_owner);
 		}
-		ImGui::PopID();
-		ClearRowState();
-		return s_state.bracket.EndRow(a_owner);
 	}
 
 	BeginResult BeginField(
@@ -604,7 +565,7 @@ namespace DearModdingUI::SettingsTable
 		const char* a_id,
 		const char* a_label,
 		const char* a_description,
-		RowLayout a_layout) noexcept
+		FieldLayout a_layout) noexcept
 	{
 		if (!a_id || a_id[0] == '\0')
 			return { DMUI_RESULT_INVALID_ARGUMENT, false };
@@ -645,16 +606,16 @@ namespace DearModdingUI::SettingsTable
 
 	DMUI_Result SetFieldFeedback(
 		DMUI_ClientHandle a_owner,
-		DMUI_FieldFeedbackSeverity a_severity,
+		DMUI_Severity a_severity,
 		std::string_view a_message) noexcept
 	{
-		if (s_state.bracket.CurrentPhase() != Phase::kRow ||
+		if (s_state.bracket.CurrentPhase() != Phase::kField ||
 			s_state.bracket.Owner() != a_owner ||
 			!HasExpectedTable(
 				s_state.controlsId,
 				s_state.controlsIdDepth))
 			return DMUI_RESULT_UNBALANCED_BRACKET;
-		if (!FieldFeedback::IsValidSeverity(a_severity))
+		if (!IsValidSeverity(a_severity))
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		try
 		{
@@ -677,7 +638,7 @@ namespace DearModdingUI::SettingsTable
 		const FieldEndOptions& a_options,
 		bool& a_resetPressed) noexcept
 	{
-		if (s_state.bracket.CurrentPhase() != Phase::kRow)
+		if (s_state.bracket.CurrentPhase() != Phase::kField)
 			return DMUI_RESULT_UNBALANCED_BRACKET;
 		const auto standalone = s_state.standalone;
 		const auto rowResult = EndRow(

@@ -3,6 +3,8 @@
 #include <DearModdingUI/API.h>
 #include <d3d11.h>
 #include <cstdint>
+#include <memory>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -27,6 +29,15 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 		std::vector<Mip> mips;
 	};
 
+	// Where an encoded image comes from: a file path, or bytes the host copied.
+	struct ImageSource
+	{
+		std::string path;
+		std::shared_ptr<const std::vector<uint8_t>> bytes;
+	};
+
+	[[nodiscard]] DMUI_Result DecodeBytes(std::span<const uint8_t> a_bytes, DecodedImage& a_image) noexcept;
 	[[nodiscard]] DMUI_Result DecodeFile(const std::string& a_path, DecodedImage& a_image) noexcept;
-	[[nodiscard]] DMUI_Result DecodeDDS(std::vector<uint8_t> a_bytes, DecodedImage& a_image);
+	[[nodiscard]] DMUI_Result DecodeSource(const ImageSource& a_source, DecodedImage& a_image) noexcept;
+	[[nodiscard]] DMUI_Result DecodeDDS(std::span<const uint8_t> a_bytes, DecodedImage& a_image);
 }

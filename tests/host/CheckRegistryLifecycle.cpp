@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -36,12 +37,13 @@ namespace vmm_tests
 			dmui::Client client{ "actions.mod", "Actions", { 1, 0 } };
 			dmui::detail::ClientTestAccess::Bind(client, api, handle);
 			require(client.AddAction("copy", "Copy diagnostics", nullptr, nullptr,
-				[] { dmui::ui::SetClipboardText("Diagnostics"); }), "copy action registration failed");
+				[] { dmui::ui::SetClipboardText("Diagnostics"); }).has_value(),
+				"copy action registration failed");
 			require(client.AddAction("invalid", "Invalid clipboard", nullptr, nullptr,
-				[] { dmui::ui::SetClipboardText(std::string_view{ nullptr, 1 }); }),
+				[] { dmui::ui::SetClipboardText(std::string_view{ nullptr, 1 }); }).has_value(),
 				"invalid action registration failed");
 			require(client.AddAction("throws", "Throwing action", nullptr, nullptr,
-				[] { throw 1; }), "throwing action registration failed");
+				[] { throw 1; }).has_value(), "throwing action registration failed");
 			support::ImGuiTestContext imgui;
 			std::string copied;
 			auto& platform = ImGui::GetPlatformIO();
@@ -69,6 +71,94 @@ namespace vmm_tests
 			require(dmui::ui::detail::currentContext == nullptr && copied == "Diagnostics",
 				"action leaked its UI context or invalid text overwrote the clipboard");
 			imgui.EndWindow();
+		});
+
+		runner.test("client actions disable, unregister, and release their callback", [] {
+			Registry registry;
+			CallbackState state;
+			const auto handle = AddClient(registry, "life.mod", "Life", state);
+			const auto other = AddClient(registry, "other.mod", "Other", state);
+			static Registry* activeRegistry;
+			activeRegistry = &registry;
+			DMUI_HostAPI api{};
+			api.ui = &UI::API();
+			api.registerAction = [](DMUI_ClientHandle a_client, const DMUI_ActionDescriptor* a_descriptor,
+				DMUI_ActionHandle* a_action) noexcept {
+				return activeRegistry->RegisterAction(a_client, a_descriptor, a_action);
+			};
+			api.unregisterAction = [](DMUI_ClientHandle a_client, DMUI_ActionHandle a_action) noexcept {
+				return activeRegistry->UnregisterAction(a_client, a_action);
+			};
+			api.setActionEnabled = [](DMUI_ClientHandle a_client, DMUI_ActionHandle a_action,
+				uint32_t a_enabled) noexcept {
+				return activeRegistry->SetActionEnabled(a_client, a_action, a_enabled != 0);
+			};
+			api.reportDiagnostic = [](DMUI_ClientHandle, const DMUI_DiagnosticDescriptor*) noexcept {
+				return DMUI_RESULT_OK;
+			};
+			dmui::Client client{ "life.mod", "Life", { 1, 0 } };
+			dmui::detail::ClientTestAccess::Bind(client, api, handle);
+
+			auto payload = std::make_shared<int>(0);
+			const std::weak_ptr<int> payloadWatch{ payload };
+			auto runs = 0;
+			std::optional<DMUI_ActionHandle> selfRemoving;
+			const auto plain = client.AddAction("plain", "Plain", nullptr, nullptr,
+				[payload, &runs] { ++runs; });
+			payload.reset();
+			selfRemoving = client.AddAction("self", "Self removing", nullptr, nullptr,
+				[&] {
+					++runs;
+					require(client.UnregisterAction(*selfRemoving),
+						"an action could not unregister itself while running");
+				});
+			require(plain && selfRemoving && registry.ActionCount(handle) == 2,
+				"actions were not registered");
+			require(registry.Freeze(), "registry did not freeze");
+
+			// Dispatch and unregister both belong to the render-execution scope.
+			require(!client.UnregisterAction(*plain) &&
+					client.LastResult() == DMUI_RESULT_WRONG_THREAD &&
+					registry.StateOfAction(*plain) == ActionState::kReady,
+				"unregister was accepted outside the render scope");
+
+			RenderExecution::Guard execution{ RenderExecution::Phase::kFrameDraw };
+			(void)execution.NoteBinding(1);
+			const RenderExecution::ClientGuard callback{ handle, true };
+
+			require(client.SetActionEnabled(*plain, false) &&
+					registry.StateOfAction(*plain) == ActionState::kDisabled &&
+					registry.InvokeAction(*plain) == DMUI_RESULT_ACTION_NOT_FOUND &&
+					runs == 0,
+				"a disabled action still ran");
+			require(client.SetActionEnabled(*plain, true) &&
+					registry.InvokeAction(*plain) == DMUI_RESULT_OK && runs == 1,
+				"a re-enabled action did not run");
+
+			require(registry.UnregisterAction(other, *plain) == DMUI_RESULT_ACTION_NOT_FOUND &&
+					registry.SetActionEnabled(other, *plain, false) == DMUI_RESULT_ACTION_NOT_FOUND &&
+					registry.UnregisterAction(handle, DMUI_ActionHandle{ 999 }) ==
+						DMUI_RESULT_ACTION_NOT_FOUND &&
+					registry.StateOfAction(*plain) == ActionState::kReady,
+				"a foreign or unknown handle changed an action");
+
+			require(!payloadWatch.expired(), "the callback was released before unregister");
+			require(client.UnregisterAction(*plain) &&
+					registry.StateOfAction(*plain) == ActionState::kRemoved &&
+					registry.InvokeAction(*plain) == DMUI_RESULT_ACTION_NOT_FOUND &&
+					registry.ActionCount(handle) == 1 &&
+					payloadWatch.expired() && runs == 1,
+				"unregister left the action runnable or its callback alive");
+			require(!client.UnregisterAction(*plain) &&
+					client.LastResult() == DMUI_RESULT_ACTION_NOT_FOUND &&
+					registry.UnregisterAction(handle, *plain) == DMUI_RESULT_ACTION_NOT_FOUND &&
+					registry.SetActionEnabled(handle, *plain, true) == DMUI_RESULT_ACTION_NOT_FOUND,
+				"a stale handle was accepted");
+
+			require(registry.InvokeAction(*selfRemoving) == DMUI_RESULT_OK && runs == 2 &&
+					registry.StateOfAction(*selfRemoving) == ActionState::kRemoved &&
+					registry.ActionCount(handle) == 0,
+				"a self-unregistering action did not complete and disappear");
 		});
 
 		runner.test("registry freeze rejects late clients and pages", [] {

@@ -1,5 +1,5 @@
 #include <DearModdingUI/navigation/Navigation.h>
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 #include <DearModdingUI/host/Registry.h>
 #include <DearModdingUI/localization/Localization.h>
 
@@ -96,13 +96,13 @@ namespace DearModdingUI
 	[[nodiscard]] char32_t ResolveNavigationClientIconGlyph(
 		const NavigationClient& a_client) noexcept
 	{
-		return a_client.iconSelection.GlyphOr(PhosphorGlyph::kQuestion);
+		return a_client.iconSelection.GlyphOr(dmui::PhosphorGlyph::kQuestion);
 	}
 
 	char32_t ResolveNavigationCategoryIconGlyph(
 		const NavigationCategory& a_category) noexcept
 	{
-		return a_category.iconSelection.GlyphOr(PhosphorGlyph::kQuestion);
+		return a_category.iconSelection.GlyphOr(dmui::PhosphorGlyph::kQuestion);
 	}
 
 	const NavigationClient* NavigationModel::FindClient(
@@ -280,7 +280,7 @@ namespace DearModdingUI
 					page->sortKey,
 					{},
 					page->iconName,
-					ResolveIconSelection(
+					dmui::ResolveIconSelection(
 						page->iconName,
 						page->iconMetadata)
 				});
@@ -316,7 +316,7 @@ namespace DearModdingUI
 					category->id,
 					category->sortKey,
 					category->iconName,
-					ResolveIconSelection(
+					dmui::ResolveIconSelection(
 						category->iconName,
 						category->iconMetadata)
 				};
@@ -334,7 +334,7 @@ namespace DearModdingUI
 						page->sortKey,
 						category->id,
 						page->iconName,
-						ResolveIconSelection(
+						dmui::ResolveIconSelection(
 							page->iconName,
 							page->iconMetadata,
 							category->iconMetadata)
@@ -353,7 +353,7 @@ namespace DearModdingUI
 					page.rowLabel = PageRowLabel(navigationClient, page);
 			}
 			const std::array primary{ std::string_view{ client->iconMetadata } };
-			navigationClient.iconSelection = IconResolver::Resolve({
+			navigationClient.iconSelection = dmui::IconResolver::Resolve({
 				.explicitName = navigationClient.iconName,
 				.primaryMetadata = client->iconMetadata.empty() ?
 					std::span<const std::string_view>{} :
@@ -499,12 +499,12 @@ namespace DearModdingUI
 		{
 		case NavigationItemKind::kClient:
 			return a_entry.iconSelection.GlyphOr(
-				PhosphorGlyph::kQuestion);
+				dmui::PhosphorGlyph::kQuestion);
 		case NavigationItemKind::kAction:
 			return a_entry.iconSelection.GlyphOr(
-				PhosphorGlyph::kTerminalWindow);
+				dmui::PhosphorGlyph::kTerminalWindow);
 		default:
-			return a_entry.iconSelection.GlyphOr(PhosphorGlyph::kFiles);
+			return a_entry.iconSelection.GlyphOr(dmui::PhosphorGlyph::kFiles);
 		}
 	}
 

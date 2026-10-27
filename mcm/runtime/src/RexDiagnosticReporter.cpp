@@ -13,12 +13,13 @@ namespace DearModdingUI::MCM
 
 	namespace
 	{
-		[[nodiscard]] DMUI_StatusSeverity ToStatusSeverity(
+		// DiagnosticSeverity is MCM-internal; it maps to the public Severity here.
+		[[nodiscard]] dmui::Severity ToStatusSeverity(
 			DiagnosticSeverity a_severity) noexcept
 		{
 			return a_severity == DiagnosticSeverity::kWarning ?
-				DMUI_STATUS_SEVERITY_WARNING :
-				DMUI_STATUS_SEVERITY_ERROR;
+				dmui::Severity::kWarning :
+				dmui::Severity::kError;
 		}
 	}
 
@@ -62,7 +63,7 @@ namespace DearModdingUI::MCM
 	}
 
 	void RexDiagnosticReporter::ReportSummary(
-		DMUI_StatusSeverity a_severity,
+		dmui::Severity a_severity,
 		std::string_view a_scope,
 		std::string_view a_summary,
 		std::string_view a_detail) noexcept
@@ -81,7 +82,7 @@ namespace DearModdingUI::MCM
 	}
 
 	void RexDiagnosticReporter::Submit(
-		DMUI_StatusSeverity a_severity,
+		dmui::Severity a_severity,
 		std::string_view a_scope,
 		std::string_view a_summary,
 		std::string_view a_detail) noexcept

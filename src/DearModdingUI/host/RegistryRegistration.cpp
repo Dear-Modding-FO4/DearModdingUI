@@ -302,7 +302,7 @@ namespace DearModdingUI
 			action.handle = m_nextAction++;
 			action.clientId = client->id;
 			action.clientDisplayName = client->displayName;
-			action.iconSelection = ResolveIconSelection(
+			action.iconSelection = dmui::ResolveIconSelection(
 				action.iconName,
 				IconMetadata(action.displayLabel));
 			m_actions.push_back(std::move(action));

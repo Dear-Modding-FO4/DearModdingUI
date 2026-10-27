@@ -91,7 +91,19 @@ namespace DearModdingUI
 		DMUI_ActionCallback callback{ nullptr };
 		void* userData{ nullptr };
 		bool callbackFailed{ false };
-		IconSelection iconSelection;
+		// Client-controlled; a disabled action stays listed but cannot run.
+		bool enabled{ true };
+		// Unregistered entries stay as tombstones so ordered views remain stable.
+		bool unregistered{ false };
+		dmui::IconSelection iconSelection;
+	};
+
+	enum class ActionState : uint32_t
+	{
+		kRemoved,
+		kDisabled,
+		kFailed,
+		kReady
 	};
 
 	struct RegisteredFrameObserver
@@ -133,6 +145,15 @@ namespace DearModdingUI
 			DMUI_ClientHandle a_client,
 			const DMUI_ActionDescriptor* a_descriptor,
 			DMUI_ActionHandle* a_action) noexcept;
+		// Render-execution only. A foreign or stale handle is ACTION_NOT_FOUND.
+		[[nodiscard]] DMUI_Result UnregisterAction(
+			DMUI_ClientHandle a_client,
+			DMUI_ActionHandle a_action) noexcept;
+		// Any thread.
+		[[nodiscard]] DMUI_Result SetActionEnabled(
+			DMUI_ClientHandle a_client,
+			DMUI_ActionHandle a_action,
+			bool a_enabled) noexcept;
 		[[nodiscard]] DMUI_Result RegisterFrameObserver(
 			DMUI_ClientHandle a_client,
 			const DMUI_FrameObserverDescriptor* a_descriptor,
@@ -190,6 +211,10 @@ namespace DearModdingUI
 		void MarkPageFailed(DMUI_PageHandle a_page) noexcept;
 		[[nodiscard]] DMUI_Result InvokeAction(DMUI_ActionHandle a_action) noexcept;
 		[[nodiscard]] bool ActionFailed(DMUI_ActionHandle a_action) const noexcept;
+		[[nodiscard]] ActionState StateOfAction(DMUI_ActionHandle a_action) const noexcept;
+		// Registered actions of a_client, or of every client when invalid.
+		[[nodiscard]] size_t ActionCount(
+			DMUI_ClientHandle a_client = DMUI_INVALID_CLIENT_HANDLE) const noexcept;
 		void MarkActionFailed(DMUI_ActionHandle a_action) noexcept;
 		[[nodiscard]] DMUI_Result InvokeFrameObserver(
 			DMUI_FrameObserverHandle a_observer) noexcept;

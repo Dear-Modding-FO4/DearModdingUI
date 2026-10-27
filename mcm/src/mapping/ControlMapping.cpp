@@ -62,6 +62,18 @@ namespace DearModdingUI::MCM::detail
 				a_value);
 		}
 
+		// A value with both bounds slides, one bound drags, none types.
+		template <class T>
+		[[nodiscard]] dmui::NumericPresentation PresentationFor(
+			const std::optional<dmui::NumericSettingRange<T>>& a_range) noexcept
+		{
+			if (!a_range)
+				return dmui::NumericPresentation::kInput;
+			return a_range->minimum && a_range->maximum ?
+				dmui::NumericPresentation::kSlider :
+				dmui::NumericPresentation::kDrag;
+		}
+
 		[[nodiscard]] std::optional<int64_t> SignedBound(
 			const std::optional<double>& a_value) noexcept
 		{
@@ -206,6 +218,7 @@ namespace DearModdingUI::MCM::detail
 			a_descriptor.defaultValue = NormalizeSliderValue(
 				*a_sliderRow->sliderNormalization,
 				a_descriptor.defaultValue);
+		mapped.presentation = PresentationFor(mapped.range);
 		a_descriptor.control = std::move(mapped);
 	}
 
@@ -302,6 +315,7 @@ namespace DearModdingUI::MCM::detail
 			a_descriptor.defaultValue = NormalizeSliderValue(
 				*a_sliderRow->sliderNormalization,
 				a_descriptor.defaultValue);
+		mapped.presentation = PresentationFor(mapped.range);
 		a_descriptor.control = std::move(mapped);
 	}
 }

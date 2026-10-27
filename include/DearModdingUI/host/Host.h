@@ -49,7 +49,10 @@ namespace DearModdingUI
 	[[nodiscard]] bool DrawPage(DMUI_PageHandle a_page) noexcept;
 	[[nodiscard]] bool PageFailed(DMUI_PageHandle a_page) noexcept;
 	[[nodiscard]] bool InvokeAction(DMUI_ActionHandle a_action) noexcept;
-	[[nodiscard]] bool ActionFailed(DMUI_ActionHandle a_action) noexcept;
+	[[nodiscard]] ActionState StateOfAction(DMUI_ActionHandle a_action) noexcept;
+	// Registered actions of a_client, or of every client when invalid.
+	[[nodiscard]] size_t ActionCount(
+		DMUI_ClientHandle a_client = DMUI_INVALID_CLIENT_HANDLE) noexcept;
 	void ObserveFrame() noexcept;
 	void DrawDemandedOverlays() noexcept;
 	[[nodiscard]] const std::vector<RegisteredClient>& RegisteredClients() noexcept;
@@ -57,7 +60,7 @@ namespace DearModdingUI
 	[[nodiscard]] const std::vector<RegisteredAction>& OrderedActions() noexcept;
 	[[nodiscard]] const NavigationModel& Navigation() noexcept;
 	[[nodiscard]] DMUI_Result SetHostStatus(
-		DMUI_StatusSeverity a_severity,
+		DMUI_Severity a_severity,
 		std::string_view a_message) noexcept;
 	[[nodiscard]] std::optional<StatusMessage> CurrentStatus() noexcept;
 	[[nodiscard]] std::vector<ClientStatus> CurrentClientStatuses() noexcept;

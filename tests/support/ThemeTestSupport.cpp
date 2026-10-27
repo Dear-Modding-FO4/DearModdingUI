@@ -1,9 +1,8 @@
-#include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/presentation/Theme.h>
 
 namespace DearModdingUI::Theme
 {
-	FontGuard::FontGuard(FontRole, float) noexcept {}
+	FontGuard::FontGuard(FontRole, FontStyle, float) noexcept {}
 	FontGuard::~FontGuard() noexcept = default;
 
 	float Scale() noexcept
@@ -16,13 +15,18 @@ namespace DearModdingUI::Theme
 		return kBaselineFontSize / kSearchBaselineFontSize;
 	}
 
-	ImVec4 IconTint() noexcept
+	IconGlyphRef ResolveIcon(char32_t a_phosphor) noexcept
 	{
-		return kFullPalette[ImGuiCol_Text];
+		return ResolveIconIn(
+			Current().icons,
+			nullptr,
+			ImGui::GetFont(),
+			a_phosphor);
 	}
 
-	DMUI_ThemeColors ColorSnapshot() noexcept
+	const ThemeSpec& Current() noexcept
 	{
-		return MakeColorSnapshot(HostAccentToImVec4(kDefaultHostAccentColor));
+		static const auto theme = MakeDefaultTheme();
+		return theme;
 	}
 }

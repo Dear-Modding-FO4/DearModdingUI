@@ -16,7 +16,7 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 			m_worker.join();
 	}
 
-	DMUI_Result FileQueue::Submit(LoadIdentity a_identity, const std::string& a_path) noexcept
+	DMUI_Result FileQueue::Submit(LoadIdentity a_identity, ImageSource a_source) noexcept
 	{
 		const std::scoped_lock lock{ m_mutex };
 		const auto owned = [owner = a_identity.owner](const auto& job) {
@@ -32,7 +32,7 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 				m_worker = std::thread{ [this] { Run(); } };
 			auto job = std::make_shared<LoadJob>();
 			job->identity = a_identity;
-			job->path = a_path;
+			job->source = std::move(a_source);
 			m_queue.push_back(std::move(job));
 			m_changed.notify_one();
 			return DMUI_RESULT_OK;
@@ -90,7 +90,7 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 			auto job = m_active;
 			lock.unlock();
 			job->result = SUCCEEDED(initialized) ?
-				DecodeFile(job->path, job->decoded) : DMUI_RESULT_IMAGE_DECODE_FAILED;
+				DecodeSource(job->source, job->decoded) : DMUI_RESULT_IMAGE_DECODE_FAILED;
 			lock.lock();
 			if (!job->cancelled && !m_stopping)
 			{

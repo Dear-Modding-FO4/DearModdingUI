@@ -21,24 +21,6 @@ namespace DearModdingUI
 
 	namespace FieldFeedback
 	{
-		[[nodiscard]] constexpr uint32_t PackColor(
-			uint8_t a_red,
-			uint8_t a_green,
-			uint8_t a_blue) noexcept
-		{
-			return UINT32_C(0xFF000000) |
-				(static_cast<uint32_t>(a_blue) << 16u) |
-				(static_cast<uint32_t>(a_green) << 8u) |
-				static_cast<uint32_t>(a_red);
-		}
-
-		inline constexpr uint32_t kDefaultInfoColor =
-			PackColor(0x56, 0xB4, 0xE9);
-		inline constexpr uint32_t kDefaultWarningColor =
-			PackColor(0xE6, 0x9F, 0x00);
-		inline constexpr uint32_t kDefaultErrorColor =
-			PackColor(0xCC, 0x79, 0xA7);
-
 		enum class Region : uint32_t
 		{
 			kNone,
@@ -50,8 +32,8 @@ namespace DearModdingUI
 		struct LayoutInput
 		{
 			std::string_view message;
-			DMUI_FieldFeedbackSeverity severity{
-				DMUI_FIELD_FEEDBACK_SEVERITY_INFO
+			DMUI_Severity severity{
+				DMUI_SEVERITY_INFO
 			};
 			bool hasLabelRegion{ true };
 			float labelWidth{};
@@ -63,8 +45,8 @@ namespace DearModdingUI
 		{
 			Region region{ Region::kNone };
 			std::string_view message;
-			DMUI_FieldFeedbackSeverity severity{
-				DMUI_FIELD_FEEDBACK_SEVERITY_INFO
+			DMUI_Severity severity{
+				DMUI_SEVERITY_INFO
 			};
 			float width{};
 			float leadingExtent{};
@@ -160,23 +142,14 @@ namespace DearModdingUI
 			FieldFeedbackPlacement placement{
 				DEFAULT_FIELD_FEEDBACK_LAYOUT
 			};
-			uint32_t infoColor{ kDefaultInfoColor };
-			uint32_t warningColor{ kDefaultWarningColor };
-			uint32_t errorColor{ kDefaultErrorColor };
 		};
 
-		[[nodiscard]] bool IsValidSeverity(
-			DMUI_FieldFeedbackSeverity a_severity) noexcept;
 		void SetAppearance(const Appearance& a_appearance) noexcept;
 		[[nodiscard]] Appearance CurrentAppearance() noexcept;
 		[[nodiscard]] FieldFeedbackPlacement EffectivePlacement() noexcept;
-		[[nodiscard]] ImVec4 SeverityColor(
-			DMUI_FieldFeedbackSeverity a_severity) noexcept;
-		[[nodiscard]] const char* SeverityLabel(
-			DMUI_FieldFeedbackSeverity a_severity) noexcept;
 		[[nodiscard]] float Measure(
 			std::string_view a_message,
-			DMUI_FieldFeedbackSeverity a_severity,
+			DMUI_Severity a_severity,
 			float a_width,
 			bool a_strip) noexcept;
 		[[nodiscard]] LayoutPlan ResolveLayout(

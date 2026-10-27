@@ -1,13 +1,16 @@
 #include <DearModdingUI/pages/HostPageViews.h>
 
 #include <DearModdingUI/controls/Controls.h>
+#include <DearModdingUI/controls/SettingsActions.h>
 #include <DearModdingUI/controls/Faq.h>
+#include <DearModdingUI/controls/Section.h>
+#include <DearModdingUI/controls/TextSpans.h>
 #include <DearModdingUI/pages/Health.h>
 #include <DearModdingUI/pages/Home.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/settings/HostSettingsView.h>
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 #include <DearModdingUI/controls/LinkRow.h>
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/controls/SettingsTable.h>
@@ -34,15 +37,6 @@ namespace DearModdingUI
 		constexpr Localization::Phrase kSettingsResetText{ "$DMUI_Pages_SettingsReset", "Reset" };
 		constexpr Localization::Phrase kSettingsRevertText{ "$DMUI_Pages_SettingsRevert", "Revert" };
 
-		struct HostSettingsTitleButton
-		{
-			SettingsAction action;
-			const char* id;
-			const char* label;
-			const char* tooltip;
-			float width;
-		};
-
 		template <class DrawValue>
 		void DrawHostDetailRow(
 			const char* a_id,
@@ -50,16 +44,17 @@ namespace DearModdingUI
 			const char* a_description,
 			DrawValue&& a_drawValue) noexcept
 		{
-			const auto result = SettingsTable::BeginRow(
+			const auto result = SettingsTable::BeginField(
 				DMUI_INVALID_CLIENT_HANDLE,
 				a_id,
 				a_label,
-				a_description);
+				a_description,
+				SettingsTable::FieldLayout::kLabelValue);
 			if (result.result != DMUI_RESULT_OK || !result.visible)
 				return;
 			a_drawValue();
 			bool resetPressed{};
-			(void)SettingsTable::EndRow(
+			(void)SettingsTable::EndField(
 				DMUI_INVALID_CLIENT_HANDLE,
 				{ false, false },
 				resetPressed);
@@ -75,8 +70,8 @@ namespace DearModdingUI
 					const auto severity = EffectiveClientStatusSeverity(
 						a_client.callbackFailed,
 						FindClientStatus(a_statuses, a_client.handle));
-					return severity == DMUI_STATUS_SEVERITY_WARNING ||
-						severity == DMUI_STATUS_SEVERITY_ERROR;
+					return severity == DMUI_SEVERITY_WARNING ||
+						severity == DMUI_SEVERITY_ERROR;
 				}));
 		}
 
@@ -106,10 +101,8 @@ namespace DearModdingUI
 		{
 			std::string registry;
 			std::string summary;
-			DMUI_StatusSeverity severity{ DMUI_STATUS_SEVERITY_INFO };
+			DMUI_Severity severity{ DMUI_SEVERITY_INFO };
 			std::vector<HomeFaqEntry> faq;
-			// Views into faq; the model rebuilds in place.
-			std::vector<FaqRowEntry> faqRows;
 		};
 
 		void BuildHome(HomeModel& a_model)
@@ -126,15 +119,12 @@ namespace DearModdingUI
 				"{} mods | {} pages | {} actions",
 				clients.size(),
 				OrderedPages().size(),
-				OrderedActions().size());
+				ActionCount());
 			a_model.summary = BuildHomeHealthSummary(health, attention, now);
 			a_model.severity = HealthStatusSeverity(
 				HomeHealthSeverity(health, attention, now));
 			a_model.faq = BuildHomeFaq(
 				FormatHotkeyChord(HostSettings::Current().menuToggleKey));
-			a_model.faqRows.clear();
-			for (const auto& entry : a_model.faq)
-				a_model.faqRows.push_back({ entry.question, entry.answer });
 		}
 
 		[[nodiscard]] const std::vector<LinkRowEntry>& HomeQuickLinkRows()
@@ -150,7 +140,7 @@ namespace DearModdingUI
 							std::string{ link.url }
 						},
 						link.note,
-						FindPhosphorSlugGlyphOrZero(link.iconName),
+						dmui::FindPhosphorSlugGlyphOrZero(link.iconName),
 						link.enabled,
 						DMUI_LINK_ACTION_COPY_TARGET
 					});
@@ -160,27 +150,29 @@ namespace DearModdingUI
 			return rows;
 		}
 
-		void DrawHome() noexcept
+		void DrawHome(HostPageViewState& a_state) noexcept
 		{
 			static Addictol::Support::Derived<HostPageInputs, HomeModel> cache;
 			const auto& model = cache.Get(CurrentHostPageInputs(), &BuildHome);
 			(void)DrawTitleRow({
 				.title = HostPageName(HostPageKind::kHome),
-				.titleScale = Theme::kFeatureTitleScale,
+				.titleScale = Theme::Current().chrome.featureTitleScale,
 				.summary = HostPageSummary(HostPageKind::kHome)
 			});
 
-			DrawSectionHeader(
-				Localization::Text("$DMUI_Home_AboutHeader", "About"),
-				FindPhosphorSlugGlyphOrZero("info"));
-			{
-				const Theme::FontGuard font{ Theme::FontRole::kSubtext };
-				ImGui::TextWrapped("%s", HomeAboutText().data());
-			}
+			DrawSection({
+				.title = Localization::Text("$DMUI_Home_AboutHeader", "About"),
+				.glyph = dmui::FindPhosphorSlugGlyphOrZero("info")
+			});
+			(void)DrawTextSpans(
+				HomeAboutText(),
+				dmui::TextStyle{}.Role(DMUI_FONT_ROLE_SUBTEXT),
+				{ .wrap = true });
 			Theme::SectionSpacing();
-			DrawSectionHeader(
-				Localization::Text("$DMUI_Home_OverviewHeader", "Overview"),
-				FindPhosphorSlugGlyphOrZero(kHostHomePage.iconName));
+			DrawSection({
+				.title = Localization::Text("$DMUI_Home_OverviewHeader", "Overview"),
+				.glyph = dmui::FindPhosphorSlugGlyphOrZero(kHostHomePage.iconName)
+			});
 			char identity[128]{};
 			std::snprintf(
 				identity,
@@ -191,22 +183,34 @@ namespace DearModdingUI
 				static_cast<int>(kHostVersion.size()),
 				kHostVersion.data());
 			DrawBulletText(identity);
-			DrawBulletText(model.registry.c_str());
-			ImGui::PushStyleColor(ImGuiCol_Text, Theme::StatusTextColor(model.severity));
-			DrawBulletText(model.summary.c_str());
-			ImGui::PopStyleColor();
+			DrawBulletText(model.registry);
+			DrawBulletText(model.summary, Theme::StatusTone(model.severity));
 
 			Theme::SectionSpacing();
-			DrawSectionHeader(
-				Localization::Text("$DMUI_Home_QuickLinksHeader", "Quick Links"),
-				FindPhosphorSlugGlyphOrZero("link"));
+			DrawSection({
+				.title = Localization::Text("$DMUI_Home_QuickLinksHeader", "Quick Links"),
+				.glyph = dmui::FindPhosphorSlugGlyphOrZero("link")
+			});
 			(void)DrawLinkRow("##DearModdingUI.HomeQuickLinks", HomeQuickLinkRows());
 
 			Theme::SectionSpacing();
-			DrawSectionHeader(
-				Localization::Text("$DMUI_Home_FaqHeader", "FAQ"),
-				PhosphorGlyph::kQuestion);
-			DrawFaq("##DearModdingUI.HomeFaq", model.faqRows);
+			DrawSection({
+				.title = Localization::Text("$DMUI_Home_FaqHeader", "FAQ"),
+				.glyph = dmui::PhosphorGlyph::kQuestion
+			});
+			if (a_state.faqExpansion.size() < model.faq.size())
+				a_state.faqExpansion.resize(model.faq.size(), false);
+			std::vector<FaqRowEntry> faqRows;
+			faqRows.reserve(model.faq.size());
+			for (size_t index = 0; index < model.faq.size(); ++index)
+			{
+				faqRows.push_back({
+					model.faq[index].question,
+					model.faq[index].answer,
+					&a_state.faqExpansion[index]
+				});
+			}
+			DrawFaq("##DearModdingUI.HomeFaq", faqRows);
 		}
 
 		struct HealthSubsystemView
@@ -223,7 +227,7 @@ namespace DearModdingUI
 			std::string description;
 			std::string version;
 			std::string status;
-			DMUI_StatusSeverity severity{ DMUI_STATUS_SEVERITY_INFO };
+			DMUI_Severity severity{ DMUI_SEVERITY_INFO };
 		};
 
 		struct HealthClientGroup
@@ -244,7 +248,6 @@ namespace DearModdingUI
 		{
 			const auto& clients = RegisteredClients();
 			const auto& pages = OrderedPages();
-			const auto& actions = OrderedActions();
 			const auto statuses =
 				RollupClientStatuses(CurrentClientStatuses());
 			const auto now = HealthClock::now();
@@ -278,7 +281,7 @@ namespace DearModdingUI
 							"{} | {} pages | {} actions",
 							client->id,
 							std::ranges::count(pages, client->handle, &RegisteredPage::client),
-							std::ranges::count(actions, client->handle, &RegisteredAction::client)),
+							ActionCount(client->handle)),
 						Localization::Format(
 							"$DMUI_Health_ClientVersion",
 							"Version {}.{}",
@@ -314,35 +317,27 @@ namespace DearModdingUI
 		{
 			static Addictol::Support::Derived<HostPageInputs, HealthModel> cache;
 			const auto& model = cache.Get(CurrentHostPageInputs(), &BuildHealth);
-			constexpr auto extentPolicy =
-				TitleRowButtonExtentPolicy::kTitleBar;
-			const auto extent = ResolveTitleRowButtonExtent(
-				extentPolicy,
-				ImGui::GetFontSize(),
-				TitleBarButtonPadding());
 			const std::array buttons{
-				TitleRowButton{
+				MakeIconButtonSpec(
 					"##DearModdingUI.CopyHealthReport",
-					extent,
-					PhosphorGlyph::kClipboardText,
+					dmui::PhosphorGlyph::kClipboardText,
 					Localization::Text("$DMUI_Health_CopyReport", "Copy report"),
 					Localization::Text(
 						"$DMUI_Health_CopyReportTooltip",
-						"Copy a diagnostics report to the clipboard.")
-				}
+						"Copy a diagnostics report to the clipboard."))
 			};
 			if (DrawTitleRow({
 					.title = HostPageName(HostPageKind::kHealth),
-					.titleScale = Theme::kFeatureTitleScale,
+					.titleScale = Theme::Current().chrome.featureTitleScale,
 					.buttons = buttons,
-					.buttonExtentPolicy = extentPolicy,
 					.summary = HostPageSummary(HostPageKind::kHealth)
 				}))
 				CopyHealthReport();
 
-			DrawSectionHeader(
-				Localization::Text("$DMUI_Health_HostSubsystemsHeader", "Host subsystems"),
-				FindPhosphorSlugGlyphOrZero(kHostHealthPage.iconName));
+			DrawSection({
+				.title = Localization::Text("$DMUI_Health_HostSubsystemsHeader", "Host subsystems"),
+				.glyph = dmui::FindPhosphorSlugGlyphOrZero(kHostHealthPage.iconName)
+			});
 			if (model.subsystems.empty())
 				DrawBulletText(Localization::Text(
 					"$DMUI_Health_NoSubsystemObservations",
@@ -359,11 +354,10 @@ namespace DearModdingUI
 						subsystem.row.identity.c_str(),
 						subsystem.row.reason.c_str(),
 						[&]() noexcept {
-							ImGui::TextColored(
-								Theme::StatusTextColor(
-									HealthStatusSeverity(subsystem.row.severity)),
-								"%s",
-								subsystem.status.c_str());
+							(void)DrawTextSpans(
+								subsystem.status,
+								dmui::TextStyle{}.Tone(Theme::StatusTone(
+									HealthStatusSeverity(subsystem.row.severity))));
 						});
 				}
 				(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
@@ -375,7 +369,10 @@ namespace DearModdingUI
 			{
 				Theme::SectionSpacing();
 				const auto& section = model.clientGroups[sectionIndex];
-				DrawSectionHeader(section.heading.c_str(), section.glyph);
+				DrawSection({
+					.title = section.heading.c_str(),
+					.glyph = section.glyph
+				});
 				if (section.clients.empty())
 				{
 					DrawBulletText(Localization::Text(
@@ -398,10 +395,9 @@ namespace DearModdingUI
 							[&]() noexcept {
 								ImGui::TextUnformatted(row.version.c_str());
 								ImGui::SameLine();
-								ImGui::TextColored(
-									Theme::StatusTextColor(row.severity),
-									"%s",
-									row.status.c_str());
+								(void)DrawTextSpans(
+									row.status,
+									dmui::TextStyle{}.Tone(Theme::StatusTone(row.severity)));
 							});
 					}
 					(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
@@ -410,9 +406,10 @@ namespace DearModdingUI
 			}
 
 			Theme::SectionSpacing();
-			DrawSectionHeader(
-				Localization::Text("$DMUI_Health_ReportedProblemsHeader", "Reported problems"),
-				FindPhosphorSlugGlyphOrZero("warning-circle"));
+			DrawSection({
+				.title = Localization::Text("$DMUI_Health_ReportedProblemsHeader", "Reported problems"),
+				.glyph = dmui::FindPhosphorSlugGlyphOrZero("warning-circle")
+			});
 			const auto& diagnosticSections = model.diagnostics;
 			if (diagnosticSections.empty())
 			{
@@ -459,10 +456,9 @@ namespace DearModdingUI
 							row.summary.c_str(),
 							row.description.c_str(),
 							[&]() noexcept {
-								ImGui::TextColored(
-									Theme::StatusTextColor(row.severity),
-									"%s",
-									row.occurrenceLabel.c_str());
+								(void)DrawTextSpans(
+									row.occurrenceLabel,
+									dmui::TextStyle{}.Tone(Theme::StatusTone(row.severity)));
 							});
 					}
 					(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
@@ -480,14 +476,16 @@ namespace DearModdingUI
 
 		void DrawSettings() noexcept
 		{
-			constexpr auto extentPolicy =
-				TitleRowButtonExtentPolicy::kTitleBar;
-			const auto extent = ResolveTitleRowButtonExtent(
-				extentPolicy,
-				ImGui::GetFontSize(),
-				TitleBarButtonPadding());
+			struct Action
+			{
+				SettingsAction action;
+				const char* id;
+				const char* label;
+				const char* tooltip;
+				dmui::ButtonStyle style;
+			};
 			const std::array actions{
-				HostSettingsTitleButton{
+				Action{
 					SettingsAction::kReset,
 					"##DearModdingUI.HostSettingsResetButton",
 					Localization::Text(kSettingsResetText),
@@ -496,11 +494,8 @@ namespace DearModdingUI
 						"Reset saves the default sidebar layout immediately and "
 						"loads other shipped interface defaults into the draft. "
 						"Use Apply to save those."),
-					SettingsActionButtonWidth(
-						SettingsAction::kReset,
-						Localization::Text(kSettingsResetText),
-						extent) },
-				HostSettingsTitleButton{
+					dmui::ButtonStyle::kDefault },
+				Action{
 					SettingsAction::kRevert,
 					"##DearModdingUI.HostSettingsRevertButton",
 					Localization::Text(kSettingsRevertText),
@@ -508,11 +503,8 @@ namespace DearModdingUI
 						"$DMUI_Pages_SettingsRevertTooltip",
 						"Revert discards pending interface edits and restores "
 						"saved settings. Sidebar layout changes are already saved."),
-					SettingsActionButtonWidth(
-						SettingsAction::kRevert,
-						Localization::Text(kSettingsRevertText),
-						extent) },
-				HostSettingsTitleButton{
+					dmui::ButtonStyle::kDefault },
+				Action{
 					SettingsAction::kApply,
 					"##DearModdingUI.HostSettingsApplyButton",
 					Localization::Text(kSettingsApplyText),
@@ -522,35 +514,25 @@ namespace DearModdingUI
 						"Sidebar layout changes save immediately; appearance "
 						"previews update live, and typography rebuilds once if "
 						"needed."),
-					SettingsActionButtonWidth(
-						SettingsAction::kApply,
-						Localization::Text(kSettingsApplyText),
-						extent) }
+					dmui::ButtonStyle::kPrimary }
 			};
-			const auto dirty =
-				HostSettingsTitleActionEnabled(SettingsAction::kApply);
-			std::array<TitleRowButton, actions.size()> buttons{};
+			std::array<ButtonSpec, actions.size()> buttons{};
 			for (size_t index = 0; index < actions.size(); ++index)
 			{
 				const auto& action = actions[index];
-				const auto presentation =
-					ResolveSettingsActionButtonPresentation(
-						action.action,
-						HasIconGlyph(SettingsActionGlyph(action.action)));
 				buttons[index] = {
-					action.id,
-					action.width,
-					presentation.glyph,
-					action.label,
-					action.tooltip,
-					SettingsActionEnabled(action.action, dirty)
+					.id = action.id,
+					.label = action.label,
+					.glyph = SettingsActionGlyph(action.action),
+					.tooltip = action.tooltip,
+					.enabled = HostSettingsTitleActionEnabled(action.action),
+					.style = action.style
 				};
 			}
 			const auto pressed = DrawTitleRow({
 				.title = HostPageName(HostPageKind::kSettings),
-				.titleScale = Theme::kFeatureTitleScale,
+				.titleScale = Theme::Current().chrome.featureTitleScale,
 				.buttons = buttons,
-				.buttonExtentPolicy = extentPolicy,
 				.summary = HostPageSummary(HostPageKind::kSettings)
 			});
 			if (pressed)
@@ -572,7 +554,7 @@ namespace DearModdingUI
 			DrawSettings();
 			break;
 		default:
-			DrawHome();
+			DrawHome(a_state);
 			break;
 		}
 	}

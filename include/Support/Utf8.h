@@ -51,4 +51,13 @@ namespace Support
 		}
 		return true;
 	}
+
+	// A boundary is the end of the text or any byte that is not a continuation.
+	[[nodiscard]] inline bool IsUtf8Boundary(
+		const char* a_text, size_t a_length, size_t a_offset) noexcept
+	{
+		return a_offset <= a_length &&
+			(a_offset == a_length ||
+				(static_cast<unsigned char>(a_text[a_offset]) & 0xC0u) != 0x80u);
+	}
 }

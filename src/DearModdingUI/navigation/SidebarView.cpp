@@ -2,9 +2,11 @@
 #include <DearModdingUI/navigation/CommandPalette.h>
 
 #include <DearModdingUI/controls/Controls.h>
+#include <DearModdingUI/controls/Section.h>
+#include <DearModdingUI/controls/Tooltip.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 #include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <imgui/imgui.h>
@@ -29,7 +31,7 @@ namespace DearModdingUI
 			const ClientStatus* a_status) noexcept
 		{
 			return IsPersistentStatus(
-				a_status ? a_status->severity : DMUI_STATUS_SEVERITY_INFO) ?
+				a_status ? a_status->severity : DMUI_SEVERITY_INFO) ?
 				ImGui::GetFontSize() :
 				0.0f;
 		}
@@ -42,11 +44,11 @@ namespace DearModdingUI
 			if (!a_status || !IsPersistentStatus(a_status->severity))
 				return;
 			const auto color = Theme::StatusTextColor(
-				a_status->severity == DMUI_STATUS_SEVERITY_WARNING ?
-					DMUI_STATUS_SEVERITY_WARNING :
-					DMUI_STATUS_SEVERITY_ERROR);
+				a_status->severity == DMUI_SEVERITY_WARNING ?
+					DMUI_SEVERITY_WARNING :
+					DMUI_SEVERITY_ERROR);
 			const auto radius =
-				ImGui::GetFontSize() * Theme::kSearchIconStrokeRatio;
+				ImGui::GetFontSize() * Theme::Current().chrome.searchIconStrokeRatio;
 			const auto& padding = ImGui::GetStyle().FramePadding;
 			ImGui::GetWindowDrawList()->AddCircleFilled(
 				a_corner ?
@@ -71,6 +73,7 @@ namespace DearModdingUI
 		{
 			const Theme::FontGuard font{
 				Theme::FontRole::kTitle,
+				Theme::FontStyle::kRegular,
 				kSidebarModFontScale
 			};
 			const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
@@ -102,16 +105,14 @@ namespace DearModdingUI
 				row.rect,
 				a_status,
 				a_kind == SidebarClientRowKind::kRail);
-			if (a_kind == SidebarClientRowKind::kRail &&
-				ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
+			if (a_kind == SidebarClientRowKind::kRail && Tooltip::BeginItem())
 			{
 				const auto section = NavigationClientSectionLabel(
 					a_client.origin,
 					a_client.bridgeSourceLabel);
-				ImGui::SetTooltip(
-					"%s\n%s",
-					a_client.displayName.c_str(),
-					section.c_str());
+				ImGui::TextUnformatted(a_client.displayName.c_str());
+				ImGui::TextUnformatted(section.c_str());
+				ImGui::EndTooltip();
 			}
 			return row;
 		}
@@ -128,16 +129,16 @@ namespace DearModdingUI
 			ImGui::PushID(key.second.c_str());
 			{
 				const Theme::FontGuard font{ Theme::FontRole::kHeading };
-				DrawRuledHeading({
-					.key = "##DearModdingOriginSection",
-					.text = label.c_str(),
+				DrawSection({
+					.id = "##DearModdingOriginSection",
+					.title = label.c_str(),
 					.glyph =
 						a_section.origin == DMUI_CLIENT_ORIGIN_NATIVE ?
-							PhosphorGlyph::kPuzzlePiece :
-							FindPhosphorSlugGlyphOrZero("share-network"),
+							dmui::PhosphorGlyph::kPuzzlePiece :
+							dmui::FindPhosphorSlugGlyphOrZero("share-network"),
 					.expanded = &a_expanded,
-					.layout = RuledHeadingLayout::kLeadingRow,
-					.ruleStyle = RuledHeadingRuleStyle::kSubordinate
+					.layout = SectionLayout::kLeadingRow,
+					.ruleStyle = SectionRuleStyle::kSubordinate
 				});
 			}
 			ImGui::PopID();
@@ -150,15 +151,15 @@ namespace DearModdingUI
 			bool& a_expanded,
 			size_t a_count) noexcept
 		{
-			DrawRuledHeading({
-				.key = a_key,
-				.text = a_category.displayName.c_str(),
+			DrawSection({
+				.id = a_key,
+				.title = a_category.displayName.c_str(),
 				.glyph = ResolveNavigationCategoryIconGlyph(
 					a_category),
 				.count = a_count,
 				.expanded = &a_expanded,
-				.layout = RuledHeadingLayout::kLeadingRow,
-				.ruleStyle = RuledHeadingRuleStyle::kSubordinate
+				.layout = SectionLayout::kLeadingRow,
+				.ruleStyle = SectionRuleStyle::kSubordinate
 			});
 		}
 
@@ -181,7 +182,7 @@ namespace DearModdingUI
 					.hoveredTextColor = textColor,
 					.disabledColor = failed ?
 						std::optional<ImU32>{ ImGui::GetColorU32(
-							Theme::StatusTextColor(DMUI_STATUS_SEVERITY_ERROR)) } :
+							Theme::StatusTextColor(DMUI_SEVERITY_ERROR)) } :
 						std::nullopt
 				});
 				if (row.pressed)
@@ -207,7 +208,7 @@ namespace DearModdingUI
 			if (bottom > start.y && thickness > 0.0f)
 			{
 				auto color = style.Colors[ImGuiCol_Border];
-				color.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
+				color.w *= Theme::Current().chrome.headingMinimizedFactor;
 				ImGui::GetWindowDrawList()->AddLine(
 					{ start.x + style.FramePadding.x, start.y },
 					{ start.x + style.FramePadding.x, bottom },
@@ -258,9 +259,10 @@ namespace DearModdingUI
 						"##DearModdingPagesPane",
 						{ 0.0f, -FLT_MIN }))
 				{
-					DrawSectionHeader(
-						Localization::Text(kPagesText),
-						PhosphorGlyph::kFiles);
+					DrawSection({
+						.title = Localization::Text(kPagesText),
+						.glyph = dmui::PhosphorGlyph::kFiles
+					});
 					ImGui::Spacing();
 					if (const auto* client =
 							a_context.model.FindClient(
@@ -284,6 +286,7 @@ namespace DearModdingUI
 			{
 				const Theme::FontGuard font{
 					Theme::FontRole::kTitle,
+					Theme::FontStyle::kRegular,
 					kSidebarModFontScale
 				};
 				iconFontSize = ImGui::GetFontSize();
@@ -319,9 +322,10 @@ namespace DearModdingUI
 						a_context.model.FindClient(
 							a_context.selection.activeClient))
 				{
-					DrawSectionHeader(
-						client->displayName.c_str(),
-						ResolveNavigationClientIconGlyph(*client));
+					DrawSection({
+						.title = client->displayName.c_str(),
+						.glyph = ResolveNavigationClientIconGlyph(*client)
+					});
 					ImGui::Spacing();
 					DrawSidebarPageList(a_context, *client);
 				}
@@ -370,6 +374,7 @@ namespace DearModdingUI
 			{
 				const Theme::FontGuard font{
 					Theme::FontRole::kTitle,
+					Theme::FontStyle::kRegular,
 					kSidebarModFontScale
 				};
 				const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
@@ -389,9 +394,10 @@ namespace DearModdingUI
 				}
 			}
 			ImGui::Spacing();
-			DrawSectionHeader(
-				selectedClient->displayName.c_str(),
-				ResolveNavigationClientIconGlyph(*selectedClient));
+			DrawSection({
+				.title = selectedClient->displayName.c_str(),
+				.glyph = ResolveNavigationClientIconGlyph(*selectedClient)
+			});
 			ImGui::Spacing();
 			DrawSidebarPageList(a_context, *selectedClient);
 		}
@@ -402,6 +408,7 @@ namespace DearModdingUI
 		{
 			const Theme::FontGuard font{
 				Theme::FontRole::kTitle,
+				Theme::FontStyle::kRegular,
 				kSidebarModFontScale
 			};
 			const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
@@ -413,7 +420,7 @@ namespace DearModdingUI
 					.label = HostPageName(page.kind),
 					.selected = a_selection.activeHostPage == page.kind,
 					.leadingAffordance = RowLeadingAffordance::kIcon,
-					.glyph = FindPhosphorSlugGlyphOrZero(page.iconName),
+					.glyph = dmui::FindPhosphorSlugGlyphOrZero(page.iconName),
 					.textColor = textColor,
 					.hoveredTextColor = textColor
 				});
@@ -445,7 +452,7 @@ namespace DearModdingUI
 				true,
 				ImGui::GetStyle().FrameRounding);
 			const auto scale = Theme::SearchScale();
-			const auto iconSize = Theme::kSearchIconSize * scale;
+			const auto iconSize = Theme::Current().chrome.searchIconSize * scale;
 			const auto iconMinY = RowContentY(position.y, size.y, iconSize);
 			const ImRect iconBounds{
 				{
@@ -459,12 +466,12 @@ namespace DearModdingUI
 			};
 			DrawCenteredIcon(
 				ImGui::GetWindowDrawList(),
-				PhosphorGlyph::kMagnifyingGlass,
+				dmui::PhosphorGlyph::kMagnifyingGlass,
 				iconBounds,
 				iconSize,
 				IconColor(
 					ImGui::GetColorU32(ImGuiCol_Text),
-					Theme::kSearchIconAlpha));
+					Theme::Current().chrome.searchIconAlpha));
 			const auto* hint = CommandPaletteHint();
 			const auto textSize = ImGui::CalcTextSize(hint);
 			ImGui::RenderTextEllipsis(
@@ -659,14 +666,16 @@ namespace DearModdingUI
 				{ -FLT_MIN, -FLT_MIN }))
 		{
 			ControllerNavigation::BeginPane(ControllerNavigation::Pane::kSidebar);
-			DrawSectionHeader(
-				Localization::Text("$DMUI_Nav_Host", "Host"),
-				PhosphorGlyph::kAppWindow);
+			DrawSection({
+				.title = Localization::Text("$DMUI_Nav_Host", "Host"),
+				.glyph = dmui::PhosphorGlyph::kAppWindow
+			});
 			DrawHostRows(a_selection, intent);
 			ImGui::Spacing();
-			DrawSectionHeader(
-				Localization::Text(kModsText),
-				PhosphorGlyph::kSquaresFour);
+			DrawSection({
+				.title = Localization::Text(kModsText),
+				.glyph = dmui::PhosphorGlyph::kSquaresFour
+			});
 			openPalette = DrawPaletteAffordance();
 			ImGui::Spacing();
 

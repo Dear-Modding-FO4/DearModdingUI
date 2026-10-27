@@ -3,6 +3,7 @@
 #include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/host/MenuDismissal.h>
 #include <DearModdingUI/host/Hotkeys.h>
+#include <DearModdingUI/host/UILayoutState.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/RenderExecution.h>
 #include <DearModdingUI/Client.h>
@@ -85,7 +86,7 @@ namespace vmm_tests
 			dmui::SettingDescriptor textSetting{
 				.id = "comment",
 				.control = dmui::TextSettingControl{
-					.bufferCapacity = 64,
+					.maxBytes = 63,
 					.multiline = false
 				},
 				.defaultValue = std::string{},
@@ -152,6 +153,7 @@ namespace vmm_tests
 			dmui::SettingDescriptor sliderSetting{
 				.id = "scale",
 				.control = dmui::DoubleSettingControl{
+					.presentation = dmui::NumericPresentation::kSlider,
 					.range = dmui::NumericSettingRange<double>{ 0.0, 10.0 }
 				},
 				.defaultValue = 0.0,
@@ -188,7 +190,7 @@ namespace vmm_tests
 			dmui::SettingDescriptor multilineSetting{
 				.id = "multiline",
 				.control = dmui::TextSettingControl{
-					.bufferCapacity = 128,
+					.maxBytes = 127,
 					.multiline = true
 				},
 				.defaultValue = std::string{},
@@ -210,6 +212,109 @@ namespace vmm_tests
 					!multiline.completed &&
 					multilineEvents == 0,
 				"unchanged multiline text emitted an edit callback");
+		});
+
+		runner.test("collapsible section toggles caller state and opens its box only while expanded", [] {
+			InteractiveImGui frame;
+			bool expanded = true;
+			size_t drawn{};
+			auto depths = UI::LayoutDepths{};
+			const auto draw = [&](ImVec2 a_mouse, bool a_down) {
+				frame.Begin(a_mouse, a_down);
+				{
+					const dmui::ui::SectionScope section{ {
+						.id = "group",
+						.title = "Group",
+						.box = true,
+						.expanded = &expanded
+					} };
+					if (section)
+					{
+						++drawn;
+						depths = UI::GetLayoutDepths();
+					}
+				}
+				frame.End();
+			};
+			const ImVec2 header{ 100.0f, 28.0f };
+			// Hover first so the press lands on an item ImGui already saw.
+			const auto click = [&] {
+				draw(header, false);
+				draw(header, false);
+				draw(header, true);
+				draw(header, true);
+				draw(header, false);
+			};
+			draw(header, false);
+			require(expanded && drawn == 1 && depths.sections == 1 && depths.panels == 1,
+				"an expanded boxed section did not open its content");
+			require(UI::GetLayoutDepths() == UI::LayoutDepths{},
+				"ending the section leaked a bracket");
+			click();
+			const auto collapsedAt = drawn;
+			require(!expanded,
+				"clicking the header did not collapse the caller-owned state");
+			draw(header, false);
+			require(drawn == collapsedAt && UI::GetLayoutDepths() == UI::LayoutDepths{},
+				"a collapsed section opened content or a box");
+			click();
+			require(expanded && drawn > collapsedAt,
+				"clicking again did not expand the section");
+		});
+
+		runner.test("choice dropdown reports one completed change and keeps unmatched values", [] {
+			InteractiveImGui frame;
+			const std::array options{
+				dmui::ChoiceOption<int>{ .value = 0, .label = "Low" },
+				dmui::ChoiceOption<int>{ .value = 1, .label = "Medium", .enabled = false },
+				dmui::ChoiceOption<int>{ .value = 2, .label = "High", .description = "Best" }
+			};
+			const auto draw = [&](ImVec2 a_mouse, bool a_down, int a_current) {
+				frame.Begin(a_mouse, a_down);
+				const auto result = dmui::ui::Choice("quality", a_current, options, "Custom");
+				frame.End();
+				return result;
+			};
+			const auto click = [&](ImVec2 a_at, int a_current) {
+				(void)draw(a_at, false, a_current);
+				(void)draw(a_at, false, a_current);
+				(void)draw(a_at, true, a_current);
+				(void)draw(a_at, true, a_current);
+				return draw(a_at, false, a_current);
+			};
+			const ImVec2 combo{ 100.0f, 28.0f };
+			(void)click(combo, 0);
+			const auto& popups = ImGui::GetCurrentContext()->OpenPopupStack;
+			require(!popups.empty() && popups.back().Window != nullptr,
+				"clicking the dropdown did not open its popup");
+			// The popup fits its content over two frames.
+			(void)draw(combo, false, 0);
+			(void)draw(combo, false, 0);
+			auto* popup = popups.back().Window;
+
+			const auto& style = ImGui::GetStyle();
+			const auto rowCenter = [&](size_t a_row) {
+				const auto height = ImGui::GetTextLineHeight();
+				return ImVec2{
+					popup->Pos.x + popup->Size.x * 0.5f,
+					popup->Pos.y + style.WindowPadding.y +
+						static_cast<float>(a_row) * (height + style.ItemSpacing.y) +
+						height * 0.5f
+				};
+			};
+			const auto pick = [&](size_t a_row, int a_current) {
+				return click(rowCenter(a_row), a_current);
+			};
+			const auto disabled = pick(1, 0);
+			require(!disabled.changed && !disabled.completed && !disabled.selected,
+				"a disabled option was chosen");
+			const auto chosen = pick(2, 0);
+			require(chosen.changed && chosen.completed && chosen.selected == 2,
+				"choosing an option did not report one completed change");
+
+			const auto unmatched = draw(combo, false, 99);
+			require(!unmatched.changed && !unmatched.completed && !unmatched.selected,
+				"an unmatched stored value was replaced without a choice");
 		});
 
 		runner.test("Escape dismisses one active UI level per press", [] {

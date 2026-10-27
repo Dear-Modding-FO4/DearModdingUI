@@ -377,7 +377,8 @@ namespace DearModdingUI::MCM::detail
 						ScalarText(*a_control.valueOptions->defaultValue);
 				}
 				descriptor.control = dmui::TextSettingControl{
-					(std::max)(size_t{ 512 }, defaultValue.size() + 1)
+					.maxBytes = (std::max)(
+						uint32_t{ 511 }, static_cast<uint32_t>(defaultValue.size()))
 				};
 				descriptor.defaultValue = std::move(defaultValue);
 				break;
@@ -821,7 +822,7 @@ namespace DearModdingUI::MCM::detail
 				if (hasUnsupportedImages)
 					mapped.settings.notes.push_back({
 						"This page contains only unrendered SWF components.",
-						false
+						dmui::TextTone::kInherit
 					});
 				else
 					a_diag.Add(

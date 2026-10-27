@@ -166,10 +166,13 @@ $DMUI_Settings_OkabeVermillion	Okabe-Ito vermillion, distinguishable across comm
 $DMUI_Settings_AccessiblePurple	Accessible purple
 $DMUI_Settings_OkabePurple	Okabe-Ito purple, distinguishable across common color-vision deficiencies
 $DMUI_Settings_FeedbackExampleInfo	Changes apply after the menu reopens.
+$DMUI_Settings_FeedbackExampleSuccess	Saved to the active profile.
 $DMUI_Settings_FeedbackExampleWarning	This option may affect gameplay timing.
 $DMUI_Settings_FeedbackExampleError	Minimum cannot exceed maximum.
 $DMUI_Settings_FeedbackPreview	Field feedback preview
 $DMUI_Settings_Appearance	Appearance
+$DMUI_Settings_ThemePreset	Theme preset
+$DMUI_Settings_ThemePresetHelp	Lists theme files in Data/F4SE/Plugins/DearModdingUI/Themes. The settings below override the preset; Reset returns a row to it.
 $DMUI_Settings_SidebarLayout	Sidebar layout (saved immediately)
 $DMUI_Settings_AccentColor	Accent color
 $DMUI_Settings_AccentColorHelp	Retints selections, controls, links, and every Phosphor menu icon in colored mode.
@@ -187,24 +190,20 @@ $DMUI_Settings_WindowBackgroundOpacity	Window background opacity
 $DMUI_Settings_WindowBackgroundOpacityHelp	Raises or lowers the darkness of the host window without changing client content.
 $DMUI_Settings_PaletteBackground	Command palette background
 $DMUI_Settings_PaletteBackgroundHelp	Sets the elevated surface color used by the command palette.
-$DMUI_Settings_PaletteOpacity	Command palette opacit
+$DMUI_Settings_PaletteOpacity	Command palette opacity
 $DMUI_Settings_PaletteOpacityHelp	Controls how faintly the dimmed host panel shows through the palette.
 $DMUI_Settings_BackgroundBlur	Background blur
 $DMUI_Settings_BackgroundBlurHelp	Blurs the game behind the host window; disabling it avoids the blur passes.
 $DMUI_Settings_BlurStrength	Blur strength
 $DMUI_Settings_BlurStrengthHelp	Adjusts the per-frame blur sample spread without reallocating graphics resources.
 $DMUI_Settings_FeedbackPlacement	Field feedback placement
-$DMUI_Settings_FeedbackInfo	Field feedback: info
-$DMUI_Settings_FeedbackInfoHelp	Color used only for informational field feedback.
-$DMUI_Settings_FeedbackWarning	Field feedback: warning
-$DMUI_Settings_FeedbackWarningHelp	Color used only for warning field feedback.
-$DMUI_Settings_FeedbackError	Field feedback: error
-$DMUI_Settings_FeedbackErrorHelp	Color used only for error field feedback.
 $DMUI_Settings_Readability	Readability
 $DMUI_Settings_UiScale	UI scale (requires Apply)
 $DMUI_Settings_UiScaleHelp	Multiplies resolution-derived sizing; Apply rebuilds typography once before the next frame.
 $DMUI_Settings_BodyFontFamily	Body font family (requires Apply)
 $DMUI_Settings_BodyFontFamilyHelp	Lists font-family folders in Data/F4SE/Plugins/DearModdingUI/Fonts; Apply rebuilds the selected family once.
+$DMUI_Settings_MonospaceFontFamily	Monospace font family (requires Apply)
+$DMUI_Settings_MonospaceFontFamilyHelp	Used for code and logs. Lists the same font-family folders plus the built-in face; Apply rebuilds the selected family once.
 $DMUI_Settings_AppliedThisFrame	Applied this frame: {}
 $DMUI_Settings_HotkeyConflictDefault	Conflict: suggested default is already assigned.
 $DMUI_Settings_HotkeyConflictOverride	Conflict: saved binding is assigned to another action or menu toggle.
@@ -231,3 +230,15 @@ $DMUI_Settings_ResolvedTypographySize	Resolved typography size
 $DMUI_Settings_ResolvedTypographySizeHelp	Derived from the backbuffer height and the applied UI scale at a frame boundary.
 $DMUI_Settings_EffectiveUiScale	Effective UI scale
 $DMUI_Settings_EffectiveUiScaleHelp	Derived from resolution and [Additional] fMenuUiScale.
+$DMUI_SettingsPage_ResetAll	Reset all
+$DMUI_SettingsPage_ResetAllTooltip	Reset loads every setting's default into the draft. Use Apply to save them.
+$DMUI_SettingsPage_Revert	Revert
+$DMUI_SettingsPage_RevertTooltip	Revert discards pending edits and restores committed settings.
+$DMUI_SettingsPage_Apply	Apply ({})
+$DMUI_SettingsPage_ApplyTooltipOne	Apply saves {} pending change.
+$DMUI_SettingsPage_ApplyTooltipMany	Apply saves {} pending changes.
+$DMUI_SettingsPage_ModifiedOnly	Modified only
+$DMUI_SettingsPage_SearchHint	Search settings...
+$DMUI_SettingsPage_UnsupportedControl	Unsupported setting control.
+$DMUI_SettingsPage_AppliesNow	Applies now.
+$DMUI_SettingsPage_Unavailable	Unavailable

@@ -17,6 +17,20 @@ namespace DearModdingUI::MCM
 			if (!descriptor)
 				continue;
 
+			if (row.keybindId)
+			{
+				// MCM owns the binding; it is shown, never edited, in its own words.
+				descriptor->control = dmui::ReadOnlySettingControl{
+					[text = mapped.presentation.text] {
+						(void)dmui::ui::KeyCapture({
+							.id = "Keybind",
+							.displayText = text.c_str(),
+							.readOnly = true
+						});
+					}
+				};
+				continue;
+			}
 			descriptor->control = dmui::ReadOnlySettingControl{
 				[text = mapped.presentation.text,
 				 alignment = mapped.presentation.alignment] {
@@ -38,7 +52,7 @@ namespace DearModdingUI::MCM
 						cursor.x += offset;
 						dmui::ui::SetCursorScreenPos(cursor);
 					}
-					dmui::ui::TextWrapped("%s", text.c_str());
+					dmui::ui::Text(text, dmui::TextStyle{}, { .wrap = true });
 				}
 			};
 		}

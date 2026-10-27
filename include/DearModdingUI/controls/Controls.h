@@ -1,11 +1,10 @@
 #pragma once
 
 #include <DearModdingUI/API.h>
+#include <DearModdingUI/controls/Button.h>
 #include <DearModdingUI/controls/ChromeGeometry.h>
-#include <DearModdingUI/host/Hotkeys.h>
-#include <DearModdingUI/SettingsActions.h>
 #include <DearModdingUI/presentation/Theme.h>
-#include <DearModdingUI/VisualDecisions.h>
+#include <DearModdingUI/presentation/VisualDecisions.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -67,66 +66,20 @@ namespace DearModdingUI
 		ImRect rect;
 	};
 
-	enum class RuledHeadingLayout : uint32_t
-	{
-		kCentered,
-		kLeadingRow
-	};
-
-	enum class RuledHeadingRuleStyle : uint32_t
-	{
-		kSection,
-		kSubordinate
-	};
-
-	struct RuledHeadingOptions
-	{
-		const char* key{ nullptr };
-		const char* text{ nullptr };
-		char32_t glyph{ 0 };
-		std::optional<size_t> count;
-		bool* expanded{ nullptr };
-		RuledHeadingLayout layout{ RuledHeadingLayout::kCentered };
-		RuledHeadingRuleStyle ruleStyle{
-			RuledHeadingRuleStyle::kSection
-		};
-	};
-
-	struct TitleRowButton
-	{
-		const char* id;
-		float width;
-		char32_t glyph;
-		const char* fallbackLabel;
-		const char* tooltip;
-		bool enabled{ true };
-		bool active{ false };
-	};
-
 	struct TitleRowOptions
 	{
 		const char* title;
 		Theme::FontRole titleFont{ Theme::FontRole::kTitle };
 		float titleScale{ 1.0f };
-		std::span<const TitleRowButton> buttons;
-		TitleRowButtonExtentPolicy buttonExtentPolicy{
-			TitleRowButtonExtentPolicy::kTitleBar
-		};
+		std::span<const ButtonSpec> buttons;
+		// Draws button icons at this size; zero uses the font size.
+		float buttonGlyphSize{ 0.0f };
 		bool drawSeparator{ true };
 		const char* summary{};
 		void (*drawLeadingMark)(ImDrawList*, ImVec2, float) noexcept{};
 	};
 
 	void PlaceRowContent(const ImVec2& a_position) noexcept;
-	[[nodiscard]] std::optional<HotkeyChord> DrawKeyCapture(
-		const char* a_id,
-		const char* a_binding,
-		float a_width,
-		HotkeySlot a_slot = HotkeySlot::kKeyboardMouse,
-		bool a_allowClear = true,
-		const char* a_details = nullptr,
-		bool a_captureEnabled = true,
-		const char* a_warning = nullptr) noexcept;
 	[[nodiscard]] bool HasIconGlyph(char32_t a_glyph) noexcept;
 	[[nodiscard]] ImU32 IconColor(
 		ImU32 a_textColor,
@@ -144,7 +97,15 @@ namespace DearModdingUI
 		char32_t a_glyph,
 		const char* a_text,
 		ImU32 a_color,
-		const ImVec4* a_clip = nullptr) noexcept;
+		const ImVec4* a_clip = nullptr,
+		float a_iconSize = 0.0f) noexcept;
+	// Fills a rounded hover or press highlight; false when neither applies.
+	[[nodiscard]] bool DrawRoundedHighlight(
+		const ImVec2& a_min,
+		const ImVec2& a_max,
+		bool a_hovered,
+		bool a_active,
+		ImDrawList* a_drawList) noexcept;
 	[[nodiscard]] float TitleBarButtonPadding() noexcept;
 	[[nodiscard]] float SeparatorThickness() noexcept;
 	[[nodiscard]] bool BeginWithRoundedTitleBarButtons(
@@ -156,58 +117,8 @@ namespace DearModdingUI
 		bool* a_open,
 		ImGuiWindowFlags a_flags) noexcept;
 	void SetNextWrappedModalWidth() noexcept;
-	[[nodiscard]] bool DrawCompactChromeButton(
-		const char* a_id,
-		const ImVec2& a_origin,
-		const ImVec2& a_size,
-		char32_t a_glyph,
-		const char* a_text,
-		const char* a_tooltip,
-		ImU32 a_color,
-		bool a_active = false,
-		float a_glyphSize = 0.0f) noexcept;
 	[[nodiscard]] RowResult DrawSelectableRow(
 		const RowOptions& a_options) noexcept;
-	void DrawRuledHeading(const RuledHeadingOptions& a_options) noexcept;
 	[[nodiscard]] std::optional<size_t> DrawTitleRow(
 		const TitleRowOptions& a_options) noexcept;
-
-	[[nodiscard]] float SettingsActionButtonExtent() noexcept;
-	[[nodiscard]] float SettingsActionButtonWidth(
-		SettingsAction a_action,
-		const char* a_fallbackLabel,
-		float a_buttonExtent) noexcept;
-	[[nodiscard]] bool DrawSettingsActionButton(
-		const char* a_id,
-		const ImVec2& a_origin,
-		const ImVec2& a_size,
-		SettingsAction a_action,
-		const char* a_fallbackLabel,
-		const char* a_tooltip,
-		bool a_enabled) noexcept;
-	[[nodiscard]] bool DrawSearchInput(
-		const char* a_id,
-		const char* a_hint,
-		char* a_buffer,
-		size_t a_capacity) noexcept;
-	[[nodiscard]] DMUI_Result DrawSearchInput(
-		const char* a_id,
-		const char* a_hint,
-		DMUI_TextBuffer& a_buffer,
-		bool& a_changed) noexcept;
-	[[nodiscard]] DMUI_Result DrawSearchInput(
-		const char* a_id,
-		const char* a_hint,
-		std::string& a_search,
-		std::optional<size_t> a_maximumBytes = std::nullopt) noexcept;
-	void DrawSectionHeader(const char* a_text, char32_t a_glyph) noexcept;
-	// The icon comes from the English text so it stays the same in every language.
-	void DrawSectionHeader(std::string_view a_key, const char* a_english) noexcept;
-	void DrawBulletText(const char* a_text) noexcept;
-	void DrawCollapsingSectionHeader(
-		const char* a_key,
-		const char* a_text,
-		char32_t a_glyph,
-		bool& a_expanded,
-		size_t a_count) noexcept;
 }

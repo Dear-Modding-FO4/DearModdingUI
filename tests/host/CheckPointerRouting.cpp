@@ -29,6 +29,7 @@ namespace vmm_tests
 				"a world press was not diverted");
 
 			PointerRouting::BeginFrame(kOwner);
+			ImGui::GetIO().AddMousePosEvent(333.0f, 444.0f);
 			imgui.BeginWindow("Console", { 100, 100 }, { 200, 200 }, ImGuiWindowFlags_NoSavedSettings);
 			const RenderExecution::Guard execution{ RenderExecution::Phase::kFrameDraw };
 			const dmui::ui::detail::ScopedContext ui{ &UI::API(), 77 };
@@ -47,8 +48,12 @@ namespace vmm_tests
 			require(owner.active == 1 && owner.pressed == DMUI_POINTER_BUTTON_LEFT &&
 					owner.down == DMUI_POINTER_BUTTON_LEFT,
 				"the owning page did not receive the world press");
-			require(other.active == 0 && other.pressed == 0 && other.down == 0 && other.viewport.x == 0.0f,
-				"another page received pointer input");
+			require(other.active == 0 && other.pressed == 0 && other.down == 0 && other.released == 0,
+				"another page received pointer edges");
+			require(owner.position.x == 333.0f && owner.position.y == 444.0f &&
+					other.position.x == 333.0f && other.position.y == 444.0f &&
+					other.viewport.x == 1280.0f && other.viewport.y == 720.0f,
+				"a page without pointer ownership could not place at the mouse");
 		});
 	}
 }

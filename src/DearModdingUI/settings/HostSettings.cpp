@@ -308,7 +308,7 @@ namespace DearModdingUI::HostSettings
 				}
 			}
 			Hotkeys::InitializeOverrides(std::move(a_previous), a_slot);
-			(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, error);
+			(void)SetHostStatus(DMUI_SEVERITY_ERROR, error);
 			return false;
 		}
 	}
@@ -357,7 +357,7 @@ namespace DearModdingUI::HostSettings
 			if (a_settings == s_settings)
 			{
 				(void)SetHostStatus(
-					DMUI_STATUS_SEVERITY_SUCCESS,
+					DMUI_SEVERITY_SUCCESS,
 					Localization::Text(kSettingsSavedText));
 				return true;
 			}
@@ -366,7 +366,7 @@ namespace DearModdingUI::HostSettings
 				REX::WARN(
 					"DearModdingUI: interface settings could not be persisted: {}"sv,
 					error);
-				(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, error);
+				(void)SetHostStatus(DMUI_SEVERITY_ERROR, error);
 				return false;
 			}
 			s_settings = std::move(a_settings);
@@ -374,7 +374,7 @@ namespace DearModdingUI::HostSettings
 			s_revision.Advance();
 		}
 		(void)SetHostStatus(
-			DMUI_STATUS_SEVERITY_SUCCESS,
+			DMUI_SEVERITY_SUCCESS,
 			Localization::Text(kSettingsSavedText));
 		return true;
 	}
@@ -405,7 +405,7 @@ namespace DearModdingUI::HostSettings
 			REX::WARN(
 				"DearModdingUI: sidebar layout could not be persisted: {}"sv,
 				error);
-			(void)SetHostStatus(DMUI_STATUS_SEVERITY_ERROR, error);
+			(void)SetHostStatus(DMUI_SEVERITY_ERROR, error);
 			return false;
 		}
 

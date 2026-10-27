@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
+#include <memory>
 #include <system_error>
 #include <utility>
 
@@ -27,22 +29,61 @@ namespace DearModdingUI::FontCatalog
 				extension == ".ttc";
 		}
 
-		[[nodiscard]] int CandidatePriority(
-			const std::filesystem::path& a_path)
+		[[nodiscard]] bool ConsumeSuffix(
+			std::string& a_style,
+			std::string_view a_suffix)
 		{
-			const auto stem = Lower(a_path.stem().string());
-			if (stem.contains("regular"))
-				return 0;
-			constexpr std::string_view variants[]{
-				"bold", "italic", "light", "medium", "semibold",
-				"thin", "black", "icon", "fill"
+			if (!a_style.ends_with(a_suffix))
+				return false;
+			a_style.resize(a_style.size() - a_suffix.size());
+			return true;
+		}
+
+		struct ParsedFace
+		{
+			FontFace face;
+			// False when no weight, slant or "regular" suffix named the face.
+			bool named{ false };
+		};
+
+		// "Jost-SemiBold" and "Font BoldItalic" name the face by stem suffix.
+		[[nodiscard]] ParsedFace ParseFace(const std::filesystem::path& a_path)
+		{
+			auto style = Lower(a_path.stem().string());
+			std::erase_if(style, [](char a_character) {
+				return a_character == ' ' || a_character == '_' ||
+					a_character == '-';
+			});
+			ParsedFace parsed;
+			auto& face = parsed.face;
+			face.italic = ConsumeSuffix(style, "italic") ||
+				ConsumeSuffix(style, "oblique");
+			parsed.named = face.italic;
+			constexpr std::pair<std::string_view, FontWeight> weights[]{
+				{ "extralight", FontWeight::kExtraLight },
+				{ "ultralight", FontWeight::kExtraLight },
+				{ "semibold", FontWeight::kSemiBold },
+				{ "demibold", FontWeight::kSemiBold },
+				{ "extrabold", FontWeight::kExtraBold },
+				{ "ultrabold", FontWeight::kExtraBold },
+				{ "thin", FontWeight::kThin },
+				{ "light", FontWeight::kLight },
+				{ "medium", FontWeight::kMedium },
+				{ "bold", FontWeight::kBold },
+				{ "black", FontWeight::kBlack },
+				{ "heavy", FontWeight::kBlack }
 			};
-			for (const auto variant : variants)
+			for (const auto& [name, weight] : weights)
 			{
-				if (stem.contains(variant))
-					return 2;
+				if (style.ends_with(name))
+				{
+					face.weight = weight;
+					parsed.named = true;
+					return parsed;
+				}
 			}
-			return 1;
+			parsed.named = parsed.named || style.ends_with("regular");
+			return parsed;
 		}
 
 		[[nodiscard]] bool SameName(
@@ -51,6 +92,11 @@ namespace DearModdingUI::FontCatalog
 		{
 			return Lower(a_left) == Lower(a_right);
 		}
+	}
+
+	bool IsBuiltin(std::string_view a_family) noexcept
+	{
+		return a_family.empty() || SameName(a_family, kBuiltinFamily);
 	}
 
 	std::vector<FontFamily> Enumerate(
@@ -72,7 +118,7 @@ namespace DearModdingUI::FontCatalog
 			if (SameName(familyName, "Phosphor"))
 				continue;
 
-			std::vector<std::filesystem::path> candidates;
+			std::vector<std::filesystem::path> files;
 			std::error_code familyError;
 			for (std::filesystem::recursive_directory_iterator family{
 					 entry.path(),
@@ -84,25 +130,41 @@ namespace DearModdingUI::FontCatalog
 			{
 				if (family->is_regular_file(familyError) &&
 					IsFontFile(family->path()))
-					candidates.push_back(family->path());
+					files.push_back(family->path());
 			}
-			if (candidates.empty())
-				continue;
-
-			std::ranges::sort(candidates, [](const auto& a_left, const auto& a_right) {
+			std::vector<std::pair<std::filesystem::path, ParsedFace>> parsed;
+			parsed.reserve(files.size());
+			for (auto& file : files)
+			{
+				auto face = ParseFace(file);
+				parsed.emplace_back(std::move(file), std::move(face));
+			}
+			// Named faces claim their slot before files whose suffix said nothing.
+			std::ranges::sort(parsed, [](const auto& a_left, const auto& a_right) {
 				return std::pair{
-					CandidatePriority(a_left),
-					Lower(a_left.filename().string())
+					!a_left.second.named,
+					Lower(a_left.first.generic_string())
 				} <
 					std::pair{
-						CandidatePriority(a_right),
-						Lower(a_right.filename().string())
+						!a_right.second.named,
+						Lower(a_right.first.generic_string())
 					};
 			});
-			result.push_back({
-				familyName,
-				candidates.front().lexically_relative(a_root).generic_string()
-			});
+
+			FontFamily family{ familyName, {} };
+			for (auto& [file, entry] : parsed)
+			{
+				auto& face = entry.face;
+				if (std::ranges::any_of(family.faces, [&](const auto& a_known) {
+						return a_known.weight == face.weight &&
+							a_known.italic == face.italic;
+					}))
+					continue;
+				face.file = file.lexically_relative(a_root).generic_string();
+				family.faces.push_back(std::move(face));
+			}
+			if (!family.faces.empty())
+				result.push_back(std::move(family));
 		}
 
 		std::ranges::sort(result, [](const auto& a_left, const auto& a_right) {
@@ -135,5 +197,42 @@ namespace DearModdingUI::FontCatalog
 		if (const auto* fallback = Find(a_fallback, a_families))
 			return fallback;
 		return a_families.empty() ? nullptr : std::addressof(a_families.front());
+	}
+
+	ResolvedFace ResolveFace(
+		const FontFamily& a_family,
+		FontWeight a_weight,
+		bool a_italic) noexcept
+	{
+		const auto exact = std::ranges::find_if(a_family.faces, [&](const auto& a_face) {
+			return a_face.weight == a_weight && a_face.italic == a_italic;
+		});
+		if (exact != a_family.faces.end())
+			return { std::addressof(*exact), true };
+
+		const auto target = static_cast<int>(a_weight);
+		const auto nearest = [&](bool a_slant) -> const FontFace* {
+			const FontFace* best = nullptr;
+			for (const auto& face : a_family.faces)
+			{
+				if (face.italic != a_slant)
+					continue;
+				if (!best)
+				{
+					best = std::addressof(face);
+					continue;
+				}
+				const auto distance = std::abs(static_cast<int>(face.weight) - target);
+				const auto bestDistance = std::abs(static_cast<int>(best->weight) - target);
+				const auto heavier = face.weight > best->weight;
+				if (distance < bestDistance ||
+					(distance == bestDistance && heavier == (target >= 500)))
+					best = std::addressof(face);
+			}
+			return best;
+		};
+		if (const auto* face = nearest(a_italic))
+			return { face, false };
+		return { nearest(!a_italic), false };
 	}
 }

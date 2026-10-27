@@ -8,6 +8,7 @@ namespace DearModdingUI::UI
 	{
 		size_t styles{};
 		size_t panels{};
+		size_t sections{};
 		[[nodiscard]] bool operator==(const LayoutDepths&) const noexcept = default;
 	};
 

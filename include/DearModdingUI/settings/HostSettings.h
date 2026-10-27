@@ -3,7 +3,8 @@
 #include <DearModdingUI/host/MenuToggleChord.h>
 #include <DearModdingUI/controls/FieldFeedback.h>
 #include <DearModdingUI/navigation/Sidebar.h>
-#include <DearModdingUI/ThemeDefaults.h>
+#include <DearModdingUI/presentation/FontMetrics.h>
+#include <DearModdingUI/presentation/ThemeSpec.h>
 
 #include <algorithm>
 #include <cmath>
@@ -12,15 +13,10 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace DearModdingUI
 {
-	enum class LogoColorMode
-	{
-		kOriginal,
-		kAccent
-	};
-
 	[[nodiscard]] constexpr std::optional<LogoColorMode> ParseLogoColorMode(
 		std::string_view a_value) noexcept
 	{
@@ -49,34 +45,7 @@ namespace DearModdingUI
 
 	using HostPaletteColor = HostAccentColor;
 
-	[[nodiscard]] inline std::string EncodeHostAccentColor(HostAccentColor a_color);
-
-	[[nodiscard]] constexpr HostPaletteColor ToHostPaletteColor(
-		uint32_t a_color) noexcept
-	{
-		return {
-			static_cast<uint8_t>(a_color & 0xFFu),
-			static_cast<uint8_t>((a_color >> 8u) & 0xFFu),
-			static_cast<uint8_t>((a_color >> 16u) & 0xFFu)
-		};
-	}
-
-	[[nodiscard]] constexpr uint32_t ToFieldFeedbackColor(
-		HostPaletteColor a_color) noexcept
-	{
-		return FieldFeedback::PackColor(
-			a_color.red,
-			a_color.green,
-			a_color.blue);
-	}
-
 	inline constexpr HostAccentColor kDefaultHostAccentColor{};
-	inline constexpr HostPaletteColor kDefaultFeedbackInfoColor =
-		ToHostPaletteColor(FieldFeedback::kDefaultInfoColor);
-	inline constexpr HostPaletteColor kDefaultFeedbackWarningColor =
-		ToHostPaletteColor(FieldFeedback::kDefaultWarningColor);
-	inline constexpr HostPaletteColor kDefaultFeedbackErrorColor =
-		ToHostPaletteColor(FieldFeedback::kDefaultErrorColor);
 	inline constexpr HostPaletteColor kDefaultPaletteBackgroundColor{
 		0x05, 0x05, 0x05
 	};
@@ -90,86 +59,76 @@ namespace DearModdingUI
 	inline constexpr float kMinBackgroundBlurStrength{ 0.10f };
 	inline constexpr float kMaxBackgroundBlurStrength{ 1.0f };
 	inline constexpr std::string_view kDefaultBodyFontFamily{ "Jost" };
+	inline constexpr std::string_view kDefaultMonospaceFontFamily{ "JetBrains Mono" };
+
+	inline constexpr std::string_view kDefaultThemePreset{ "Default" };
+
+	// Each set value replaces the selected theme preset's own.
+	struct HostAppearanceOverrides
+	{
+		std::optional<HostAccentColor> accentColor;
+		std::optional<float> windowBackgroundOpacity;
+		std::optional<HostPaletteColor> paletteBackgroundColor;
+		std::optional<float> paletteBackgroundOpacity;
+		std::optional<Theme::IconColorMode> iconColorMode;
+		std::optional<bool> backgroundBlur;
+		std::optional<float> backgroundBlurStrength;
+		std::optional<LogoColorMode> logoColors;
+		std::optional<std::string> bodyFontFamily;
+		std::optional<std::string> monospaceFontFamily;
+
+		[[nodiscard]] bool operator==(
+			const HostAppearanceOverrides&) const noexcept = default;
+	};
 
 	struct HostInterfaceSettings
 	{
-		Theme::IconColorMode iconColorMode{ Theme::IconColorMode::kColored };
 		SidebarLayoutKind sidebarLayout{ DEFAULT_SIDEBAR_LAYOUT };
-		HostAccentColor accentColor{};
-		float windowBackgroundOpacity{ kDefaultWindowBackgroundOpacity };
-		HostPaletteColor paletteBackgroundColor{
-			kDefaultPaletteBackgroundColor
-		};
-		float paletteBackgroundOpacity{ kDefaultPaletteBackgroundOpacity };
-		bool backgroundBlur{ true };
-		float backgroundBlurStrength{ kDefaultBackgroundBlurStrength };
+		std::string themePreset{ kDefaultThemePreset };
+		HostAppearanceOverrides appearance;
 		float uiScale{ Theme::kDefaultUserScale };
-		std::string bodyFontFamily{ kDefaultBodyFontFamily };
 		std::string menuToggleKey{ SerializeHotkeyChord(kMenuDefaultToggleChord) };
 		std::string menuToggleGamepad{ SerializeHotkeyChord(kMenuDefaultGamepadToggleChord) };
 		FieldFeedbackPlacement feedbackPlacement{
 			DEFAULT_FIELD_FEEDBACK_LAYOUT
 		};
-		HostPaletteColor feedbackInfoColor{
-			kDefaultFeedbackInfoColor
-		};
-		HostPaletteColor feedbackWarningColor{
-			kDefaultFeedbackWarningColor
-		};
-		HostPaletteColor feedbackErrorColor{
-			kDefaultFeedbackErrorColor
-		};
 		bool fallSoulsMode{ false };
-		LogoColorMode logoColors{ LogoColorMode::kOriginal };
 
 		[[nodiscard]] bool operator==(
 			const HostInterfaceSettings&) const noexcept = default;
 	};
 
+	// Font families are committed, so previews never carry them.
 	struct HostInterfacePreviewSettings
 	{
-		Theme::IconColorMode iconColorMode{ Theme::IconColorMode::kColored };
 		SidebarLayoutKind sidebarLayout{ DEFAULT_SIDEBAR_LAYOUT };
-		HostAccentColor accentColor{};
-		float windowBackgroundOpacity{ kDefaultWindowBackgroundOpacity };
-		HostPaletteColor paletteBackgroundColor{
-			kDefaultPaletteBackgroundColor
-		};
-		float paletteBackgroundOpacity{ kDefaultPaletteBackgroundOpacity };
-		bool backgroundBlur{ true };
-		float backgroundBlurStrength{ kDefaultBackgroundBlurStrength };
+		std::string themePreset{ kDefaultThemePreset };
+		HostAppearanceOverrides appearance;
 		FieldFeedbackPlacement feedbackPlacement{
 			DEFAULT_FIELD_FEEDBACK_LAYOUT
 		};
-		HostPaletteColor feedbackInfoColor{
-			kDefaultFeedbackInfoColor
-		};
-		HostPaletteColor feedbackWarningColor{
-			kDefaultFeedbackWarningColor
-		};
-		HostPaletteColor feedbackErrorColor{
-			kDefaultFeedbackErrorColor
-		};
-		LogoColorMode logoColors{ LogoColorMode::kOriginal };
 
 		[[nodiscard]] bool operator==(
 			const HostInterfacePreviewSettings&) const noexcept = default;
 	};
 
+	// An empty text or absent value means the theme preset decides.
 	struct PersistedHostInterfaceSettings
 	{
-		bool monochromeIcons{ false };
+		std::optional<bool> monochromeIcons;
 		std::string sidebarLayout{
 			SidebarLayoutKindName(DEFAULT_SIDEBAR_LAYOUT)
 		};
-		std::string accentColor{ "#42FA60" };
-		float windowBackgroundOpacity{ kDefaultWindowBackgroundOpacity };
-		std::string paletteBackgroundColor{ "#050505" };
-		float paletteBackgroundOpacity{ kDefaultPaletteBackgroundOpacity };
-		bool backgroundBlur{ true };
-		float backgroundBlurStrength{ kDefaultBackgroundBlurStrength };
+		std::string themePreset{ kDefaultThemePreset };
+		std::string accentColor;
+		std::optional<float> windowBackgroundOpacity;
+		std::string paletteBackgroundColor;
+		std::optional<float> paletteBackgroundOpacity;
+		std::optional<bool> backgroundBlur;
+		std::optional<float> backgroundBlurStrength;
 		float uiScale{ Theme::kDefaultUserScale };
-		std::string bodyFontFamily{ kDefaultBodyFontFamily };
+		std::string bodyFontFamily;
+		std::string monospaceFontFamily;
 		std::string menuToggleKey{ SerializeHotkeyChord(kMenuDefaultToggleChord) };
 		std::string menuToggleGamepad{ SerializeHotkeyChord(kMenuDefaultGamepadToggleChord) };
 		std::map<std::string, std::string> hotkeys;
@@ -177,11 +136,8 @@ namespace DearModdingUI
 		std::string feedbackPlacement{
 			FieldFeedbackLayoutName(DEFAULT_FIELD_FEEDBACK_LAYOUT)
 		};
-		std::string feedbackInfoColor{ EncodeHostAccentColor(kDefaultFeedbackInfoColor) };
-		std::string feedbackWarningColor{ EncodeHostAccentColor(kDefaultFeedbackWarningColor) };
-		std::string feedbackErrorColor{ EncodeHostAccentColor(kDefaultFeedbackErrorColor) };
 		bool fallSoulsMode{ false };
-		std::string logoColors{ "original" };
+		std::string logoColors;
 
 		[[nodiscard]] bool operator==(
 			const PersistedHostInterfaceSettings&) const noexcept = default;
@@ -290,7 +246,8 @@ namespace DearModdingUI
 		};
 	}
 
-	[[nodiscard]] constexpr bool IsValidBodyFontFamily(
+	// Safe as a single file or folder name under a host data directory.
+	[[nodiscard]] constexpr bool IsPlainFileName(
 		std::string_view a_value) noexcept
 	{
 		if (a_value.empty() || a_value.size() > 128 ||
@@ -308,47 +265,53 @@ namespace DearModdingUI
 		return true;
 	}
 
-	[[nodiscard]] inline std::string DecodeBodyFontFamily(
-		std::string_view a_value)
+	// A non-finite value counts as absent so the preset decides.
+	inline void NormalizeOverrideRange(
+		std::optional<float>& a_value,
+		float a_minimum,
+		float a_maximum) noexcept
 	{
-		return IsValidBodyFontFamily(a_value) ?
-			std::string{ a_value } :
-			std::string{ kDefaultBodyFontFamily };
+		if (!a_value)
+			return;
+		if (std::isfinite(*a_value))
+			a_value = std::clamp(*a_value, a_minimum, a_maximum);
+		else
+			a_value.reset();
 	}
 
 	[[nodiscard]] inline HostInterfaceSettings NormalizeHostInterfaceSettings(
 		HostInterfaceSettings a_settings)
 	{
-		if (a_settings.iconColorMode != Theme::IconColorMode::kMonochrome)
-			a_settings.iconColorMode = Theme::IconColorMode::kColored;
-		if (a_settings.logoColors != LogoColorMode::kAccent)
-			a_settings.logoColors = LogoColorMode::kOriginal;
 		a_settings.sidebarLayout =
 			NormalizeUserSidebarLayout(a_settings.sidebarLayout);
 		a_settings.feedbackPlacement =
 			NormalizeFieldFeedbackLayout(a_settings.feedbackPlacement);
-		a_settings.windowBackgroundOpacity = ClampHostSetting(
-			a_settings.windowBackgroundOpacity,
+		if (!IsPlainFileName(a_settings.themePreset))
+			a_settings.themePreset = std::string{ kDefaultThemePreset };
+		auto& appearance = a_settings.appearance;
+		NormalizeOverrideRange(
+			appearance.windowBackgroundOpacity,
 			kMinWindowBackgroundOpacity,
-			kMaxWindowBackgroundOpacity,
-			kDefaultWindowBackgroundOpacity);
-		a_settings.paletteBackgroundOpacity = ClampHostSetting(
-			a_settings.paletteBackgroundOpacity,
+			kMaxWindowBackgroundOpacity);
+		NormalizeOverrideRange(
+			appearance.paletteBackgroundOpacity,
 			kMinPaletteBackgroundOpacity,
-			kMaxPaletteBackgroundOpacity,
-			kDefaultPaletteBackgroundOpacity);
-		a_settings.backgroundBlurStrength = ClampHostSetting(
-			a_settings.backgroundBlurStrength,
+			kMaxPaletteBackgroundOpacity);
+		NormalizeOverrideRange(
+			appearance.backgroundBlurStrength,
 			kMinBackgroundBlurStrength,
-			kMaxBackgroundBlurStrength,
-			kDefaultBackgroundBlurStrength);
+			kMaxBackgroundBlurStrength);
+		if (appearance.bodyFontFamily &&
+			!IsPlainFileName(*appearance.bodyFontFamily))
+			appearance.bodyFontFamily.reset();
+		if (appearance.monospaceFontFamily &&
+			!IsPlainFileName(*appearance.monospaceFontFamily))
+			appearance.monospaceFontFamily.reset();
 		a_settings.uiScale = ClampHostSetting(
 			a_settings.uiScale,
 			Theme::kMinUserScale,
 			Theme::kMaxUserScale,
 			Theme::kDefaultUserScale);
-		a_settings.bodyFontFamily =
-			DecodeBodyFontFamily(a_settings.bodyFontFamily);
 		a_settings.menuToggleKey = SerializeHotkeyChord(
 			ParseMenuToggleChord(a_settings.menuToggleKey).chord);
 		a_settings.menuToggleGamepad = SerializeHotkeyChord(
@@ -356,40 +319,47 @@ namespace DearModdingUI
 		return a_settings;
 	}
 
+	[[nodiscard]] inline std::optional<HostAccentColor> DecodeOptionalHostColor(
+		std::string_view a_value) noexcept
+	{
+		return a_value.empty() ?
+			std::nullopt :
+			TryDecodeHostColor(a_value);
+	}
+
 	[[nodiscard]] inline HostInterfaceSettings DecodeHostInterfaceSettings(
 		const PersistedHostInterfaceSettings& a_settings)
 	{
-		return NormalizeHostInterfaceSettings({
-			a_settings.monochromeIcons ?
+		HostAppearanceOverrides appearance;
+		appearance.accentColor = DecodeOptionalHostColor(a_settings.accentColor);
+		appearance.windowBackgroundOpacity = a_settings.windowBackgroundOpacity;
+		appearance.paletteBackgroundColor =
+			DecodeOptionalHostColor(a_settings.paletteBackgroundColor);
+		appearance.paletteBackgroundOpacity = a_settings.paletteBackgroundOpacity;
+		if (a_settings.monochromeIcons)
+		{
+			appearance.iconColorMode = *a_settings.monochromeIcons ?
 				Theme::IconColorMode::kMonochrome :
-				Theme::IconColorMode::kColored,
+				Theme::IconColorMode::kColored;
+		}
+		appearance.backgroundBlur = a_settings.backgroundBlur;
+		appearance.backgroundBlurStrength = a_settings.backgroundBlurStrength;
+		appearance.logoColors = ParseLogoColorMode(a_settings.logoColors);
+		if (!a_settings.bodyFontFamily.empty())
+			appearance.bodyFontFamily = a_settings.bodyFontFamily;
+		if (!a_settings.monospaceFontFamily.empty())
+			appearance.monospaceFontFamily = a_settings.monospaceFontFamily;
+		return NormalizeHostInterfaceSettings({
 			DecodeUserSidebarLayout(a_settings.sidebarLayout),
-			DecodeHostAccentColor(a_settings.accentColor),
-			a_settings.windowBackgroundOpacity,
-			DecodeHostColor(
-				a_settings.paletteBackgroundColor,
-				kDefaultPaletteBackgroundColor),
-			a_settings.paletteBackgroundOpacity,
-			a_settings.backgroundBlur,
-			a_settings.backgroundBlurStrength,
+			a_settings.themePreset,
+			std::move(appearance),
 			a_settings.uiScale,
-			a_settings.bodyFontFamily,
 			a_settings.menuToggleKey,
 			a_settings.menuToggleGamepad,
 			ParseFieldFeedbackLayout(
 				a_settings.feedbackPlacement).value_or(
 					DEFAULT_FIELD_FEEDBACK_LAYOUT),
-			DecodeHostColor(
-				a_settings.feedbackInfoColor,
-				kDefaultFeedbackInfoColor),
-			DecodeHostColor(
-				a_settings.feedbackWarningColor,
-				kDefaultFeedbackWarningColor),
-			DecodeHostColor(
-				a_settings.feedbackErrorColor,
-				kDefaultFeedbackErrorColor),
-			a_settings.fallSoulsMode,
-			ParseLogoColorMode(a_settings.logoColors).value_or(LogoColorMode::kOriginal)
+			a_settings.fallSoulsMode
 		});
 	}
 
@@ -397,29 +367,42 @@ namespace DearModdingUI
 	EncodeNormalizedHostInterfaceSettings(
 		const HostInterfaceSettings& a_settings)
 	{
-		return {
-			a_settings.iconColorMode == Theme::IconColorMode::kMonochrome,
-			std::string{ SidebarLayoutKindName(a_settings.sidebarLayout) },
-			EncodeHostAccentColor(a_settings.accentColor),
-			a_settings.windowBackgroundOpacity,
-			EncodeHostAccentColor(a_settings.paletteBackgroundColor),
-			a_settings.paletteBackgroundOpacity,
-			a_settings.backgroundBlur,
-			a_settings.backgroundBlurStrength,
-			a_settings.uiScale,
-			a_settings.bodyFontFamily,
-			a_settings.menuToggleKey,
-			a_settings.menuToggleGamepad,
-			{},
-			{},
-			std::string{ FieldFeedbackLayoutName(
-				a_settings.feedbackPlacement) },
-			EncodeHostAccentColor(a_settings.feedbackInfoColor),
-			EncodeHostAccentColor(a_settings.feedbackWarningColor),
-			EncodeHostAccentColor(a_settings.feedbackErrorColor),
-			a_settings.fallSoulsMode,
-			std::string{ LogoColorModeName(a_settings.logoColors) }
-		};
+		const auto& appearance = a_settings.appearance;
+		PersistedHostInterfaceSettings persisted;
+		if (appearance.iconColorMode)
+		{
+			persisted.monochromeIcons =
+				*appearance.iconColorMode == Theme::IconColorMode::kMonochrome;
+		}
+		persisted.sidebarLayout =
+			std::string{ SidebarLayoutKindName(a_settings.sidebarLayout) };
+		persisted.themePreset = a_settings.themePreset;
+		if (appearance.accentColor)
+			persisted.accentColor = EncodeHostAccentColor(*appearance.accentColor);
+		persisted.windowBackgroundOpacity = appearance.windowBackgroundOpacity;
+		if (appearance.paletteBackgroundColor)
+		{
+			persisted.paletteBackgroundColor =
+				EncodeHostAccentColor(*appearance.paletteBackgroundColor);
+		}
+		persisted.paletteBackgroundOpacity = appearance.paletteBackgroundOpacity;
+		persisted.backgroundBlur = appearance.backgroundBlur;
+		persisted.backgroundBlurStrength = appearance.backgroundBlurStrength;
+		persisted.uiScale = a_settings.uiScale;
+		persisted.bodyFontFamily = appearance.bodyFontFamily.value_or(std::string{});
+		persisted.monospaceFontFamily =
+			appearance.monospaceFontFamily.value_or(std::string{});
+		persisted.menuToggleKey = a_settings.menuToggleKey;
+		persisted.menuToggleGamepad = a_settings.menuToggleGamepad;
+		persisted.feedbackPlacement =
+			std::string{ FieldFeedbackLayoutName(a_settings.feedbackPlacement) };
+		persisted.fallSoulsMode = a_settings.fallSoulsMode;
+		if (appearance.logoColors)
+		{
+			persisted.logoColors =
+				std::string{ LogoColorModeName(*appearance.logoColors) };
+		}
+		return persisted;
 	}
 
 	[[nodiscard]] inline PersistedHostInterfaceSettings EncodeHostInterfaceSettings(
@@ -434,24 +417,18 @@ namespace DearModdingUI
 		return {};
 	}
 
-	[[nodiscard]] constexpr HostInterfacePreviewSettings PreviewHostInterfaceSettings(
-		const HostInterfaceSettings& a_settings) noexcept
+	[[nodiscard]] inline HostInterfacePreviewSettings PreviewHostInterfaceSettings(
+		const HostInterfaceSettings& a_settings)
 	{
-		return {
-			a_settings.iconColorMode,
+		HostInterfacePreviewSettings preview{
 			a_settings.sidebarLayout,
-			a_settings.accentColor,
-			a_settings.windowBackgroundOpacity,
-			a_settings.paletteBackgroundColor,
-			a_settings.paletteBackgroundOpacity,
-			a_settings.backgroundBlur,
-			a_settings.backgroundBlurStrength,
-			a_settings.feedbackPlacement,
-			a_settings.feedbackInfoColor,
-			a_settings.feedbackWarningColor,
-			a_settings.feedbackErrorColor,
-			a_settings.logoColors
+			a_settings.themePreset,
+			a_settings.appearance,
+			a_settings.feedbackPlacement
 		};
+		preview.appearance.bodyFontFamily.reset();
+		preview.appearance.monospaceFontFamily.reset();
+		return preview;
 	}
 
 	namespace HostSettings

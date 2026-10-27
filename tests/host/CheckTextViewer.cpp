@@ -8,10 +8,12 @@
 #include <imgui/imgui_internal.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <limits>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace vmm_tests
@@ -42,17 +44,17 @@ namespace vmm_tests
 			uint64_t a_matchRevision = 1)
 		{
 			return {
-				a_id,
-				a_text.data(),
-				a_text.size(),
-				a_lines.data(),
-				a_lines.size(),
-				a_matches.data(),
-				a_matches.size(),
-				a_matchLength,
-				a_contentRevision,
-				a_matchRevision,
-				{ 360.0f, 140.0f }
+				.id = a_id,
+				.text = a_text.data(),
+				.textLength = a_text.size(),
+				.lineOffsets = a_lines.data(),
+				.lineCount = a_lines.size(),
+				.matchByteOffsets = a_matches.data(),
+				.matchCount = a_matches.size(),
+				.matchByteLength = a_matchLength,
+				.contentRevision = a_contentRevision,
+				.matchRevision = a_matchRevision,
+				.viewport = { 360.0f, 140.0f }
 			};
 		}
 
@@ -61,10 +63,11 @@ namespace vmm_tests
 			uint64_t a_matchRevision = 1)
 		{
 			return {
-				a_contentRevision,
-				a_matchRevision,
-				DMUI_TEXT_VIEW_NO_OFFSET,
-				DMUI_TEXT_VIEW_NO_OFFSET
+				.contentRevision = a_contentRevision,
+				.matchRevision = a_matchRevision,
+				.activeMatch = DMUI_TEXT_VIEW_NO_OFFSET,
+				.revealByteOffset = DMUI_TEXT_VIEW_NO_OFFSET,
+				.spanIndex = DMUI_TEXT_VIEW_NO_OFFSET
 			};
 		}
 
@@ -483,6 +486,290 @@ namespace vmm_tests
 			require(
 				recreatedChild && recreatedChild->ScrollMax.x > 0.0f,
 				"recreated context did not establish its own text cache");
+		});
+
+		runner.test("text view keeps the reader's line across front trims and appends", [] {
+			const auto build = [](int a_first, int a_count) {
+				std::string text;
+				for (int line = a_first; line < a_first + a_count; ++line)
+					text += "line " + std::to_string(line) + "\n";
+				return text;
+			};
+			auto text = build(0, 200);
+			auto lines = LineOffsets(text);
+			auto descriptor = Descriptor("Anchor", text, lines);
+			auto state = State();
+			support::ImGuiTestContext imgui{ { .disableErrorRecovery = true } };
+			const auto frame = [&](int a_count = 3) {
+				for (int index = 0; index < a_count; ++index)
+				{
+					imgui.BeginWindow("##Anchor", { 0.0f, 0.0f }, { 500.0f, 260.0f });
+					require(DrawTextView(1, descriptor, state) == DMUI_RESULT_OK,
+						"the anchored view failed to draw");
+					imgui.EndWindow();
+				}
+			};
+			const auto scroll = [] { return FindChild("Anchor")->Scroll.y; };
+			frame();
+			state.scrollCommand = DMUI_TEXT_VIEW_SCROLL_PAGE_DOWN;
+			frame();
+			require(state.scrollCommand == DMUI_TEXT_VIEW_SCROLL_NONE && scroll() > 50.0f,
+				"a page command was kept or did not scroll");
+			state.scrollCommand = DMUI_TEXT_VIEW_SCROLL_PAGE_DOWN;
+			frame();
+			const auto before = scroll();
+
+			// Ten lines leave the front: the same line stays under the reader.
+			const auto lineHeight = ImGui::GetTextLineHeightWithSpacing();
+			text = build(10, 190);
+			lines = LineOffsets(text);
+			descriptor = Descriptor("Anchor", text, lines, {}, 0, 2);
+			descriptor.firstLineNumber = 10;
+			state.contentRevision = 2;
+			frame();
+			require(std::abs(scroll() - (before - 10.0f * lineHeight)) < 1.0f,
+				"trimming front lines moved the reader's place");
+
+			// Appending keeps the position; so does replacing without a trim.
+			text += build(200, 20);
+			lines = LineOffsets(text);
+			descriptor = Descriptor("Anchor", text, lines, {}, 0, 3);
+			descriptor.firstLineNumber = 10;
+			state.contentRevision = 3;
+			frame();
+			require(std::abs(scroll() - (before - 10.0f * lineHeight)) < 1.0f,
+				"a content change reset the scroll position");
+
+			state.scrollCommand = DMUI_TEXT_VIEW_SCROLL_TOP;
+			frame();
+			require(scroll() == 0.0f, "the top command did not scroll to the top");
+			state.scrollCommand = DMUI_TEXT_VIEW_SCROLL_COUNT;
+			imgui.BeginWindow("##Anchor", { 0.0f, 0.0f }, { 500.0f, 260.0f });
+			require(DrawTextView(1, descriptor, state) == DMUI_RESULT_INVALID_ARGUMENT,
+				"an unknown scroll command was accepted");
+			imgui.EndWindow();
+		});
+
+		runner.test("text view follows the tail only while it is at the bottom", [] {
+			const auto build = [](int a_count) {
+				std::string text;
+				for (int line = 0; line < a_count; ++line)
+					text += "entry " + std::to_string(line) + "\n";
+				return text;
+			};
+			auto text = build(100);
+			auto lines = LineOffsets(text);
+			auto descriptor = Descriptor("Tail", text, lines);
+			descriptor.flags = DMUI_TEXT_VIEW_FOLLOW_TAIL;
+			auto state = State();
+			support::ImGuiTestContext imgui{ { .disableErrorRecovery = true } };
+			const auto frame = [&](int a_count = 4) {
+				for (int index = 0; index < a_count; ++index)
+				{
+					imgui.BeginWindow("##Tail", { 0.0f, 0.0f }, { 500.0f, 260.0f });
+					require(DrawTextView(1, descriptor, state) == DMUI_RESULT_OK,
+						"the tail view failed to draw");
+					imgui.EndWindow();
+				}
+			};
+			const auto append = [&](uint64_t a_revision) {
+				text += build(20);
+				lines = LineOffsets(text);
+				const auto flags = descriptor.flags;
+				descriptor = Descriptor("Tail", text, lines, {}, 0, a_revision);
+				descriptor.flags = flags;
+				state.contentRevision = a_revision;
+			};
+			const auto atBottom = [] {
+				const auto* child = FindChild("Tail");
+				return child->ScrollMax.y > 0.0f && child->Scroll.y >= child->ScrollMax.y - 1.0f;
+			};
+			frame();
+			require(atBottom() && state.atBottom != 0, "a new tail view did not start at the end");
+			append(2);
+			frame();
+			require(atBottom() && state.atBottom != 0, "appended lines did not stay pinned");
+
+			state.scrollCommand = DMUI_TEXT_VIEW_SCROLL_TOP;
+			frame();
+			require(FindChild("Tail")->Scroll.y == 0.0f && state.atBottom == 0,
+				"scrolling up did not leave the end");
+			append(3);
+			frame();
+			require(FindChild("Tail")->Scroll.y == 0.0f && state.atBottom == 0,
+				"appended lines pulled a scrolled-up reader down");
+
+			state.scrollCommand = DMUI_TEXT_VIEW_SCROLL_BOTTOM;
+			frame();
+			require(atBottom() && state.atBottom != 0, "the bottom command did not reach the end");
+			append(4);
+			frame();
+			require(atBottom(), "following did not resume at the end");
+		});
+
+		runner.test("text view lets a reveal or paging leave the pinned tail", [] {
+			std::string text;
+			for (int line = 0; line < 100; ++line)
+				text += "entry " + std::to_string(line) + "\n";
+			const auto lines = LineOffsets(text);
+			auto descriptor = Descriptor("Pinned", text, lines);
+			descriptor.flags = DMUI_TEXT_VIEW_FOLLOW_TAIL;
+			auto state = State();
+			support::ImGuiTestContext imgui{ { .disableErrorRecovery = true } };
+			const auto frame = [&](int a_count = 4) {
+				for (int index = 0; index < a_count; ++index)
+				{
+					imgui.BeginWindow("##Pinned", { 0.0f, 0.0f }, { 500.0f, 260.0f });
+					require(DrawTextView(1, descriptor, state) == DMUI_RESULT_OK,
+						"the pinned view failed to draw");
+					imgui.EndWindow();
+				}
+			};
+			const auto bottom = [] {
+				const auto* child = FindChild("Pinned");
+				return child->Scroll.y >= child->ScrollMax.y - 1.0f;
+			};
+			frame();
+			require(bottom(), "the view did not start pinned");
+
+			state.revealByteOffset = lines[10];
+			frame();
+			require(!bottom() && state.revealByteOffset == DMUI_TEXT_VIEW_NO_OFFSET,
+				"a reveal did not move the pinned view and clear");
+
+			state.scrollCommand = DMUI_TEXT_VIEW_SCROLL_BOTTOM;
+			frame();
+			require(bottom(), "the bottom command did not re-pin");
+			const auto before = FindChild("Pinned")->Scroll.y;
+			state.scrollCommand = DMUI_TEXT_VIEW_SCROLL_PAGE_UP;
+			frame();
+			const auto after = FindChild("Pinned")->Scroll.y;
+			require(!bottom() && after < before - 50.0f && state.atBottom == 0,
+				"paging up from the pinned tail did not stay released");
+		});
+
+		runner.test("text view reports span hover and click with the caller's id", [] {
+			const std::string text{ "hello world\nsecond line" };
+			const auto lines = LineOffsets(text);
+			std::vector<DMUI_TextSpan> spans(2);
+			spans[0].offset = 0;
+			spans[0].length = 5;
+			spans[0].userId = 7;
+			spans[1].offset = 6;
+			spans[1].length = 5;
+			spans[1].flags = DMUI_TEXT_SPAN_INTERACTIVE;
+			spans[1].userId = 42;
+			auto descriptor = Descriptor("Spans", text, lines);
+			descriptor.spans = spans.data();
+			descriptor.spanCount = spans.size();
+			auto state = State();
+			support::ImGuiTestContext imgui{
+				{ .disableInputTrickle = true, .disableErrorRecovery = true }
+			};
+			const auto frame = [&] {
+				imgui.BeginWindow("##Spans", { 0.0f, 0.0f }, { 500.0f, 260.0f });
+				require(DrawTextView(1, descriptor, state) == DMUI_RESULT_OK,
+					"the span view failed to draw");
+				imgui.EndWindow();
+			};
+			auto& io = ImGui::GetIO();
+			io.AddMousePosEvent(480.0f, 240.0f);
+			frame();
+			frame();
+			const auto origin = FindChild("Spans")->DC.CursorStartPos;
+			const auto textHeight = ImGui::GetTextLineHeight();
+			const ImVec2 plain{ origin.x + 3.0f, origin.y + textHeight * 0.5f };
+			const ImVec2 target{
+				origin.x + ImGui::CalcTextSize("hello ").x + 3.0f, origin.y + textHeight * 0.5f };
+
+			io.AddMousePosEvent(plain.x, plain.y);
+			frame();
+			require(state.events == 0 && state.spanIndex == DMUI_TEXT_VIEW_NO_OFFSET,
+				"a non-interactive span reported events");
+			io.AddMousePosEvent(target.x, target.y);
+			frame();
+			require(state.events == DMUI_TEXT_VIEW_EVENT_SPAN_HOVERED &&
+					state.spanIndex == 1 && state.userId == 42,
+				"hovering an interactive span was not reported");
+			io.AddMouseButtonEvent(0, true);
+			frame();
+			io.AddMouseButtonEvent(0, false);
+			frame();
+			require((state.events & DMUI_TEXT_VIEW_EVENT_SPAN_CLICKED) != 0 &&
+					state.spanIndex == 1 && state.userId == 42,
+				"clicking an interactive span was not reported");
+			frame();
+			require((state.events & DMUI_TEXT_VIEW_EVENT_SPAN_CLICKED) == 0,
+				"a click event outlived its frame");
+
+			// A drag that starts on the span is a selection, not a click.
+			io.AddMouseButtonEvent(0, true);
+			frame();
+			io.AddMousePosEvent(target.x + 60.0f, target.y);
+			frame();
+			io.AddMouseButtonEvent(0, false);
+			frame();
+			require((state.events & DMUI_TEXT_VIEW_EVENT_SPAN_CLICKED) == 0,
+				"a drag was reported as a click");
+		});
+
+		runner.test("text view copies the dragged selection with Ctrl+C", [] {
+			const std::string text{ "alpha\nbravo\ncharlie" };
+			const auto lines = LineOffsets(text);
+			auto descriptor = Descriptor("Select", text, lines);
+			descriptor.flags = DMUI_TEXT_VIEW_SELECTABLE;
+			auto state = State();
+			support::ImGuiTestContext imgui{
+				{ .disableInputTrickle = true, .disableErrorRecovery = true }
+			};
+			const auto frame = [&] {
+				imgui.BeginWindow("##Select", { 0.0f, 0.0f }, { 500.0f, 260.0f });
+				require(DrawTextView(1, descriptor, state) == DMUI_RESULT_OK,
+					"the selectable view failed to draw");
+				imgui.EndWindow();
+			};
+			auto& io = ImGui::GetIO();
+			io.AddMousePosEvent(480.0f, 240.0f);
+			frame();
+			frame();
+			const auto origin = FindChild("Select")->DC.CursorStartPos;
+			const auto lineHeight = ImGui::GetTextLineHeightWithSpacing();
+			const auto half = ImGui::GetTextLineHeight() * 0.5f;
+			io.AddMousePosEvent(origin.x + 1.0f, origin.y + half);
+			frame();
+			io.AddMouseButtonEvent(0, true);
+			frame();
+			io.AddMousePosEvent(origin.x + ImGui::CalcTextSize("brav").x + 1.0f,
+				origin.y + lineHeight + half);
+			frame();
+			io.AddMouseButtonEvent(0, false);
+			frame();
+			ImGui::SetClipboardText("untouched");
+			io.AddKeyEvent(ImGuiMod_Ctrl, true);
+			io.AddKeyEvent(ImGuiKey_C, true);
+			frame();
+			require(std::string_view{ ImGui::GetClipboardText() } == "alpha\nbrav",
+				"Ctrl+C did not copy the dragged selection");
+			io.AddKeyEvent(ImGuiKey_C, false);
+			io.AddKeyEvent(ImGuiMod_Ctrl, false);
+			frame();
+
+			// Without the flag the view offers no selection.
+			descriptor.flags = 0;
+			io.AddMousePosEvent(origin.x + 1.0f, origin.y + half);
+			frame();
+			io.AddMouseButtonEvent(0, true);
+			frame();
+			io.AddMousePosEvent(origin.x + 60.0f, origin.y + half);
+			frame();
+			io.AddMouseButtonEvent(0, false);
+			frame();
+			ImGui::SetClipboardText("untouched");
+			io.AddKeyEvent(ImGuiMod_Ctrl, true);
+			io.AddKeyEvent(ImGuiKey_C, true);
+			frame();
+			require(std::string_view{ ImGui::GetClipboardText() } == "untouched",
+				"a view without SELECTABLE copied text");
 		});
 	}
 }

@@ -166,10 +166,13 @@ $DMUI_Settings_OkabeVermillion	Vermillon Okabe-Ito, distinguable pour les défic
 $DMUI_Settings_AccessiblePurple	Violet accessible
 $DMUI_Settings_OkabePurple	Violet Okabe-Ito, distinguable pour les déficiences courantes de la vision des couleurs
 $DMUI_Settings_FeedbackExampleInfo	Les changements s'appliquent après la réouverture du menu.
+$DMUI_Settings_FeedbackExampleSuccess	Enregistré dans le profil actif.
 $DMUI_Settings_FeedbackExampleWarning	Cette option peut affecter le rythme du jeu.
 $DMUI_Settings_FeedbackExampleError	Le minimum ne peut pas dépasser le maximum.
 $DMUI_Settings_FeedbackPreview	Aperçu du retour de champ
 $DMUI_Settings_Appearance	Apparence
+$DMUI_Settings_ThemePreset	Préréglage de thème
+$DMUI_Settings_ThemePresetHelp	Liste les fichiers de thème de Data/F4SE/Plugins/DearModdingUI/Themes. Les réglages ci-dessous remplacent ceux du préréglage ; Réinitialiser rétablit la valeur du préréglage.
 $DMUI_Settings_SidebarLayout	Disposition de la barre latérale (enregistrée immédiatement)
 $DMUI_Settings_AccentColor	Couleur d'accent
 $DMUI_Settings_AccentColorHelp	Recolore les sélections, contrôles, liens et chaque icône de menu Phosphor en mode coloré.
@@ -194,17 +197,13 @@ $DMUI_Settings_BackgroundBlurHelp	Floute le jeu derrière la fenêtre hôte ; le
 $DMUI_Settings_BlurStrength	Intensité du flou
 $DMUI_Settings_BlurStrengthHelp	Ajuste la dispersion d'échantillonnage de flou par image sans réallouer les ressources graphiques.
 $DMUI_Settings_FeedbackPlacement	Placement du retour de champ
-$DMUI_Settings_FeedbackInfo	Retour de champ : info
-$DMUI_Settings_FeedbackInfoHelp	Couleur utilisée uniquement pour le retour d'information de champ.
-$DMUI_Settings_FeedbackWarning	Retour de champ : avertissement
-$DMUI_Settings_FeedbackWarningHelp	Couleur utilisée uniquement pour le retour d'avertissement de champ.
-$DMUI_Settings_FeedbackError	Retour de champ : erreur
-$DMUI_Settings_FeedbackErrorHelp	Couleur utilisée uniquement pour le retour d'erreur de champ.
 $DMUI_Settings_Readability	Lisibilité
 $DMUI_Settings_UiScale	Échelle de l'interface (nécessite Appliquer)
 $DMUI_Settings_UiScaleHelp	Multiplie le dimensionnement dérivé de la résolution ; Appliquer reconstruit la typographie une fois avant l'image suivante.
 $DMUI_Settings_BodyFontFamily	Famille de police de corps (nécessite Appliquer)
 $DMUI_Settings_BodyFontFamilyHelp	Liste les dossiers de familles de polices dans Data/F4SE/Plugins/DearModdingUI/Fonts ; Appliquer reconstruit la famille sélectionnée une fois.
+$DMUI_Settings_MonospaceFontFamily	Famille de police à chasse fixe (nécessite Appliquer)
+$DMUI_Settings_MonospaceFontFamilyHelp	Pour le code et les journaux. Liste les mêmes dossiers de familles de polices ainsi que la police intégrée ; Appliquer reconstruit la famille sélectionnée une fois.
 $DMUI_Settings_AppliedThisFrame	Appliqué à cette image : {}
 $DMUI_Settings_HotkeyConflictDefault	Conflit : la valeur par défaut suggérée est déjà assignée.
 $DMUI_Settings_HotkeyConflictOverride	Conflit : l'assignation enregistrée est attribuée à une autre action ou au basculement de menu.
@@ -231,3 +230,15 @@ $DMUI_Settings_ResolvedTypographySize	Taille de typographie résolue
 $DMUI_Settings_ResolvedTypographySizeHelp	Dérivée de la hauteur du backbuffer et de l'échelle d'interface appliquée à une limite d'image.
 $DMUI_Settings_EffectiveUiScale	Échelle d'interface effective
 $DMUI_Settings_EffectiveUiScaleHelp	Dérivée de la résolution et de [Additional] fMenuUiScale.
+$DMUI_SettingsPage_ResetAll	Tout réinitialiser
+$DMUI_SettingsPage_ResetAllTooltip	Réinitialiser charge la valeur par défaut de chaque paramètre dans le brouillon. Utilisez Appliquer pour les enregistrer.
+$DMUI_SettingsPage_Revert	Annuler
+$DMUI_SettingsPage_RevertTooltip	Annuler supprime les modifications en attente et restaure les paramètres enregistrés.
+$DMUI_SettingsPage_Apply	Appliquer ({})
+$DMUI_SettingsPage_ApplyTooltipOne	Appliquer enregistre {} modification en attente.
+$DMUI_SettingsPage_ApplyTooltipMany	Appliquer enregistre {} modifications en attente.
+$DMUI_SettingsPage_ModifiedOnly	Modifiés uniquement
+$DMUI_SettingsPage_SearchHint	Rechercher des paramètres...
+$DMUI_SettingsPage_UnsupportedControl	Contrôle de paramètre non pris en charge.
+$DMUI_SettingsPage_AppliesNow	S'applique immédiatement.
+$DMUI_SettingsPage_Unavailable	Indisponible

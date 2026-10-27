@@ -1,6 +1,7 @@
 #include <DearModdingUI/navigation/CommandPalette.h>
 
 #include <DearModdingUI/controls/Controls.h>
+#include <DearModdingUI/controls/TextInput.h>
 #include <DearModdingUI/IconGlyphs.h>
 #include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/host/MenuDismissal.h>
@@ -101,11 +102,18 @@ namespace DearModdingUI
 		[[nodiscard]] std::vector<CommandPaletteRow> BuildRows(
 			const NavigationModel& a_model,
 			const ClientSelectionState& a_selection,
-			const CommandPaletteState& a_state)
+			const CommandPaletteState& a_state,
+			const CommandPaletteActions& a_actions)
 		{
 			std::vector<CommandPaletteRow> rows;
 			for (const auto& hit : BuildResults(a_model, a_selection, a_state))
-				rows.push_back({ hit, RowId(hit.Entry()), RowText(hit.Entry()) });
+			{
+				const auto& entry = hit.Entry();
+				if (entry.kind == NavigationItemKind::kAction &&
+					!a_actions.runnable(entry.action))
+					continue;
+				rows.push_back({ hit, RowId(entry), RowText(entry) });
+			}
 			return rows;
 		}
 	}
@@ -118,7 +126,8 @@ namespace DearModdingUI
 	const NavigationSearchEntry* DrawCommandPalette(
 		const NavigationModel& a_model,
 		const ClientSelectionState& a_selection,
-		CommandPaletteState& a_state) noexcept
+		CommandPaletteState& a_state,
+		const CommandPaletteActions& a_actions) noexcept
 	{
 		if (a_state.openRequested)
 		{
@@ -162,10 +171,12 @@ namespace DearModdingUI
 			a_state.focusRequested = false;
 		}
 
-		const auto searchResult = DrawSearchInput(
+		bool queryEdited{};
+		const auto searchResult = DrawTextField(
 			"NavigationPaletteSearch",
-			CommandPaletteHint(),
-			a_state.query);
+			a_state.query,
+			{ .hint = CommandPaletteHint(), .style = DMUI_TEXT_FIELD_STYLE_SEARCH },
+			queryEdited);
 		if (searchResult != DMUI_RESULT_OK)
 		{
 			REX::ERROR("DearModdingUI: command palette search failed ({})"sv,
@@ -177,8 +188,12 @@ namespace DearModdingUI
 		const auto* cached = a_state.rows.CachedKey();
 		const auto queryChanged = !cached || cached->query != a_state.query;
 		const auto& results = a_state.rows.Get(
-			CommandPaletteRowsKey::View{ a_state.query, a_selection.recentPages },
-			[&]() { return BuildRows(a_model, a_selection, a_state); });
+			CommandPaletteRowsKey::View{
+				a_state.query,
+				a_selection.recentPages,
+				a_actions.revision
+			},
+			[&]() { return BuildRows(a_model, a_selection, a_state, a_actions); });
 		a_state.selection = ResolvePaletteSelectionIndex(
 			a_state.selection,
 			results.size(),

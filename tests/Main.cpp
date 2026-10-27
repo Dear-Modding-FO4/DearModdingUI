@@ -30,6 +30,10 @@ int main()
 	run_mcm_action_checks(runner);
 	run_ui_contract_checks(runner);
 	run_draw_list_checks(runner);
+	run_theme_preset_checks(runner);
+	run_button_checks(runner);
+	run_text_runs_checks(runner);
+	run_shortcut_checks(runner);
 
 	std::cout << '\n' << runner.tests() - runner.failures() << '/' << runner.tests() << " checks passed\n";
 	return runner.failures() == 0 ? 0 : 1;

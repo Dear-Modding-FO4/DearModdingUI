@@ -186,26 +186,18 @@ namespace DearModdingUI
 			&ApiSelectPage,
 			&ApiAttachSwapChain,
 			&ApiRegisterAction,
+			&ApiUnregisterAction,
+			&ApiSetActionEnabled,
 			&ApiSetStatus,
 			&ApiPushFont,
 			&ApiPopFont,
-			&ApiDrawSectionHeader,
-			&ApiDrawSearchInput,
-			&ApiDrawCollapsingSectionHeader,
-			&ApiDrawSettingsActionButton,
-			&ApiSettingsActionButtonWidth,
-			&ApiSettingsActionButtonExtent,
 			&ApiRegisterFrameObserver,
 			&ApiQueryVideoMemory,
-			&ApiDrawBulletText,
 			&ApiRegisterHotkeyAction,
 			&ApiQueryHotkeyBinding,
 			&ApiUnregisterHotkeyAction,
 			&ApiBeginSettingsTable,
-			&ApiBeginSettingsRow,
-			&ApiEndSettingsRow,
 			&ApiEndSettingsTable,
-			&ApiBeginSettingsRowEx,
 			&ApiRegisterPageActivityObserver,
 			&ApiDrawLinkRow,
 			&ApiDrawFaq,
@@ -235,8 +227,8 @@ namespace DearModdingUI
 			&ApiSetFieldFeedback,
 			&ApiEndField,
 			&ApiDrawTextView,
-			&ApiDrawSearchInputBuffer,
 			&ApiLoadImageFile,
+			&ApiLoadImageMemory,
 			&ApiRequestOverlayFocus,
 			&ApiReleaseOverlayFocus,
 			&ApiQueryOverlayFocus,
@@ -462,6 +454,10 @@ namespace DearModdingUI
 	bool InvokeAction(DMUI_ActionHandle a_action) noexcept
 	{
 		auto& service = GetService();
+		const auto state = service.registry.StateOfAction(a_action);
+		// A removed or disabled action is not a callback failure.
+		if (state == ActionState::kRemoved || state == ActionState::kDisabled)
+			return false;
 		const auto& actions = service.registry.OrderedActions();
 		const auto action = std::ranges::find(
 			actions,
@@ -493,9 +489,14 @@ namespace DearModdingUI
 			});
 	}
 
-	bool ActionFailed(DMUI_ActionHandle a_action) noexcept
+	ActionState StateOfAction(DMUI_ActionHandle a_action) noexcept
 	{
-		return GetService().registry.ActionFailed(a_action);
+		return GetService().registry.StateOfAction(a_action);
+	}
+
+	size_t ActionCount(DMUI_ClientHandle a_client) noexcept
+	{
+		return GetService().registry.ActionCount(a_client);
 	}
 
 	void ObserveFrame() noexcept
@@ -596,7 +597,7 @@ namespace DearModdingUI
 	}
 
 	DMUI_Result SetHostStatus(
-		DMUI_StatusSeverity a_severity,
+		DMUI_Severity a_severity,
 		std::string_view a_message) noexcept
 	{
 		return GetService().status.Set(

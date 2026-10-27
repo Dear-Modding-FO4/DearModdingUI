@@ -2,12 +2,25 @@
 
 #include "HostSettingsColorControls.h"
 
+#include <DearModdingUI/ColorEdit.h>
+#include <DearModdingUI/Numeric.h>
 #include <DearModdingUI/settings/HostSettings.h>
+#include <DearModdingUI/controls/TextSpans.h>
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/controls/SettingsTable.h>
+#include <DearModdingUI/controls/Button.h>
+#include <DearModdingUI/controls/Choice.h>
+#include <DearModdingUI/controls/ColorEdit.h>
 #include <DearModdingUI/controls/Controls.h>
+#include <DearModdingUI/controls/KeyCapture.h>
+#include <DearModdingUI/controls/Numeric.h>
+#include <DearModdingUI/controls/Section.h>
+#include <DearModdingUI/controls/Tooltip.h>
+#include <DearModdingUI/controls/Toggle.h>
+#include <DearModdingUI/host/Status.h>
 #include <DearModdingUI/presentation/Theme.h>
+#include <DearModdingUI/presentation/ThemePreset.h>
 #include <Platform/settings/GameColors.h>
 #include <Support/Revision.h>
 
@@ -19,6 +32,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -28,60 +42,58 @@ namespace DearModdingUI
 	{
 		constexpr Localization::Phrase kDefaultGreenText{ "$DMUI_Settings_DefaultGreen", "Default green" };
 
-		using HostSettingsViewDetail::ColorPreset;
-
-		[[nodiscard]] std::array<ColorPreset, 6> AccentPresets() noexcept
+		[[nodiscard]] std::array<dmui::ColorPreset, 6> AccentPresets() noexcept
 		{
 			return {
-				ColorPreset{
+				dmui::ColorPreset{
 					Localization::Text(kDefaultGreenText),
-					Localization::Text(kDefaultGreenText),
-					{ 0x42, 0xFA, 0x60 }
+					0x42FA60FFu,
+					Localization::Text(kDefaultGreenText)
 				},
-				ColorPreset{
+				dmui::ColorPreset{
 					Localization::Text(
 						"$DMUI_Settings_AccessibleBlue",
 						"Accessible blue"),
+					0x0072B2FFu,
 					Localization::Text(
 						"$DMUI_Settings_OkabeBlue",
-						"Okabe-Ito blue, distinguishable across common color-vision deficiencies"),
-					{ 0x00, 0x72, 0xB2 }
+						"Okabe-Ito blue, distinguishable across common color-vision deficiencies")
 				},
-				ColorPreset{
+				dmui::ColorPreset{
 					Localization::Text(
 						"$DMUI_Settings_AccessibleOrange",
 						"Accessible orange"),
+					0xE69F00FFu,
 					Localization::Text(
 						"$DMUI_Settings_OkabeOrange",
-						"Okabe-Ito orange, distinguishable across common color-vision deficiencies"),
-					{ 0xE6, 0x9F, 0x00 }
+						"Okabe-Ito orange, distinguishable across common color-vision deficiencies")
 				},
-				ColorPreset{
+				dmui::ColorPreset{
 					Localization::Text(
 						"$DMUI_Settings_AccessibleSkyBlue",
 						"Accessible sky blue"),
+					0x56B4E9FFu,
 					Localization::Text(
 						"$DMUI_Settings_OkabeSkyBlue",
-						"Okabe-Ito sky blue, distinguishable across common color-vision deficiencies"),
-					{ 0x56, 0xB4, 0xE9 }
+						"Okabe-Ito sky blue, distinguishable across common color-vision deficiencies")
 				},
-				ColorPreset{
+				dmui::ColorPreset{
 					Localization::Text(
 						"$DMUI_Settings_AccessibleVermillion",
 						"Accessible vermillion"),
+					0xD55E00FFu,
 					Localization::Text(
 						"$DMUI_Settings_OkabeVermillion",
-						"Okabe-Ito vermillion, distinguishable across common color-vision deficiencies"),
-					{ 0xD5, 0x5E, 0x00 }
+						"Okabe-Ito vermillion, distinguishable across common color-vision deficiencies")
 				},
-				ColorPreset{
+				dmui::ColorPreset{
 					Localization::Text(
 						"$DMUI_Settings_AccessiblePurple",
 						"Accessible purple"),
+					0xCC79A7FFu,
 					Localization::Text(
 						"$DMUI_Settings_OkabePurple",
-						"Okabe-Ito purple, distinguishable across common color-vision deficiencies"),
-					{ 0xCC, 0x79, 0xA7 }
+						"Okabe-Ito purple, distinguishable across common color-vision deficiencies")
 				}
 			};
 		}
@@ -98,6 +110,78 @@ namespace DearModdingUI
 			return (std::min)(
 				ImGui::GetContentRegionAvail().x,
 				ImGui::GetFontSize() * 22.0f);
+		}
+
+		// Draws the row's dropdown; the chosen index, or -1 when nothing changed.
+		[[nodiscard]] int DrawChoiceControl(
+			std::span<const DMUI_ChoiceOption> a_options,
+			int a_selected,
+			const char* a_unmatchedLabel) noexcept
+		{
+			const auto result = DrawChoice({
+				.id = "Value",
+				.options = a_options.data(),
+				.unmatchedLabel = a_unmatchedLabel,
+				.optionCount = static_cast<uint32_t>(a_options.size()),
+				.selected = a_selected,
+				.width = ControlWidth()
+			});
+			return result.changed != 0 ? result.selected : -1;
+		}
+
+		// Edits a float row as a slider; a_scale shows it in other units, such as
+		// percent, and true means the value changed.
+		[[nodiscard]] bool DrawSlider(
+			float& a_value,
+			float a_minimum,
+			float a_maximum,
+			const char* a_format,
+			const char* a_unit = nullptr,
+			float a_scale = 1.0f) noexcept
+		{
+			const auto result = DrawNumeric(dmui::NumericOptions<float>{
+				.id = "Value",
+				.presentation = dmui::NumericPresentation::kSlider,
+				.value = a_value * a_scale,
+				.minimum = a_minimum * a_scale,
+				.maximum = a_maximum * a_scale,
+				.format = a_format,
+				.unit = a_unit,
+				.clamp = true,
+				.width = ControlWidth()
+			}.Abi());
+			if (result.changed == 0)
+				return false;
+			a_value = dmui::FromNumericValue<float>(result.value) / a_scale;
+			return true;
+		}
+
+		// Edits an RGB setting with optional preset swatches; true when it changed.
+		[[nodiscard]] bool DrawColorSetting(
+			HostAccentColor& a_color,
+			std::span<const dmui::ColorPreset> a_presets) noexcept
+		{
+			const auto result = DrawColorEdit(dmui::ColorEditOptions{
+				.id = "Value",
+				.rgba = PackRgba(HostAccentToImVec4(a_color)),
+				.presets = a_presets,
+				.presetsLabel = Localization::Text(
+					"$DMUI_Settings_ColorVisionPresets",
+					"Color-vision-friendly presets"),
+				.width = ControlWidth()
+			}.Abi());
+			if (result.changed == 0)
+				return false;
+			a_color = HostAccentFromImVec4(UnpackRgba(result.rgba));
+			return true;
+		}
+
+		// Edits a row's checkbox in place; true when it was toggled.
+		[[nodiscard]] bool DrawBoolSetting(bool& a_value) noexcept
+		{
+			const auto result = DrawToggle({ .id = "Value", .value = a_value });
+			a_value = result.value != 0;
+			return result.changed != 0;
 		}
 
 		[[nodiscard]] const HostInterfaceSettings& DefaultSettings() noexcept
@@ -128,7 +212,7 @@ namespace DearModdingUI
 				a_id,
 				a_label,
 				a_description,
-				SettingsTable::RowLayout::kLabelValue);
+				SettingsTable::FieldLayout::kLabelValue);
 			if (result.result != DMUI_RESULT_OK || !result.visible)
 				return false;
 
@@ -171,6 +255,7 @@ namespace DearModdingUI
 			g_settingsDraft = BeginHostSettingsDraft(
 				HostSettings::Current());
 			g_observedPageRevision = revision;
+			Theme::RefreshThemePresets();
 			g_hudColor = ReadGameColor(GameColorSource::kHUD);
 			g_pipboyColor = ReadGameColor(GameColorSource::kPipboy);
 			PreviewDraft();
@@ -197,13 +282,15 @@ namespace DearModdingUI
 			return true;
 		}
 
-		[[nodiscard]] bool DrawColorSettingRow(
+		// The control edits the effective value; Reset drops the override.
+		template <class T, class DrawControl>
+		[[nodiscard]] bool DrawOverrideRow(
 			const char* a_id,
 			const char* a_label,
 			const char* a_description,
-			HostAccentColor& a_color,
-			HostAccentColor a_defaultColor,
-			std::span<const ColorPreset> a_presets = {}) noexcept
+			std::optional<T>& a_override,
+			const T& a_presetValue,
+			DrawControl&& a_drawControl) noexcept
 		{
 			auto changed = false;
 			if (DrawSettingsRow(
@@ -212,34 +299,87 @@ namespace DearModdingUI
 					a_description,
 					true,
 					[&]() noexcept {
-						changed |= HostSettingsViewDetail::
-							DrawColorSettingControl(
-								a_color,
-								a_presets,
-								ControlWidth());
+						auto value = a_override.value_or(a_presetValue);
+						if (a_drawControl(value))
+						{
+							a_override = std::move(value);
+							changed = true;
+						}
 					},
 					[&]() noexcept {
-						return a_color != a_defaultColor;
+						return a_override.has_value();
 					}))
 			{
-				a_color = a_defaultColor;
+				a_override.reset();
 				changed = true;
 			}
 			return changed;
+		}
+
+		// Code fonts may also pick the built-in face.
+		void DrawFontFamilyRow(
+			const char* a_id,
+			const char* a_label,
+			const char* a_description,
+			std::optional<std::string>& a_override,
+			const std::string& a_presetValue,
+			Theme::FontRole a_role,
+			std::string_view a_fallback,
+			bool a_includeBuiltin) noexcept
+		{
+			(void)DrawOverrideRow(
+				a_id,
+				a_label,
+				a_description,
+				a_override,
+				a_presetValue,
+				[&](std::string& a_family) noexcept {
+					const auto families = Theme::AvailableFontFamilies(a_includeBuiltin);
+					const std::string resolvedFamily{
+						Theme::ResolveFontFamily(a_family, a_fallback) };
+					auto edited = false;
+					std::vector<DMUI_ChoiceOption> options;
+					options.reserve(families.size());
+					for (const auto& family : families)
+						options.push_back({ family.c_str(), nullptr, 1u, 0u });
+					const auto current = std::ranges::find(families, resolvedFamily);
+					const auto chosen = DrawChoiceControl(
+						options,
+						current != families.end() ?
+							static_cast<int>(current - families.begin()) :
+							-1,
+						resolvedFamily.c_str());
+					if (chosen >= 0)
+					{
+						a_family = families[static_cast<size_t>(chosen)];
+						edited = true;
+					}
+					ImGui::TextDisabled(
+						"%s",
+						Localization::Format(
+							"$DMUI_Settings_AppliedThisFrame",
+							"Applied this frame: {}",
+							Theme::EffectiveFontFamily(a_role)).c_str());
+					return edited;
+				});
 		}
 
 		void DrawFeedbackExamples() noexcept
 		{
 			static size_t selected{};
 			constexpr std::array severities{
-				DMUI_FIELD_FEEDBACK_SEVERITY_INFO,
-				DMUI_FIELD_FEEDBACK_SEVERITY_WARNING,
-				DMUI_FIELD_FEEDBACK_SEVERITY_ERROR
+				DMUI_SEVERITY_INFO,
+				DMUI_SEVERITY_SUCCESS,
+				DMUI_SEVERITY_WARNING,
+				DMUI_SEVERITY_ERROR
 			};
 			const std::array messages{
 				Localization::Text(
 					"$DMUI_Settings_FeedbackExampleInfo",
 					"Changes apply after the menu reopens."),
+				Localization::Text(
+					"$DMUI_Settings_FeedbackExampleSuccess",
+					"Saved to the active profile."),
 				Localization::Text(
 					"$DMUI_Settings_FeedbackExampleWarning",
 					"This option may affect gameplay timing."),
@@ -254,7 +394,7 @@ namespace DearModdingUI
 					"$DMUI_Settings_FeedbackPreview",
 					"Field feedback preview"),
 				nullptr,
-				SettingsTable::RowLayout::kLabelValue);
+				SettingsTable::FieldLayout::kLabelValue);
 			if (begun.result != DMUI_RESULT_OK || !begun.visible)
 				return;
 
@@ -263,21 +403,24 @@ namespace DearModdingUI
 			const auto& style = ImGui::GetStyle();
 			for (size_t index = 0; index < severities.size(); ++index)
 			{
-				const auto* label = FieldFeedback::SeverityLabel(severities[index]);
+				const auto* label = StatusSeverityLabel(severities[index]);
 				const auto width = (std::min)(
-					ImGui::CalcTextSize(label).x + style.FramePadding.x * 2.0f,
+					MeasureButton({ .label = label }).x,
 					available);
 				if (index > 0 &&
 					ImGui::GetItemRectMax().x + style.ItemSpacing.x + width <= right)
 					ImGui::SameLine();
-				auto color = FieldFeedback::SeverityColor(severities[index]);
+				auto color = Theme::StatusTextColor(severities[index]);
 				ImGui::PushStyleColor(ImGuiCol_Text, color);
 				if (selected == index)
 				{
 					color.w = 0.24f;
 					ImGui::PushStyleColor(ImGuiCol_Button, color);
 				}
-				const auto pressed = ImGui::Button(label, { width, 0.0f });
+				const auto pressed = DrawButton({
+					.label = label,
+					.size = { width, 0.0f }
+				});
 				ImGui::PopStyleColor(selected == index ? 2 : 1);
 				if (pressed)
 					selected = index;
@@ -291,14 +434,66 @@ namespace DearModdingUI
 
 		void DrawAppearance() noexcept
 		{
-			DrawSectionHeader("$DMUI_Settings_Appearance", "Appearance");
+			DrawLocalizedSection("$DMUI_Settings_Appearance", "Appearance");
 			if (!BeginSettingsSection("##DearModdingUI.AppearanceSettings"))
 				return;
 
 			auto& settings = g_settingsDraft.draft;
+			auto& appearance = settings.appearance;
 			const auto& defaults = DefaultSettings();
 			auto changed = false;
 			const auto accentPresets = AccentPresets();
+			const auto preset = Theme::ResolveThemePreset(settings.themePreset);
+			const auto presetValues = Theme::DescribeAppearance(preset->spec);
+
+			if (DrawSettingsRow(
+					"ThemePreset",
+					Localization::Text(
+						"$DMUI_Settings_ThemePreset",
+						"Theme preset"),
+					Localization::Text(
+						"$DMUI_Settings_ThemePresetHelp",
+						"Lists theme files in Data/F4SE/Plugins/DearModdingUI/Themes. The settings below override the preset; Reset returns a row to it."),
+					true,
+					[&]() noexcept {
+						const auto& presets = Theme::AvailableThemePresets();
+						const auto selected = std::ranges::find(
+							presets,
+							settings.themePreset,
+							&Theme::ThemePresetInfo::id);
+						std::vector<DMUI_ChoiceOption> options;
+						options.reserve(presets.size());
+						for (const auto& entry : presets)
+							options.push_back({ entry.name.c_str(), nullptr, 1u, 0u });
+						const auto chosen = DrawChoiceControl(
+							options,
+							selected != presets.end() ?
+								static_cast<int>(selected - presets.begin()) :
+								-1,
+							settings.themePreset.c_str());
+						if (chosen >= 0)
+						{
+							settings.themePreset = presets[static_cast<size_t>(chosen)].id;
+							changed = true;
+						}
+						if (!preset->failure.empty() || !preset->problems.empty())
+						{
+							const auto health = Theme::ClassifyThemePresetHealth(
+								settings.themePreset,
+								*preset);
+							(void)DrawTextSpans(
+								health.reason,
+								dmui::TextStyle{}.Tone(dmui::TextTone::kWarning),
+								{ .wrap = true });
+						}
+					},
+					[&]() noexcept {
+						return settings.themePreset != defaults.themePreset;
+					}))
+			{
+				settings.themePreset = defaults.themePreset;
+				changed = true;
+			}
 
 			const auto* selectedLayout =
 				FindUserSidebarLayout(settings.sidebarLayout);
@@ -312,34 +507,29 @@ namespace DearModdingUI
 					SidebarLayoutDescription(selectedLayout->kind),
 					true,
 					[&]() noexcept {
-						ImGui::SetNextItemWidth(ControlWidth());
-						if (ImGui::BeginCombo(
-								"##Value",
-								SidebarLayoutLabel(selectedLayout->kind)))
+						std::vector<DMUI_ChoiceOption> options;
+						std::vector<SidebarLayoutKind> kinds;
+						for (const auto& layout : SIDEBAR_LAYOUTS)
 						{
-							for (const auto& layout : SIDEBAR_LAYOUTS)
-							{
-								if (!layout.production)
-									continue;
-								const auto selected =
-									layout.kind == settings.sidebarLayout;
-								if (ImGui::Selectable(
-										SidebarLayoutLabel(layout.kind),
-										selected))
-								{
-									changed |= CommitSidebarLayout(layout.kind);
-								}
-								if (ImGui::IsItemHovered())
-								{
-									ImGui::SetTooltip(
-										"%s",
-										SidebarLayoutDescription(layout.kind));
-								}
-								if (selected)
-									ImGui::SetItemDefaultFocus();
-							}
-							ImGui::EndCombo();
+							if (!layout.production)
+								continue;
+							options.push_back({
+								SidebarLayoutLabel(layout.kind),
+								SidebarLayoutDescription(layout.kind),
+								1u,
+								0u
+							});
+							kinds.push_back(layout.kind);
 						}
+						const auto current = std::ranges::find(kinds, settings.sidebarLayout);
+						const auto chosen = DrawChoiceControl(
+							options,
+							current != kinds.end() ?
+								static_cast<int>(current - kinds.begin()) :
+								-1,
+							SidebarLayoutLabel(selectedLayout->kind));
+						if (chosen >= 0)
+							changed |= CommitSidebarLayout(kinds[static_cast<size_t>(chosen)]);
 					},
 					[&]() noexcept {
 						return settings.sidebarLayout !=
@@ -349,7 +539,7 @@ namespace DearModdingUI
 				changed |= CommitSidebarLayout(defaults.sidebarLayout);
 			}
 
-			changed |= DrawColorSettingRow(
+			changed |= DrawOverrideRow(
 				"AccentColor",
 				Localization::Text(
 					"$DMUI_Settings_AccentColor",
@@ -357,9 +547,11 @@ namespace DearModdingUI
 				Localization::Text(
 					"$DMUI_Settings_AccentColorHelp",
 					"Retints selections, controls, links, and every Phosphor menu icon in colored mode."),
-				settings.accentColor,
-				defaults.accentColor,
-				accentPresets);
+				appearance.accentColor,
+				*presetValues.accentColor,
+				[&](HostAccentColor& a_color) noexcept {
+					return DrawColorSetting(a_color, accentPresets);
+				});
 
 			(void)DrawSettingsRow(
 				"SyncGameColor",
@@ -371,130 +563,114 @@ namespace DearModdingUI
 					"Copies the current HUD or Pip-Boy color once. Use Apply to save or Revert to discard."),
 				false,
 				[&]() noexcept {
-					changed |= HostSettingsViewDetail::DrawGameColorSyncControls(
-						settings.accentColor,
-						g_hudColor,
-						g_pipboyColor,
-						ControlWidth());
+					auto accent = appearance.accentColor.value_or(
+						*presetValues.accentColor);
+					if (HostSettingsViewDetail::DrawGameColorSyncControls(
+							accent,
+							g_hudColor,
+							g_pipboyColor,
+							ControlWidth()))
+					{
+						appearance.accentColor = accent;
+						changed = true;
+					}
 				},
 				[]() noexcept { return false; });
 
-			if (DrawSettingsRow(
-					"IconColorMode",
-					Localization::Text(
-						"$DMUI_Settings_IconColorMode",
-						"Icon color mode"),
-					Localization::Text(
-						"$DMUI_Settings_IconColorModeHelp",
-						"Colored icons use the accent above; monochrome icons use the active text color."),
-					true,
-					[&]() noexcept {
-						auto iconMode =
-							settings.iconColorMode ==
-									Theme::IconColorMode::kMonochrome ?
-							1 :
-							0;
-						const char* const iconModes[]{
+			changed |= DrawOverrideRow(
+				"IconColorMode",
+				Localization::Text(
+					"$DMUI_Settings_IconColorMode",
+					"Icon color mode"),
+				Localization::Text(
+					"$DMUI_Settings_IconColorModeHelp",
+					"Colored icons use the accent above; monochrome icons use the active text color."),
+				appearance.iconColorMode,
+				*presetValues.iconColorMode,
+				[&](Theme::IconColorMode& a_mode) noexcept {
+					const std::array<DMUI_ChoiceOption, 2> iconModes{ {
+						{
 							Localization::Text(
 								"$DMUI_Settings_IconModeColored",
 								"Colored (accent)"),
+							nullptr, 1u, 0u
+						},
+						{
 							Localization::Text(
 								"$DMUI_Settings_IconModeMonochrome",
-								"Monochrome (text)")
-						};
-						ImGui::SetNextItemWidth(ControlWidth());
-						if (ImGui::Combo(
-								"##Value",
-								&iconMode,
-								iconModes,
-								static_cast<int>(std::size(iconModes))))
-						{
-							settings.iconColorMode = iconMode == 1 ?
-								Theme::IconColorMode::kMonochrome :
-								Theme::IconColorMode::kColored;
-							changed = true;
+								"Monochrome (text)"),
+							nullptr, 1u, 0u
 						}
-					},
-					[&]() noexcept {
-						return settings.iconColorMode != defaults.iconColorMode;
-					}))
-			{
-				settings.iconColorMode = defaults.iconColorMode;
-				changed = true;
-			}
+					} };
+					const auto chosen = DrawChoiceControl(
+						iconModes,
+						a_mode == Theme::IconColorMode::kMonochrome ? 1 : 0,
+						nullptr);
+					if (chosen < 0)
+						return false;
+					a_mode = chosen == 1 ?
+						Theme::IconColorMode::kMonochrome :
+						Theme::IconColorMode::kColored;
+					return true;
+				});
 
-			if (DrawSettingsRow(
-					"LogoColors",
-					Localization::Text(
-						"$DMUI_Settings_LogoColors",
-						"Logo colors"),
-					Localization::Text(
-						"$DMUI_Settings_LogoColorsHelp",
-						"Uses the original logo colors or the current accent, independently of icon color mode."),
-					true,
-					[&]() noexcept {
-						auto mode = settings.logoColors == LogoColorMode::kAccent ? 1 : 0;
-						const char* const modes[]{
+			changed |= DrawOverrideRow(
+				"LogoColors",
+				Localization::Text(
+					"$DMUI_Settings_LogoColors",
+					"Logo colors"),
+				Localization::Text(
+					"$DMUI_Settings_LogoColorsHelp",
+					"Uses the original logo colors or the current accent, independently of icon color mode."),
+				appearance.logoColors,
+				*presetValues.logoColors,
+				[&](LogoColorMode& a_mode) noexcept {
+					const std::array<DMUI_ChoiceOption, 2> modes{ {
+						{
 							Localization::Text(
 								"$DMUI_Settings_LogoOriginalColors",
 								"Original colors"),
+							nullptr, 1u, 0u
+						},
+						{
 							Localization::Text(
 								"$DMUI_Settings_LogoAccent",
-								"Accent")
-						};
-						ImGui::SetNextItemWidth(ControlWidth());
-						if (ImGui::Combo("##Value", &mode, modes, static_cast<int>(std::size(modes))))
-						{
-							settings.logoColors = mode == 1 ?
-								LogoColorMode::kAccent : LogoColorMode::kOriginal;
-							changed = true;
+								"Accent"),
+							nullptr, 1u, 0u
 						}
-					},
-					[&]() noexcept {
-						return settings.logoColors != defaults.logoColors;
-					}))
-			{
-				settings.logoColors = defaults.logoColors;
-				changed = true;
-			}
+					} };
+					const auto chosen = DrawChoiceControl(
+						modes,
+						a_mode == LogoColorMode::kAccent ? 1 : 0,
+						nullptr);
+					if (chosen < 0)
+						return false;
+					a_mode = chosen == 1 ?
+						LogoColorMode::kAccent : LogoColorMode::kOriginal;
+					return true;
+				});
 
-			if (DrawSettingsRow(
-					"WindowBackgroundOpacity",
-					Localization::Text(
-						"$DMUI_Settings_WindowBackgroundOpacity",
-						"Window background opacity"),
-					Localization::Text(
-						"$DMUI_Settings_WindowBackgroundOpacityHelp",
-						"Raises or lowers the darkness of the host window without changing client content."),
-					true,
-					[&]() noexcept {
-						auto opacityPercent =
-							settings.windowBackgroundOpacity * 100.0f;
-						ImGui::SetNextItemWidth(ControlWidth());
-						if (ImGui::SliderFloat(
-								"##Value",
-								&opacityPercent,
-								kMinWindowBackgroundOpacity * 100.0f,
-								kMaxWindowBackgroundOpacity * 100.0f,
-								"%.0f%%",
-								ImGuiSliderFlags_AlwaysClamp))
-						{
-							settings.windowBackgroundOpacity =
-								opacityPercent / 100.0f;
-							changed = true;
-						}
-					},
-					[&]() noexcept {
-						return settings.windowBackgroundOpacity !=
-							defaults.windowBackgroundOpacity;
-					}))
-			{
-				settings.windowBackgroundOpacity =
-					defaults.windowBackgroundOpacity;
-				changed = true;
-			}
+			changed |= DrawOverrideRow(
+				"WindowBackgroundOpacity",
+				Localization::Text(
+					"$DMUI_Settings_WindowBackgroundOpacity",
+					"Window background opacity"),
+				Localization::Text(
+					"$DMUI_Settings_WindowBackgroundOpacityHelp",
+					"Raises or lowers the darkness of the host window without changing client content."),
+				appearance.windowBackgroundOpacity,
+				*presetValues.windowBackgroundOpacity,
+				[&](float& a_opacity) noexcept {
+					return DrawSlider(
+						a_opacity,
+						kMinWindowBackgroundOpacity,
+						kMaxWindowBackgroundOpacity,
+						"%.0f",
+						"%",
+						100.0f);
+				});
 
-			changed |= DrawColorSettingRow(
+			changed |= DrawOverrideRow(
 				"PaletteBackgroundColor",
 				Localization::Text(
 					"$DMUI_Settings_PaletteBackground",
@@ -502,98 +678,68 @@ namespace DearModdingUI
 				Localization::Text(
 					"$DMUI_Settings_PaletteBackgroundHelp",
 					"Sets the elevated surface color used by the command palette."),
-				settings.paletteBackgroundColor,
-				defaults.paletteBackgroundColor);
+				appearance.paletteBackgroundColor,
+				*presetValues.paletteBackgroundColor,
+				[&](HostPaletteColor& a_color) noexcept {
+					return DrawColorSetting(a_color, {});
+				});
 
-			if (DrawSettingsRow(
-					"PaletteBackgroundOpacity",
-					Localization::Text(
-						"$DMUI_Settings_PaletteOpacity",
-						"Command palette opacity"),
-					Localization::Text(
-						"$DMUI_Settings_PaletteOpacityHelp",
-						"Controls how faintly the dimmed host panel shows through the palette."),
-					true,
-					[&]() noexcept {
-						auto paletteOpacityPercent =
-							settings.paletteBackgroundOpacity * 100.0f;
-						ImGui::SetNextItemWidth(ControlWidth());
-						if (ImGui::SliderFloat(
-								"##Value",
-								&paletteOpacityPercent,
-								kMinPaletteBackgroundOpacity * 100.0f,
-								kMaxPaletteBackgroundOpacity * 100.0f,
-								"%.0f%%",
-								ImGuiSliderFlags_AlwaysClamp))
-						{
-							settings.paletteBackgroundOpacity =
-								paletteOpacityPercent / 100.0f;
-							changed = true;
-						}
-					},
-					[&]() noexcept {
-						return settings.paletteBackgroundOpacity !=
-							defaults.paletteBackgroundOpacity;
-					}))
-			{
-				settings.paletteBackgroundOpacity =
-					defaults.paletteBackgroundOpacity;
-				changed = true;
-			}
+			changed |= DrawOverrideRow(
+				"PaletteBackgroundOpacity",
+				Localization::Text(
+					"$DMUI_Settings_PaletteOpacity",
+					"Command palette opacity"),
+				Localization::Text(
+					"$DMUI_Settings_PaletteOpacityHelp",
+					"Controls how faintly the dimmed host panel shows through the palette."),
+				appearance.paletteBackgroundOpacity,
+				*presetValues.paletteBackgroundOpacity,
+				[&](float& a_opacity) noexcept {
+					return DrawSlider(
+						a_opacity,
+						kMinPaletteBackgroundOpacity,
+						kMaxPaletteBackgroundOpacity,
+						"%.0f",
+						"%",
+						100.0f);
+				});
 
-			if (DrawSettingsRow(
-					"BackgroundBlur",
-					Localization::Text(
-						"$DMUI_Settings_BackgroundBlur",
-						"Background blur"),
-					Localization::Text(
-						"$DMUI_Settings_BackgroundBlurHelp",
-						"Blurs the game behind the host window; disabling it avoids the blur passes."),
-					true,
-					[&]() noexcept {
-						changed |= ImGui::Checkbox(
-							"##Value",
-							&settings.backgroundBlur);
-					},
-					[&]() noexcept {
-						return settings.backgroundBlur != defaults.backgroundBlur;
-					}))
-			{
-				settings.backgroundBlur = defaults.backgroundBlur;
-				changed = true;
-			}
+			changed |= DrawOverrideRow(
+				"BackgroundBlur",
+				Localization::Text(
+					"$DMUI_Settings_BackgroundBlur",
+					"Background blur"),
+				Localization::Text(
+					"$DMUI_Settings_BackgroundBlurHelp",
+					"Blurs the game behind the host window; disabling it avoids the blur passes."),
+				appearance.backgroundBlur,
+				*presetValues.backgroundBlur,
+				[&](bool& a_blur) noexcept {
+					return DrawBoolSetting(a_blur);
+				});
 
-			if (DrawSettingsRow(
-					"BackgroundBlurStrength",
-					Localization::Text(
-						"$DMUI_Settings_BlurStrength",
-						"Blur strength"),
-					Localization::Text(
-						"$DMUI_Settings_BlurStrengthHelp",
-						"Adjusts the per-frame blur sample spread without reallocating graphics resources."),
-					true,
-					[&]() noexcept {
-						ImGui::BeginDisabled(!settings.backgroundBlur);
-						ImGui::SetNextItemWidth(ControlWidth());
-						if (ImGui::SliderFloat(
-								"##Value",
-								&settings.backgroundBlurStrength,
-								kMinBackgroundBlurStrength,
-								kMaxBackgroundBlurStrength,
-								"%.2f",
-								ImGuiSliderFlags_AlwaysClamp))
-							changed = true;
-						ImGui::EndDisabled();
-					},
-					[&]() noexcept {
-						return settings.backgroundBlurStrength !=
-							defaults.backgroundBlurStrength;
-					}))
-			{
-				settings.backgroundBlurStrength =
-					defaults.backgroundBlurStrength;
-				changed = true;
-			}
+			const auto blurEnabled = appearance.backgroundBlur.value_or(
+				*presetValues.backgroundBlur);
+			changed |= DrawOverrideRow(
+				"BackgroundBlurStrength",
+				Localization::Text(
+					"$DMUI_Settings_BlurStrength",
+					"Blur strength"),
+				Localization::Text(
+					"$DMUI_Settings_BlurStrengthHelp",
+					"Adjusts the per-frame blur sample spread without reallocating graphics resources."),
+				appearance.backgroundBlurStrength,
+				*presetValues.backgroundBlurStrength,
+				[&](float& a_strength) noexcept {
+					ImGui::BeginDisabled(!blurEnabled);
+					const auto edited = DrawSlider(
+						a_strength,
+						kMinBackgroundBlurStrength,
+						kMaxBackgroundBlurStrength,
+						"%.2f");
+					ImGui::EndDisabled();
+					return edited;
+				});
 
 			const auto* selectedFeedbackLayout =
 				FindFieldFeedbackLayout(settings.feedbackPlacement);
@@ -608,32 +754,31 @@ namespace DearModdingUI
 					FieldFeedbackLayoutDescription(selectedFeedbackLayout->kind),
 					true,
 					[&]() noexcept {
-						ImGui::SetNextItemWidth(ControlWidth());
-						if (ImGui::BeginCombo(
-								"##Value",
-								FieldFeedbackLayoutLabel(selectedFeedbackLayout->kind)))
+						std::vector<DMUI_ChoiceOption> options;
+						for (const auto& layout : FIELD_FEEDBACK_LAYOUTS)
 						{
-							for (const auto& layout : FIELD_FEEDBACK_LAYOUTS)
-							{
-								const auto selected =
-									layout.kind == settings.feedbackPlacement;
-								if (ImGui::Selectable(
-										FieldFeedbackLayoutLabel(layout.kind),
-										selected))
-								{
-									settings.feedbackPlacement = layout.kind;
-									changed = true;
-								}
-								if (ImGui::IsItemHovered())
-								{
-									ImGui::SetTooltip(
-										"%s",
-										FieldFeedbackLayoutDescription(layout.kind));
-								}
-								if (selected)
-									ImGui::SetItemDefaultFocus();
-							}
-							ImGui::EndCombo();
+							options.push_back({
+								FieldFeedbackLayoutLabel(layout.kind),
+								FieldFeedbackLayoutDescription(layout.kind),
+								1u,
+								0u
+							});
+						}
+						const auto current = std::ranges::find(
+							FIELD_FEEDBACK_LAYOUTS,
+							settings.feedbackPlacement,
+							&decltype(FIELD_FEEDBACK_LAYOUTS)::value_type::kind);
+						const auto chosen = DrawChoiceControl(
+							options,
+							current != FIELD_FEEDBACK_LAYOUTS.end() ?
+								static_cast<int>(current - FIELD_FEEDBACK_LAYOUTS.begin()) :
+								-1,
+							FieldFeedbackLayoutLabel(selectedFeedbackLayout->kind));
+						if (chosen >= 0)
+						{
+							settings.feedbackPlacement =
+								FIELD_FEEDBACK_LAYOUTS[static_cast<size_t>(chosen)].kind;
+							changed = true;
 						}
 					},
 					[&]() noexcept {
@@ -645,40 +790,6 @@ namespace DearModdingUI
 				changed = true;
 			}
 
-			changed |= DrawColorSettingRow(
-				"FieldFeedbackInfoColor",
-				Localization::Text(
-					"$DMUI_Settings_FeedbackInfo",
-					"Field feedback: info"),
-				Localization::Text(
-					"$DMUI_Settings_FeedbackInfoHelp",
-					"Color used only for informational field feedback."),
-				settings.feedbackInfoColor,
-				defaults.feedbackInfoColor,
-				accentPresets);
-			changed |= DrawColorSettingRow(
-				"FieldFeedbackWarningColor",
-				Localization::Text(
-					"$DMUI_Settings_FeedbackWarning",
-					"Field feedback: warning"),
-				Localization::Text(
-					"$DMUI_Settings_FeedbackWarningHelp",
-					"Color used only for warning field feedback."),
-				settings.feedbackWarningColor,
-				defaults.feedbackWarningColor,
-				accentPresets);
-			changed |= DrawColorSettingRow(
-				"FieldFeedbackErrorColor",
-				Localization::Text(
-					"$DMUI_Settings_FeedbackError",
-					"Field feedback: error"),
-				Localization::Text(
-					"$DMUI_Settings_FeedbackErrorHelp",
-					"Color used only for error field feedback."),
-				settings.feedbackErrorColor,
-				defaults.feedbackErrorColor,
-				accentPresets);
-
 			if (changed)
 				PreviewDraft();
 			DrawFeedbackExamples();
@@ -687,7 +798,7 @@ namespace DearModdingUI
 
 		void DrawReadability() noexcept
 		{
-			DrawSectionHeader("$DMUI_Settings_Readability", "Readability");
+			DrawLocalizedSection("$DMUI_Settings_Readability", "Readability");
 			if (!BeginSettingsSection("##DearModdingUI.ReadabilitySettings"))
 				return;
 
@@ -704,68 +815,46 @@ namespace DearModdingUI
 						"Multiplies resolution-derived sizing; Apply rebuilds typography once before the next frame."),
 					true,
 					[&]() noexcept {
-						ImGui::SetNextItemWidth(ControlWidth());
-						(void)ImGui::SliderFloat(
-							"##Value",
-							&settings.uiScale,
+						(void)DrawSlider(
+							settings.uiScale,
 							Theme::kMinUserScale,
 							Theme::kMaxUserScale,
-							"%.2fx",
-							ImGuiSliderFlags_AlwaysClamp);
+							"%.2f",
+							"x");
 					},
 					[&]() noexcept {
 						return settings.uiScale != defaults.uiScale;
 					}))
 				settings.uiScale = defaults.uiScale;
 
-			if (DrawSettingsRow(
-					"BodyFontFamily",
-					Localization::Text(
-						"$DMUI_Settings_BodyFontFamily",
-						"Body font family (requires Apply)"),
-					Localization::Text(
-						"$DMUI_Settings_BodyFontFamilyHelp",
-						"Lists font-family folders in Data/F4SE/Plugins/DearModdingUI/Fonts; Apply rebuilds the selected family once."),
-					true,
-					[&]() noexcept {
-						const auto& families =
-							Theme::AvailableBodyFontFamilies();
-						const auto resolvedFamily =
-							Theme::ResolveBodyFontFamily(
-								settings.bodyFontFamily);
-						ImGui::SetNextItemWidth(ControlWidth());
-						if (ImGui::BeginCombo(
-								"##Value",
-								resolvedFamily.data()))
-						{
-							for (const auto& family : families)
-							{
-								const auto selected = family == resolvedFamily;
-								if (ImGui::Selectable(
-										family.c_str(),
-										selected))
-									settings.bodyFontFamily = family;
-								if (selected)
-									ImGui::SetItemDefaultFocus();
-							}
-							ImGui::EndCombo();
-						}
-						const auto effectiveFamily =
-							Theme::EffectiveBodyFontFamily();
-						ImGui::TextDisabled(
-							"%s",
-							Localization::Format(
-								"$DMUI_Settings_AppliedThisFrame",
-								"Applied this frame: {}",
-								effectiveFamily).c_str());
-					},
-					[&]() noexcept {
-						return settings.bodyFontFamily !=
-							defaults.bodyFontFamily;
-					}))
-			{
-				settings.bodyFontFamily = defaults.bodyFontFamily;
-			}
+			const auto preset = Theme::ResolveThemePreset(settings.themePreset);
+			const auto presetValues = Theme::DescribeAppearance(preset->spec);
+			DrawFontFamilyRow(
+				"BodyFontFamily",
+				Localization::Text(
+					"$DMUI_Settings_BodyFontFamily",
+					"Body font family (requires Apply)"),
+				Localization::Text(
+					"$DMUI_Settings_BodyFontFamilyHelp",
+					"Lists font-family folders in Data/F4SE/Plugins/DearModdingUI/Fonts; Apply rebuilds the selected family once."),
+				settings.appearance.bodyFontFamily,
+				*presetValues.bodyFontFamily,
+				Theme::FontRole::kBody,
+				kDefaultBodyFontFamily,
+				false);
+			DrawFontFamilyRow(
+				"MonospaceFontFamily",
+				Localization::Text(
+					"$DMUI_Settings_MonospaceFontFamily",
+					"Monospace font family (requires Apply)"),
+				Localization::Text(
+					"$DMUI_Settings_MonospaceFontFamilyHelp",
+					"Used for code and logs. Lists the same font-family folders plus the built-in face; Apply rebuilds the selected family once."),
+				settings.appearance.monospaceFontFamily,
+				*presetValues.monospaceFontFamily,
+				Theme::FontRole::kMonospace,
+				kDefaultMonospaceFontFamily,
+				true);
 			(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
 		}
 
@@ -793,7 +882,7 @@ namespace DearModdingUI
 
 		void DrawInput() noexcept
 		{
-			DrawSectionHeader("$DMUI_Settings_InputAndBehavior", "Input and behavior");
+			DrawLocalizedSection("$DMUI_Settings_InputAndBehavior", "Input and behavior");
 			DrawHelp(Localization::Text("$DMUI_Settings_TypingNeedsKeyboard", "Typing needs a keyboard."));
 			auto& settings = g_settingsDraft.draft;
 			const auto& defaults = DefaultSettings();
@@ -814,8 +903,13 @@ namespace DearModdingUI
 								"Opens and closes the shared menu. Apply saves the binding for this session and future launches."),
 							true,
 							[&]() noexcept {
-								if (const auto captured = DrawKeyCapture(
-										"##Value", binding.c_str(), ControlWidth(), slot, gamepad))
+								if (const auto captured = DrawKeyCapture({
+											.id = "Value",
+											.binding = binding.c_str(),
+											.slot = slot,
+											.allowClear = gamepad,
+											.width = ControlWidth()
+										}))
 									binding = SerializeHotkeyChord(*captured);
 							},
 							[&]() noexcept { return binding != defaultBinding; }))
@@ -831,9 +925,7 @@ namespace DearModdingUI
 							"Keep the game running while this menu is open. Applies the next time the menu opens."),
 						true,
 						[&]() noexcept {
-							(void)ImGui::Checkbox(
-								"##Value",
-								&settings.fallSoulsMode);
+							(void)DrawBoolSetting(settings.fallSoulsMode);
 						},
 						[&]() noexcept {
 							return settings.fallSoulsMode !=
@@ -895,7 +987,7 @@ namespace DearModdingUI
 					ImGui::TextUnformatted(action.displayName.c_str());
 				else
 					ImGui::TextDisabled("%s", action.id.c_str());
-				if (ImGui::IsItemHovered() && ImGui::BeginTooltip())
+				if (Tooltip::BeginItem())
 				{
 					ImGui::TextUnformatted(action.id.c_str());
 					if (!action.registered)
@@ -920,9 +1012,14 @@ namespace DearModdingUI
 							"$DMUI_Settings_NotRegisteredInactive",
 							"Not registered. This saved binding is inactive and can be cleared.") :
 						HotkeyWarning(binding.state);
-					if (const auto captured = DrawKeyCapture(
-							"##Binding", chord.c_str(), -1.0f, slot, true,
-							action.id.c_str(), action.registered, warning))
+					if (const auto captured = DrawKeyCapture({
+							.id = "Binding",
+							.binding = chord.c_str(),
+							.details = action.id.c_str(),
+							.warning = warning,
+							.slot = slot,
+							.readOnly = !action.registered
+						}))
 					{
 						if (action.registered)
 							(void)HostSettings::SetHotkeyOverride(
@@ -962,7 +1059,7 @@ namespace DearModdingUI
 
 		void DrawReadOnlyFacts() noexcept
 		{
-			DrawSectionHeader("$DMUI_Settings_HostFacts", "Host facts (read-only)");
+			DrawLocalizedSection("$DMUI_Settings_HostFacts", "Host facts (read-only)");
 			ImGui::TextDisabled(
 				"%s",
 				Localization::Text(

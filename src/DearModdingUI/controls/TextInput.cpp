@@ -1,4 +1,9 @@
 #include <DearModdingUI/controls/TextInput.h>
+
+#include <DearModdingUI/TextInput.h>
+#include <DearModdingUI/controls/ControlRenderer.h>
+#include <DearModdingUI/controls/TextRuns.h>
+#include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/host/MenuDismissal.h>
 #include <DearModdingUI/host/RenderExecution.h>
 
@@ -12,8 +17,11 @@ namespace ImStb
 
 #include <algorithm>
 #include <climits>
+#include <cmath>
 #include <cstring>
 #include <new>
+#include <optional>
+#include <string>
 #include <vector>
 
 namespace DearModdingUI
@@ -162,6 +170,42 @@ namespace DearModdingUI
 			a_data.BufTextLen = static_cast<int>(a_call.originalLength);
 		}
 
+		// Asks the client to grow its buffer; its contents must survive unchanged.
+		[[nodiscard]] DMUI_Result GrowTextBuffer(
+			DMUI_TextBuffer& a_buffer,
+			size_t a_minimumCapacity,
+			const char* a_original,
+			size_t a_originalLength) noexcept
+		{
+			if (a_minimumCapacity == 0 ||
+				a_minimumCapacity > static_cast<size_t>(INT_MAX) ||
+				!a_buffer.resize)
+				return DMUI_RESULT_BUFFER_TOO_SMALL;
+			char* data = a_buffer.data;
+			size_t capacity = a_buffer.capacity;
+			DMUI_Result result{};
+			{
+				const RenderExecution::ClientGuard guard{
+					DMUI_INVALID_CLIENT_HANDLE,
+					false
+				};
+				result = a_buffer.resize(
+					a_buffer.userData,
+					a_minimumCapacity,
+					&data,
+					&capacity);
+			}
+			if (result != DMUI_RESULT_OK)
+				return result;
+			if (!data || capacity < a_minimumCapacity ||
+				capacity > static_cast<size_t>(INT_MAX) ||
+				std::memcmp(data, a_original, a_originalLength + 1) != 0)
+				return DMUI_RESULT_CALLBACK_FAILED;
+			a_buffer.data = data;
+			a_buffer.capacity = capacity;
+			return DMUI_RESULT_OK;
+		}
+
 		int InputCallback(ImGuiInputTextCallbackData* a_data) noexcept
 		{
 			auto& call = *static_cast<InputCall*>(a_data->UserData);
@@ -215,77 +259,201 @@ namespace DearModdingUI
 				return 0;
 			}
 
-			char* resizedData = call.buffer.data;
-			size_t resizedCapacity = call.buffer.capacity;
+			const auto result = GrowTextBuffer(
+				call.buffer,
+				minimumCapacity,
+				call.original.data(),
+				call.originalLength);
+			if (result != DMUI_RESULT_OK)
+			{
+				RejectResize(call, *a_data, result);
+				return 0;
+			}
+			a_data->Buf = call.buffer.data;
+			a_data->BufSize = static_cast<int>(call.buffer.capacity);
+			return 0;
+		}
+
+		constexpr uint32_t kKnownEditFlags{
+			DMUI_UI_TEXT_EDIT_FLAGS_HISTORY_KEYS |
+			DMUI_UI_TEXT_EDIT_FLAGS_COMPLETION_KEY |
+			DMUI_UI_TEXT_EDIT_FLAGS_CAPTURE_CANCEL |
+			DMUI_UI_TEXT_EDIT_FLAGS_KEEP_FOCUS_ON_SUBMIT |
+			DMUI_UI_TEXT_EDIT_FLAGS_REQUEST_FOCUS |
+			DMUI_UI_TEXT_EDIT_FLAGS_RELOAD
+		};
+
+		[[nodiscard]] bool IsCharacterBoundary(
+			const DMUI_TextBuffer& a_buffer,
+			size_t a_offset) noexcept
+		{
+			const auto* terminator = static_cast<const char*>(
+				std::memchr(a_buffer.data, '\0', a_buffer.capacity));
+			const auto length = static_cast<size_t>(terminator - a_buffer.data);
+			return a_offset >= length ||
+				(static_cast<unsigned char>(a_buffer.data[a_offset]) & 0xC0u) != 0x80u;
+		}
+
+		[[nodiscard]] bool IsMultiline(const TextFieldSpec& a_spec) noexcept
+		{
+			return a_spec.lines != 0 || a_spec.size.y > 0.0f;
+		}
+
+		[[nodiscard]] DMUI_Result ValidateTextField(
+			const char* a_id,
+			const DMUI_TextBuffer& a_buffer,
+			const TextFieldSpec& a_spec) noexcept
+		{
+			const auto editFlags = a_spec.editFlags;
+			const auto has = [editFlags](uint32_t a_flag) {
+				return (editFlags & a_flag) != 0;
+			};
+			if (!a_id || a_id[0] == '\0' || (editFlags & ~kKnownEditFlags) != 0 ||
+				(a_spec.style != DMUI_TEXT_FIELD_STYLE_PLAIN &&
+					a_spec.style != DMUI_TEXT_FIELD_STYLE_SEARCH) ||
+				!std::isfinite(a_spec.size.x) || !std::isfinite(a_spec.size.y) ||
+				a_spec.size.y < 0.0f ||
+				a_spec.maxBytes >= static_cast<uint32_t>(INT_MAX) ||
+				(has(DMUI_UI_TEXT_EDIT_FLAGS_COMPLETION_KEY) &&
+					(a_spec.flags & ImGuiInputTextFlags_AllowTabInput) != 0))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			// Overlaid runs follow a single, unmasked, left-aligned line.
+			if (a_spec.styleSpans &&
+				(IsMultiline(a_spec) ||
+					(a_spec.flags &
+						(ImGuiInputTextFlags_Password | ImGuiInputTextFlags_ElideLeft)) != 0))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			// ImGui has no history or completion callbacks for multiline fields.
+			if (IsMultiline(a_spec) &&
+				(a_spec.style == DMUI_TEXT_FIELD_STYLE_SEARCH ||
+					has(DMUI_UI_TEXT_EDIT_FLAGS_HISTORY_KEYS) ||
+					has(DMUI_UI_TEXT_EDIT_FLAGS_COMPLETION_KEY)))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			if (!a_buffer.data || a_buffer.capacity == 0 ||
+				a_buffer.capacity > static_cast<size_t>(INT_MAX) ||
+				!std::memchr(a_buffer.data, '\0', a_buffer.capacity))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			if (has(DMUI_UI_TEXT_EDIT_FLAGS_RELOAD) &&
+				!IsCharacterBoundary(a_buffer, a_spec.cursor))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			return DMUI_RESULT_OK;
+		}
+
+		struct FieldFrameScope
+		{
+			~FieldFrameScope()
+			{
+				CurrentControlRenderer().EndTextField(frame, style);
+				ImGui::PopID();
+			}
+
+			TextFieldFrame frame;
+			DMUI_TextFieldStyle style;
+		};
+
+		struct InputOutcome
+		{
+			bool edited{};
+			bool returned{};
+			uint32_t keyEvents{};
+		};
+
+		// A failing callback leaves the text unstyled.
+		[[nodiscard]] DMUI_Result DrawStyledText(
+			const DMUI_TextBuffer& a_buffer,
+			const TextFieldSpec& a_spec,
+			ImGuiID a_id)
+		{
+			const auto length = static_cast<size_t>(
+				static_cast<const char*>(std::memchr(a_buffer.data, '\0', a_buffer.capacity)) -
+				a_buffer.data);
+			std::span<const DMUI_TextSpan> spans;
+			const DMUI_TextSpan* returned{};
+			size_t count{};
 			DMUI_Result result{};
 			{
 				const RenderExecution::ClientGuard guard{
 					DMUI_INVALID_CLIENT_HANDLE,
 					false
 				};
-				result = call.buffer.resize(
-					call.buffer.userData,
-					minimumCapacity,
-					&resizedData,
-					&resizedCapacity);
+				result = a_spec.styleSpans(
+					a_spec.styleUserData, a_buffer.data, length, &returned, &count);
 			}
-			if (result != DMUI_RESULT_OK)
+			if (result == DMUI_RESULT_OK && count != 0 && !returned)
+				result = DMUI_RESULT_INVALID_ARGUMENT;
+			if (result == DMUI_RESULT_OK)
 			{
-				RejectResize(call, *a_data, result);
-				return 0;
-			}
-			if (!resizedData || resizedCapacity < minimumCapacity ||
-				resizedCapacity > static_cast<size_t>(INT_MAX) ||
-				std::memcmp(
-					resizedData,
-					call.original.data(),
-					call.originalLength + 1) != 0)
-			{
-				RejectResize(
-					call,
-					*a_data,
-					DMUI_RESULT_CALLBACK_FAILED);
-				return 0;
+				spans = { returned, count };
+				result = TextRuns::Validate(
+					TextRuns::Consumer::kTextField, { a_buffer.data, length }, spans);
+				if (result != DMUI_RESULT_OK)
+					spans = {};
 			}
 
-			call.buffer.data = resizedData;
-			call.buffer.capacity = resizedCapacity;
-			a_data->Buf = resizedData;
-			a_data->BufSize = static_cast<int>(resizedCapacity);
-			return 0;
+			thread_local std::vector<TextRuns::Run> runs;
+			runs.clear();
+			TextRuns::AppendRuns(
+				TextRuns::Consumer::kTextField,
+				a_buffer.data,
+				spans,
+				0,
+				length,
+				0.0f,
+				TextRuns::Resolve(TextRuns::Consumer::kTextField, nullptr),
+				runs);
+
+			// The field's horizontal scroll only exists while it is active.
+			const auto* state = ImGui::GetInputTextState(a_id);
+			const auto scroll = state && ImGui::GetCurrentContext()->ActiveId == a_id ?
+				state->Scroll.x : 0.0f;
+			const auto min = ImGui::GetItemRectMin();
+			const auto max = ImGui::GetItemRectMax();
+			const auto& padding = ImGui::GetStyle().FramePadding;
+			TextRuns::Paint(
+				*ImGui::GetWindowDrawList(),
+				{ min.x + padding.x - scroll, min.y + padding.y },
+				ImGui::GetFontSize(),
+				runs,
+				{},
+				{ min.x, min.y, max.x, max.y });
+			return result;
 		}
 
-		struct InputOutcome
-		{
-			bool returned{};
-			uint32_t keyEvents{};
-		};
-
+		// Runs ImGui over the buffer with the growth limit applied.
 		[[nodiscard]] DMUI_Result DrawTextInputImpl(
-			const char* a_label,
-			const char* a_hint,
 			DMUI_TextBuffer& a_buffer,
-			ImGuiInputTextFlags a_flags,
+			const TextFieldSpec& a_spec,
 			InputOutcome& a_outcome)
 		{
 			a_outcome = {};
-			if (!a_label || !a_hint)
-				return DMUI_RESULT_INVALID_ARGUMENT;
-			if (!a_buffer.data || a_buffer.capacity == 0 ||
-				a_buffer.capacity > static_cast<size_t>(INT_MAX))
-				return DMUI_RESULT_INVALID_ARGUMENT;
-			if (!ImGui::GetCurrentContext())
-				return DMUI_RESULT_HOST_NOT_READY;
-
 			const auto* terminator = static_cast<const char*>(
 				std::memchr(a_buffer.data, '\0', a_buffer.capacity));
-			if (!terminator)
-				return DMUI_RESULT_INVALID_ARGUMENT;
 			const auto length =
 				static_cast<size_t>(terminator - a_buffer.data);
 
+			// A limited field is sized once up front so ImGui clips input at the
+			// limit instead of asking the client to grow past it.
+			const auto limit = a_spec.maxBytes ?
+				(std::max)(static_cast<size_t>(a_spec.maxBytes), length) + 1 :
+				size_t{};
+			if (limit && a_buffer.resize && a_buffer.capacity < limit)
+			{
+				const std::vector<char> original{
+					a_buffer.data,
+					a_buffer.data + length + 1
+				};
+				const auto grown = GrowTextBuffer(
+					a_buffer, limit, original.data(), length);
+				if (grown != DMUI_RESULT_OK)
+					return grown;
+			}
+			const auto capacity = limit ?
+				(std::min)(a_buffer.capacity, limit) :
+				a_buffer.capacity;
+			const auto resizable = !limit && a_buffer.resize;
+
 			auto& context = *ImGui::GetCurrentContext();
-			const auto id = ImGui::GetID(a_label);
+			const auto id = ImGui::GetID("##Text");
 			auto* state = ImGui::GetInputTextState(id);
 			const auto stateLength =
 				state && state->TextLen >= 0 ?
@@ -326,13 +494,17 @@ namespace DearModdingUI
 			if (state && !CaptureState(call, *state))
 				return DMUI_RESULT_INVALID_ARGUMENT;
 
-			auto flags = a_flags;
-			if (a_buffer.resize)
+			auto flags = a_spec.flags | ImGuiInputTextFlags_EnterReturnsTrue;
+			if (resizable)
 			{
 				flags |=
 					ImGuiInputTextFlags_CallbackResize |
 					ImGuiInputTextFlags_CallbackCharFilter;
 			}
+			if ((a_spec.editFlags & DMUI_UI_TEXT_EDIT_FLAGS_HISTORY_KEYS) != 0)
+				flags |= ImGuiInputTextFlags_CallbackHistory;
+			if ((a_spec.editFlags & DMUI_UI_TEXT_EDIT_FLAGS_COMPLETION_KEY) != 0)
+				flags |= ImGuiInputTextFlags_CallbackCompletion;
 			constexpr ImGuiInputTextFlags callbackFlags =
 				ImGuiInputTextFlags_CallbackResize |
 				ImGuiInputTextFlags_CallbackHistory |
@@ -341,14 +513,44 @@ namespace DearModdingUI
 				(flags & callbackFlags) != 0 ? InputCallback : nullptr;
 			void* const userData = callback ? &call : nullptr;
 
-			const auto changed = ImGui::InputTextWithHint(
-				a_label,
-				a_hint,
+			const auto multiline = IsMultiline(a_spec);
+			ImVec2 size{ a_spec.size.x, 0.0f };
+			if (multiline)
+			{
+				flags |= ImGuiInputTextFlags_Multiline;
+				size.y = a_spec.size.y > 0.0f ?
+					a_spec.size.y :
+					ImGui::GetTextLineHeightWithSpacing() *
+						static_cast<float>(a_spec.lines);
+			}
+			else if (a_spec.size.x != 0.0f)
+			{
+				ImGui::SetNextItemWidth(a_spec.size.x);
+				size.x = 0.0f;
+			}
+			else if (a_spec.style == DMUI_TEXT_FIELD_STYLE_SEARCH &&
+				(context.NextItemData.HasFlags & ImGuiNextItemDataFlags_HasWidth) == 0)
+			{
+				// Search fills the row unless the caller set a width.
+				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+			}
+
+			// The styled runs replace the glyphs, so ImGui keeps only caret and selection.
+			if (a_spec.styleSpans)
+				ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 0, 0, 0));
+			// EnterReturnsTrue makes the return value the submit signal.
+			const auto returned = ImGui::InputTextEx(
+				"##Text",
+				multiline ? nullptr : (a_spec.hint ? a_spec.hint : ""),
 				a_buffer.data,
-				a_buffer.capacity,
+				static_cast<int>(capacity),
+				size,
 				flags,
 				callback,
 				userData);
+			if (a_spec.styleSpans)
+				ImGui::PopStyleColor();
+			const auto edited = ImGui::IsItemEdited();
 			if (call.failure != DMUI_RESULT_OK)
 			{
 				RestoreState(call);
@@ -370,59 +572,33 @@ namespace DearModdingUI
 				return call.failure;
 			}
 
-			a_outcome = { changed, call.keyEvents };
-			return DMUI_RESULT_OK;
+			a_outcome = { edited, returned, call.keyEvents };
+			return a_spec.styleSpans ? DrawStyledText(a_buffer, a_spec, id) : DMUI_RESULT_OK;
 		}
 
-		constexpr uint32_t kKnownEditFlags{
-			DMUI_UI_TEXT_EDIT_FLAGS_HISTORY_KEYS |
-			DMUI_UI_TEXT_EDIT_FLAGS_COMPLETION_KEY |
-			DMUI_UI_TEXT_EDIT_FLAGS_CAPTURE_CANCEL |
-			DMUI_UI_TEXT_EDIT_FLAGS_KEEP_FOCUS_ON_SUBMIT |
-			DMUI_UI_TEXT_EDIT_FLAGS_REQUEST_FOCUS |
-			DMUI_UI_TEXT_EDIT_FLAGS_RELOAD
-		};
-
-		[[nodiscard]] bool IsCharacterBoundary(
-			const DMUI_TextBuffer& a_buffer,
-			size_t a_offset) noexcept
-		{
-			const auto* terminator = static_cast<const char*>(
-				std::memchr(a_buffer.data, '\0', a_buffer.capacity));
-			const auto length = static_cast<size_t>(terminator - a_buffer.data);
-			return a_offset >= length ||
-				(static_cast<unsigned char>(a_buffer.data[a_offset]) & 0xC0u) != 0x80u;
-		}
-
-		[[nodiscard]] DMUI_Result DrawTextEditorImpl(
-			const char* a_label,
-			const char* a_hint,
+		[[nodiscard]] DMUI_Result DrawTextFieldImpl(
+			const char* a_id,
 			DMUI_TextBuffer& a_buffer,
-			ImGuiInputTextFlags a_flags,
-			DMUI_UITextEditFlags a_editFlags,
-			size_t a_cursor,
+			const TextFieldSpec& a_spec,
 			DMUI_TextEditState& a_state)
 		{
 			a_state = {};
-			const auto has = [a_editFlags](uint32_t a_flag) {
-				return (a_editFlags & a_flag) != 0;
-			};
-			if (!a_label || !a_hint || (a_editFlags & ~kKnownEditFlags) != 0 ||
-				(has(DMUI_UI_TEXT_EDIT_FLAGS_COMPLETION_KEY) &&
-					(a_flags & ImGuiInputTextFlags_AllowTabInput) != 0))
-				return DMUI_RESULT_INVALID_ARGUMENT;
-			if (!a_buffer.data || a_buffer.capacity == 0 ||
-				a_buffer.capacity > static_cast<size_t>(INT_MAX) ||
-				!std::memchr(a_buffer.data, '\0', a_buffer.capacity))
-				return DMUI_RESULT_INVALID_ARGUMENT;
-			if (has(DMUI_UI_TEXT_EDIT_FLAGS_RELOAD) &&
-				!IsCharacterBoundary(a_buffer, a_cursor))
-				return DMUI_RESULT_INVALID_ARGUMENT;
+			const auto valid = ValidateTextField(a_id, a_buffer, a_spec);
+			if (valid != DMUI_RESULT_OK)
+				return valid;
 			if (!ImGui::GetCurrentContext())
 				return DMUI_RESULT_HOST_NOT_READY;
+			const auto has = [&a_spec](uint32_t a_flag) {
+				return (a_spec.editFlags & a_flag) != 0;
+			};
 
+			ImGui::PushID(a_id);
+			// Overlaid runs and the caret must share advances.
+			std::optional<Theme::FontGuard> monospace;
+			if (a_spec.styleSpans)
+				monospace.emplace(Theme::FontRole::kMonospace);
 			auto& context = *ImGui::GetCurrentContext();
-			const auto id = ImGui::GetID(a_label);
+			const auto id = ImGui::GetID("##Text");
 			const auto wasActive = context.ActiveId == id;
 			if (has(DMUI_UI_TEXT_EDIT_FLAGS_REQUEST_FOCUS) && !wasActive)
 				ImGui::SetKeyboardFocusHere();
@@ -432,7 +608,7 @@ namespace DearModdingUI
 				{
 					// ImGui reloads before applying keys, so typing lands at the new cursor.
 					const auto cursor = static_cast<int>(
-						(std::min)(a_cursor, static_cast<size_t>(INT_MAX)));
+						(std::min)(a_spec.cursor, static_cast<size_t>(INT_MAX)));
 					state->WantReloadUserBuf = true;
 					state->ReloadSelectionStart = cursor;
 					state->ReloadSelectionEnd = cursor;
@@ -453,12 +629,6 @@ namespace DearModdingUI
 					ImGuiInputFlags_LockThisFrame);
 			}
 
-			auto flags = a_flags | ImGuiInputTextFlags_EnterReturnsTrue;
-			if (has(DMUI_UI_TEXT_EDIT_FLAGS_HISTORY_KEYS))
-				flags |= ImGuiInputTextFlags_CallbackHistory;
-			if (has(DMUI_UI_TEXT_EDIT_FLAGS_COMPLETION_KEY))
-				flags |= ImGuiInputTextFlags_CallbackCompletion;
-
 			// The setting is process-wide, so it must be restored even when drawing throws.
 			struct KeepActiveScope
 			{
@@ -473,16 +643,23 @@ namespace DearModdingUI
 			};
 			io.ConfigInputTextEnterKeepActive =
 				has(DMUI_UI_TEXT_EDIT_FLAGS_KEEP_FOCUS_ON_SUBMIT);
+
 			InputOutcome outcome;
-			const auto result = DrawTextInputImpl(
-				a_label, a_hint, a_buffer, flags, outcome);
+			DMUI_Result result{};
+			{
+				const FieldFrameScope frame{
+					CurrentControlRenderer().BeginTextField(a_spec.style),
+					a_spec.style
+				};
+				result = DrawTextInputImpl(a_buffer, a_spec, outcome);
+			}
 			if (result != DMUI_RESULT_OK)
 				return result;
 
 			events |= outcome.keyEvents;
 			if (outcome.returned)
 				events |= DMUI_UI_TEXT_EDIT_EVENTS_SUBMITTED;
-			if (ImGui::IsItemEdited())
+			if (outcome.edited)
 				events |= DMUI_UI_TEXT_EDIT_EVENTS_EDITED;
 			a_state.events = events;
 			if (context.ActiveId != id)
@@ -514,55 +691,38 @@ namespace DearModdingUI
 		}
 	}
 
-	DMUI_Result DrawTextInput(
-		const char* a_label,
-		const char* a_hint,
+	DMUI_Result DrawTextField(
+		const char* a_id,
 		DMUI_TextBuffer& a_buffer,
-		bool& a_changed) noexcept
-	{
-		try
-		{
-			InputOutcome outcome;
-			const auto result = DrawTextInputImpl(
-				a_label,
-				a_hint,
-				a_buffer,
-				ImGuiInputTextFlags_None,
-				outcome);
-			a_changed = outcome.returned;
-			return result;
-		}
-		catch (const std::bad_alloc&)
-		{
-			a_changed = false;
-			return DMUI_RESULT_RESOURCE_EXHAUSTED;
-		}
-	}
-
-	DMUI_Result DrawTextEditor(
-		const char* a_label,
-		const char* a_hint,
-		DMUI_TextBuffer& a_buffer,
-		ImGuiInputTextFlags a_flags,
-		DMUI_UITextEditFlags a_editFlags,
-		size_t a_cursor,
+		const TextFieldSpec& a_spec,
 		DMUI_TextEditState& a_state) noexcept
 	{
 		try
 		{
-			return DrawTextEditorImpl(
-				a_label,
-				a_hint,
-				a_buffer,
-				a_flags,
-				a_editFlags,
-				a_cursor,
-				a_state);
+			return DrawTextFieldImpl(a_id, a_buffer, a_spec, a_state);
 		}
 		catch (const std::bad_alloc&)
 		{
 			a_state = {};
 			return DMUI_RESULT_RESOURCE_EXHAUSTED;
 		}
+	}
+
+	DMUI_Result DrawTextField(
+		const char* a_id,
+		std::string& a_text,
+		const TextFieldSpec& a_spec,
+		bool& a_edited) noexcept
+	{
+		a_edited = false;
+		dmui::TextInputBuffer buffer{ a_text };
+		if (buffer.Result() != DMUI_RESULT_OK)
+			return buffer.Result();
+		DMUI_TextEditState state{};
+		const auto result = DrawTextField(a_id, *buffer.Get(), a_spec, state);
+		if (result != DMUI_RESULT_OK)
+			return result;
+		a_edited = (state.events & DMUI_UI_TEXT_EDIT_EVENTS_EDITED) != 0;
+		return buffer.CommitTo(a_text);
 	}
 }

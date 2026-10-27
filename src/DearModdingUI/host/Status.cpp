@@ -21,18 +21,18 @@ namespace DearModdingUI
 	}
 
 	const char* StatusSeverityLabel(
-		DMUI_StatusSeverity a_severity,
+		DMUI_Severity a_severity,
 		bool a_localized) noexcept
 	{
 		switch (a_severity)
 		{
-		case DMUI_STATUS_SEVERITY_INFO:
+		case DMUI_SEVERITY_INFO:
 			return Localization::Text({ "$DMUI_Status_SeverityInfo", "Info" }, a_localized);
-		case DMUI_STATUS_SEVERITY_SUCCESS:
+		case DMUI_SEVERITY_SUCCESS:
 			return Localization::Text({ "$DMUI_Status_SeveritySuccess", "Success" }, a_localized);
-		case DMUI_STATUS_SEVERITY_WARNING:
+		case DMUI_SEVERITY_WARNING:
 			return Localization::Text({ "$DMUI_Status_SeverityWarning", "Warning" }, a_localized);
-		case DMUI_STATUS_SEVERITY_ERROR:
+		case DMUI_SEVERITY_ERROR:
 			return Localization::Text({ "$DMUI_Status_SeverityError", "Error" }, a_localized);
 		default:
 			return Localization::Text({ "$DMUI_Status_SeverityUnknown", "Unknown" }, a_localized);
@@ -58,7 +58,7 @@ namespace DearModdingUI
 		for (const auto& status : a_statuses)
 		{
 			if (status.client == DMUI_INVALID_CLIENT_HANDLE ||
-				!IsValidStatusSeverity(status.severity))
+				!IsValidSeverity(status.severity))
 				continue;
 			const auto found = std::ranges::find(
 				rollups,
@@ -76,7 +76,7 @@ namespace DearModdingUI
 	DMUI_Result StatusModel::Set(
 		StatusOwnerKind a_ownerKind,
 		std::string_view a_owner,
-		DMUI_StatusSeverity a_severity,
+		DMUI_Severity a_severity,
 		std::string_view a_message,
 		StatusClock::time_point a_now) noexcept
 	{
@@ -92,7 +92,7 @@ namespace DearModdingUI
 	DMUI_Result StatusModel::SetClient(
 		DMUI_ClientHandle a_client,
 		std::string_view a_owner,
-		DMUI_StatusSeverity a_severity,
+		DMUI_Severity a_severity,
 		std::string_view a_message,
 		StatusClock::time_point a_now) noexcept
 	{
@@ -111,13 +111,13 @@ namespace DearModdingUI
 		StatusOwnerKind a_ownerKind,
 		DMUI_ClientHandle a_client,
 		std::string_view a_owner,
-		DMUI_StatusSeverity a_severity,
+		DMUI_Severity a_severity,
 		std::string_view a_message,
 		StatusClock::time_point a_now) noexcept
 	{
 		if (a_owner.empty() ||
 			a_message.empty() ||
-			!IsValidStatusSeverity(a_severity))
+			!IsValidSeverity(a_severity))
 			return DMUI_RESULT_INVALID_ARGUMENT;
 
 		try

@@ -86,4 +86,8 @@ namespace vmm_tests
 	void run_mcm_action_checks(Runner& runner);
 	void run_ui_contract_checks(Runner& runner);
 	void run_draw_list_checks(Runner& runner);
+	void run_theme_preset_checks(Runner& runner);
+	void run_button_checks(Runner& runner);
+	void run_text_runs_checks(Runner& runner);
+	void run_shortcut_checks(Runner& runner);
 }

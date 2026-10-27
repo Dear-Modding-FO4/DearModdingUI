@@ -32,9 +32,11 @@ namespace DearModdingUI::UI::Bindings
 
 		DMUI_Result Begin(DMUI_ClientHandle a_client, const char* a_id,
 			bool a_modal, uint32_t a_hasCloseButton, uint32_t* a_open,
-			DMUI_UIWindowFlags a_flags, uint32_t* a_visible) noexcept
+			DMUI_UIWindowFlags a_flags, uint32_t* a_visible,
+			const DMUI_Placement* a_placement = nullptr) noexcept
 		{
-			if (!a_id || !*a_id || !a_visible || (a_modal && !a_open))
+			if (!a_id || !*a_id || !a_visible || (a_modal && !a_open) ||
+				(a_placement && !AdapterInternal::Finite(*a_placement)))
 				return DMUI_RESULT_INVALID_ARGUMENT;
 			*a_visible = 0;
 			ImGuiWindowFlags flags{};
@@ -44,7 +46,8 @@ namespace DearModdingUI::UI::Bindings
 			return PopupOperation(a_client, [&](ModalCoordinator::Owner a_owner) {
 				bool open = !a_open || *a_open != 0;
 				*a_visible = ModalCoordinator::Begin(a_owner, a_id, a_modal,
-					a_open ? &open : nullptr, flags, a_hasCloseButton != 0) ? 1u : 0u;
+					a_open ? &open : nullptr, flags, a_hasCloseButton != 0,
+					a_placement) ? 1u : 0u;
 				if (a_open)
 					*a_open = open ? 1u : 0u;
 				return DMUI_RESULT_OK;
@@ -66,6 +69,12 @@ namespace DearModdingUI::UI::Bindings
 		DMUI_UIWindowFlags a_flags, uint32_t* a_visible) noexcept
 	{
 		return Begin(a_client, a_id, false, 0, nullptr, a_flags, a_visible);
+	}
+
+	DMUI_Result DMUI_CALL BeginPopupAt(DMUI_ClientHandle a_client, const char* a_id,
+		DMUI_Placement a_placement, DMUI_UIWindowFlags a_flags, uint32_t* a_visible) noexcept
+	{
+		return Begin(a_client, a_id, false, 0, nullptr, a_flags, a_visible, &a_placement);
 	}
 
 	DMUI_Result DMUI_CALL BeginPopupModal(DMUI_ClientHandle a_client, const char* a_id,

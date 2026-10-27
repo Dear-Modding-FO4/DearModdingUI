@@ -1,7 +1,14 @@
 #include "UIAdapterInternal.h"
 
 #include <DearModdingUI/UIBindings.generated.h>
+#include <DearModdingUI/controls/Button.h>
+#include <DearModdingUI/controls/Choice.h>
+#include <DearModdingUI/controls/ColorEdit.h>
+#include <DearModdingUI/controls/KeyCapture.h>
+#include <DearModdingUI/controls/Numeric.h>
+#include <DearModdingUI/controls/Spinner.h>
 #include <DearModdingUI/controls/TextInput.h>
+#include <DearModdingUI/controls/Toggle.h>
 
 #include <algorithm>
 #include <cmath>
@@ -15,311 +22,185 @@ namespace DearModdingUI::UI::Bindings
 
 	DMUI_Result DMUI_CALL Button(
 		DMUI_ClientHandle a_client,
-		const char* a_label,
-		DMUI_Vec2 a_size,
+		const DMUI_ButtonDescriptor* a_button,
 		uint32_t* a_pressed) noexcept
 	{
-		if (!a_label || !a_pressed)
+		if (!a_pressed)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_pressed = 0u;
+		const auto described = ValidateButton(a_button);
+		if (described != DMUI_RESULT_OK)
+			return described;
 		const auto validation = Validate(a_client);
 		if (validation != DMUI_RESULT_OK)
 			return validation;
-		*a_pressed = ImGui::Button(a_label, Native(a_size)) ? 1u : 0u;
+		*a_pressed = DrawButton(MakeButtonSpec(*a_button)) ? 1u : 0u;
 		return DMUI_RESULT_OK;
 	}
 
-	DMUI_Result DMUI_CALL Checkbox(
+	DMUI_Result DMUI_CALL MeasureButton(
 		DMUI_ClientHandle a_client,
-		const char* a_label,
-		uint32_t* a_value,
-		uint32_t* a_changed) noexcept
+		const DMUI_ButtonDescriptor* a_button,
+		DMUI_Vec2* a_size) noexcept
 	{
-		if (!a_label || !a_value || !a_changed)
+		if (!a_size)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_changed = 0u;
+		*a_size = {};
+		const auto described = ValidateButton(a_button);
+		if (described != DMUI_RESULT_OK)
+			return described;
 		const auto validation = Validate(a_client);
 		if (validation != DMUI_RESULT_OK)
 			return validation;
-		bool value = *a_value != 0;
-		*a_changed = ImGui::Checkbox(a_label, &value) ? 1u : 0u;
-		*a_value = value ? 1u : 0u;
+		*a_size = Stable(DearModdingUI::MeasureButton(MakeButtonSpec(*a_button)));
 		return DMUI_RESULT_OK;
 	}
 
-	DMUI_Result DMUI_CALL CollapsingHeader(
+	DMUI_Result DMUI_CALL Toggle(
 		DMUI_ClientHandle a_client,
-		const char* a_label,
-		DMUI_UITreeNodeFlags a_flags,
-		uint32_t* a_open) noexcept
+		const DMUI_ToggleDescriptor* a_toggle,
+		DMUI_ToggleResult* a_result) noexcept
 	{
-		if (!a_label || !a_open)
+		if (!a_result)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_open = 0u;
+		*a_result = {};
+		const auto described = ValidateToggle(a_toggle);
+		if (described != DMUI_RESULT_OK)
+			return described;
+		*a_result = { a_toggle->value != 0 ? 1u : 0u, 0u };
 		const auto validation = Validate(a_client);
 		if (validation != DMUI_RESULT_OK)
 			return validation;
-		ImGuiTreeNodeFlags flags{};
-		const auto translated = TranslateTreeNodeFlags(a_flags, flags);
-		if (translated != DMUI_RESULT_OK)
-			return translated;
-		*a_open = ImGui::CollapsingHeader(a_label, flags) ? 1u : 0u;
+		*a_result = DrawToggle(*a_toggle);
 		return DMUI_RESULT_OK;
 	}
 
-	DMUI_Result DMUI_CALL CollapsingHeaderVisible(
+	DMUI_Result DMUI_CALL Spinner(
 		DMUI_ClientHandle a_client,
-		const char* a_label,
-		uint32_t* a_visible,
-		DMUI_UITreeNodeFlags a_flags,
-		uint32_t* a_open) noexcept
+		const DMUI_SpinnerDescriptor* a_spinner) noexcept
 	{
-		if (!a_label || !a_visible || !a_open)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_open = 0u;
+		const auto described = ValidateSpinner(a_spinner);
+		if (described != DMUI_RESULT_OK)
+			return described;
 		const auto validation = Validate(a_client);
 		if (validation != DMUI_RESULT_OK)
 			return validation;
-		ImGuiTreeNodeFlags flags{};
-		const auto translated = TranslateTreeNodeFlags(a_flags, flags);
-		if (translated != DMUI_RESULT_OK)
-			return translated;
-		bool visible = *a_visible != 0;
-		*a_open = ImGui::CollapsingHeader(a_label, &visible, flags) ? 1u : 0u;
-		*a_visible = visible ? 1u : 0u;
+		DrawSpinner(*a_spinner);
 		return DMUI_RESULT_OK;
 	}
 
-	DMUI_Result DMUI_CALL DragScalar(
+	DMUI_Result DMUI_CALL Choice(
 		DMUI_ClientHandle a_client,
-		const char* a_label,
-		DMUI_UIDataType a_dataType,
-		void* a_data,
-		uint32_t a_dataSize,
-		float a_speed,
-		const void* a_minimum,
-		uint32_t a_minimumSize,
-		const void* a_maximum,
-		uint32_t a_maximumSize,
-		const char* a_format,
-		DMUI_UISliderFlags a_flags,
-		uint32_t* a_changed) noexcept
+		const DMUI_ChoiceDescriptor* a_choice,
+		DMUI_ChoiceResult* a_result) noexcept
 	{
-		if (!a_label || !a_changed)
+		if (!a_result)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_changed = 0u;
+		*a_result = {};
+		const auto described = ValidateChoice(a_choice);
+		if (described != DMUI_RESULT_OK)
+			return described;
+		*a_result = { a_choice->selected, 0u, 0u };
 		const auto validation = Validate(a_client);
 		if (validation != DMUI_RESULT_OK)
 			return validation;
-		const auto scalar = ValidateScalar(
-			a_dataType,
-			a_data,
-			a_dataSize,
-			a_minimum,
-			a_minimumSize,
-			a_maximum,
-			a_maximumSize);
-		if (scalar != DMUI_RESULT_OK)
-			return scalar;
-		ImGuiDataType dataType{};
-		ImGuiSliderFlags flags{};
-		const auto typeResult = TranslateDataType(a_dataType, dataType);
-		const auto flagResult = TranslateSliderFlags(a_flags, flags);
-		if (typeResult != DMUI_RESULT_OK)
-			return typeResult;
-		if (flagResult != DMUI_RESULT_OK)
-			return flagResult;
-		*a_changed = ImGui::DragScalar(
-			a_label,
-			dataType,
-			a_data,
-			a_speed,
-			a_minimum,
-			a_maximum,
-			a_format,
-			flags) ?
-			1u :
-			0u;
+		*a_result = DrawChoice(*a_choice);
 		return DMUI_RESULT_OK;
 	}
 
-	DMUI_Result DMUI_CALL InputScalar(
+	DMUI_Result DMUI_CALL ColorEdit(
 		DMUI_ClientHandle a_client,
-		const char* a_label,
-		DMUI_UIDataType a_dataType,
-		void* a_data,
-		uint32_t a_dataSize,
-		const void* a_step,
-		uint32_t a_stepSize,
-		const void* a_fastStep,
-		uint32_t a_fastStepSize,
-		const char* a_format,
-		DMUI_UIInputTextFlags a_flags,
-		uint32_t* a_changed) noexcept
+		const DMUI_ColorEditDescriptor* a_color,
+		DMUI_ColorEditResult* a_result) noexcept
 	{
-		if (!a_label || !a_changed)
+		if (!a_result)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_changed = 0u;
+		*a_result = {};
+		const auto described = ValidateColorEdit(a_color);
+		if (described != DMUI_RESULT_OK)
+			return described;
+		*a_result = { a_color->rgba, 0u, 0u };
 		const auto validation = Validate(a_client);
 		if (validation != DMUI_RESULT_OK)
 			return validation;
-		const auto scalar = ValidateScalar(
-			a_dataType,
-			a_data,
-			a_dataSize,
-			a_step,
-			a_stepSize,
-			a_fastStep,
-			a_fastStepSize);
-		if (scalar != DMUI_RESULT_OK)
-			return scalar;
-		ImGuiDataType dataType{};
-		ImGuiInputTextFlags flags{};
-		const auto typeResult = TranslateDataType(a_dataType, dataType);
-		const auto flagResult = TranslateInputFlags(a_flags, flags);
-		if (typeResult != DMUI_RESULT_OK)
-			return typeResult;
-		if (flagResult != DMUI_RESULT_OK)
-			return flagResult;
-		*a_changed = ImGui::InputScalar(
-			a_label,
-			dataType,
-			a_data,
-			a_step,
-			a_fastStep,
-			a_format,
-			flags) ?
-			1u :
-			0u;
+		*a_result = DrawColorEdit(*a_color);
+		return DMUI_RESULT_OK;
+	}
+
+	DMUI_Result DMUI_CALL KeyCapture(
+		DMUI_ClientHandle a_client,
+		const DMUI_KeyCaptureDescriptor* a_capture,
+		DMUI_KeyCaptureResult* a_result) noexcept
+	{
+		if (!a_result)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		*a_result = {};
+		const auto described = ValidateKeyCapture(a_capture);
+		if (described != DMUI_RESULT_OK)
+			return described;
+		const auto validation = Validate(a_client);
+		if (validation != DMUI_RESULT_OK)
+			return validation;
+		const auto captured = DrawKeyCapture(MakeKeyCaptureSpec(*a_capture));
+		if (!captured)
+			return DMUI_RESULT_OK;
+		const auto chord = SerializeHotkeyChord(*captured);
+		if (chord.size() >= sizeof(a_result->chord))
+			return DMUI_RESULT_BUFFER_TOO_SMALL;
+		std::memcpy(a_result->chord, chord.c_str(), chord.size() + 1u);
+		a_result->changed = 1u;
+		return DMUI_RESULT_OK;
+	}
+
+	DMUI_Result DMUI_CALL Numeric(
+		DMUI_ClientHandle a_client,
+		const DMUI_NumericDescriptor* a_numeric,
+		DMUI_NumericResult* a_result) noexcept
+	{
+		if (!a_result)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		*a_result = {};
+		const auto described = ValidateNumeric(a_numeric);
+		if (described != DMUI_RESULT_OK)
+			return described;
+		*a_result = { a_numeric->value, 0u, 0u };
+		const auto validation = Validate(a_client);
+		if (validation != DMUI_RESULT_OK)
+			return validation;
+		*a_result = DrawNumeric(*a_numeric);
 		return DMUI_RESULT_OK;
 	}
 
 	DMUI_Result DMUI_CALL InputText(
 		DMUI_ClientHandle a_client,
-		const char* a_label,
-		char* a_buffer,
-		uint32_t a_capacity,
-		DMUI_UIInputTextFlags a_flags,
-		uint32_t* a_changed) noexcept
-	{
-		if (!a_label || !a_changed)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_changed = 0u;
-		const auto validation = Validate(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-		const auto buffer = ValidateBuffer(a_buffer, a_capacity);
-		if (buffer != DMUI_RESULT_OK)
-			return buffer;
-		ImGuiInputTextFlags flags{};
-		const auto translated = TranslateInputFlags(a_flags, flags);
-		if (translated != DMUI_RESULT_OK)
-			return translated;
-		*a_changed = ImGui::InputText(
-			a_label, a_buffer, a_capacity, flags, nullptr, nullptr) ?
-			1u :
-			0u;
-		return DMUI_RESULT_OK;
-	}
-
-	DMUI_Result DMUI_CALL InputTextMultiline(
-		DMUI_ClientHandle a_client,
-		const char* a_label,
-		char* a_buffer,
-		uint32_t a_capacity,
-		DMUI_Vec2 a_size,
-		DMUI_UIInputTextFlags a_flags,
-		uint32_t* a_changed) noexcept
-	{
-		if (!a_label || !a_changed)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_changed = 0u;
-		const auto validation = Validate(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-		const auto buffer = ValidateBuffer(a_buffer, a_capacity);
-		if (buffer != DMUI_RESULT_OK)
-			return buffer;
-		ImGuiInputTextFlags flags{};
-		const auto translated = TranslateInputFlags(a_flags, flags);
-		if (translated != DMUI_RESULT_OK)
-			return translated;
-		*a_changed = ImGui::InputTextMultiline(
-			a_label,
-			a_buffer,
-			a_capacity,
-			Native(a_size),
-			flags,
-			nullptr,
-			nullptr) ?
-			1u :
-			0u;
-		return DMUI_RESULT_OK;
-	}
-
-	DMUI_Result DMUI_CALL InputTextWithHint(
-		DMUI_ClientHandle a_client,
-		const char* a_label,
-		const char* a_hint,
-		char* a_buffer,
-		uint32_t a_capacity,
-		DMUI_UIInputTextFlags a_flags,
-		uint32_t* a_changed) noexcept
-	{
-		if (!a_label || !a_hint || !a_changed)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_changed = 0u;
-		const auto validation = Validate(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-		const auto buffer = ValidateBuffer(a_buffer, a_capacity);
-		if (buffer != DMUI_RESULT_OK)
-			return buffer;
-		ImGuiInputTextFlags flags{};
-		const auto translated = TranslateInputFlags(a_flags, flags);
-		if (translated != DMUI_RESULT_OK)
-			return translated;
-		*a_changed = ImGui::InputTextWithHint(
-			a_label,
-			a_hint,
-			a_buffer,
-			a_capacity,
-			flags,
-			nullptr,
-			nullptr) ?
-			1u :
-			0u;
-		return DMUI_RESULT_OK;
-	}
-
-	DMUI_Result DMUI_CALL InputTextEditor(
-		DMUI_ClientHandle a_client,
-		const char* a_label,
-		const char* a_hint,
+		const char* a_id,
 		DMUI_TextBuffer* a_buffer,
-		DMUI_UIInputTextFlags a_flags,
-		DMUI_UITextEditFlags a_editFlags,
-		size_t a_cursor,
+		const DMUI_TextFieldOptions* a_options,
 		DMUI_TextEditState* a_state) noexcept
 	{
-		if (!a_buffer || !a_state)
+		if (!a_buffer || !a_options || !a_state)
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		*a_state = {};
+		if (a_options->reserved != 0)
+			return DMUI_RESULT_INVALID_ARGUMENT;
 		const auto validation = Validate(a_client);
 		if (validation != DMUI_RESULT_OK)
 			return validation;
-		ImGuiInputTextFlags flags{};
-		const auto translated = TranslateInputFlags(a_flags, flags);
+		TextFieldSpec spec{
+			.hint = a_options->hint,
+			.style = a_options->style,
+			.editFlags = a_options->editFlags,
+			.maxBytes = a_options->maxBytes,
+			.lines = a_options->lines,
+			.size = { a_options->size.x, a_options->size.y },
+			.cursor = a_options->cursor,
+			.styleSpans = a_options->styleSpans,
+			.styleUserData = a_options->styleUserData
+		};
+		const auto translated = TranslateInputFlags(a_options->flags, spec.flags);
 		if (translated != DMUI_RESULT_OK)
 			return translated;
-		return DrawTextEditor(
-			a_label,
-			a_hint,
-			*a_buffer,
-			flags,
-			a_editFlags,
-			a_cursor,
-			*a_state);
+		return DrawTextField(a_id, *a_buffer, spec, *a_state);
 	}
 
 	DMUI_Result DMUI_CALL ProgressBar(
@@ -393,57 +274,6 @@ namespace DearModdingUI::UI::Bindings
 			1u :
 			0u;
 		*a_selected = selected ? 1u : 0u;
-		return DMUI_RESULT_OK;
-	}
-
-	DMUI_Result DMUI_CALL SliderScalar(
-		DMUI_ClientHandle a_client,
-		const char* a_label,
-		DMUI_UIDataType a_dataType,
-		void* a_data,
-		uint32_t a_dataSize,
-		const void* a_minimum,
-		uint32_t a_minimumSize,
-		const void* a_maximum,
-		uint32_t a_maximumSize,
-		const char* a_format,
-		DMUI_UISliderFlags a_flags,
-		uint32_t* a_changed) noexcept
-	{
-		if (!a_label || !a_changed)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		*a_changed = 0u;
-		const auto validation = Validate(a_client);
-		if (validation != DMUI_RESULT_OK)
-			return validation;
-		const auto scalar = ValidateScalar(
-			a_dataType,
-			a_data,
-			a_dataSize,
-			a_minimum,
-			a_minimumSize,
-			a_maximum,
-			a_maximumSize);
-		if (scalar != DMUI_RESULT_OK)
-			return scalar;
-		ImGuiDataType dataType{};
-		ImGuiSliderFlags flags{};
-		const auto typeResult = TranslateDataType(a_dataType, dataType);
-		const auto flagResult = TranslateSliderFlags(a_flags, flags);
-		if (typeResult != DMUI_RESULT_OK)
-			return typeResult;
-		if (flagResult != DMUI_RESULT_OK)
-			return flagResult;
-		*a_changed = ImGui::SliderScalar(
-			a_label,
-			dataType,
-			a_data,
-			a_minimum,
-			a_maximum,
-			a_format,
-			flags) ?
-			1u :
-			0u;
 		return DMUI_RESULT_OK;
 	}
 

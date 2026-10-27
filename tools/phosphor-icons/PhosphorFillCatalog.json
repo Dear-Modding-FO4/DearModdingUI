@@ -1,0 +1,7607 @@
+{
+  "source": {
+    "package": "@phosphor-icons/web",
+    "version": "2.1.2",
+    "revision": "70854726d7bd82ae21f0dc81b5b5c35240a77066",
+    "selection_sha256": "4c2141ee6e8ed9b53466b26e483ca4d85fcf2044138029095d56f910e1b9dab2",
+    "font_sha256": "a53f5d2630cab5e3b7536ecb9d69d71519a2190298c22b1f8d770dd37bc2940a"
+  },
+  "glyphs": [
+    {
+      "name": "acorn",
+      "aliases": [],
+      "codepoint": 60314
+    },
+    {
+      "name": "address-book",
+      "aliases": [],
+      "codepoint": 59128
+    },
+    {
+      "name": "address-book-tabs",
+      "aliases": [],
+      "codepoint": 61006
+    },
+    {
+      "name": "air-traffic-control",
+      "aliases": [],
+      "codepoint": 60632
+    },
+    {
+      "name": "airplane",
+      "aliases": [],
+      "codepoint": 57346
+    },
+    {
+      "name": "airplane-in-flight",
+      "aliases": [],
+      "codepoint": 58622
+    },
+    {
+      "name": "airplane-landing",
+      "aliases": [],
+      "codepoint": 58626
+    },
+    {
+      "name": "airplane-takeoff",
+      "aliases": [],
+      "codepoint": 58628
+    },
+    {
+      "name": "airplane-taxiing",
+      "aliases": [],
+      "codepoint": 58624
+    },
+    {
+      "name": "airplane-tilt",
+      "aliases": [],
+      "codepoint": 58838
+    },
+    {
+      "name": "airplay",
+      "aliases": [],
+      "codepoint": 57348
+    },
+    {
+      "name": "alarm",
+      "aliases": [],
+      "codepoint": 57350
+    },
+    {
+      "name": "alien",
+      "aliases": [],
+      "codepoint": 59558
+    },
+    {
+      "name": "align-bottom",
+      "aliases": [],
+      "codepoint": 58630
+    },
+    {
+      "name": "align-bottom-simple",
+      "aliases": [],
+      "codepoint": 60172
+    },
+    {
+      "name": "align-center-horizontal",
+      "aliases": [],
+      "codepoint": 58634
+    },
+    {
+      "name": "align-center-horizontal-simple",
+      "aliases": [],
+      "codepoint": 60174
+    },
+    {
+      "name": "align-center-vertical",
+      "aliases": [],
+      "codepoint": 58636
+    },
+    {
+      "name": "align-center-vertical-simple",
+      "aliases": [],
+      "codepoint": 60176
+    },
+    {
+      "name": "align-left",
+      "aliases": [],
+      "codepoint": 58638
+    },
+    {
+      "name": "align-left-simple",
+      "aliases": [],
+      "codepoint": 60142
+    },
+    {
+      "name": "align-right",
+      "aliases": [],
+      "codepoint": 58640
+    },
+    {
+      "name": "align-right-simple",
+      "aliases": [],
+      "codepoint": 60178
+    },
+    {
+      "name": "align-top",
+      "aliases": [],
+      "codepoint": 58642
+    },
+    {
+      "name": "align-top-simple",
+      "aliases": [],
+      "codepoint": 60180
+    },
+    {
+      "name": "amazon-logo",
+      "aliases": [],
+      "codepoint": 59756
+    },
+    {
+      "name": "ambulance",
+      "aliases": [],
+      "codepoint": 58738
+    },
+    {
+      "name": "anchor",
+      "aliases": [],
+      "codepoint": 58644
+    },
+    {
+      "name": "anchor-simple",
+      "aliases": [],
+      "codepoint": 58840
+    },
+    {
+      "name": "android-logo",
+      "aliases": [],
+      "codepoint": 57352
+    },
+    {
+      "name": "angle",
+      "aliases": [],
+      "codepoint": 59324
+    },
+    {
+      "name": "angular-logo",
+      "aliases": [],
+      "codepoint": 60288
+    },
+    {
+      "name": "aperture",
+      "aliases": [],
+      "codepoint": 57354
+    },
+    {
+      "name": "app-store-logo",
+      "aliases": [],
+      "codepoint": 59764
+    },
+    {
+      "name": "app-window",
+      "aliases": [],
+      "codepoint": 58842
+    },
+    {
+      "name": "apple-logo",
+      "aliases": [],
+      "codepoint": 58646
+    },
+    {
+      "name": "apple-podcasts-logo",
+      "aliases": [],
+      "codepoint": 60310
+    },
+    {
+      "name": "approximate-equals",
+      "aliases": [],
+      "codepoint": 60842
+    },
+    {
+      "name": "archive",
+      "aliases": [],
+      "codepoint": 57356
+    },
+    {
+      "name": "armchair",
+      "aliases": [],
+      "codepoint": 57362
+    },
+    {
+      "name": "arrow-arc-left",
+      "aliases": [],
+      "codepoint": 57364
+    },
+    {
+      "name": "arrow-arc-right",
+      "aliases": [],
+      "codepoint": 57366
+    },
+    {
+      "name": "arrow-bend-double-up-left",
+      "aliases": [],
+      "codepoint": 57402
+    },
+    {
+      "name": "arrow-bend-double-up-right",
+      "aliases": [],
+      "codepoint": 57404
+    },
+    {
+      "name": "arrow-bend-down-left",
+      "aliases": [],
+      "codepoint": 57368
+    },
+    {
+      "name": "arrow-bend-down-right",
+      "aliases": [],
+      "codepoint": 57370
+    },
+    {
+      "name": "arrow-bend-left-down",
+      "aliases": [],
+      "codepoint": 57372
+    },
+    {
+      "name": "arrow-bend-left-up",
+      "aliases": [],
+      "codepoint": 57374
+    },
+    {
+      "name": "arrow-bend-right-down",
+      "aliases": [],
+      "codepoint": 57376
+    },
+    {
+      "name": "arrow-bend-right-up",
+      "aliases": [],
+      "codepoint": 57378
+    },
+    {
+      "name": "arrow-bend-up-left",
+      "aliases": [],
+      "codepoint": 57380
+    },
+    {
+      "name": "arrow-bend-up-right",
+      "aliases": [],
+      "codepoint": 57382
+    },
+    {
+      "name": "arrow-circle-down",
+      "aliases": [],
+      "codepoint": 57384
+    },
+    {
+      "name": "arrow-circle-down-left",
+      "aliases": [],
+      "codepoint": 57386
+    },
+    {
+      "name": "arrow-circle-down-right",
+      "aliases": [],
+      "codepoint": 57388
+    },
+    {
+      "name": "arrow-circle-left",
+      "aliases": [],
+      "codepoint": 57434
+    },
+    {
+      "name": "arrow-circle-right",
+      "aliases": [],
+      "codepoint": 57390
+    },
+    {
+      "name": "arrow-circle-up",
+      "aliases": [],
+      "codepoint": 57392
+    },
+    {
+      "name": "arrow-circle-up-left",
+      "aliases": [],
+      "codepoint": 57394
+    },
+    {
+      "name": "arrow-circle-up-right",
+      "aliases": [],
+      "codepoint": 57396
+    },
+    {
+      "name": "arrow-clockwise",
+      "aliases": [],
+      "codepoint": 57398
+    },
+    {
+      "name": "arrow-counter-clockwise",
+      "aliases": [],
+      "codepoint": 57400
+    },
+    {
+      "name": "arrow-down",
+      "aliases": [],
+      "codepoint": 57406
+    },
+    {
+      "name": "arrow-down-left",
+      "aliases": [],
+      "codepoint": 57408
+    },
+    {
+      "name": "arrow-down-right",
+      "aliases": [],
+      "codepoint": 57410
+    },
+    {
+      "name": "arrow-elbow-down-left",
+      "aliases": [],
+      "codepoint": 57412
+    },
+    {
+      "name": "arrow-elbow-down-right",
+      "aliases": [],
+      "codepoint": 57414
+    },
+    {
+      "name": "arrow-elbow-left",
+      "aliases": [],
+      "codepoint": 57416
+    },
+    {
+      "name": "arrow-elbow-left-down",
+      "aliases": [],
+      "codepoint": 57418
+    },
+    {
+      "name": "arrow-elbow-left-up",
+      "aliases": [],
+      "codepoint": 57420
+    },
+    {
+      "name": "arrow-elbow-right",
+      "aliases": [],
+      "codepoint": 57422
+    },
+    {
+      "name": "arrow-elbow-right-down",
+      "aliases": [],
+      "codepoint": 57424
+    },
+    {
+      "name": "arrow-elbow-right-up",
+      "aliases": [],
+      "codepoint": 57426
+    },
+    {
+      "name": "arrow-elbow-up-left",
+      "aliases": [],
+      "codepoint": 57428
+    },
+    {
+      "name": "arrow-elbow-up-right",
+      "aliases": [],
+      "codepoint": 57430
+    },
+    {
+      "name": "arrow-fat-down",
+      "aliases": [],
+      "codepoint": 58648
+    },
+    {
+      "name": "arrow-fat-left",
+      "aliases": [],
+      "codepoint": 58650
+    },
+    {
+      "name": "arrow-fat-line-down",
+      "aliases": [],
+      "codepoint": 58652
+    },
+    {
+      "name": "arrow-fat-line-left",
+      "aliases": [],
+      "codepoint": 58654
+    },
+    {
+      "name": "arrow-fat-line-right",
+      "aliases": [],
+      "codepoint": 58656
+    },
+    {
+      "name": "arrow-fat-line-up",
+      "aliases": [],
+      "codepoint": 58658
+    },
+    {
+      "name": "arrow-fat-lines-down",
+      "aliases": [],
+      "codepoint": 58660
+    },
+    {
+      "name": "arrow-fat-lines-left",
+      "aliases": [],
+      "codepoint": 58662
+    },
+    {
+      "name": "arrow-fat-lines-right",
+      "aliases": [],
+      "codepoint": 58664
+    },
+    {
+      "name": "arrow-fat-lines-up",
+      "aliases": [],
+      "codepoint": 58666
+    },
+    {
+      "name": "arrow-fat-right",
+      "aliases": [],
+      "codepoint": 58668
+    },
+    {
+      "name": "arrow-fat-up",
+      "aliases": [],
+      "codepoint": 58670
+    },
+    {
+      "name": "arrow-left",
+      "aliases": [],
+      "codepoint": 57432
+    },
+    {
+      "name": "arrow-line-down",
+      "aliases": [],
+      "codepoint": 57436
+    },
+    {
+      "name": "arrow-line-down-left",
+      "aliases": [],
+      "codepoint": 57438
+    },
+    {
+      "name": "arrow-line-down-right",
+      "aliases": [],
+      "codepoint": 57440
+    },
+    {
+      "name": "arrow-line-left",
+      "aliases": [],
+      "codepoint": 57442
+    },
+    {
+      "name": "arrow-line-right",
+      "aliases": [],
+      "codepoint": 57444
+    },
+    {
+      "name": "arrow-line-up",
+      "aliases": [],
+      "codepoint": 57446
+    },
+    {
+      "name": "arrow-line-up-left",
+      "aliases": [],
+      "codepoint": 57448
+    },
+    {
+      "name": "arrow-line-up-right",
+      "aliases": [],
+      "codepoint": 57450
+    },
+    {
+      "name": "arrow-right",
+      "aliases": [],
+      "codepoint": 57452
+    },
+    {
+      "name": "arrow-square-down",
+      "aliases": [],
+      "codepoint": 57454
+    },
+    {
+      "name": "arrow-square-down-left",
+      "aliases": [],
+      "codepoint": 57456
+    },
+    {
+      "name": "arrow-square-down-right",
+      "aliases": [],
+      "codepoint": 57458
+    },
+    {
+      "name": "arrow-square-in",
+      "aliases": [],
+      "codepoint": 58844
+    },
+    {
+      "name": "arrow-square-left",
+      "aliases": [],
+      "codepoint": 57460
+    },
+    {
+      "name": "arrow-square-out",
+      "aliases": [],
+      "codepoint": 58846
+    },
+    {
+      "name": "arrow-square-right",
+      "aliases": [],
+      "codepoint": 57462
+    },
+    {
+      "name": "arrow-square-up",
+      "aliases": [],
+      "codepoint": 57464
+    },
+    {
+      "name": "arrow-square-up-left",
+      "aliases": [],
+      "codepoint": 57466
+    },
+    {
+      "name": "arrow-square-up-right",
+      "aliases": [],
+      "codepoint": 57468
+    },
+    {
+      "name": "arrow-u-down-left",
+      "aliases": [],
+      "codepoint": 57470
+    },
+    {
+      "name": "arrow-u-down-right",
+      "aliases": [],
+      "codepoint": 57472
+    },
+    {
+      "name": "arrow-u-left-down",
+      "aliases": [],
+      "codepoint": 57474
+    },
+    {
+      "name": "arrow-u-left-up",
+      "aliases": [],
+      "codepoint": 57476
+    },
+    {
+      "name": "arrow-u-right-down",
+      "aliases": [],
+      "codepoint": 57478
+    },
+    {
+      "name": "arrow-u-right-up",
+      "aliases": [],
+      "codepoint": 57480
+    },
+    {
+      "name": "arrow-u-up-left",
+      "aliases": [],
+      "codepoint": 57482
+    },
+    {
+      "name": "arrow-u-up-right",
+      "aliases": [],
+      "codepoint": 57484
+    },
+    {
+      "name": "arrow-up",
+      "aliases": [],
+      "codepoint": 57486
+    },
+    {
+      "name": "arrow-up-left",
+      "aliases": [],
+      "codepoint": 57488
+    },
+    {
+      "name": "arrow-up-right",
+      "aliases": [],
+      "codepoint": 57490
+    },
+    {
+      "name": "arrows-clockwise",
+      "aliases": [],
+      "codepoint": 57492
+    },
+    {
+      "name": "arrows-counter-clockwise",
+      "aliases": [],
+      "codepoint": 57494
+    },
+    {
+      "name": "arrows-down-up",
+      "aliases": [],
+      "codepoint": 57496
+    },
+    {
+      "name": "arrows-horizontal",
+      "aliases": [],
+      "codepoint": 60166
+    },
+    {
+      "name": "arrows-in",
+      "aliases": [],
+      "codepoint": 57498
+    },
+    {
+      "name": "arrows-in-cardinal",
+      "aliases": [],
+      "codepoint": 57500
+    },
+    {
+      "name": "arrows-in-line-horizontal",
+      "aliases": [],
+      "codepoint": 58672
+    },
+    {
+      "name": "arrows-in-line-vertical",
+      "aliases": [],
+      "codepoint": 58674
+    },
+    {
+      "name": "arrows-in-simple",
+      "aliases": [],
+      "codepoint": 57502
+    },
+    {
+      "name": "arrows-left-right",
+      "aliases": [],
+      "codepoint": 57504
+    },
+    {
+      "name": "arrows-merge",
+      "aliases": [],
+      "codepoint": 60734
+    },
+    {
+      "name": "arrows-out",
+      "aliases": [],
+      "codepoint": 57506
+    },
+    {
+      "name": "arrows-out-cardinal",
+      "aliases": [],
+      "codepoint": 57508
+    },
+    {
+      "name": "arrows-out-line-horizontal",
+      "aliases": [],
+      "codepoint": 58676
+    },
+    {
+      "name": "arrows-out-line-vertical",
+      "aliases": [],
+      "codepoint": 58678
+    },
+    {
+      "name": "arrows-out-simple",
+      "aliases": [],
+      "codepoint": 57510
+    },
+    {
+      "name": "arrows-split",
+      "aliases": [],
+      "codepoint": 60732
+    },
+    {
+      "name": "arrows-vertical",
+      "aliases": [],
+      "codepoint": 60164
+    },
+    {
+      "name": "article",
+      "aliases": [],
+      "codepoint": 57512
+    },
+    {
+      "name": "article-medium",
+      "aliases": [],
+      "codepoint": 58848
+    },
+    {
+      "name": "article-ny-times",
+      "aliases": [],
+      "codepoint": 58850
+    },
+    {
+      "name": "asclepius",
+      "aliases": [
+        "caduceus"
+      ],
+      "codepoint": 60980
+    },
+    {
+      "name": "asterisk",
+      "aliases": [],
+      "codepoint": 57514
+    },
+    {
+      "name": "asterisk-simple",
+      "aliases": [],
+      "codepoint": 59442
+    },
+    {
+      "name": "at",
+      "aliases": [],
+      "codepoint": 57516
+    },
+    {
+      "name": "atom",
+      "aliases": [],
+      "codepoint": 58852
+    },
+    {
+      "name": "avocado",
+      "aliases": [],
+      "codepoint": 60932
+    },
+    {
+      "name": "axe",
+      "aliases": [],
+      "codepoint": 59900
+    },
+    {
+      "name": "baby",
+      "aliases": [],
+      "codepoint": 59252
+    },
+    {
+      "name": "baby-carriage",
+      "aliases": [],
+      "codepoint": 59416
+    },
+    {
+      "name": "backpack",
+      "aliases": [],
+      "codepoint": 59682
+    },
+    {
+      "name": "backspace",
+      "aliases": [],
+      "codepoint": 57518
+    },
+    {
+      "name": "bag",
+      "aliases": [],
+      "codepoint": 57520
+    },
+    {
+      "name": "bag-simple",
+      "aliases": [],
+      "codepoint": 58854
+    },
+    {
+      "name": "balloon",
+      "aliases": [],
+      "codepoint": 59244
+    },
+    {
+      "name": "bandaids",
+      "aliases": [],
+      "codepoint": 57522
+    },
+    {
+      "name": "bank",
+      "aliases": [],
+      "codepoint": 57524
+    },
+    {
+      "name": "barbell",
+      "aliases": [],
+      "codepoint": 57526
+    },
+    {
+      "name": "barcode",
+      "aliases": [],
+      "codepoint": 57528
+    },
+    {
+      "name": "barn",
+      "aliases": [],
+      "codepoint": 60530
+    },
+    {
+      "name": "barricade",
+      "aliases": [],
+      "codepoint": 59720
+    },
+    {
+      "name": "baseball",
+      "aliases": [],
+      "codepoint": 59162
+    },
+    {
+      "name": "baseball-cap",
+      "aliases": [],
+      "codepoint": 59944
+    },
+    {
+      "name": "baseball-helmet",
+      "aliases": [],
+      "codepoint": 61002
+    },
+    {
+      "name": "basket",
+      "aliases": [],
+      "codepoint": 59748
+    },
+    {
+      "name": "basketball",
+      "aliases": [],
+      "codepoint": 59172
+    },
+    {
+      "name": "bathtub",
+      "aliases": [],
+      "codepoint": 59422
+    },
+    {
+      "name": "battery-charging",
+      "aliases": [],
+      "codepoint": 57530
+    },
+    {
+      "name": "battery-charging-vertical",
+      "aliases": [],
+      "codepoint": 57532
+    },
+    {
+      "name": "battery-empty",
+      "aliases": [],
+      "codepoint": 57534
+    },
+    {
+      "name": "battery-full",
+      "aliases": [],
+      "codepoint": 57536
+    },
+    {
+      "name": "battery-high",
+      "aliases": [],
+      "codepoint": 57538
+    },
+    {
+      "name": "battery-low",
+      "aliases": [],
+      "codepoint": 57540
+    },
+    {
+      "name": "battery-medium",
+      "aliases": [],
+      "codepoint": 57542
+    },
+    {
+      "name": "battery-plus",
+      "aliases": [],
+      "codepoint": 59400
+    },
+    {
+      "name": "battery-plus-vertical",
+      "aliases": [],
+      "codepoint": 60496
+    },
+    {
+      "name": "battery-vertical-empty",
+      "aliases": [],
+      "codepoint": 59334
+    },
+    {
+      "name": "battery-vertical-full",
+      "aliases": [],
+      "codepoint": 59332
+    },
+    {
+      "name": "battery-vertical-high",
+      "aliases": [],
+      "codepoint": 59330
+    },
+    {
+      "name": "battery-vertical-low",
+      "aliases": [],
+      "codepoint": 59326
+    },
+    {
+      "name": "battery-vertical-medium",
+      "aliases": [],
+      "codepoint": 59328
+    },
+    {
+      "name": "battery-warning",
+      "aliases": [],
+      "codepoint": 57544
+    },
+    {
+      "name": "battery-warning-vertical",
+      "aliases": [],
+      "codepoint": 57546
+    },
+    {
+      "name": "beach-ball",
+      "aliases": [],
+      "codepoint": 60708
+    },
+    {
+      "name": "beanie",
+      "aliases": [],
+      "codepoint": 59946
+    },
+    {
+      "name": "bed",
+      "aliases": [],
+      "codepoint": 57548
+    },
+    {
+      "name": "beer-bottle",
+      "aliases": [],
+      "codepoint": 59312
+    },
+    {
+      "name": "beer-stein",
+      "aliases": [],
+      "codepoint": 60258
+    },
+    {
+      "name": "behance-logo",
+      "aliases": [],
+      "codepoint": 59380
+    },
+    {
+      "name": "bell",
+      "aliases": [],
+      "codepoint": 57550
+    },
+    {
+      "name": "bell-ringing",
+      "aliases": [],
+      "codepoint": 58856
+    },
+    {
+      "name": "bell-simple",
+      "aliases": [],
+      "codepoint": 57552
+    },
+    {
+      "name": "bell-simple-ringing",
+      "aliases": [],
+      "codepoint": 58858
+    },
+    {
+      "name": "bell-simple-slash",
+      "aliases": [],
+      "codepoint": 57554
+    },
+    {
+      "name": "bell-simple-z",
+      "aliases": [],
+      "codepoint": 58860
+    },
+    {
+      "name": "bell-slash",
+      "aliases": [],
+      "codepoint": 57556
+    },
+    {
+      "name": "bell-z",
+      "aliases": [],
+      "codepoint": 58862
+    },
+    {
+      "name": "belt",
+      "aliases": [],
+      "codepoint": 59948
+    },
+    {
+      "name": "bezier-curve",
+      "aliases": [],
+      "codepoint": 60160
+    },
+    {
+      "name": "bicycle",
+      "aliases": [],
+      "codepoint": 57558
+    },
+    {
+      "name": "binary",
+      "aliases": [],
+      "codepoint": 61024
+    },
+    {
+      "name": "binoculars",
+      "aliases": [],
+      "codepoint": 60004
+    },
+    {
+      "name": "biohazard",
+      "aliases": [],
+      "codepoint": 59872
+    },
+    {
+      "name": "bird",
+      "aliases": [],
+      "codepoint": 59180
+    },
+    {
+      "name": "blueprint",
+      "aliases": [],
+      "codepoint": 60832
+    },
+    {
+      "name": "bluetooth",
+      "aliases": [],
+      "codepoint": 57562
+    },
+    {
+      "name": "bluetooth-connected",
+      "aliases": [],
+      "codepoint": 57564
+    },
+    {
+      "name": "bluetooth-slash",
+      "aliases": [],
+      "codepoint": 57566
+    },
+    {
+      "name": "bluetooth-x",
+      "aliases": [],
+      "codepoint": 57568
+    },
+    {
+      "name": "boat",
+      "aliases": [],
+      "codepoint": 59270
+    },
+    {
+      "name": "bomb",
+      "aliases": [],
+      "codepoint": 60938
+    },
+    {
+      "name": "bone",
+      "aliases": [],
+      "codepoint": 59378
+    },
+    {
+      "name": "book",
+      "aliases": [],
+      "codepoint": 57570
+    },
+    {
+      "name": "book-bookmark",
+      "aliases": [],
+      "codepoint": 57572
+    },
+    {
+      "name": "book-open",
+      "aliases": [],
+      "codepoint": 57574
+    },
+    {
+      "name": "book-open-text",
+      "aliases": [],
+      "codepoint": 59634
+    },
+    {
+      "name": "book-open-user",
+      "aliases": [],
+      "codepoint": 60896
+    },
+    {
+      "name": "bookmark",
+      "aliases": [],
+      "codepoint": 57576
+    },
+    {
+      "name": "bookmark-simple",
+      "aliases": [],
+      "codepoint": 57578
+    },
+    {
+      "name": "bookmarks",
+      "aliases": [],
+      "codepoint": 57580
+    },
+    {
+      "name": "bookmarks-simple",
+      "aliases": [],
+      "codepoint": 58864
+    },
+    {
+      "name": "books",
+      "aliases": [],
+      "codepoint": 59224
+    },
+    {
+      "name": "boot",
+      "aliases": [],
+      "codepoint": 60618
+    },
+    {
+      "name": "boules",
+      "aliases": [],
+      "codepoint": 59170
+    },
+    {
+      "name": "bounding-box",
+      "aliases": [],
+      "codepoint": 59086
+    },
+    {
+      "name": "bowl-food",
+      "aliases": [],
+      "codepoint": 60068
+    },
+    {
+      "name": "bowl-steam",
+      "aliases": [],
+      "codepoint": 59620
+    },
+    {
+      "name": "bowling-ball",
+      "aliases": [],
+      "codepoint": 59956
+    },
+    {
+      "name": "box-arrow-down",
+      "aliases": [
+        "archive-box"
+      ],
+      "codepoint": 57358
+    },
+    {
+      "name": "box-arrow-up",
+      "aliases": [],
+      "codepoint": 61012
+    },
+    {
+      "name": "boxing-glove",
+      "aliases": [],
+      "codepoint": 59958
+    },
+    {
+      "name": "brackets-angle",
+      "aliases": [],
+      "codepoint": 59490
+    },
+    {
+      "name": "brackets-curly",
+      "aliases": [],
+      "codepoint": 59488
+    },
+    {
+      "name": "brackets-round",
+      "aliases": [],
+      "codepoint": 59492
+    },
+    {
+      "name": "brackets-square",
+      "aliases": [],
+      "codepoint": 59486
+    },
+    {
+      "name": "brain",
+      "aliases": [],
+      "codepoint": 59214
+    },
+    {
+      "name": "brandy",
+      "aliases": [],
+      "codepoint": 59060
+    },
+    {
+      "name": "bread",
+      "aliases": [],
+      "codepoint": 59420
+    },
+    {
+      "name": "bridge",
+      "aliases": [],
+      "codepoint": 60008
+    },
+    {
+      "name": "briefcase",
+      "aliases": [],
+      "codepoint": 57582
+    },
+    {
+      "name": "briefcase-metal",
+      "aliases": [],
+      "codepoint": 58866
+    },
+    {
+      "name": "broadcast",
+      "aliases": [],
+      "codepoint": 57586
+    },
+    {
+      "name": "broom",
+      "aliases": [],
+      "codepoint": 60500
+    },
+    {
+      "name": "browser",
+      "aliases": [],
+      "codepoint": 57588
+    },
+    {
+      "name": "browsers",
+      "aliases": [],
+      "codepoint": 57590
+    },
+    {
+      "name": "bug",
+      "aliases": [],
+      "codepoint": 58868
+    },
+    {
+      "name": "bug-beetle",
+      "aliases": [],
+      "codepoint": 58870
+    },
+    {
+      "name": "bug-droid",
+      "aliases": [],
+      "codepoint": 58872
+    },
+    {
+      "name": "building",
+      "aliases": [],
+      "codepoint": 57600
+    },
+    {
+      "name": "building-apartment",
+      "aliases": [],
+      "codepoint": 57598
+    },
+    {
+      "name": "building-office",
+      "aliases": [],
+      "codepoint": 57599
+    },
+    {
+      "name": "buildings",
+      "aliases": [],
+      "codepoint": 57602
+    },
+    {
+      "name": "bulldozer",
+      "aliases": [],
+      "codepoint": 60524
+    },
+    {
+      "name": "bus",
+      "aliases": [],
+      "codepoint": 57606
+    },
+    {
+      "name": "butterfly",
+      "aliases": [],
+      "codepoint": 60014
+    },
+    {
+      "name": "cable-car",
+      "aliases": [],
+      "codepoint": 58524
+    },
+    {
+      "name": "cactus",
+      "aliases": [],
+      "codepoint": 59672
+    },
+    {
+      "name": "cake",
+      "aliases": [],
+      "codepoint": 59264
+    },
+    {
+      "name": "calculator",
+      "aliases": [],
+      "codepoint": 58680
+    },
+    {
+      "name": "calendar",
+      "aliases": [],
+      "codepoint": 57608
+    },
+    {
+      "name": "calendar-blank",
+      "aliases": [],
+      "codepoint": 57610
+    },
+    {
+      "name": "calendar-check",
+      "aliases": [],
+      "codepoint": 59154
+    },
+    {
+      "name": "calendar-dot",
+      "aliases": [],
+      "codepoint": 59314
+    },
+    {
+      "name": "calendar-dots",
+      "aliases": [],
+      "codepoint": 59316
+    },
+    {
+      "name": "calendar-heart",
+      "aliases": [],
+      "codepoint": 59568
+    },
+    {
+      "name": "calendar-minus",
+      "aliases": [],
+      "codepoint": 59924
+    },
+    {
+      "name": "calendar-plus",
+      "aliases": [],
+      "codepoint": 59156
+    },
+    {
+      "name": "calendar-slash",
+      "aliases": [],
+      "codepoint": 59922
+    },
+    {
+      "name": "calendar-star",
+      "aliases": [],
+      "codepoint": 59570
+    },
+    {
+      "name": "calendar-x",
+      "aliases": [],
+      "codepoint": 57612
+    },
+    {
+      "name": "call-bell",
+      "aliases": [],
+      "codepoint": 59358
+    },
+    {
+      "name": "camera",
+      "aliases": [],
+      "codepoint": 57614
+    },
+    {
+      "name": "camera-plus",
+      "aliases": [],
+      "codepoint": 60504
+    },
+    {
+      "name": "camera-rotate",
+      "aliases": [],
+      "codepoint": 59300
+    },
+    {
+      "name": "camera-slash",
+      "aliases": [],
+      "codepoint": 57616
+    },
+    {
+      "name": "campfire",
+      "aliases": [],
+      "codepoint": 59864
+    },
+    {
+      "name": "car",
+      "aliases": [],
+      "codepoint": 57618
+    },
+    {
+      "name": "car-battery",
+      "aliases": [],
+      "codepoint": 60976
+    },
+    {
+      "name": "car-profile",
+      "aliases": [],
+      "codepoint": 59596
+    },
+    {
+      "name": "car-simple",
+      "aliases": [],
+      "codepoint": 57620
+    },
+    {
+      "name": "cardholder",
+      "aliases": [],
+      "codepoint": 58874
+    },
+    {
+      "name": "cards",
+      "aliases": [],
+      "codepoint": 57592
+    },
+    {
+      "name": "cards-three",
+      "aliases": [],
+      "codepoint": 61008
+    },
+    {
+      "name": "caret-circle-double-down",
+      "aliases": [],
+      "codepoint": 57622
+    },
+    {
+      "name": "caret-circle-double-left",
+      "aliases": [],
+      "codepoint": 57624
+    },
+    {
+      "name": "caret-circle-double-right",
+      "aliases": [],
+      "codepoint": 57626
+    },
+    {
+      "name": "caret-circle-double-up",
+      "aliases": [],
+      "codepoint": 57628
+    },
+    {
+      "name": "caret-circle-down",
+      "aliases": [],
+      "codepoint": 57630
+    },
+    {
+      "name": "caret-circle-left",
+      "aliases": [],
+      "codepoint": 57632
+    },
+    {
+      "name": "caret-circle-right",
+      "aliases": [],
+      "codepoint": 57634
+    },
+    {
+      "name": "caret-circle-up",
+      "aliases": [],
+      "codepoint": 57636
+    },
+    {
+      "name": "caret-circle-up-down",
+      "aliases": [],
+      "codepoint": 57662
+    },
+    {
+      "name": "caret-double-down",
+      "aliases": [],
+      "codepoint": 57638
+    },
+    {
+      "name": "caret-double-left",
+      "aliases": [],
+      "codepoint": 57640
+    },
+    {
+      "name": "caret-double-right",
+      "aliases": [],
+      "codepoint": 57642
+    },
+    {
+      "name": "caret-double-up",
+      "aliases": [],
+      "codepoint": 57644
+    },
+    {
+      "name": "caret-down",
+      "aliases": [],
+      "codepoint": 57654
+    },
+    {
+      "name": "caret-left",
+      "aliases": [],
+      "codepoint": 57656
+    },
+    {
+      "name": "caret-line-down",
+      "aliases": [],
+      "codepoint": 57652
+    },
+    {
+      "name": "caret-line-left",
+      "aliases": [],
+      "codepoint": 57650
+    },
+    {
+      "name": "caret-line-right",
+      "aliases": [],
+      "codepoint": 57648
+    },
+    {
+      "name": "caret-line-up",
+      "aliases": [],
+      "codepoint": 57646
+    },
+    {
+      "name": "caret-right",
+      "aliases": [],
+      "codepoint": 57658
+    },
+    {
+      "name": "caret-up",
+      "aliases": [],
+      "codepoint": 57660
+    },
+    {
+      "name": "caret-up-down",
+      "aliases": [],
+      "codepoint": 57664
+    },
+    {
+      "name": "carrot",
+      "aliases": [],
+      "codepoint": 60728
+    },
+    {
+      "name": "cash-register",
+      "aliases": [],
+      "codepoint": 60800
+    },
+    {
+      "name": "cassette-tape",
+      "aliases": [],
+      "codepoint": 60718
+    },
+    {
+      "name": "castle-turret",
+      "aliases": [],
+      "codepoint": 59856
+    },
+    {
+      "name": "cat",
+      "aliases": [],
+      "codepoint": 59208
+    },
+    {
+      "name": "cell-signal-full",
+      "aliases": [],
+      "codepoint": 57666
+    },
+    {
+      "name": "cell-signal-high",
+      "aliases": [],
+      "codepoint": 57668
+    },
+    {
+      "name": "cell-signal-low",
+      "aliases": [],
+      "codepoint": 57670
+    },
+    {
+      "name": "cell-signal-medium",
+      "aliases": [],
+      "codepoint": 57672
+    },
+    {
+      "name": "cell-signal-none",
+      "aliases": [],
+      "codepoint": 57674
+    },
+    {
+      "name": "cell-signal-slash",
+      "aliases": [],
+      "codepoint": 57676
+    },
+    {
+      "name": "cell-signal-x",
+      "aliases": [],
+      "codepoint": 57678
+    },
+    {
+      "name": "cell-tower",
+      "aliases": [],
+      "codepoint": 60330
+    },
+    {
+      "name": "certificate",
+      "aliases": [],
+      "codepoint": 59238
+    },
+    {
+      "name": "chair",
+      "aliases": [],
+      "codepoint": 59728
+    },
+    {
+      "name": "chalkboard",
+      "aliases": [],
+      "codepoint": 58876
+    },
+    {
+      "name": "chalkboard-simple",
+      "aliases": [],
+      "codepoint": 58878
+    },
+    {
+      "name": "chalkboard-teacher",
+      "aliases": [],
+      "codepoint": 58880
+    },
+    {
+      "name": "champagne",
+      "aliases": [],
+      "codepoint": 60106
+    },
+    {
+      "name": "charging-station",
+      "aliases": [],
+      "codepoint": 59600
+    },
+    {
+      "name": "chart-bar",
+      "aliases": [],
+      "codepoint": 57680
+    },
+    {
+      "name": "chart-bar-horizontal",
+      "aliases": [],
+      "codepoint": 57682
+    },
+    {
+      "name": "chart-donut",
+      "aliases": [],
+      "codepoint": 60070
+    },
+    {
+      "name": "chart-line",
+      "aliases": [],
+      "codepoint": 57684
+    },
+    {
+      "name": "chart-line-down",
+      "aliases": [],
+      "codepoint": 59574
+    },
+    {
+      "name": "chart-line-up",
+      "aliases": [],
+      "codepoint": 57686
+    },
+    {
+      "name": "chart-pie",
+      "aliases": [],
+      "codepoint": 57688
+    },
+    {
+      "name": "chart-pie-slice",
+      "aliases": [],
+      "codepoint": 57690
+    },
+    {
+      "name": "chart-polar",
+      "aliases": [],
+      "codepoint": 60072
+    },
+    {
+      "name": "chart-scatter",
+      "aliases": [],
+      "codepoint": 60076
+    },
+    {
+      "name": "chat",
+      "aliases": [],
+      "codepoint": 57692
+    },
+    {
+      "name": "chat-centered",
+      "aliases": [],
+      "codepoint": 57696
+    },
+    {
+      "name": "chat-centered-dots",
+      "aliases": [],
+      "codepoint": 57700
+    },
+    {
+      "name": "chat-centered-slash",
+      "aliases": [],
+      "codepoint": 57698
+    },
+    {
+      "name": "chat-centered-text",
+      "aliases": [],
+      "codepoint": 57702
+    },
+    {
+      "name": "chat-circle",
+      "aliases": [],
+      "codepoint": 57704
+    },
+    {
+      "name": "chat-circle-dots",
+      "aliases": [],
+      "codepoint": 57708
+    },
+    {
+      "name": "chat-circle-slash",
+      "aliases": [],
+      "codepoint": 57706
+    },
+    {
+      "name": "chat-circle-text",
+      "aliases": [],
+      "codepoint": 57710
+    },
+    {
+      "name": "chat-dots",
+      "aliases": [],
+      "codepoint": 57712
+    },
+    {
+      "name": "chat-slash",
+      "aliases": [],
+      "codepoint": 57694
+    },
+    {
+      "name": "chat-teardrop",
+      "aliases": [],
+      "codepoint": 57714
+    },
+    {
+      "name": "chat-teardrop-dots",
+      "aliases": [],
+      "codepoint": 57718
+    },
+    {
+      "name": "chat-teardrop-slash",
+      "aliases": [],
+      "codepoint": 57716
+    },
+    {
+      "name": "chat-teardrop-text",
+      "aliases": [],
+      "codepoint": 57720
+    },
+    {
+      "name": "chat-text",
+      "aliases": [],
+      "codepoint": 57722
+    },
+    {
+      "name": "chats",
+      "aliases": [],
+      "codepoint": 57724
+    },
+    {
+      "name": "chats-circle",
+      "aliases": [],
+      "codepoint": 57726
+    },
+    {
+      "name": "chats-teardrop",
+      "aliases": [],
+      "codepoint": 57728
+    },
+    {
+      "name": "check",
+      "aliases": [],
+      "codepoint": 57730
+    },
+    {
+      "name": "check-circle",
+      "aliases": [],
+      "codepoint": 57732
+    },
+    {
+      "name": "check-fat",
+      "aliases": [],
+      "codepoint": 60326
+    },
+    {
+      "name": "check-square",
+      "aliases": [],
+      "codepoint": 57734
+    },
+    {
+      "name": "check-square-offset",
+      "aliases": [],
+      "codepoint": 57736
+    },
+    {
+      "name": "checkerboard",
+      "aliases": [],
+      "codepoint": 59588
+    },
+    {
+      "name": "checks",
+      "aliases": [],
+      "codepoint": 58682
+    },
+    {
+      "name": "cheers",
+      "aliases": [],
+      "codepoint": 59978
+    },
+    {
+      "name": "cheese",
+      "aliases": [],
+      "codepoint": 59902
+    },
+    {
+      "name": "chef-hat",
+      "aliases": [],
+      "codepoint": 60814
+    },
+    {
+      "name": "cherries",
+      "aliases": [],
+      "codepoint": 59440
+    },
+    {
+      "name": "church",
+      "aliases": [],
+      "codepoint": 60650
+    },
+    {
+      "name": "cigarette",
+      "aliases": [],
+      "codepoint": 60816
+    },
+    {
+      "name": "cigarette-slash",
+      "aliases": [],
+      "codepoint": 60818
+    },
+    {
+      "name": "circle",
+      "aliases": [],
+      "codepoint": 57738
+    },
+    {
+      "name": "circle-dashed",
+      "aliases": [],
+      "codepoint": 58882
+    },
+    {
+      "name": "circle-half",
+      "aliases": [],
+      "codepoint": 57740
+    },
+    {
+      "name": "circle-half-tilt",
+      "aliases": [],
+      "codepoint": 57742
+    },
+    {
+      "name": "circle-notch",
+      "aliases": [],
+      "codepoint": 60228
+    },
+    {
+      "name": "circles-four",
+      "aliases": [],
+      "codepoint": 57744
+    },
+    {
+      "name": "circles-three",
+      "aliases": [],
+      "codepoint": 57746
+    },
+    {
+      "name": "circles-three-plus",
+      "aliases": [],
+      "codepoint": 57748
+    },
+    {
+      "name": "circuitry",
+      "aliases": [],
+      "codepoint": 59842
+    },
+    {
+      "name": "city",
+      "aliases": [],
+      "codepoint": 60010
+    },
+    {
+      "name": "clipboard",
+      "aliases": [],
+      "codepoint": 57750
+    },
+    {
+      "name": "clipboard-text",
+      "aliases": [],
+      "codepoint": 57752
+    },
+    {
+      "name": "clock",
+      "aliases": [],
+      "codepoint": 57754
+    },
+    {
+      "name": "clock-afternoon",
+      "aliases": [],
+      "codepoint": 57756
+    },
+    {
+      "name": "clock-clockwise",
+      "aliases": [],
+      "codepoint": 57758
+    },
+    {
+      "name": "clock-countdown",
+      "aliases": [],
+      "codepoint": 60716
+    },
+    {
+      "name": "clock-counter-clockwise",
+      "aliases": [],
+      "codepoint": 57760
+    },
+    {
+      "name": "clock-user",
+      "aliases": [],
+      "codepoint": 60908
+    },
+    {
+      "name": "closed-captioning",
+      "aliases": [],
+      "codepoint": 57764
+    },
+    {
+      "name": "cloud",
+      "aliases": [],
+      "codepoint": 57770
+    },
+    {
+      "name": "cloud-arrow-down",
+      "aliases": [],
+      "codepoint": 57772
+    },
+    {
+      "name": "cloud-arrow-up",
+      "aliases": [],
+      "codepoint": 57774
+    },
+    {
+      "name": "cloud-check",
+      "aliases": [],
+      "codepoint": 57776
+    },
+    {
+      "name": "cloud-fog",
+      "aliases": [],
+      "codepoint": 58684
+    },
+    {
+      "name": "cloud-lightning",
+      "aliases": [],
+      "codepoint": 57778
+    },
+    {
+      "name": "cloud-moon",
+      "aliases": [],
+      "codepoint": 58686
+    },
+    {
+      "name": "cloud-rain",
+      "aliases": [],
+      "codepoint": 57780
+    },
+    {
+      "name": "cloud-slash",
+      "aliases": [],
+      "codepoint": 57782
+    },
+    {
+      "name": "cloud-snow",
+      "aliases": [],
+      "codepoint": 57784
+    },
+    {
+      "name": "cloud-sun",
+      "aliases": [],
+      "codepoint": 58688
+    },
+    {
+      "name": "cloud-warning",
+      "aliases": [],
+      "codepoint": 60056
+    },
+    {
+      "name": "cloud-x",
+      "aliases": [],
+      "codepoint": 60054
+    },
+    {
+      "name": "clover",
+      "aliases": [],
+      "codepoint": 60872
+    },
+    {
+      "name": "club",
+      "aliases": [],
+      "codepoint": 57786
+    },
+    {
+      "name": "coat-hanger",
+      "aliases": [],
+      "codepoint": 59390
+    },
+    {
+      "name": "coda-logo",
+      "aliases": [],
+      "codepoint": 59342
+    },
+    {
+      "name": "code",
+      "aliases": [],
+      "codepoint": 57788
+    },
+    {
+      "name": "code-block",
+      "aliases": [],
+      "codepoint": 60158
+    },
+    {
+      "name": "code-simple",
+      "aliases": [],
+      "codepoint": 57790
+    },
+    {
+      "name": "codepen-logo",
+      "aliases": [],
+      "codepoint": 59768
+    },
+    {
+      "name": "codesandbox-logo",
+      "aliases": [],
+      "codepoint": 59910
+    },
+    {
+      "name": "coffee",
+      "aliases": [],
+      "codepoint": 57794
+    },
+    {
+      "name": "coffee-bean",
+      "aliases": [],
+      "codepoint": 57792
+    },
+    {
+      "name": "coin",
+      "aliases": [],
+      "codepoint": 58894
+    },
+    {
+      "name": "coin-vertical",
+      "aliases": [],
+      "codepoint": 60232
+    },
+    {
+      "name": "coins",
+      "aliases": [],
+      "codepoint": 59278
+    },
+    {
+      "name": "columns",
+      "aliases": [],
+      "codepoint": 58694
+    },
+    {
+      "name": "columns-plus-left",
+      "aliases": [],
+      "codepoint": 58692
+    },
+    {
+      "name": "columns-plus-right",
+      "aliases": [],
+      "codepoint": 58690
+    },
+    {
+      "name": "command",
+      "aliases": [],
+      "codepoint": 57796
+    },
+    {
+      "name": "compass",
+      "aliases": [],
+      "codepoint": 57800
+    },
+    {
+      "name": "compass-rose",
+      "aliases": [],
+      "codepoint": 57798
+    },
+    {
+      "name": "compass-tool",
+      "aliases": [],
+      "codepoint": 59918
+    },
+    {
+      "name": "computer-tower",
+      "aliases": [],
+      "codepoint": 58696
+    },
+    {
+      "name": "confetti",
+      "aliases": [],
+      "codepoint": 59418
+    },
+    {
+      "name": "contactless-payment",
+      "aliases": [],
+      "codepoint": 60738
+    },
+    {
+      "name": "control",
+      "aliases": [],
+      "codepoint": 60582
+    },
+    {
+      "name": "cookie",
+      "aliases": [],
+      "codepoint": 59082
+    },
+    {
+      "name": "cooking-pot",
+      "aliases": [],
+      "codepoint": 59236
+    },
+    {
+      "name": "copy",
+      "aliases": [],
+      "codepoint": 57802
+    },
+    {
+      "name": "copy-simple",
+      "aliases": [],
+      "codepoint": 57804
+    },
+    {
+      "name": "copyleft",
+      "aliases": [],
+      "codepoint": 59498
+    },
+    {
+      "name": "copyright",
+      "aliases": [],
+      "codepoint": 58698
+    },
+    {
+      "name": "corners-in",
+      "aliases": [],
+      "codepoint": 57806
+    },
+    {
+      "name": "corners-out",
+      "aliases": [],
+      "codepoint": 57808
+    },
+    {
+      "name": "couch",
+      "aliases": [],
+      "codepoint": 59382
+    },
+    {
+      "name": "court-basketball",
+      "aliases": [],
+      "codepoint": 60982
+    },
+    {
+      "name": "cow",
+      "aliases": [],
+      "codepoint": 60094
+    },
+    {
+      "name": "cowboy-hat",
+      "aliases": [],
+      "codepoint": 60690
+    },
+    {
+      "name": "cpu",
+      "aliases": [],
+      "codepoint": 58896
+    },
+    {
+      "name": "crane",
+      "aliases": [],
+      "codepoint": 60744
+    },
+    {
+      "name": "crane-tower",
+      "aliases": [],
+      "codepoint": 60745
+    },
+    {
+      "name": "credit-card",
+      "aliases": [],
+      "codepoint": 57810
+    },
+    {
+      "name": "cricket",
+      "aliases": [],
+      "codepoint": 60946
+    },
+    {
+      "name": "crop",
+      "aliases": [],
+      "codepoint": 57812
+    },
+    {
+      "name": "cross",
+      "aliases": [],
+      "codepoint": 59552
+    },
+    {
+      "name": "crosshair",
+      "aliases": [],
+      "codepoint": 57814
+    },
+    {
+      "name": "crosshair-simple",
+      "aliases": [],
+      "codepoint": 57816
+    },
+    {
+      "name": "crown",
+      "aliases": [],
+      "codepoint": 58900
+    },
+    {
+      "name": "crown-cross",
+      "aliases": [],
+      "codepoint": 61022
+    },
+    {
+      "name": "crown-simple",
+      "aliases": [],
+      "codepoint": 58902
+    },
+    {
+      "name": "cube",
+      "aliases": [],
+      "codepoint": 57818
+    },
+    {
+      "name": "cube-focus",
+      "aliases": [],
+      "codepoint": 60682
+    },
+    {
+      "name": "cube-transparent",
+      "aliases": [],
+      "codepoint": 60540
+    },
+    {
+      "name": "currency-btc",
+      "aliases": [],
+      "codepoint": 58904
+    },
+    {
+      "name": "currency-circle-dollar",
+      "aliases": [],
+      "codepoint": 58700
+    },
+    {
+      "name": "currency-cny",
+      "aliases": [],
+      "codepoint": 58702
+    },
+    {
+      "name": "currency-dollar",
+      "aliases": [],
+      "codepoint": 58704
+    },
+    {
+      "name": "currency-dollar-simple",
+      "aliases": [],
+      "codepoint": 58706
+    },
+    {
+      "name": "currency-eth",
+      "aliases": [],
+      "codepoint": 60122
+    },
+    {
+      "name": "currency-eur",
+      "aliases": [],
+      "codepoint": 58708
+    },
+    {
+      "name": "currency-gbp",
+      "aliases": [],
+      "codepoint": 58710
+    },
+    {
+      "name": "currency-inr",
+      "aliases": [],
+      "codepoint": 58712
+    },
+    {
+      "name": "currency-jpy",
+      "aliases": [],
+      "codepoint": 58714
+    },
+    {
+      "name": "currency-krw",
+      "aliases": [],
+      "codepoint": 58716
+    },
+    {
+      "name": "currency-kzt",
+      "aliases": [],
+      "codepoint": 60492
+    },
+    {
+      "name": "currency-ngn",
+      "aliases": [],
+      "codepoint": 60242
+    },
+    {
+      "name": "currency-rub",
+      "aliases": [],
+      "codepoint": 58718
+    },
+    {
+      "name": "cursor",
+      "aliases": [],
+      "codepoint": 57820
+    },
+    {
+      "name": "cursor-click",
+      "aliases": [],
+      "codepoint": 59336
+    },
+    {
+      "name": "cursor-text",
+      "aliases": [],
+      "codepoint": 59352
+    },
+    {
+      "name": "cylinder",
+      "aliases": [],
+      "codepoint": 59644
+    },
+    {
+      "name": "database",
+      "aliases": [],
+      "codepoint": 57822
+    },
+    {
+      "name": "desk",
+      "aliases": [],
+      "codepoint": 60694
+    },
+    {
+      "name": "desktop",
+      "aliases": [],
+      "codepoint": 58720
+    },
+    {
+      "name": "desktop-tower",
+      "aliases": [],
+      "codepoint": 58722
+    },
+    {
+      "name": "detective",
+      "aliases": [],
+      "codepoint": 59454
+    },
+    {
+      "name": "dev-to-logo",
+      "aliases": [],
+      "codepoint": 60686
+    },
+    {
+      "name": "device-mobile",
+      "aliases": [],
+      "codepoint": 57824
+    },
+    {
+      "name": "device-mobile-camera",
+      "aliases": [],
+      "codepoint": 57826
+    },
+    {
+      "name": "device-mobile-slash",
+      "aliases": [],
+      "codepoint": 60998
+    },
+    {
+      "name": "device-mobile-speaker",
+      "aliases": [],
+      "codepoint": 57828
+    },
+    {
+      "name": "device-rotate",
+      "aliases": [],
+      "codepoint": 60914
+    },
+    {
+      "name": "device-tablet",
+      "aliases": [],
+      "codepoint": 57830
+    },
+    {
+      "name": "device-tablet-camera",
+      "aliases": [],
+      "codepoint": 57832
+    },
+    {
+      "name": "device-tablet-speaker",
+      "aliases": [],
+      "codepoint": 57834
+    },
+    {
+      "name": "devices",
+      "aliases": [],
+      "codepoint": 60324
+    },
+    {
+      "name": "diamond",
+      "aliases": [],
+      "codepoint": 57836
+    },
+    {
+      "name": "diamonds-four",
+      "aliases": [],
+      "codepoint": 59636
+    },
+    {
+      "name": "dice-five",
+      "aliases": [],
+      "codepoint": 57838
+    },
+    {
+      "name": "dice-four",
+      "aliases": [],
+      "codepoint": 57840
+    },
+    {
+      "name": "dice-one",
+      "aliases": [],
+      "codepoint": 57842
+    },
+    {
+      "name": "dice-six",
+      "aliases": [],
+      "codepoint": 57844
+    },
+    {
+      "name": "dice-three",
+      "aliases": [],
+      "codepoint": 57846
+    },
+    {
+      "name": "dice-two",
+      "aliases": [],
+      "codepoint": 57848
+    },
+    {
+      "name": "disc",
+      "aliases": [],
+      "codepoint": 58724
+    },
+    {
+      "name": "disco-ball",
+      "aliases": [],
+      "codepoint": 60824
+    },
+    {
+      "name": "discord-logo",
+      "aliases": [],
+      "codepoint": 58906
+    },
+    {
+      "name": "divide",
+      "aliases": [],
+      "codepoint": 57850
+    },
+    {
+      "name": "dna",
+      "aliases": [],
+      "codepoint": 59684
+    },
+    {
+      "name": "dog",
+      "aliases": [],
+      "codepoint": 59210
+    },
+    {
+      "name": "door",
+      "aliases": [],
+      "codepoint": 58908
+    },
+    {
+      "name": "door-open",
+      "aliases": [],
+      "codepoint": 59366
+    },
+    {
+      "name": "dot",
+      "aliases": [],
+      "codepoint": 60638
+    },
+    {
+      "name": "dot-outline",
+      "aliases": [],
+      "codepoint": 60640
+    },
+    {
+      "name": "dots-nine",
+      "aliases": [],
+      "codepoint": 57852
+    },
+    {
+      "name": "dots-six",
+      "aliases": [],
+      "codepoint": 59284
+    },
+    {
+      "name": "dots-six-vertical",
+      "aliases": [],
+      "codepoint": 60130
+    },
+    {
+      "name": "dots-three",
+      "aliases": [],
+      "codepoint": 57854
+    },
+    {
+      "name": "dots-three-circle",
+      "aliases": [],
+      "codepoint": 57856
+    },
+    {
+      "name": "dots-three-circle-vertical",
+      "aliases": [],
+      "codepoint": 57858
+    },
+    {
+      "name": "dots-three-outline",
+      "aliases": [],
+      "codepoint": 57860
+    },
+    {
+      "name": "dots-three-outline-vertical",
+      "aliases": [],
+      "codepoint": 57862
+    },
+    {
+      "name": "dots-three-vertical",
+      "aliases": [],
+      "codepoint": 57864
+    },
+    {
+      "name": "download",
+      "aliases": [],
+      "codepoint": 57866
+    },
+    {
+      "name": "download-simple",
+      "aliases": [],
+      "codepoint": 57868
+    },
+    {
+      "name": "dress",
+      "aliases": [],
+      "codepoint": 60030
+    },
+    {
+      "name": "dresser",
+      "aliases": [],
+      "codepoint": 59726
+    },
+    {
+      "name": "dribbble-logo",
+      "aliases": [],
+      "codepoint": 57870
+    },
+    {
+      "name": "drone",
+      "aliases": [],
+      "codepoint": 60788
+    },
+    {
+      "name": "drop",
+      "aliases": [],
+      "codepoint": 57872
+    },
+    {
+      "name": "drop-half",
+      "aliases": [],
+      "codepoint": 58726
+    },
+    {
+      "name": "drop-half-bottom",
+      "aliases": [],
+      "codepoint": 60224
+    },
+    {
+      "name": "drop-simple",
+      "aliases": [],
+      "codepoint": 60978
+    },
+    {
+      "name": "drop-slash",
+      "aliases": [],
+      "codepoint": 59732
+    },
+    {
+      "name": "dropbox-logo",
+      "aliases": [],
+      "codepoint": 59344
+    },
+    {
+      "name": "ear",
+      "aliases": [],
+      "codepoint": 59148
+    },
+    {
+      "name": "ear-slash",
+      "aliases": [],
+      "codepoint": 59150
+    },
+    {
+      "name": "egg",
+      "aliases": [],
+      "codepoint": 59410
+    },
+    {
+      "name": "egg-crack",
+      "aliases": [],
+      "codepoint": 60260
+    },
+    {
+      "name": "eject",
+      "aliases": [],
+      "codepoint": 57874
+    },
+    {
+      "name": "eject-simple",
+      "aliases": [],
+      "codepoint": 59054
+    },
+    {
+      "name": "elevator",
+      "aliases": [],
+      "codepoint": 60608
+    },
+    {
+      "name": "empty",
+      "aliases": [],
+      "codepoint": 60860
+    },
+    {
+      "name": "engine",
+      "aliases": [],
+      "codepoint": 60032
+    },
+    {
+      "name": "envelope",
+      "aliases": [],
+      "codepoint": 57876
+    },
+    {
+      "name": "envelope-open",
+      "aliases": [],
+      "codepoint": 57878
+    },
+    {
+      "name": "envelope-simple",
+      "aliases": [],
+      "codepoint": 57880
+    },
+    {
+      "name": "envelope-simple-open",
+      "aliases": [],
+      "codepoint": 57882
+    },
+    {
+      "name": "equalizer",
+      "aliases": [],
+      "codepoint": 60348
+    },
+    {
+      "name": "equals",
+      "aliases": [],
+      "codepoint": 57884
+    },
+    {
+      "name": "eraser",
+      "aliases": [],
+      "codepoint": 57886
+    },
+    {
+      "name": "escalator-down",
+      "aliases": [],
+      "codepoint": 60602
+    },
+    {
+      "name": "escalator-up",
+      "aliases": [],
+      "codepoint": 60604
+    },
+    {
+      "name": "exam",
+      "aliases": [],
+      "codepoint": 59202
+    },
+    {
+      "name": "exclamation-mark",
+      "aliases": [],
+      "codepoint": 60996
+    },
+    {
+      "name": "exclude",
+      "aliases": [],
+      "codepoint": 59522
+    },
+    {
+      "name": "exclude-square",
+      "aliases": [],
+      "codepoint": 59520
+    },
+    {
+      "name": "export",
+      "aliases": [],
+      "codepoint": 60144
+    },
+    {
+      "name": "eye",
+      "aliases": [],
+      "codepoint": 57888
+    },
+    {
+      "name": "eye-closed",
+      "aliases": [],
+      "codepoint": 57890
+    },
+    {
+      "name": "eye-slash",
+      "aliases": [],
+      "codepoint": 57892
+    },
+    {
+      "name": "eyedropper",
+      "aliases": [],
+      "codepoint": 58728
+    },
+    {
+      "name": "eyedropper-sample",
+      "aliases": [],
+      "codepoint": 60100
+    },
+    {
+      "name": "eyeglasses",
+      "aliases": [],
+      "codepoint": 59322
+    },
+    {
+      "name": "eyes",
+      "aliases": [],
+      "codepoint": 61020
+    },
+    {
+      "name": "face-mask",
+      "aliases": [],
+      "codepoint": 58730
+    },
+    {
+      "name": "facebook-logo",
+      "aliases": [],
+      "codepoint": 57894
+    },
+    {
+      "name": "factory",
+      "aliases": [],
+      "codepoint": 59232
+    },
+    {
+      "name": "faders",
+      "aliases": [],
+      "codepoint": 57896
+    },
+    {
+      "name": "faders-horizontal",
+      "aliases": [],
+      "codepoint": 57898
+    },
+    {
+      "name": "fallout-shelter",
+      "aliases": [],
+      "codepoint": 59870
+    },
+    {
+      "name": "fan",
+      "aliases": [],
+      "codepoint": 59890
+    },
+    {
+      "name": "farm",
+      "aliases": [],
+      "codepoint": 60528
+    },
+    {
+      "name": "fast-forward",
+      "aliases": [],
+      "codepoint": 59046
+    },
+    {
+      "name": "fast-forward-circle",
+      "aliases": [],
+      "codepoint": 57900
+    },
+    {
+      "name": "feather",
+      "aliases": [],
+      "codepoint": 59840
+    },
+    {
+      "name": "fediverse-logo",
+      "aliases": [],
+      "codepoint": 60774
+    },
+    {
+      "name": "figma-logo",
+      "aliases": [],
+      "codepoint": 57902
+    },
+    {
+      "name": "file",
+      "aliases": [],
+      "codepoint": 57904
+    },
+    {
+      "name": "file-archive",
+      "aliases": [],
+      "codepoint": 60202
+    },
+    {
+      "name": "file-arrow-down",
+      "aliases": [],
+      "codepoint": 57906
+    },
+    {
+      "name": "file-arrow-up",
+      "aliases": [],
+      "codepoint": 58910
+    },
+    {
+      "name": "file-audio",
+      "aliases": [],
+      "codepoint": 59936
+    },
+    {
+      "name": "file-c",
+      "aliases": [],
+      "codepoint": 60210
+    },
+    {
+      "name": "file-c-sharp",
+      "aliases": [],
+      "codepoint": 60208
+    },
+    {
+      "name": "file-cloud",
+      "aliases": [],
+      "codepoint": 59742
+    },
+    {
+      "name": "file-code",
+      "aliases": [],
+      "codepoint": 59668
+    },
+    {
+      "name": "file-cpp",
+      "aliases": [],
+      "codepoint": 60206
+    },
+    {
+      "name": "file-css",
+      "aliases": [],
+      "codepoint": 60212
+    },
+    {
+      "name": "file-csv",
+      "aliases": [],
+      "codepoint": 60188
+    },
+    {
+      "name": "file-dashed",
+      "aliases": [
+        "file-dotted"
+      ],
+      "codepoint": 59140
+    },
+    {
+      "name": "file-doc",
+      "aliases": [],
+      "codepoint": 60190
+    },
+    {
+      "name": "file-html",
+      "aliases": [],
+      "codepoint": 60216
+    },
+    {
+      "name": "file-image",
+      "aliases": [],
+      "codepoint": 59940
+    },
+    {
+      "name": "file-ini",
+      "aliases": [],
+      "codepoint": 60211
+    },
+    {
+      "name": "file-jpg",
+      "aliases": [],
+      "codepoint": 60186
+    },
+    {
+      "name": "file-js",
+      "aliases": [],
+      "codepoint": 60196
+    },
+    {
+      "name": "file-jsx",
+      "aliases": [],
+      "codepoint": 60218
+    },
+    {
+      "name": "file-lock",
+      "aliases": [],
+      "codepoint": 59740
+    },
+    {
+      "name": "file-magnifying-glass",
+      "aliases": [
+        "file-search"
+      ],
+      "codepoint": 57912
+    },
+    {
+      "name": "file-md",
+      "aliases": [],
+      "codepoint": 60752
+    },
+    {
+      "name": "file-minus",
+      "aliases": [],
+      "codepoint": 57908
+    },
+    {
+      "name": "file-pdf",
+      "aliases": [],
+      "codepoint": 59138
+    },
+    {
+      "name": "file-plus",
+      "aliases": [],
+      "codepoint": 57910
+    },
+    {
+      "name": "file-png",
+      "aliases": [],
+      "codepoint": 60184
+    },
+    {
+      "name": "file-ppt",
+      "aliases": [],
+      "codepoint": 60192
+    },
+    {
+      "name": "file-py",
+      "aliases": [],
+      "codepoint": 60204
+    },
+    {
+      "name": "file-rs",
+      "aliases": [],
+      "codepoint": 60200
+    },
+    {
+      "name": "file-sql",
+      "aliases": [],
+      "codepoint": 60750
+    },
+    {
+      "name": "file-svg",
+      "aliases": [],
+      "codepoint": 60680
+    },
+    {
+      "name": "file-text",
+      "aliases": [],
+      "codepoint": 57914
+    },
+    {
+      "name": "file-ts",
+      "aliases": [],
+      "codepoint": 60198
+    },
+    {
+      "name": "file-tsx",
+      "aliases": [],
+      "codepoint": 60220
+    },
+    {
+      "name": "file-txt",
+      "aliases": [],
+      "codepoint": 60213
+    },
+    {
+      "name": "file-video",
+      "aliases": [],
+      "codepoint": 59938
+    },
+    {
+      "name": "file-vue",
+      "aliases": [],
+      "codepoint": 60222
+    },
+    {
+      "name": "file-x",
+      "aliases": [],
+      "codepoint": 57916
+    },
+    {
+      "name": "file-xls",
+      "aliases": [],
+      "codepoint": 60194
+    },
+    {
+      "name": "file-zip",
+      "aliases": [],
+      "codepoint": 59736
+    },
+    {
+      "name": "files",
+      "aliases": [],
+      "codepoint": 59152
+    },
+    {
+      "name": "film-reel",
+      "aliases": [],
+      "codepoint": 59584
+    },
+    {
+      "name": "film-script",
+      "aliases": [],
+      "codepoint": 60240
+    },
+    {
+      "name": "film-slate",
+      "aliases": [],
+      "codepoint": 59586
+    },
+    {
+      "name": "film-strip",
+      "aliases": [],
+      "codepoint": 59282
+    },
+    {
+      "name": "fingerprint",
+      "aliases": [],
+      "codepoint": 57918
+    },
+    {
+      "name": "fingerprint-simple",
+      "aliases": [],
+      "codepoint": 57920
+    },
+    {
+      "name": "finn-the-human",
+      "aliases": [],
+      "codepoint": 58732
+    },
+    {
+      "name": "fire",
+      "aliases": [],
+      "codepoint": 57922
+    },
+    {
+      "name": "fire-extinguisher",
+      "aliases": [],
+      "codepoint": 59880
+    },
+    {
+      "name": "fire-simple",
+      "aliases": [],
+      "codepoint": 58912
+    },
+    {
+      "name": "fire-truck",
+      "aliases": [],
+      "codepoint": 58740
+    },
+    {
+      "name": "first-aid",
+      "aliases": [],
+      "codepoint": 58734
+    },
+    {
+      "name": "first-aid-kit",
+      "aliases": [],
+      "codepoint": 58736
+    },
+    {
+      "name": "fish",
+      "aliases": [],
+      "codepoint": 59176
+    },
+    {
+      "name": "fish-simple",
+      "aliases": [],
+      "codepoint": 59178
+    },
+    {
+      "name": "flag",
+      "aliases": [],
+      "codepoint": 57924
+    },
+    {
+      "name": "flag-banner",
+      "aliases": [],
+      "codepoint": 58914
+    },
+    {
+      "name": "flag-banner-fold",
+      "aliases": [],
+      "codepoint": 60658
+    },
+    {
+      "name": "flag-checkered",
+      "aliases": [],
+      "codepoint": 59960
+    },
+    {
+      "name": "flag-pennant",
+      "aliases": [],
+      "codepoint": 60656
+    },
+    {
+      "name": "flame",
+      "aliases": [],
+      "codepoint": 58916
+    },
+    {
+      "name": "flashlight",
+      "aliases": [],
+      "codepoint": 57926
+    },
+    {
+      "name": "flask",
+      "aliases": [],
+      "codepoint": 59294
+    },
+    {
+      "name": "flip-horizontal",
+      "aliases": [],
+      "codepoint": 60778
+    },
+    {
+      "name": "flip-vertical",
+      "aliases": [],
+      "codepoint": 60780
+    },
+    {
+      "name": "floppy-disk",
+      "aliases": [],
+      "codepoint": 57928
+    },
+    {
+      "name": "floppy-disk-back",
+      "aliases": [],
+      "codepoint": 60148
+    },
+    {
+      "name": "flow-arrow",
+      "aliases": [],
+      "codepoint": 59116
+    },
+    {
+      "name": "flower",
+      "aliases": [],
+      "codepoint": 59230
+    },
+    {
+      "name": "flower-lotus",
+      "aliases": [],
+      "codepoint": 59084
+    },
+    {
+      "name": "flower-tulip",
+      "aliases": [],
+      "codepoint": 60108
+    },
+    {
+      "name": "flying-saucer",
+      "aliases": [],
+      "codepoint": 60234
+    },
+    {
+      "name": "folder",
+      "aliases": [
+        "folder-notch"
+      ],
+      "codepoint": 57930
+    },
+    {
+      "name": "folder-dashed",
+      "aliases": [
+        "folder-dotted"
+      ],
+      "codepoint": 59640
+    },
+    {
+      "name": "folder-lock",
+      "aliases": [],
+      "codepoint": 59964
+    },
+    {
+      "name": "folder-minus",
+      "aliases": [
+        "folder-notch-minus"
+      ],
+      "codepoint": 57940
+    },
+    {
+      "name": "folder-open",
+      "aliases": [
+        "folder-notch-open"
+      ],
+      "codepoint": 57942
+    },
+    {
+      "name": "folder-plus",
+      "aliases": [
+        "folder-notch-plus"
+      ],
+      "codepoint": 57944
+    },
+    {
+      "name": "folder-simple",
+      "aliases": [],
+      "codepoint": 57946
+    },
+    {
+      "name": "folder-simple-dashed",
+      "aliases": [
+        "folder-simple-dotted"
+      ],
+      "codepoint": 60458
+    },
+    {
+      "name": "folder-simple-lock",
+      "aliases": [],
+      "codepoint": 60254
+    },
+    {
+      "name": "folder-simple-minus",
+      "aliases": [],
+      "codepoint": 57948
+    },
+    {
+      "name": "folder-simple-plus",
+      "aliases": [],
+      "codepoint": 57950
+    },
+    {
+      "name": "folder-simple-star",
+      "aliases": [],
+      "codepoint": 60462
+    },
+    {
+      "name": "folder-simple-user",
+      "aliases": [],
+      "codepoint": 60256
+    },
+    {
+      "name": "folder-star",
+      "aliases": [],
+      "codepoint": 60038
+    },
+    {
+      "name": "folder-user",
+      "aliases": [],
+      "codepoint": 60230
+    },
+    {
+      "name": "folders",
+      "aliases": [],
+      "codepoint": 57952
+    },
+    {
+      "name": "football",
+      "aliases": [],
+      "codepoint": 59160
+    },
+    {
+      "name": "football-helmet",
+      "aliases": [],
+      "codepoint": 61004
+    },
+    {
+      "name": "footprints",
+      "aliases": [],
+      "codepoint": 60040
+    },
+    {
+      "name": "fork-knife",
+      "aliases": [],
+      "codepoint": 57954
+    },
+    {
+      "name": "four-k",
+      "aliases": [],
+      "codepoint": 59996
+    },
+    {
+      "name": "frame-corners",
+      "aliases": [],
+      "codepoint": 58918
+    },
+    {
+      "name": "framer-logo",
+      "aliases": [],
+      "codepoint": 57956
+    },
+    {
+      "name": "function",
+      "aliases": [],
+      "codepoint": 60388
+    },
+    {
+      "name": "funnel",
+      "aliases": [],
+      "codepoint": 57958
+    },
+    {
+      "name": "funnel-simple",
+      "aliases": [],
+      "codepoint": 57960
+    },
+    {
+      "name": "funnel-simple-x",
+      "aliases": [],
+      "codepoint": 57962
+    },
+    {
+      "name": "funnel-x",
+      "aliases": [],
+      "codepoint": 57964
+    },
+    {
+      "name": "game-controller",
+      "aliases": [],
+      "codepoint": 57966
+    },
+    {
+      "name": "garage",
+      "aliases": [],
+      "codepoint": 60630
+    },
+    {
+      "name": "gas-can",
+      "aliases": [],
+      "codepoint": 59598
+    },
+    {
+      "name": "gas-pump",
+      "aliases": [],
+      "codepoint": 59240
+    },
+    {
+      "name": "gauge",
+      "aliases": [],
+      "codepoint": 58920
+    },
+    {
+      "name": "gavel",
+      "aliases": [],
+      "codepoint": 59954
+    },
+    {
+      "name": "gear",
+      "aliases": [],
+      "codepoint": 57968
+    },
+    {
+      "name": "gear-fine",
+      "aliases": [],
+      "codepoint": 59516
+    },
+    {
+      "name": "gear-six",
+      "aliases": [],
+      "codepoint": 57970
+    },
+    {
+      "name": "gender-female",
+      "aliases": [],
+      "codepoint": 59104
+    },
+    {
+      "name": "gender-intersex",
+      "aliases": [],
+      "codepoint": 59110
+    },
+    {
+      "name": "gender-male",
+      "aliases": [],
+      "codepoint": 59106
+    },
+    {
+      "name": "gender-neuter",
+      "aliases": [],
+      "codepoint": 59114
+    },
+    {
+      "name": "gender-nonbinary",
+      "aliases": [],
+      "codepoint": 59108
+    },
+    {
+      "name": "gender-transgender",
+      "aliases": [],
+      "codepoint": 59112
+    },
+    {
+      "name": "ghost",
+      "aliases": [],
+      "codepoint": 58922
+    },
+    {
+      "name": "gif",
+      "aliases": [],
+      "codepoint": 57972
+    },
+    {
+      "name": "gift",
+      "aliases": [],
+      "codepoint": 57974
+    },
+    {
+      "name": "git-branch",
+      "aliases": [],
+      "codepoint": 57976
+    },
+    {
+      "name": "git-commit",
+      "aliases": [],
+      "codepoint": 57978
+    },
+    {
+      "name": "git-diff",
+      "aliases": [],
+      "codepoint": 57980
+    },
+    {
+      "name": "git-fork",
+      "aliases": [],
+      "codepoint": 57982
+    },
+    {
+      "name": "git-merge",
+      "aliases": [],
+      "codepoint": 57984
+    },
+    {
+      "name": "git-pull-request",
+      "aliases": [],
+      "codepoint": 57986
+    },
+    {
+      "name": "github-logo",
+      "aliases": [],
+      "codepoint": 58742
+    },
+    {
+      "name": "gitlab-logo",
+      "aliases": [],
+      "codepoint": 59028
+    },
+    {
+      "name": "gitlab-logo-simple",
+      "aliases": [],
+      "codepoint": 59030
+    },
+    {
+      "name": "globe",
+      "aliases": [],
+      "codepoint": 57992
+    },
+    {
+      "name": "globe-hemisphere-east",
+      "aliases": [],
+      "codepoint": 57994
+    },
+    {
+      "name": "globe-hemisphere-west",
+      "aliases": [],
+      "codepoint": 57996
+    },
+    {
+      "name": "globe-simple",
+      "aliases": [],
+      "codepoint": 57998
+    },
+    {
+      "name": "globe-simple-x",
+      "aliases": [],
+      "codepoint": 57988
+    },
+    {
+      "name": "globe-stand",
+      "aliases": [],
+      "codepoint": 58000
+    },
+    {
+      "name": "globe-x",
+      "aliases": [],
+      "codepoint": 57990
+    },
+    {
+      "name": "goggles",
+      "aliases": [],
+      "codepoint": 60596
+    },
+    {
+      "name": "golf",
+      "aliases": [],
+      "codepoint": 59966
+    },
+    {
+      "name": "goodreads-logo",
+      "aliases": [],
+      "codepoint": 60688
+    },
+    {
+      "name": "google-cardboard-logo",
+      "aliases": [],
+      "codepoint": 59318
+    },
+    {
+      "name": "google-chrome-logo",
+      "aliases": [],
+      "codepoint": 59766
+    },
+    {
+      "name": "google-drive-logo",
+      "aliases": [],
+      "codepoint": 59638
+    },
+    {
+      "name": "google-logo",
+      "aliases": [],
+      "codepoint": 58002
+    },
+    {
+      "name": "google-photos-logo",
+      "aliases": [],
+      "codepoint": 60306
+    },
+    {
+      "name": "google-play-logo",
+      "aliases": [],
+      "codepoint": 58004
+    },
+    {
+      "name": "google-podcasts-logo",
+      "aliases": [],
+      "codepoint": 60308
+    },
+    {
+      "name": "gps",
+      "aliases": [],
+      "codepoint": 60888
+    },
+    {
+      "name": "gps-fix",
+      "aliases": [],
+      "codepoint": 60886
+    },
+    {
+      "name": "gps-slash",
+      "aliases": [],
+      "codepoint": 60884
+    },
+    {
+      "name": "gradient",
+      "aliases": [],
+      "codepoint": 60226
+    },
+    {
+      "name": "graduation-cap",
+      "aliases": [],
+      "codepoint": 58924
+    },
+    {
+      "name": "grains",
+      "aliases": [],
+      "codepoint": 60520
+    },
+    {
+      "name": "grains-slash",
+      "aliases": [],
+      "codepoint": 60522
+    },
+    {
+      "name": "graph",
+      "aliases": [],
+      "codepoint": 60248
+    },
+    {
+      "name": "graphics-card",
+      "aliases": [],
+      "codepoint": 58898
+    },
+    {
+      "name": "greater-than",
+      "aliases": [],
+      "codepoint": 60868
+    },
+    {
+      "name": "greater-than-or-equal",
+      "aliases": [],
+      "codepoint": 60834
+    },
+    {
+      "name": "grid-four",
+      "aliases": [],
+      "codepoint": 58006
+    },
+    {
+      "name": "grid-nine",
+      "aliases": [],
+      "codepoint": 60556
+    },
+    {
+      "name": "guitar",
+      "aliases": [],
+      "codepoint": 60042
+    },
+    {
+      "name": "hair-dryer",
+      "aliases": [],
+      "codepoint": 60006
+    },
+    {
+      "name": "hamburger",
+      "aliases": [],
+      "codepoint": 59280
+    },
+    {
+      "name": "hammer",
+      "aliases": [],
+      "codepoint": 59406
+    },
+    {
+      "name": "hand",
+      "aliases": [],
+      "codepoint": 58008
+    },
+    {
+      "name": "hand-arrow-down",
+      "aliases": [],
+      "codepoint": 59982
+    },
+    {
+      "name": "hand-arrow-up",
+      "aliases": [],
+      "codepoint": 61018
+    },
+    {
+      "name": "hand-coins",
+      "aliases": [],
+      "codepoint": 60044
+    },
+    {
+      "name": "hand-deposit",
+      "aliases": [],
+      "codepoint": 61058
+    },
+    {
+      "name": "hand-eye",
+      "aliases": [],
+      "codepoint": 59980
+    },
+    {
+      "name": "hand-fist",
+      "aliases": [],
+      "codepoint": 58746
+    },
+    {
+      "name": "hand-grabbing",
+      "aliases": [],
+      "codepoint": 58748
+    },
+    {
+      "name": "hand-heart",
+      "aliases": [],
+      "codepoint": 59408
+    },
+    {
+      "name": "hand-palm",
+      "aliases": [],
+      "codepoint": 58750
+    },
+    {
+      "name": "hand-peace",
+      "aliases": [],
+      "codepoint": 59340
+    },
+    {
+      "name": "hand-pointing",
+      "aliases": [],
+      "codepoint": 58010
+    },
+    {
+      "name": "hand-soap",
+      "aliases": [],
+      "codepoint": 58928
+    },
+    {
+      "name": "hand-swipe-left",
+      "aliases": [],
+      "codepoint": 60564
+    },
+    {
+      "name": "hand-swipe-right",
+      "aliases": [],
+      "codepoint": 60562
+    },
+    {
+      "name": "hand-tap",
+      "aliases": [],
+      "codepoint": 60560
+    },
+    {
+      "name": "hand-waving",
+      "aliases": [],
+      "codepoint": 58752
+    },
+    {
+      "name": "hand-withdraw",
+      "aliases": [],
+      "codepoint": 61056
+    },
+    {
+      "name": "handbag",
+      "aliases": [],
+      "codepoint": 58012
+    },
+    {
+      "name": "handbag-simple",
+      "aliases": [],
+      "codepoint": 58926
+    },
+    {
+      "name": "hands-clapping",
+      "aliases": [],
+      "codepoint": 59040
+    },
+    {
+      "name": "hands-praying",
+      "aliases": [],
+      "codepoint": 60616
+    },
+    {
+      "name": "handshake",
+      "aliases": [],
+      "codepoint": 58754
+    },
+    {
+      "name": "hard-drive",
+      "aliases": [],
+      "codepoint": 58014
+    },
+    {
+      "name": "hard-drives",
+      "aliases": [],
+      "codepoint": 58016
+    },
+    {
+      "name": "hard-hat",
+      "aliases": [],
+      "codepoint": 60742
+    },
+    {
+      "name": "hash",
+      "aliases": [],
+      "codepoint": 58018
+    },
+    {
+      "name": "hash-straight",
+      "aliases": [],
+      "codepoint": 58020
+    },
+    {
+      "name": "head-circuit",
+      "aliases": [],
+      "codepoint": 59348
+    },
+    {
+      "name": "headlights",
+      "aliases": [],
+      "codepoint": 59134
+    },
+    {
+      "name": "headphones",
+      "aliases": [],
+      "codepoint": 58022
+    },
+    {
+      "name": "headset",
+      "aliases": [],
+      "codepoint": 58756
+    },
+    {
+      "name": "heart",
+      "aliases": [],
+      "codepoint": 58024
+    },
+    {
+      "name": "heart-break",
+      "aliases": [],
+      "codepoint": 60392
+    },
+    {
+      "name": "heart-half",
+      "aliases": [],
+      "codepoint": 60488
+    },
+    {
+      "name": "heart-straight",
+      "aliases": [],
+      "codepoint": 58026
+    },
+    {
+      "name": "heart-straight-break",
+      "aliases": [],
+      "codepoint": 60312
+    },
+    {
+      "name": "heartbeat",
+      "aliases": [],
+      "codepoint": 58028
+    },
+    {
+      "name": "hexagon",
+      "aliases": [],
+      "codepoint": 58030
+    },
+    {
+      "name": "high-definition",
+      "aliases": [],
+      "codepoint": 60046
+    },
+    {
+      "name": "high-heel",
+      "aliases": [],
+      "codepoint": 59624
+    },
+    {
+      "name": "highlighter",
+      "aliases": [],
+      "codepoint": 60534
+    },
+    {
+      "name": "highlighter-circle",
+      "aliases": [],
+      "codepoint": 58930
+    },
+    {
+      "name": "hockey",
+      "aliases": [],
+      "codepoint": 60550
+    },
+    {
+      "name": "hoodie",
+      "aliases": [],
+      "codepoint": 60624
+    },
+    {
+      "name": "horse",
+      "aliases": [],
+      "codepoint": 58032
+    },
+    {
+      "name": "hospital",
+      "aliases": [],
+      "codepoint": 59460
+    },
+    {
+      "name": "hourglass",
+      "aliases": [],
+      "codepoint": 58034
+    },
+    {
+      "name": "hourglass-high",
+      "aliases": [],
+      "codepoint": 58036
+    },
+    {
+      "name": "hourglass-low",
+      "aliases": [],
+      "codepoint": 58038
+    },
+    {
+      "name": "hourglass-medium",
+      "aliases": [],
+      "codepoint": 58040
+    },
+    {
+      "name": "hourglass-simple",
+      "aliases": [],
+      "codepoint": 58042
+    },
+    {
+      "name": "hourglass-simple-high",
+      "aliases": [],
+      "codepoint": 58044
+    },
+    {
+      "name": "hourglass-simple-low",
+      "aliases": [],
+      "codepoint": 58046
+    },
+    {
+      "name": "hourglass-simple-medium",
+      "aliases": [],
+      "codepoint": 58048
+    },
+    {
+      "name": "house",
+      "aliases": [],
+      "codepoint": 58050
+    },
+    {
+      "name": "house-line",
+      "aliases": [],
+      "codepoint": 58052
+    },
+    {
+      "name": "house-simple",
+      "aliases": [],
+      "codepoint": 58054
+    },
+    {
+      "name": "hurricane",
+      "aliases": [],
+      "codepoint": 59534
+    },
+    {
+      "name": "ice-cream",
+      "aliases": [],
+      "codepoint": 59396
+    },
+    {
+      "name": "identification-badge",
+      "aliases": [],
+      "codepoint": 59126
+    },
+    {
+      "name": "identification-card",
+      "aliases": [],
+      "codepoint": 58056
+    },
+    {
+      "name": "image",
+      "aliases": [],
+      "codepoint": 58058
+    },
+    {
+      "name": "image-broken",
+      "aliases": [],
+      "codepoint": 59304
+    },
+    {
+      "name": "image-square",
+      "aliases": [],
+      "codepoint": 58060
+    },
+    {
+      "name": "images",
+      "aliases": [],
+      "codepoint": 59446
+    },
+    {
+      "name": "images-square",
+      "aliases": [],
+      "codepoint": 59444
+    },
+    {
+      "name": "infinity",
+      "aliases": [
+        "lemniscate"
+      ],
+      "codepoint": 58932
+    },
+    {
+      "name": "info",
+      "aliases": [],
+      "codepoint": 58062
+    },
+    {
+      "name": "instagram-logo",
+      "aliases": [],
+      "codepoint": 58064
+    },
+    {
+      "name": "intersect",
+      "aliases": [],
+      "codepoint": 58066
+    },
+    {
+      "name": "intersect-square",
+      "aliases": [],
+      "codepoint": 59514
+    },
+    {
+      "name": "intersect-three",
+      "aliases": [],
+      "codepoint": 60612
+    },
+    {
+      "name": "intersection",
+      "aliases": [],
+      "codepoint": 60858
+    },
+    {
+      "name": "invoice",
+      "aliases": [],
+      "codepoint": 60994
+    },
+    {
+      "name": "island",
+      "aliases": [],
+      "codepoint": 60934
+    },
+    {
+      "name": "jar",
+      "aliases": [],
+      "codepoint": 59360
+    },
+    {
+      "name": "jar-label",
+      "aliases": [],
+      "codepoint": 59361
+    },
+    {
+      "name": "jeep",
+      "aliases": [],
+      "codepoint": 58068
+    },
+    {
+      "name": "joystick",
+      "aliases": [],
+      "codepoint": 59998
+    },
+    {
+      "name": "kanban",
+      "aliases": [],
+      "codepoint": 60244
+    },
+    {
+      "name": "key",
+      "aliases": [],
+      "codepoint": 58070
+    },
+    {
+      "name": "key-return",
+      "aliases": [],
+      "codepoint": 59266
+    },
+    {
+      "name": "keyboard",
+      "aliases": [],
+      "codepoint": 58072
+    },
+    {
+      "name": "keyhole",
+      "aliases": [],
+      "codepoint": 60024
+    },
+    {
+      "name": "knife",
+      "aliases": [],
+      "codepoint": 58934
+    },
+    {
+      "name": "ladder",
+      "aliases": [],
+      "codepoint": 59876
+    },
+    {
+      "name": "ladder-simple",
+      "aliases": [],
+      "codepoint": 60454
+    },
+    {
+      "name": "lamp",
+      "aliases": [],
+      "codepoint": 58936
+    },
+    {
+      "name": "lamp-pendant",
+      "aliases": [],
+      "codepoint": 60974
+    },
+    {
+      "name": "laptop",
+      "aliases": [],
+      "codepoint": 58758
+    },
+    {
+      "name": "lasso",
+      "aliases": [],
+      "codepoint": 60870
+    },
+    {
+      "name": "lastfm-logo",
+      "aliases": [],
+      "codepoint": 59458
+    },
+    {
+      "name": "layout",
+      "aliases": [],
+      "codepoint": 59094
+    },
+    {
+      "name": "leaf",
+      "aliases": [],
+      "codepoint": 58074
+    },
+    {
+      "name": "lectern",
+      "aliases": [],
+      "codepoint": 59738
+    },
+    {
+      "name": "lego",
+      "aliases": [],
+      "codepoint": 59590
+    },
+    {
+      "name": "lego-smiley",
+      "aliases": [],
+      "codepoint": 59591
+    },
+    {
+      "name": "less-than",
+      "aliases": [],
+      "codepoint": 60844
+    },
+    {
+      "name": "less-than-or-equal",
+      "aliases": [],
+      "codepoint": 60836
+    },
+    {
+      "name": "letter-circle-h",
+      "aliases": [],
+      "codepoint": 60408
+    },
+    {
+      "name": "letter-circle-p",
+      "aliases": [],
+      "codepoint": 60424
+    },
+    {
+      "name": "letter-circle-v",
+      "aliases": [],
+      "codepoint": 60436
+    },
+    {
+      "name": "lifebuoy",
+      "aliases": [],
+      "codepoint": 58938
+    },
+    {
+      "name": "lightbulb",
+      "aliases": [],
+      "codepoint": 58076
+    },
+    {
+      "name": "lightbulb-filament",
+      "aliases": [],
+      "codepoint": 58940
+    },
+    {
+      "name": "lighthouse",
+      "aliases": [],
+      "codepoint": 59894
+    },
+    {
+      "name": "lightning",
+      "aliases": [],
+      "codepoint": 58078
+    },
+    {
+      "name": "lightning-a",
+      "aliases": [],
+      "codepoint": 60036
+    },
+    {
+      "name": "lightning-slash",
+      "aliases": [],
+      "codepoint": 58080
+    },
+    {
+      "name": "line-segment",
+      "aliases": [],
+      "codepoint": 59090
+    },
+    {
+      "name": "line-segments",
+      "aliases": [],
+      "codepoint": 59092
+    },
+    {
+      "name": "line-vertical",
+      "aliases": [],
+      "codepoint": 60784
+    },
+    {
+      "name": "link",
+      "aliases": [],
+      "codepoint": 58082
+    },
+    {
+      "name": "link-break",
+      "aliases": [],
+      "codepoint": 58084
+    },
+    {
+      "name": "link-simple",
+      "aliases": [],
+      "codepoint": 58086
+    },
+    {
+      "name": "link-simple-break",
+      "aliases": [],
+      "codepoint": 58088
+    },
+    {
+      "name": "link-simple-horizontal",
+      "aliases": [],
+      "codepoint": 58090
+    },
+    {
+      "name": "link-simple-horizontal-break",
+      "aliases": [],
+      "codepoint": 58092
+    },
+    {
+      "name": "linkedin-logo",
+      "aliases": [],
+      "codepoint": 58094
+    },
+    {
+      "name": "linktree-logo",
+      "aliases": [],
+      "codepoint": 60910
+    },
+    {
+      "name": "linux-logo",
+      "aliases": [],
+      "codepoint": 60162
+    },
+    {
+      "name": "list",
+      "aliases": [],
+      "codepoint": 58096
+    },
+    {
+      "name": "list-bullets",
+      "aliases": [],
+      "codepoint": 58098
+    },
+    {
+      "name": "list-checks",
+      "aliases": [],
+      "codepoint": 60124
+    },
+    {
+      "name": "list-dashes",
+      "aliases": [],
+      "codepoint": 58100
+    },
+    {
+      "name": "list-heart",
+      "aliases": [],
+      "codepoint": 60382
+    },
+    {
+      "name": "list-magnifying-glass",
+      "aliases": [],
+      "codepoint": 60384
+    },
+    {
+      "name": "list-numbers",
+      "aliases": [],
+      "codepoint": 58102
+    },
+    {
+      "name": "list-plus",
+      "aliases": [],
+      "codepoint": 58104
+    },
+    {
+      "name": "list-star",
+      "aliases": [],
+      "codepoint": 60380
+    },
+    {
+      "name": "lock",
+      "aliases": [],
+      "codepoint": 58106
+    },
+    {
+      "name": "lock-key",
+      "aliases": [],
+      "codepoint": 58110
+    },
+    {
+      "name": "lock-key-open",
+      "aliases": [],
+      "codepoint": 58112
+    },
+    {
+      "name": "lock-laminated",
+      "aliases": [],
+      "codepoint": 58114
+    },
+    {
+      "name": "lock-laminated-open",
+      "aliases": [],
+      "codepoint": 58116
+    },
+    {
+      "name": "lock-open",
+      "aliases": [],
+      "codepoint": 58118
+    },
+    {
+      "name": "lock-simple",
+      "aliases": [],
+      "codepoint": 58120
+    },
+    {
+      "name": "lock-simple-open",
+      "aliases": [],
+      "codepoint": 58122
+    },
+    {
+      "name": "lockers",
+      "aliases": [],
+      "codepoint": 60600
+    },
+    {
+      "name": "log",
+      "aliases": [],
+      "codepoint": 60802
+    },
+    {
+      "name": "magic-wand",
+      "aliases": [],
+      "codepoint": 59062
+    },
+    {
+      "name": "magnet",
+      "aliases": [],
+      "codepoint": 59008
+    },
+    {
+      "name": "magnet-straight",
+      "aliases": [],
+      "codepoint": 59010
+    },
+    {
+      "name": "magnifying-glass",
+      "aliases": [],
+      "codepoint": 58124
+    },
+    {
+      "name": "magnifying-glass-minus",
+      "aliases": [],
+      "codepoint": 58126
+    },
+    {
+      "name": "magnifying-glass-plus",
+      "aliases": [],
+      "codepoint": 58128
+    },
+    {
+      "name": "mailbox",
+      "aliases": [],
+      "codepoint": 60446
+    },
+    {
+      "name": "map-pin",
+      "aliases": [],
+      "codepoint": 58134
+    },
+    {
+      "name": "map-pin-area",
+      "aliases": [],
+      "codepoint": 60986
+    },
+    {
+      "name": "map-pin-line",
+      "aliases": [],
+      "codepoint": 58136
+    },
+    {
+      "name": "map-pin-plus",
+      "aliases": [],
+      "codepoint": 58132
+    },
+    {
+      "name": "map-pin-simple",
+      "aliases": [],
+      "codepoint": 60990
+    },
+    {
+      "name": "map-pin-simple-area",
+      "aliases": [],
+      "codepoint": 60988
+    },
+    {
+      "name": "map-pin-simple-line",
+      "aliases": [],
+      "codepoint": 60984
+    },
+    {
+      "name": "map-trifold",
+      "aliases": [],
+      "codepoint": 58138
+    },
+    {
+      "name": "markdown-logo",
+      "aliases": [],
+      "codepoint": 58632
+    },
+    {
+      "name": "marker-circle",
+      "aliases": [],
+      "codepoint": 58944
+    },
+    {
+      "name": "martini",
+      "aliases": [],
+      "codepoint": 58140
+    },
+    {
+      "name": "mask-happy",
+      "aliases": [],
+      "codepoint": 59892
+    },
+    {
+      "name": "mask-sad",
+      "aliases": [],
+      "codepoint": 60318
+    },
+    {
+      "name": "mastodon-logo",
+      "aliases": [],
+      "codepoint": 60776
+    },
+    {
+      "name": "math-operations",
+      "aliases": [],
+      "codepoint": 58142
+    },
+    {
+      "name": "matrix-logo",
+      "aliases": [],
+      "codepoint": 60772
+    },
+    {
+      "name": "medal",
+      "aliases": [],
+      "codepoint": 58144
+    },
+    {
+      "name": "medal-military",
+      "aliases": [],
+      "codepoint": 60668
+    },
+    {
+      "name": "medium-logo",
+      "aliases": [],
+      "codepoint": 58146
+    },
+    {
+      "name": "megaphone",
+      "aliases": [],
+      "codepoint": 58148
+    },
+    {
+      "name": "megaphone-simple",
+      "aliases": [],
+      "codepoint": 58946
+    },
+    {
+      "name": "member-of",
+      "aliases": [],
+      "codepoint": 60866
+    },
+    {
+      "name": "memory",
+      "aliases": [],
+      "codepoint": 59844
+    },
+    {
+      "name": "messenger-logo",
+      "aliases": [],
+      "codepoint": 59096
+    },
+    {
+      "name": "meta-logo",
+      "aliases": [],
+      "codepoint": 60674
+    },
+    {
+      "name": "meteor",
+      "aliases": [],
+      "codepoint": 59834
+    },
+    {
+      "name": "metronome",
+      "aliases": [],
+      "codepoint": 60558
+    },
+    {
+      "name": "microphone",
+      "aliases": [],
+      "codepoint": 58150
+    },
+    {
+      "name": "microphone-slash",
+      "aliases": [],
+      "codepoint": 58152
+    },
+    {
+      "name": "microphone-stage",
+      "aliases": [],
+      "codepoint": 59228
+    },
+    {
+      "name": "microscope",
+      "aliases": [],
+      "codepoint": 60538
+    },
+    {
+      "name": "microsoft-excel-logo",
+      "aliases": [],
+      "codepoint": 60268
+    },
+    {
+      "name": "microsoft-outlook-logo",
+      "aliases": [],
+      "codepoint": 60272
+    },
+    {
+      "name": "microsoft-powerpoint-logo",
+      "aliases": [],
+      "codepoint": 60110
+    },
+    {
+      "name": "microsoft-teams-logo",
+      "aliases": [],
+      "codepoint": 60262
+    },
+    {
+      "name": "microsoft-word-logo",
+      "aliases": [],
+      "codepoint": 60266
+    },
+    {
+      "name": "minus",
+      "aliases": [],
+      "codepoint": 58154
+    },
+    {
+      "name": "minus-circle",
+      "aliases": [],
+      "codepoint": 58156
+    },
+    {
+      "name": "minus-square",
+      "aliases": [],
+      "codepoint": 60748
+    },
+    {
+      "name": "money",
+      "aliases": [],
+      "codepoint": 58760
+    },
+    {
+      "name": "money-wavy",
+      "aliases": [],
+      "codepoint": 61032
+    },
+    {
+      "name": "monitor",
+      "aliases": [],
+      "codepoint": 58158
+    },
+    {
+      "name": "monitor-arrow-up",
+      "aliases": [],
+      "codepoint": 58762
+    },
+    {
+      "name": "monitor-play",
+      "aliases": [],
+      "codepoint": 58764
+    },
+    {
+      "name": "moon",
+      "aliases": [],
+      "codepoint": 58160
+    },
+    {
+      "name": "moon-stars",
+      "aliases": [],
+      "codepoint": 58766
+    },
+    {
+      "name": "moped",
+      "aliases": [],
+      "codepoint": 59428
+    },
+    {
+      "name": "moped-front",
+      "aliases": [],
+      "codepoint": 59426
+    },
+    {
+      "name": "mosque",
+      "aliases": [],
+      "codepoint": 60654
+    },
+    {
+      "name": "motorcycle",
+      "aliases": [],
+      "codepoint": 59402
+    },
+    {
+      "name": "mountains",
+      "aliases": [],
+      "codepoint": 59310
+    },
+    {
+      "name": "mouse",
+      "aliases": [],
+      "codepoint": 58170
+    },
+    {
+      "name": "mouse-left-click",
+      "aliases": [],
+      "codepoint": 58164
+    },
+    {
+      "name": "mouse-middle-click",
+      "aliases": [],
+      "codepoint": 58168
+    },
+    {
+      "name": "mouse-right-click",
+      "aliases": [],
+      "codepoint": 58166
+    },
+    {
+      "name": "mouse-scroll",
+      "aliases": [],
+      "codepoint": 58162
+    },
+    {
+      "name": "mouse-simple",
+      "aliases": [],
+      "codepoint": 58948
+    },
+    {
+      "name": "music-note",
+      "aliases": [],
+      "codepoint": 58172
+    },
+    {
+      "name": "music-note-simple",
+      "aliases": [],
+      "codepoint": 58174
+    },
+    {
+      "name": "music-notes",
+      "aliases": [],
+      "codepoint": 58176
+    },
+    {
+      "name": "music-notes-minus",
+      "aliases": [],
+      "codepoint": 60940
+    },
+    {
+      "name": "music-notes-plus",
+      "aliases": [],
+      "codepoint": 60284
+    },
+    {
+      "name": "music-notes-simple",
+      "aliases": [],
+      "codepoint": 58178
+    },
+    {
+      "name": "navigation-arrow",
+      "aliases": [],
+      "codepoint": 60126
+    },
+    {
+      "name": "needle",
+      "aliases": [],
+      "codepoint": 59438
+    },
+    {
+      "name": "network",
+      "aliases": [],
+      "codepoint": 60894
+    },
+    {
+      "name": "network-slash",
+      "aliases": [],
+      "codepoint": 60892
+    },
+    {
+      "name": "network-x",
+      "aliases": [],
+      "codepoint": 60890
+    },
+    {
+      "name": "newspaper",
+      "aliases": [],
+      "codepoint": 58180
+    },
+    {
+      "name": "newspaper-clipping",
+      "aliases": [],
+      "codepoint": 58182
+    },
+    {
+      "name": "not-equals",
+      "aliases": [],
+      "codepoint": 60838
+    },
+    {
+      "name": "not-member-of",
+      "aliases": [],
+      "codepoint": 60846
+    },
+    {
+      "name": "not-subset-of",
+      "aliases": [],
+      "codepoint": 60848
+    },
+    {
+      "name": "not-superset-of",
+      "aliases": [],
+      "codepoint": 60850
+    },
+    {
+      "name": "notches",
+      "aliases": [],
+      "codepoint": 60730
+    },
+    {
+      "name": "note",
+      "aliases": [],
+      "codepoint": 58184
+    },
+    {
+      "name": "note-blank",
+      "aliases": [],
+      "codepoint": 58186
+    },
+    {
+      "name": "note-pencil",
+      "aliases": [],
+      "codepoint": 58188
+    },
+    {
+      "name": "notebook",
+      "aliases": [],
+      "codepoint": 58190
+    },
+    {
+      "name": "notepad",
+      "aliases": [],
+      "codepoint": 58942
+    },
+    {
+      "name": "notification",
+      "aliases": [],
+      "codepoint": 59130
+    },
+    {
+      "name": "notion-logo",
+      "aliases": [],
+      "codepoint": 59808
+    },
+    {
+      "name": "nuclear-plant",
+      "aliases": [],
+      "codepoint": 60796
+    },
+    {
+      "name": "number-circle-eight",
+      "aliases": [],
+      "codepoint": 58194
+    },
+    {
+      "name": "number-circle-five",
+      "aliases": [],
+      "codepoint": 58200
+    },
+    {
+      "name": "number-circle-four",
+      "aliases": [],
+      "codepoint": 58206
+    },
+    {
+      "name": "number-circle-nine",
+      "aliases": [],
+      "codepoint": 58212
+    },
+    {
+      "name": "number-circle-one",
+      "aliases": [],
+      "codepoint": 58218
+    },
+    {
+      "name": "number-circle-seven",
+      "aliases": [],
+      "codepoint": 58224
+    },
+    {
+      "name": "number-circle-six",
+      "aliases": [],
+      "codepoint": 58230
+    },
+    {
+      "name": "number-circle-three",
+      "aliases": [],
+      "codepoint": 58236
+    },
+    {
+      "name": "number-circle-two",
+      "aliases": [],
+      "codepoint": 58242
+    },
+    {
+      "name": "number-circle-zero",
+      "aliases": [],
+      "codepoint": 58248
+    },
+    {
+      "name": "number-eight",
+      "aliases": [],
+      "codepoint": 58192
+    },
+    {
+      "name": "number-five",
+      "aliases": [],
+      "codepoint": 58198
+    },
+    {
+      "name": "number-four",
+      "aliases": [],
+      "codepoint": 58204
+    },
+    {
+      "name": "number-nine",
+      "aliases": [],
+      "codepoint": 58210
+    },
+    {
+      "name": "number-one",
+      "aliases": [],
+      "codepoint": 58216
+    },
+    {
+      "name": "number-seven",
+      "aliases": [],
+      "codepoint": 58222
+    },
+    {
+      "name": "number-six",
+      "aliases": [],
+      "codepoint": 58228
+    },
+    {
+      "name": "number-square-eight",
+      "aliases": [],
+      "codepoint": 58196
+    },
+    {
+      "name": "number-square-five",
+      "aliases": [],
+      "codepoint": 58202
+    },
+    {
+      "name": "number-square-four",
+      "aliases": [],
+      "codepoint": 58208
+    },
+    {
+      "name": "number-square-nine",
+      "aliases": [],
+      "codepoint": 58214
+    },
+    {
+      "name": "number-square-one",
+      "aliases": [],
+      "codepoint": 58220
+    },
+    {
+      "name": "number-square-seven",
+      "aliases": [],
+      "codepoint": 58226
+    },
+    {
+      "name": "number-square-six",
+      "aliases": [],
+      "codepoint": 58232
+    },
+    {
+      "name": "number-square-three",
+      "aliases": [],
+      "codepoint": 58238
+    },
+    {
+      "name": "number-square-two",
+      "aliases": [],
+      "codepoint": 58244
+    },
+    {
+      "name": "number-square-zero",
+      "aliases": [],
+      "codepoint": 58250
+    },
+    {
+      "name": "number-three",
+      "aliases": [],
+      "codepoint": 58234
+    },
+    {
+      "name": "number-two",
+      "aliases": [],
+      "codepoint": 58240
+    },
+    {
+      "name": "number-zero",
+      "aliases": [],
+      "codepoint": 58246
+    },
+    {
+      "name": "numpad",
+      "aliases": [],
+      "codepoint": 58312
+    },
+    {
+      "name": "nut",
+      "aliases": [],
+      "codepoint": 58252
+    },
+    {
+      "name": "ny-times-logo",
+      "aliases": [],
+      "codepoint": 58950
+    },
+    {
+      "name": "octagon",
+      "aliases": [],
+      "codepoint": 58254
+    },
+    {
+      "name": "office-chair",
+      "aliases": [],
+      "codepoint": 59974
+    },
+    {
+      "name": "onigiri",
+      "aliases": [],
+      "codepoint": 60972
+    },
+    {
+      "name": "open-ai-logo",
+      "aliases": [],
+      "codepoint": 59346
+    },
+    {
+      "name": "option",
+      "aliases": [],
+      "codepoint": 59560
+    },
+    {
+      "name": "orange",
+      "aliases": [],
+      "codepoint": 60992
+    },
+    {
+      "name": "orange-slice",
+      "aliases": [],
+      "codepoint": 60726
+    },
+    {
+      "name": "oven",
+      "aliases": [],
+      "codepoint": 60812
+    },
+    {
+      "name": "package",
+      "aliases": [],
+      "codepoint": 58256
+    },
+    {
+      "name": "paint-brush",
+      "aliases": [],
+      "codepoint": 59120
+    },
+    {
+      "name": "paint-brush-broad",
+      "aliases": [],
+      "codepoint": 58768
+    },
+    {
+      "name": "paint-brush-household",
+      "aliases": [],
+      "codepoint": 59122
+    },
+    {
+      "name": "paint-bucket",
+      "aliases": [],
+      "codepoint": 58258
+    },
+    {
+      "name": "paint-roller",
+      "aliases": [],
+      "codepoint": 59124
+    },
+    {
+      "name": "palette",
+      "aliases": [],
+      "codepoint": 59080
+    },
+    {
+      "name": "panorama",
+      "aliases": [],
+      "codepoint": 60066
+    },
+    {
+      "name": "pants",
+      "aliases": [],
+      "codepoint": 60552
+    },
+    {
+      "name": "paper-plane",
+      "aliases": [],
+      "codepoint": 58260
+    },
+    {
+      "name": "paper-plane-right",
+      "aliases": [],
+      "codepoint": 58262
+    },
+    {
+      "name": "paper-plane-tilt",
+      "aliases": [],
+      "codepoint": 58264
+    },
+    {
+      "name": "paperclip",
+      "aliases": [],
+      "codepoint": 58266
+    },
+    {
+      "name": "paperclip-horizontal",
+      "aliases": [],
+      "codepoint": 58770
+    },
+    {
+      "name": "parachute",
+      "aliases": [],
+      "codepoint": 60028
+    },
+    {
+      "name": "paragraph",
+      "aliases": [],
+      "codepoint": 59744
+    },
+    {
+      "name": "parallelogram",
+      "aliases": [],
+      "codepoint": 60614
+    },
+    {
+      "name": "park",
+      "aliases": [],
+      "codepoint": 60594
+    },
+    {
+      "name": "password",
+      "aliases": [],
+      "codepoint": 59218
+    },
+    {
+      "name": "path",
+      "aliases": [],
+      "codepoint": 58268
+    },
+    {
+      "name": "patreon-logo",
+      "aliases": [],
+      "codepoint": 59786
+    },
+    {
+      "name": "pause",
+      "aliases": [],
+      "codepoint": 58270
+    },
+    {
+      "name": "pause-circle",
+      "aliases": [],
+      "codepoint": 58272
+    },
+    {
+      "name": "paw-print",
+      "aliases": [],
+      "codepoint": 58952
+    },
+    {
+      "name": "paypal-logo",
+      "aliases": [],
+      "codepoint": 59788
+    },
+    {
+      "name": "peace",
+      "aliases": [],
+      "codepoint": 58274
+    },
+    {
+      "name": "pen",
+      "aliases": [],
+      "codepoint": 58282
+    },
+    {
+      "name": "pen-nib",
+      "aliases": [],
+      "codepoint": 58284
+    },
+    {
+      "name": "pen-nib-straight",
+      "aliases": [],
+      "codepoint": 58954
+    },
+    {
+      "name": "pencil",
+      "aliases": [],
+      "codepoint": 58286
+    },
+    {
+      "name": "pencil-circle",
+      "aliases": [],
+      "codepoint": 58288
+    },
+    {
+      "name": "pencil-line",
+      "aliases": [],
+      "codepoint": 58290
+    },
+    {
+      "name": "pencil-ruler",
+      "aliases": [],
+      "codepoint": 59654
+    },
+    {
+      "name": "pencil-simple",
+      "aliases": [],
+      "codepoint": 58292
+    },
+    {
+      "name": "pencil-simple-line",
+      "aliases": [],
+      "codepoint": 60358
+    },
+    {
+      "name": "pencil-simple-slash",
+      "aliases": [],
+      "codepoint": 60662
+    },
+    {
+      "name": "pencil-slash",
+      "aliases": [],
+      "codepoint": 60664
+    },
+    {
+      "name": "pentagon",
+      "aliases": [],
+      "codepoint": 60542
+    },
+    {
+      "name": "pentagram",
+      "aliases": [],
+      "codepoint": 60508
+    },
+    {
+      "name": "pepper",
+      "aliases": [],
+      "codepoint": 59722
+    },
+    {
+      "name": "percent",
+      "aliases": [],
+      "codepoint": 58294
+    },
+    {
+      "name": "person",
+      "aliases": [],
+      "codepoint": 58280
+    },
+    {
+      "name": "person-arms-spread",
+      "aliases": [],
+      "codepoint": 60670
+    },
+    {
+      "name": "person-simple",
+      "aliases": [],
+      "codepoint": 59182
+    },
+    {
+      "name": "person-simple-bike",
+      "aliases": [],
+      "codepoint": 59188
+    },
+    {
+      "name": "person-simple-circle",
+      "aliases": [],
+      "codepoint": 61016
+    },
+    {
+      "name": "person-simple-hike",
+      "aliases": [],
+      "codepoint": 60756
+    },
+    {
+      "name": "person-simple-run",
+      "aliases": [],
+      "codepoint": 59184
+    },
+    {
+      "name": "person-simple-ski",
+      "aliases": [],
+      "codepoint": 59164
+    },
+    {
+      "name": "person-simple-snowboard",
+      "aliases": [],
+      "codepoint": 59166
+    },
+    {
+      "name": "person-simple-swim",
+      "aliases": [],
+      "codepoint": 59190
+    },
+    {
+      "name": "person-simple-tai-chi",
+      "aliases": [],
+      "codepoint": 60764
+    },
+    {
+      "name": "person-simple-throw",
+      "aliases": [],
+      "codepoint": 59186
+    },
+    {
+      "name": "person-simple-walk",
+      "aliases": [],
+      "codepoint": 59194
+    },
+    {
+      "name": "perspective",
+      "aliases": [],
+      "codepoint": 60390
+    },
+    {
+      "name": "phone",
+      "aliases": [],
+      "codepoint": 58296
+    },
+    {
+      "name": "phone-call",
+      "aliases": [],
+      "codepoint": 58298
+    },
+    {
+      "name": "phone-disconnect",
+      "aliases": [],
+      "codepoint": 58300
+    },
+    {
+      "name": "phone-incoming",
+      "aliases": [],
+      "codepoint": 58302
+    },
+    {
+      "name": "phone-list",
+      "aliases": [],
+      "codepoint": 58316
+    },
+    {
+      "name": "phone-outgoing",
+      "aliases": [],
+      "codepoint": 58304
+    },
+    {
+      "name": "phone-pause",
+      "aliases": [],
+      "codepoint": 58314
+    },
+    {
+      "name": "phone-plus",
+      "aliases": [],
+      "codepoint": 60502
+    },
+    {
+      "name": "phone-slash",
+      "aliases": [],
+      "codepoint": 58306
+    },
+    {
+      "name": "phone-transfer",
+      "aliases": [],
+      "codepoint": 58310
+    },
+    {
+      "name": "phone-x",
+      "aliases": [],
+      "codepoint": 58308
+    },
+    {
+      "name": "phosphor-logo",
+      "aliases": [],
+      "codepoint": 58318
+    },
+    {
+      "name": "pi",
+      "aliases": [],
+      "codepoint": 60544
+    },
+    {
+      "name": "piano-keys",
+      "aliases": [],
+      "codepoint": 59848
+    },
+    {
+      "name": "picnic-table",
+      "aliases": [],
+      "codepoint": 60966
+    },
+    {
+      "name": "picture-in-picture",
+      "aliases": [],
+      "codepoint": 58956
+    },
+    {
+      "name": "piggy-bank",
+      "aliases": [],
+      "codepoint": 59908
+    },
+    {
+      "name": "pill",
+      "aliases": [],
+      "codepoint": 59136
+    },
+    {
+      "name": "ping-pong",
+      "aliases": [],
+      "codepoint": 59970
+    },
+    {
+      "name": "pint-glass",
+      "aliases": [],
+      "codepoint": 60880
+    },
+    {
+      "name": "pinterest-logo",
+      "aliases": [],
+      "codepoint": 58958
+    },
+    {
+      "name": "pinwheel",
+      "aliases": [],
+      "codepoint": 60316
+    },
+    {
+      "name": "pipe",
+      "aliases": [],
+      "codepoint": 60806
+    },
+    {
+      "name": "pipe-wrench",
+      "aliases": [],
+      "codepoint": 60808
+    },
+    {
+      "name": "pix-logo",
+      "aliases": [],
+      "codepoint": 60610
+    },
+    {
+      "name": "pizza",
+      "aliases": [],
+      "codepoint": 59286
+    },
+    {
+      "name": "placeholder",
+      "aliases": [],
+      "codepoint": 58960
+    },
+    {
+      "name": "planet",
+      "aliases": [],
+      "codepoint": 58962
+    },
+    {
+      "name": "plant",
+      "aliases": [],
+      "codepoint": 60334
+    },
+    {
+      "name": "play",
+      "aliases": [],
+      "codepoint": 58320
+    },
+    {
+      "name": "play-circle",
+      "aliases": [],
+      "codepoint": 58322
+    },
+    {
+      "name": "play-pause",
+      "aliases": [],
+      "codepoint": 59582
+    },
+    {
+      "name": "playlist",
+      "aliases": [],
+      "codepoint": 59050
+    },
+    {
+      "name": "plug",
+      "aliases": [],
+      "codepoint": 59718
+    },
+    {
+      "name": "plug-charging",
+      "aliases": [],
+      "codepoint": 60252
+    },
+    {
+      "name": "plugs",
+      "aliases": [],
+      "codepoint": 60246
+    },
+    {
+      "name": "plugs-connected",
+      "aliases": [],
+      "codepoint": 60250
+    },
+    {
+      "name": "plus",
+      "aliases": [],
+      "codepoint": 58324
+    },
+    {
+      "name": "plus-circle",
+      "aliases": [],
+      "codepoint": 58326
+    },
+    {
+      "name": "plus-minus",
+      "aliases": [],
+      "codepoint": 58328
+    },
+    {
+      "name": "plus-square",
+      "aliases": [],
+      "codepoint": 60746
+    },
+    {
+      "name": "poker-chip",
+      "aliases": [],
+      "codepoint": 58772
+    },
+    {
+      "name": "police-car",
+      "aliases": [],
+      "codepoint": 60490
+    },
+    {
+      "name": "polygon",
+      "aliases": [],
+      "codepoint": 59088
+    },
+    {
+      "name": "popcorn",
+      "aliases": [],
+      "codepoint": 60238
+    },
+    {
+      "name": "popsicle",
+      "aliases": [],
+      "codepoint": 60350
+    },
+    {
+      "name": "potted-plant",
+      "aliases": [],
+      "codepoint": 60450
+    },
+    {
+      "name": "power",
+      "aliases": [],
+      "codepoint": 58330
+    },
+    {
+      "name": "prescription",
+      "aliases": [],
+      "codepoint": 59298
+    },
+    {
+      "name": "presentation",
+      "aliases": [],
+      "codepoint": 58964
+    },
+    {
+      "name": "presentation-chart",
+      "aliases": [],
+      "codepoint": 58966
+    },
+    {
+      "name": "printer",
+      "aliases": [],
+      "codepoint": 58332
+    },
+    {
+      "name": "prohibit",
+      "aliases": [],
+      "codepoint": 58334
+    },
+    {
+      "name": "prohibit-inset",
+      "aliases": [],
+      "codepoint": 58336
+    },
+    {
+      "name": "projector-screen",
+      "aliases": [],
+      "codepoint": 58968
+    },
+    {
+      "name": "projector-screen-chart",
+      "aliases": [],
+      "codepoint": 58970
+    },
+    {
+      "name": "pulse",
+      "aliases": [
+        "activity"
+      ],
+      "codepoint": 57344
+    },
+    {
+      "name": "push-pin",
+      "aliases": [],
+      "codepoint": 58338
+    },
+    {
+      "name": "push-pin-simple",
+      "aliases": [],
+      "codepoint": 58972
+    },
+    {
+      "name": "push-pin-simple-slash",
+      "aliases": [],
+      "codepoint": 58974
+    },
+    {
+      "name": "push-pin-slash",
+      "aliases": [],
+      "codepoint": 58340
+    },
+    {
+      "name": "puzzle-piece",
+      "aliases": [],
+      "codepoint": 58774
+    },
+    {
+      "name": "qr-code",
+      "aliases": [],
+      "codepoint": 58342
+    },
+    {
+      "name": "question",
+      "aliases": [],
+      "codepoint": 58344
+    },
+    {
+      "name": "question-mark",
+      "aliases": [],
+      "codepoint": 58345
+    },
+    {
+      "name": "queue",
+      "aliases": [],
+      "codepoint": 59052
+    },
+    {
+      "name": "quotes",
+      "aliases": [],
+      "codepoint": 58976
+    },
+    {
+      "name": "rabbit",
+      "aliases": [],
+      "codepoint": 60098
+    },
+    {
+      "name": "racquet",
+      "aliases": [],
+      "codepoint": 60930
+    },
+    {
+      "name": "radical",
+      "aliases": [],
+      "codepoint": 58346
+    },
+    {
+      "name": "radio",
+      "aliases": [],
+      "codepoint": 59262
+    },
+    {
+      "name": "radio-button",
+      "aliases": [],
+      "codepoint": 60168
+    },
+    {
+      "name": "radioactive",
+      "aliases": [],
+      "codepoint": 59868
+    },
+    {
+      "name": "rainbow",
+      "aliases": [],
+      "codepoint": 58776
+    },
+    {
+      "name": "rainbow-cloud",
+      "aliases": [],
+      "codepoint": 58778
+    },
+    {
+      "name": "ranking",
+      "aliases": [],
+      "codepoint": 60770
+    },
+    {
+      "name": "read-cv-logo",
+      "aliases": [],
+      "codepoint": 60684
+    },
+    {
+      "name": "receipt",
+      "aliases": [],
+      "codepoint": 58348
+    },
+    {
+      "name": "receipt-x",
+      "aliases": [],
+      "codepoint": 60736
+    },
+    {
+      "name": "record",
+      "aliases": [],
+      "codepoint": 58350
+    },
+    {
+      "name": "rectangle",
+      "aliases": [],
+      "codepoint": 58352
+    },
+    {
+      "name": "rectangle-dashed",
+      "aliases": [],
+      "codepoint": 58354
+    },
+    {
+      "name": "recycle",
+      "aliases": [],
+      "codepoint": 59226
+    },
+    {
+      "name": "reddit-logo",
+      "aliases": [],
+      "codepoint": 58780
+    },
+    {
+      "name": "repeat",
+      "aliases": [],
+      "codepoint": 58358
+    },
+    {
+      "name": "repeat-once",
+      "aliases": [],
+      "codepoint": 58360
+    },
+    {
+      "name": "replit-logo",
+      "aliases": [],
+      "codepoint": 60298
+    },
+    {
+      "name": "resize",
+      "aliases": [],
+      "codepoint": 60782
+    },
+    {
+      "name": "rewind",
+      "aliases": [],
+      "codepoint": 59048
+    },
+    {
+      "name": "rewind-circle",
+      "aliases": [],
+      "codepoint": 58362
+    },
+    {
+      "name": "road-horizon",
+      "aliases": [],
+      "codepoint": 59448
+    },
+    {
+      "name": "robot",
+      "aliases": [],
+      "codepoint": 59234
+    },
+    {
+      "name": "rocket",
+      "aliases": [],
+      "codepoint": 58364
+    },
+    {
+      "name": "rocket-launch",
+      "aliases": [],
+      "codepoint": 58366
+    },
+    {
+      "name": "rows",
+      "aliases": [],
+      "codepoint": 58786
+    },
+    {
+      "name": "rows-plus-bottom",
+      "aliases": [],
+      "codepoint": 58782
+    },
+    {
+      "name": "rows-plus-top",
+      "aliases": [],
+      "codepoint": 58784
+    },
+    {
+      "name": "rss",
+      "aliases": [],
+      "codepoint": 58368
+    },
+    {
+      "name": "rss-simple",
+      "aliases": [],
+      "codepoint": 58370
+    },
+    {
+      "name": "rug",
+      "aliases": [],
+      "codepoint": 59930
+    },
+    {
+      "name": "ruler",
+      "aliases": [],
+      "codepoint": 59064
+    },
+    {
+      "name": "sailboat",
+      "aliases": [],
+      "codepoint": 59274
+    },
+    {
+      "name": "scales",
+      "aliases": [],
+      "codepoint": 59216
+    },
+    {
+      "name": "scan",
+      "aliases": [],
+      "codepoint": 60342
+    },
+    {
+      "name": "scan-smiley",
+      "aliases": [],
+      "codepoint": 60340
+    },
+    {
+      "name": "scissors",
+      "aliases": [],
+      "codepoint": 60128
+    },
+    {
+      "name": "scooter",
+      "aliases": [],
+      "codepoint": 59424
+    },
+    {
+      "name": "screencast",
+      "aliases": [],
+      "codepoint": 58372
+    },
+    {
+      "name": "screwdriver",
+      "aliases": [],
+      "codepoint": 59502
+    },
+    {
+      "name": "scribble",
+      "aliases": [],
+      "codepoint": 59398
+    },
+    {
+      "name": "scribble-loop",
+      "aliases": [],
+      "codepoint": 58978
+    },
+    {
+      "name": "scroll",
+      "aliases": [],
+      "codepoint": 60282
+    },
+    {
+      "name": "seal",
+      "aliases": [
+        "circle-wavy"
+      ],
+      "codepoint": 58884
+    },
+    {
+      "name": "seal-check",
+      "aliases": [
+        "circle-wavy-check"
+      ],
+      "codepoint": 58886
+    },
+    {
+      "name": "seal-percent",
+      "aliases": [],
+      "codepoint": 58890
+    },
+    {
+      "name": "seal-question",
+      "aliases": [
+        "circle-wavy-question"
+      ],
+      "codepoint": 58888
+    },
+    {
+      "name": "seal-warning",
+      "aliases": [
+        "circle-wavy-warning"
+      ],
+      "codepoint": 58892
+    },
+    {
+      "name": "seat",
+      "aliases": [],
+      "codepoint": 60302
+    },
+    {
+      "name": "seatbelt",
+      "aliases": [],
+      "codepoint": 60926
+    },
+    {
+      "name": "security-camera",
+      "aliases": [],
+      "codepoint": 60580
+    },
+    {
+      "name": "selection",
+      "aliases": [],
+      "codepoint": 59034
+    },
+    {
+      "name": "selection-all",
+      "aliases": [],
+      "codepoint": 59206
+    },
+    {
+      "name": "selection-background",
+      "aliases": [],
+      "codepoint": 60152
+    },
+    {
+      "name": "selection-foreground",
+      "aliases": [],
+      "codepoint": 60150
+    },
+    {
+      "name": "selection-inverse",
+      "aliases": [],
+      "codepoint": 59204
+    },
+    {
+      "name": "selection-plus",
+      "aliases": [],
+      "codepoint": 59036
+    },
+    {
+      "name": "selection-slash",
+      "aliases": [],
+      "codepoint": 59038
+    },
+    {
+      "name": "shapes",
+      "aliases": [],
+      "codepoint": 60510
+    },
+    {
+      "name": "share",
+      "aliases": [],
+      "codepoint": 58374
+    },
+    {
+      "name": "share-fat",
+      "aliases": [],
+      "codepoint": 60754
+    },
+    {
+      "name": "share-network",
+      "aliases": [],
+      "codepoint": 58376
+    },
+    {
+      "name": "shield",
+      "aliases": [],
+      "codepoint": 58378
+    },
+    {
+      "name": "shield-check",
+      "aliases": [],
+      "codepoint": 58380
+    },
+    {
+      "name": "shield-checkered",
+      "aliases": [],
+      "codepoint": 59144
+    },
+    {
+      "name": "shield-chevron",
+      "aliases": [],
+      "codepoint": 58382
+    },
+    {
+      "name": "shield-plus",
+      "aliases": [],
+      "codepoint": 59142
+    },
+    {
+      "name": "shield-slash",
+      "aliases": [],
+      "codepoint": 58384
+    },
+    {
+      "name": "shield-star",
+      "aliases": [],
+      "codepoint": 60468
+    },
+    {
+      "name": "shield-warning",
+      "aliases": [],
+      "codepoint": 58386
+    },
+    {
+      "name": "shipping-container",
+      "aliases": [],
+      "codepoint": 59276
+    },
+    {
+      "name": "shirt-folded",
+      "aliases": [],
+      "codepoint": 60050
+    },
+    {
+      "name": "shooting-star",
+      "aliases": [],
+      "codepoint": 60666
+    },
+    {
+      "name": "shopping-bag",
+      "aliases": [],
+      "codepoint": 58390
+    },
+    {
+      "name": "shopping-bag-open",
+      "aliases": [],
+      "codepoint": 58392
+    },
+    {
+      "name": "shopping-cart",
+      "aliases": [],
+      "codepoint": 58398
+    },
+    {
+      "name": "shopping-cart-simple",
+      "aliases": [],
+      "codepoint": 58400
+    },
+    {
+      "name": "shovel",
+      "aliases": [],
+      "codepoint": 59878
+    },
+    {
+      "name": "shower",
+      "aliases": [],
+      "codepoint": 59254
+    },
+    {
+      "name": "shrimp",
+      "aliases": [],
+      "codepoint": 60084
+    },
+    {
+      "name": "shuffle",
+      "aliases": [],
+      "codepoint": 58402
+    },
+    {
+      "name": "shuffle-angular",
+      "aliases": [],
+      "codepoint": 58404
+    },
+    {
+      "name": "shuffle-simple",
+      "aliases": [],
+      "codepoint": 58406
+    },
+    {
+      "name": "sidebar",
+      "aliases": [],
+      "codepoint": 60086
+    },
+    {
+      "name": "sidebar-simple",
+      "aliases": [],
+      "codepoint": 60452
+    },
+    {
+      "name": "sigma",
+      "aliases": [],
+      "codepoint": 60088
+    },
+    {
+      "name": "sign-in",
+      "aliases": [],
+      "codepoint": 58408
+    },
+    {
+      "name": "sign-out",
+      "aliases": [],
+      "codepoint": 58410
+    },
+    {
+      "name": "signature",
+      "aliases": [],
+      "codepoint": 60332
+    },
+    {
+      "name": "signpost",
+      "aliases": [],
+      "codepoint": 59548
+    },
+    {
+      "name": "sim-card",
+      "aliases": [],
+      "codepoint": 58980
+    },
+    {
+      "name": "siren",
+      "aliases": [],
+      "codepoint": 59832
+    },
+    {
+      "name": "sketch-logo",
+      "aliases": [],
+      "codepoint": 58412
+    },
+    {
+      "name": "skip-back",
+      "aliases": [],
+      "codepoint": 58788
+    },
+    {
+      "name": "skip-back-circle",
+      "aliases": [],
+      "codepoint": 58414
+    },
+    {
+      "name": "skip-forward",
+      "aliases": [],
+      "codepoint": 58790
+    },
+    {
+      "name": "skip-forward-circle",
+      "aliases": [],
+      "codepoint": 58416
+    },
+    {
+      "name": "skull",
+      "aliases": [],
+      "codepoint": 59670
+    },
+    {
+      "name": "skype-logo",
+      "aliases": [],
+      "codepoint": 59612
+    },
+    {
+      "name": "slack-logo",
+      "aliases": [],
+      "codepoint": 58792
+    },
+    {
+      "name": "sliders",
+      "aliases": [],
+      "codepoint": 58418
+    },
+    {
+      "name": "sliders-horizontal",
+      "aliases": [],
+      "codepoint": 58420
+    },
+    {
+      "name": "slideshow",
+      "aliases": [],
+      "codepoint": 60722
+    },
+    {
+      "name": "smiley",
+      "aliases": [],
+      "codepoint": 58422
+    },
+    {
+      "name": "smiley-angry",
+      "aliases": [],
+      "codepoint": 60514
+    },
+    {
+      "name": "smiley-blank",
+      "aliases": [],
+      "codepoint": 58424
+    },
+    {
+      "name": "smiley-meh",
+      "aliases": [],
+      "codepoint": 58426
+    },
+    {
+      "name": "smiley-melting",
+      "aliases": [],
+      "codepoint": 61014
+    },
+    {
+      "name": "smiley-nervous",
+      "aliases": [],
+      "codepoint": 58428
+    },
+    {
+      "name": "smiley-sad",
+      "aliases": [],
+      "codepoint": 58430
+    },
+    {
+      "name": "smiley-sticker",
+      "aliases": [],
+      "codepoint": 58432
+    },
+    {
+      "name": "smiley-wink",
+      "aliases": [],
+      "codepoint": 58982
+    },
+    {
+      "name": "smiley-x-eyes",
+      "aliases": [],
+      "codepoint": 58434
+    },
+    {
+      "name": "snapchat-logo",
+      "aliases": [],
+      "codepoint": 58984
+    },
+    {
+      "name": "sneaker",
+      "aliases": [],
+      "codepoint": 59404
+    },
+    {
+      "name": "sneaker-move",
+      "aliases": [],
+      "codepoint": 60768
+    },
+    {
+      "name": "snowflake",
+      "aliases": [],
+      "codepoint": 58794
+    },
+    {
+      "name": "soccer-ball",
+      "aliases": [],
+      "codepoint": 59158
+    },
+    {
+      "name": "sock",
+      "aliases": [],
+      "codepoint": 60622
+    },
+    {
+      "name": "solar-panel",
+      "aliases": [],
+      "codepoint": 60794
+    },
+    {
+      "name": "solar-roof",
+      "aliases": [],
+      "codepoint": 60795
+    },
+    {
+      "name": "sort-ascending",
+      "aliases": [],
+      "codepoint": 58436
+    },
+    {
+      "name": "sort-descending",
+      "aliases": [],
+      "codepoint": 58438
+    },
+    {
+      "name": "soundcloud-logo",
+      "aliases": [],
+      "codepoint": 59614
+    },
+    {
+      "name": "spade",
+      "aliases": [],
+      "codepoint": 58440
+    },
+    {
+      "name": "sparkle",
+      "aliases": [],
+      "codepoint": 59042
+    },
+    {
+      "name": "speaker-hifi",
+      "aliases": [],
+      "codepoint": 59912
+    },
+    {
+      "name": "speaker-high",
+      "aliases": [],
+      "codepoint": 58442
+    },
+    {
+      "name": "speaker-low",
+      "aliases": [],
+      "codepoint": 58444
+    },
+    {
+      "name": "speaker-none",
+      "aliases": [],
+      "codepoint": 58446
+    },
+    {
+      "name": "speaker-simple-high",
+      "aliases": [],
+      "codepoint": 58448
+    },
+    {
+      "name": "speaker-simple-low",
+      "aliases": [],
+      "codepoint": 58450
+    },
+    {
+      "name": "speaker-simple-none",
+      "aliases": [],
+      "codepoint": 58452
+    },
+    {
+      "name": "speaker-simple-slash",
+      "aliases": [],
+      "codepoint": 58454
+    },
+    {
+      "name": "speaker-simple-x",
+      "aliases": [],
+      "codepoint": 58456
+    },
+    {
+      "name": "speaker-slash",
+      "aliases": [],
+      "codepoint": 58458
+    },
+    {
+      "name": "speaker-x",
+      "aliases": [],
+      "codepoint": 58460
+    },
+    {
+      "name": "speedometer",
+      "aliases": [],
+      "codepoint": 61044
+    },
+    {
+      "name": "sphere",
+      "aliases": [],
+      "codepoint": 61030
+    },
+    {
+      "name": "spinner",
+      "aliases": [],
+      "codepoint": 58986
+    },
+    {
+      "name": "spinner-ball",
+      "aliases": [],
+      "codepoint": 60968
+    },
+    {
+      "name": "spinner-gap",
+      "aliases": [],
+      "codepoint": 58988
+    },
+    {
+      "name": "spiral",
+      "aliases": [],
+      "codepoint": 59898
+    },
+    {
+      "name": "split-horizontal",
+      "aliases": [],
+      "codepoint": 59506
+    },
+    {
+      "name": "split-vertical",
+      "aliases": [],
+      "codepoint": 59510
+    },
+    {
+      "name": "spotify-logo",
+      "aliases": [],
+      "codepoint": 58990
+    },
+    {
+      "name": "spray-bottle",
+      "aliases": [],
+      "codepoint": 59364
+    },
+    {
+      "name": "square",
+      "aliases": [],
+      "codepoint": 58462
+    },
+    {
+      "name": "square-half",
+      "aliases": [],
+      "codepoint": 58466
+    },
+    {
+      "name": "square-half-bottom",
+      "aliases": [],
+      "codepoint": 60182
+    },
+    {
+      "name": "square-logo",
+      "aliases": [],
+      "codepoint": 59024
+    },
+    {
+      "name": "square-split-horizontal",
+      "aliases": [],
+      "codepoint": 59504
+    },
+    {
+      "name": "square-split-vertical",
+      "aliases": [],
+      "codepoint": 59508
+    },
+    {
+      "name": "squares-four",
+      "aliases": [],
+      "codepoint": 58468
+    },
+    {
+      "name": "stack",
+      "aliases": [],
+      "codepoint": 58470
+    },
+    {
+      "name": "stack-minus",
+      "aliases": [],
+      "codepoint": 60916
+    },
+    {
+      "name": "stack-overflow-logo",
+      "aliases": [],
+      "codepoint": 60280
+    },
+    {
+      "name": "stack-plus",
+      "aliases": [],
+      "codepoint": 60918
+    },
+    {
+      "name": "stack-simple",
+      "aliases": [],
+      "codepoint": 58472
+    },
+    {
+      "name": "stairs",
+      "aliases": [],
+      "codepoint": 59628
+    },
+    {
+      "name": "stamp",
+      "aliases": [],
+      "codepoint": 59976
+    },
+    {
+      "name": "standard-definition",
+      "aliases": [],
+      "codepoint": 60048
+    },
+    {
+      "name": "star",
+      "aliases": [],
+      "codepoint": 58474
+    },
+    {
+      "name": "star-and-crescent",
+      "aliases": [],
+      "codepoint": 60660
+    },
+    {
+      "name": "star-four",
+      "aliases": [],
+      "codepoint": 59044
+    },
+    {
+      "name": "star-half",
+      "aliases": [],
+      "codepoint": 59146
+    },
+    {
+      "name": "star-of-david",
+      "aliases": [],
+      "codepoint": 59550
+    },
+    {
+      "name": "steam-logo",
+      "aliases": [],
+      "codepoint": 60116
+    },
+    {
+      "name": "steering-wheel",
+      "aliases": [],
+      "codepoint": 59820
+    },
+    {
+      "name": "steps",
+      "aliases": [],
+      "codepoint": 60606
+    },
+    {
+      "name": "stethoscope",
+      "aliases": [],
+      "codepoint": 59370
+    },
+    {
+      "name": "sticker",
+      "aliases": [],
+      "codepoint": 58796
+    },
+    {
+      "name": "stool",
+      "aliases": [],
+      "codepoint": 59972
+    },
+    {
+      "name": "stop",
+      "aliases": [],
+      "codepoint": 58476
+    },
+    {
+      "name": "stop-circle",
+      "aliases": [],
+      "codepoint": 58478
+    },
+    {
+      "name": "storefront",
+      "aliases": [],
+      "codepoint": 58480
+    },
+    {
+      "name": "strategy",
+      "aliases": [],
+      "codepoint": 59962
+    },
+    {
+      "name": "stripe-logo",
+      "aliases": [],
+      "codepoint": 59032
+    },
+    {
+      "name": "student",
+      "aliases": [],
+      "codepoint": 59198
+    },
+    {
+      "name": "subset-of",
+      "aliases": [],
+      "codepoint": 60864
+    },
+    {
+      "name": "subset-proper-of",
+      "aliases": [],
+      "codepoint": 60854
+    },
+    {
+      "name": "subtitles",
+      "aliases": [],
+      "codepoint": 57768
+    },
+    {
+      "name": "subtitles-slash",
+      "aliases": [],
+      "codepoint": 57766
+    },
+    {
+      "name": "subtract",
+      "aliases": [],
+      "codepoint": 60374
+    },
+    {
+      "name": "subtract-square",
+      "aliases": [],
+      "codepoint": 60372
+    },
+    {
+      "name": "subway",
+      "aliases": [],
+      "codepoint": 58520
+    },
+    {
+      "name": "suitcase",
+      "aliases": [],
+      "codepoint": 58798
+    },
+    {
+      "name": "suitcase-rolling",
+      "aliases": [],
+      "codepoint": 59824
+    },
+    {
+      "name": "suitcase-simple",
+      "aliases": [],
+      "codepoint": 58800
+    },
+    {
+      "name": "sun",
+      "aliases": [],
+      "codepoint": 58482
+    },
+    {
+      "name": "sun-dim",
+      "aliases": [],
+      "codepoint": 58484
+    },
+    {
+      "name": "sun-horizon",
+      "aliases": [],
+      "codepoint": 58806
+    },
+    {
+      "name": "sunglasses",
+      "aliases": [],
+      "codepoint": 59414
+    },
+    {
+      "name": "superset-of",
+      "aliases": [],
+      "codepoint": 60856
+    },
+    {
+      "name": "superset-proper-of",
+      "aliases": [],
+      "codepoint": 60852
+    },
+    {
+      "name": "swap",
+      "aliases": [],
+      "codepoint": 59452
+    },
+    {
+      "name": "swatches",
+      "aliases": [],
+      "codepoint": 58808
+    },
+    {
+      "name": "swimming-pool",
+      "aliases": [],
+      "codepoint": 60598
+    },
+    {
+      "name": "sword",
+      "aliases": [],
+      "codepoint": 58810
+    },
+    {
+      "name": "synagogue",
+      "aliases": [],
+      "codepoint": 60652
+    },
+    {
+      "name": "syringe",
+      "aliases": [],
+      "codepoint": 59752
+    },
+    {
+      "name": "t-shirt",
+      "aliases": [],
+      "codepoint": 58992
+    },
+    {
+      "name": "table",
+      "aliases": [],
+      "codepoint": 58486
+    },
+    {
+      "name": "tabs",
+      "aliases": [],
+      "codepoint": 59256
+    },
+    {
+      "name": "tag",
+      "aliases": [],
+      "codepoint": 58488
+    },
+    {
+      "name": "tag-chevron",
+      "aliases": [],
+      "codepoint": 58994
+    },
+    {
+      "name": "tag-simple",
+      "aliases": [],
+      "codepoint": 58490
+    },
+    {
+      "name": "target",
+      "aliases": [],
+      "codepoint": 58492
+    },
+    {
+      "name": "taxi",
+      "aliases": [],
+      "codepoint": 59650
+    },
+    {
+      "name": "tea-bag",
+      "aliases": [],
+      "codepoint": 59622
+    },
+    {
+      "name": "telegram-logo",
+      "aliases": [],
+      "codepoint": 58812
+    },
+    {
+      "name": "television",
+      "aliases": [],
+      "codepoint": 59220
+    },
+    {
+      "name": "television-simple",
+      "aliases": [],
+      "codepoint": 60134
+    },
+    {
+      "name": "tennis-ball",
+      "aliases": [],
+      "codepoint": 59168
+    },
+    {
+      "name": "tent",
+      "aliases": [],
+      "codepoint": 59578
+    },
+    {
+      "name": "terminal",
+      "aliases": [],
+      "codepoint": 58494
+    },
+    {
+      "name": "terminal-window",
+      "aliases": [],
+      "codepoint": 60136
+    },
+    {
+      "name": "test-tube",
+      "aliases": [],
+      "codepoint": 59296
+    },
+    {
+      "name": "text-a-underline",
+      "aliases": [],
+      "codepoint": 60724
+    },
+    {
+      "name": "text-aa",
+      "aliases": [],
+      "codepoint": 59118
+    },
+    {
+      "name": "text-align-center",
+      "aliases": [],
+      "codepoint": 58496
+    },
+    {
+      "name": "text-align-justify",
+      "aliases": [],
+      "codepoint": 58498
+    },
+    {
+      "name": "text-align-left",
+      "aliases": [],
+      "codepoint": 58500
+    },
+    {
+      "name": "text-align-right",
+      "aliases": [],
+      "codepoint": 58502
+    },
+    {
+      "name": "text-b",
+      "aliases": [
+        "text-bolder"
+      ],
+      "codepoint": 58814
+    },
+    {
+      "name": "text-columns",
+      "aliases": [],
+      "codepoint": 60566
+    },
+    {
+      "name": "text-h",
+      "aliases": [],
+      "codepoint": 59066
+    },
+    {
+      "name": "text-h-five",
+      "aliases": [],
+      "codepoint": 59076
+    },
+    {
+      "name": "text-h-four",
+      "aliases": [],
+      "codepoint": 59074
+    },
+    {
+      "name": "text-h-one",
+      "aliases": [],
+      "codepoint": 59068
+    },
+    {
+      "name": "text-h-six",
+      "aliases": [],
+      "codepoint": 59078
+    },
+    {
+      "name": "text-h-three",
+      "aliases": [],
+      "codepoint": 59072
+    },
+    {
+      "name": "text-h-two",
+      "aliases": [],
+      "codepoint": 59070
+    },
+    {
+      "name": "text-indent",
+      "aliases": [],
+      "codepoint": 59934
+    },
+    {
+      "name": "text-italic",
+      "aliases": [],
+      "codepoint": 58816
+    },
+    {
+      "name": "text-outdent",
+      "aliases": [],
+      "codepoint": 59932
+    },
+    {
+      "name": "text-strikethrough",
+      "aliases": [],
+      "codepoint": 58818
+    },
+    {
+      "name": "text-subscript",
+      "aliases": [],
+      "codepoint": 60568
+    },
+    {
+      "name": "text-superscript",
+      "aliases": [],
+      "codepoint": 60570
+    },
+    {
+      "name": "text-t",
+      "aliases": [],
+      "codepoint": 58506
+    },
+    {
+      "name": "text-t-slash",
+      "aliases": [],
+      "codepoint": 58504
+    },
+    {
+      "name": "text-underline",
+      "aliases": [],
+      "codepoint": 58820
+    },
+    {
+      "name": "textbox",
+      "aliases": [],
+      "codepoint": 60170
+    },
+    {
+      "name": "thermometer",
+      "aliases": [],
+      "codepoint": 58822
+    },
+    {
+      "name": "thermometer-cold",
+      "aliases": [],
+      "codepoint": 58824
+    },
+    {
+      "name": "thermometer-hot",
+      "aliases": [],
+      "codepoint": 58826
+    },
+    {
+      "name": "thermometer-simple",
+      "aliases": [],
+      "codepoint": 58828
+    },
+    {
+      "name": "threads-logo",
+      "aliases": [],
+      "codepoint": 60830
+    },
+    {
+      "name": "three-d",
+      "aliases": [],
+      "codepoint": 59994
+    },
+    {
+      "name": "thumbs-down",
+      "aliases": [],
+      "codepoint": 58508
+    },
+    {
+      "name": "thumbs-up",
+      "aliases": [],
+      "codepoint": 58510
+    },
+    {
+      "name": "ticket",
+      "aliases": [],
+      "codepoint": 58512
+    },
+    {
+      "name": "tidal-logo",
+      "aliases": [],
+      "codepoint": 60700
+    },
+    {
+      "name": "tiktok-logo",
+      "aliases": [],
+      "codepoint": 60146
+    },
+    {
+      "name": "tilde",
+      "aliases": [],
+      "codepoint": 60840
+    },
+    {
+      "name": "timer",
+      "aliases": [],
+      "codepoint": 58514
+    },
+    {
+      "name": "tip-jar",
+      "aliases": [],
+      "codepoint": 59362
+    },
+    {
+      "name": "tipi",
+      "aliases": [],
+      "codepoint": 60720
+    },
+    {
+      "name": "tire",
+      "aliases": [],
+      "codepoint": 60882
+    },
+    {
+      "name": "toggle-left",
+      "aliases": [],
+      "codepoint": 58996
+    },
+    {
+      "name": "toggle-right",
+      "aliases": [],
+      "codepoint": 58998
+    },
+    {
+      "name": "toilet",
+      "aliases": [],
+      "codepoint": 59290
+    },
+    {
+      "name": "toilet-paper",
+      "aliases": [],
+      "codepoint": 59292
+    },
+    {
+      "name": "toolbox",
+      "aliases": [],
+      "codepoint": 60576
+    },
+    {
+      "name": "tooth",
+      "aliases": [],
+      "codepoint": 59852
+    },
+    {
+      "name": "tornado",
+      "aliases": [],
+      "codepoint": 59532
+    },
+    {
+      "name": "tote",
+      "aliases": [],
+      "codepoint": 58516
+    },
+    {
+      "name": "tote-simple",
+      "aliases": [],
+      "codepoint": 59000
+    },
+    {
+      "name": "towel",
+      "aliases": [],
+      "codepoint": 60902
+    },
+    {
+      "name": "tractor",
+      "aliases": [],
+      "codepoint": 60526
+    },
+    {
+      "name": "trademark",
+      "aliases": [],
+      "codepoint": 59888
+    },
+    {
+      "name": "trademark-registered",
+      "aliases": [],
+      "codepoint": 58356
+    },
+    {
+      "name": "traffic-cone",
+      "aliases": [],
+      "codepoint": 59816
+    },
+    {
+      "name": "traffic-sign",
+      "aliases": [],
+      "codepoint": 59002
+    },
+    {
+      "name": "traffic-signal",
+      "aliases": [],
+      "codepoint": 59818
+    },
+    {
+      "name": "train",
+      "aliases": [],
+      "codepoint": 58518
+    },
+    {
+      "name": "train-regional",
+      "aliases": [],
+      "codepoint": 58526
+    },
+    {
+      "name": "train-simple",
+      "aliases": [],
+      "codepoint": 58528
+    },
+    {
+      "name": "tram",
+      "aliases": [],
+      "codepoint": 59884
+    },
+    {
+      "name": "translate",
+      "aliases": [],
+      "codepoint": 58530
+    },
+    {
+      "name": "trash",
+      "aliases": [],
+      "codepoint": 58534
+    },
+    {
+      "name": "trash-simple",
+      "aliases": [],
+      "codepoint": 58536
+    },
+    {
+      "name": "tray",
+      "aliases": [],
+      "codepoint": 58538
+    },
+    {
+      "name": "tray-arrow-down",
+      "aliases": [
+        "archive-tray"
+      ],
+      "codepoint": 57360
+    },
+    {
+      "name": "tray-arrow-up",
+      "aliases": [],
+      "codepoint": 61010
+    },
+    {
+      "name": "treasure-chest",
+      "aliases": [],
+      "codepoint": 60898
+    },
+    {
+      "name": "tree",
+      "aliases": [],
+      "codepoint": 59098
+    },
+    {
+      "name": "tree-evergreen",
+      "aliases": [],
+      "codepoint": 59100
+    },
+    {
+      "name": "tree-palm",
+      "aliases": [],
+      "codepoint": 59674
+    },
+    {
+      "name": "tree-structure",
+      "aliases": [],
+      "codepoint": 59004
+    },
+    {
+      "name": "tree-view",
+      "aliases": [],
+      "codepoint": 61000
+    },
+    {
+      "name": "trend-down",
+      "aliases": [],
+      "codepoint": 58540
+    },
+    {
+      "name": "trend-up",
+      "aliases": [],
+      "codepoint": 58542
+    },
+    {
+      "name": "triangle",
+      "aliases": [],
+      "codepoint": 58544
+    },
+    {
+      "name": "triangle-dashed",
+      "aliases": [],
+      "codepoint": 58546
+    },
+    {
+      "name": "trolley",
+      "aliases": [],
+      "codepoint": 58802
+    },
+    {
+      "name": "trolley-suitcase",
+      "aliases": [],
+      "codepoint": 58804
+    },
+    {
+      "name": "trophy",
+      "aliases": [],
+      "codepoint": 59006
+    },
+    {
+      "name": "truck",
+      "aliases": [],
+      "codepoint": 58548
+    },
+    {
+      "name": "truck-trailer",
+      "aliases": [],
+      "codepoint": 58550
+    },
+    {
+      "name": "tumblr-logo",
+      "aliases": [],
+      "codepoint": 59604
+    },
+    {
+      "name": "twitch-logo",
+      "aliases": [],
+      "codepoint": 58830
+    },
+    {
+      "name": "twitter-logo",
+      "aliases": [],
+      "codepoint": 58554
+    },
+    {
+      "name": "umbrella",
+      "aliases": [],
+      "codepoint": 59012
+    },
+    {
+      "name": "umbrella-simple",
+      "aliases": [],
+      "codepoint": 59014
+    },
+    {
+      "name": "union",
+      "aliases": [],
+      "codepoint": 60862
+    },
+    {
+      "name": "unite",
+      "aliases": [],
+      "codepoint": 59518
+    },
+    {
+      "name": "unite-square",
+      "aliases": [],
+      "codepoint": 59512
+    },
+    {
+      "name": "upload",
+      "aliases": [],
+      "codepoint": 58558
+    },
+    {
+      "name": "upload-simple",
+      "aliases": [],
+      "codepoint": 58560
+    },
+    {
+      "name": "usb",
+      "aliases": [],
+      "codepoint": 59734
+    },
+    {
+      "name": "user",
+      "aliases": [],
+      "codepoint": 58562
+    },
+    {
+      "name": "user-check",
+      "aliases": [],
+      "codepoint": 60154
+    },
+    {
+      "name": "user-circle",
+      "aliases": [],
+      "codepoint": 58564
+    },
+    {
+      "name": "user-circle-check",
+      "aliases": [],
+      "codepoint": 60472
+    },
+    {
+      "name": "user-circle-dashed",
+      "aliases": [],
+      "codepoint": 60470
+    },
+    {
+      "name": "user-circle-gear",
+      "aliases": [],
+      "codepoint": 58566
+    },
+    {
+      "name": "user-circle-minus",
+      "aliases": [],
+      "codepoint": 58568
+    },
+    {
+      "name": "user-circle-plus",
+      "aliases": [],
+      "codepoint": 58570
+    },
+    {
+      "name": "user-focus",
+      "aliases": [],
+      "codepoint": 59132
+    },
+    {
+      "name": "user-gear",
+      "aliases": [],
+      "codepoint": 58572
+    },
+    {
+      "name": "user-list",
+      "aliases": [],
+      "codepoint": 59196
+    },
+    {
+      "name": "user-minus",
+      "aliases": [],
+      "codepoint": 58574
+    },
+    {
+      "name": "user-plus",
+      "aliases": [],
+      "codepoint": 58576
+    },
+    {
+      "name": "user-rectangle",
+      "aliases": [],
+      "codepoint": 58578
+    },
+    {
+      "name": "user-sound",
+      "aliases": [],
+      "codepoint": 60584
+    },
+    {
+      "name": "user-square",
+      "aliases": [],
+      "codepoint": 58580
+    },
+    {
+      "name": "user-switch",
+      "aliases": [],
+      "codepoint": 59222
+    },
+    {
+      "name": "users",
+      "aliases": [],
+      "codepoint": 58582
+    },
+    {
+      "name": "users-four",
+      "aliases": [],
+      "codepoint": 59020
+    },
+    {
+      "name": "users-three",
+      "aliases": [],
+      "codepoint": 59022
+    },
+    {
+      "name": "van",
+      "aliases": [],
+      "codepoint": 59430
+    },
+    {
+      "name": "vault",
+      "aliases": [],
+      "codepoint": 59246
+    },
+    {
+      "name": "vector-three",
+      "aliases": [],
+      "codepoint": 61026
+    },
+    {
+      "name": "vector-two",
+      "aliases": [],
+      "codepoint": 61028
+    },
+    {
+      "name": "vibrate",
+      "aliases": [],
+      "codepoint": 58584
+    },
+    {
+      "name": "video",
+      "aliases": [],
+      "codepoint": 59200
+    },
+    {
+      "name": "video-camera",
+      "aliases": [],
+      "codepoint": 58586
+    },
+    {
+      "name": "video-camera-slash",
+      "aliases": [],
+      "codepoint": 58588
+    },
+    {
+      "name": "video-conference",
+      "aliases": [],
+      "codepoint": 60878
+    },
+    {
+      "name": "vignette",
+      "aliases": [],
+      "codepoint": 60322
+    },
+    {
+      "name": "vinyl-record",
+      "aliases": [],
+      "codepoint": 60588
+    },
+    {
+      "name": "virtual-reality",
+      "aliases": [],
+      "codepoint": 59320
+    },
+    {
+      "name": "virus",
+      "aliases": [],
+      "codepoint": 59350
+    },
+    {
+      "name": "visor",
+      "aliases": [],
+      "codepoint": 60970
+    },
+    {
+      "name": "voicemail",
+      "aliases": [],
+      "codepoint": 58590
+    },
+    {
+      "name": "volleyball",
+      "aliases": [],
+      "codepoint": 59174
+    },
+    {
+      "name": "wall",
+      "aliases": [],
+      "codepoint": 59016
+    },
+    {
+      "name": "wallet",
+      "aliases": [],
+      "codepoint": 59018
+    },
+    {
+      "name": "warehouse",
+      "aliases": [],
+      "codepoint": 60628
+    },
+    {
+      "name": "warning",
+      "aliases": [],
+      "codepoint": 58592
+    },
+    {
+      "name": "warning-circle",
+      "aliases": [],
+      "codepoint": 58594
+    },
+    {
+      "name": "warning-diamond",
+      "aliases": [],
+      "codepoint": 59388
+    },
+    {
+      "name": "warning-octagon",
+      "aliases": [],
+      "codepoint": 58596
+    },
+    {
+      "name": "washing-machine",
+      "aliases": [],
+      "codepoint": 60904
+    },
+    {
+      "name": "watch",
+      "aliases": [],
+      "codepoint": 58598
+    },
+    {
+      "name": "wave-sawtooth",
+      "aliases": [],
+      "codepoint": 60060
+    },
+    {
+      "name": "wave-sine",
+      "aliases": [],
+      "codepoint": 60058
+    },
+    {
+      "name": "wave-square",
+      "aliases": [],
+      "codepoint": 60062
+    },
+    {
+      "name": "wave-triangle",
+      "aliases": [],
+      "codepoint": 60064
+    },
+    {
+      "name": "waveform",
+      "aliases": [],
+      "codepoint": 59394
+    },
+    {
+      "name": "waveform-slash",
+      "aliases": [],
+      "codepoint": 59392
+    },
+    {
+      "name": "waves",
+      "aliases": [],
+      "codepoint": 59102
+    },
+    {
+      "name": "webcam",
+      "aliases": [],
+      "codepoint": 59826
+    },
+    {
+      "name": "webcam-slash",
+      "aliases": [],
+      "codepoint": 60636
+    },
+    {
+      "name": "webhooks-logo",
+      "aliases": [],
+      "codepoint": 60590
+    },
+    {
+      "name": "wechat-logo",
+      "aliases": [],
+      "codepoint": 59602
+    },
+    {
+      "name": "whatsapp-logo",
+      "aliases": [],
+      "codepoint": 58832
+    },
+    {
+      "name": "wheelchair",
+      "aliases": [],
+      "codepoint": 58600
+    },
+    {
+      "name": "wheelchair-motion",
+      "aliases": [],
+      "codepoint": 59546
+    },
+    {
+      "name": "wifi-high",
+      "aliases": [],
+      "codepoint": 58602
+    },
+    {
+      "name": "wifi-low",
+      "aliases": [],
+      "codepoint": 58604
+    },
+    {
+      "name": "wifi-medium",
+      "aliases": [],
+      "codepoint": 58606
+    },
+    {
+      "name": "wifi-none",
+      "aliases": [],
+      "codepoint": 58608
+    },
+    {
+      "name": "wifi-slash",
+      "aliases": [],
+      "codepoint": 58610
+    },
+    {
+      "name": "wifi-x",
+      "aliases": [],
+      "codepoint": 58612
+    },
+    {
+      "name": "wind",
+      "aliases": [],
+      "codepoint": 58834
+    },
+    {
+      "name": "windmill",
+      "aliases": [],
+      "codepoint": 59896
+    },
+    {
+      "name": "windows-logo",
+      "aliases": [],
+      "codepoint": 59026
+    },
+    {
+      "name": "wine",
+      "aliases": [],
+      "codepoint": 59058
+    },
+    {
+      "name": "wrench",
+      "aliases": [],
+      "codepoint": 58836
+    },
+    {
+      "name": "x",
+      "aliases": [],
+      "codepoint": 58614
+    },
+    {
+      "name": "x-circle",
+      "aliases": [],
+      "codepoint": 58616
+    },
+    {
+      "name": "x-logo",
+      "aliases": [],
+      "codepoint": 58556
+    },
+    {
+      "name": "x-square",
+      "aliases": [],
+      "codepoint": 58618
+    },
+    {
+      "name": "yarn",
+      "aliases": [],
+      "codepoint": 60826
+    },
+    {
+      "name": "yin-yang",
+      "aliases": [],
+      "codepoint": 59690
+    },
+    {
+      "name": "youtube-logo",
+      "aliases": [],
+      "codepoint": 58620
+    }
+  ]
+}

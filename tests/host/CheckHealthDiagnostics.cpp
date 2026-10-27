@@ -20,7 +20,7 @@ namespace vmm_tests
 			DiagnosticStore store;
 			{
 				DMUI_DiagnosticDescriptor diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
+					DMUI_SEVERITY_WARNING,
 					"General",
 					"Expected a boolean value.",
 					"First location"
@@ -35,7 +35,7 @@ namespace vmm_tests
 					store.Report(7, diagnostic) == DMUI_RESULT_OK,
 					"a distinct diagnostic scope was rejected");
 				diagnostic.scope = "General";
-				diagnostic.severity = DMUI_STATUS_SEVERITY_ERROR;
+				diagnostic.severity = DMUI_SEVERITY_ERROR;
 				require(
 					store.Report(7, diagnostic) == DMUI_RESULT_OK,
 					"a distinct diagnostic severity was rejected");
@@ -58,7 +58,7 @@ namespace vmm_tests
 				summaries.push_back(
 					"Diagnostic " + std::to_string(index));
 				const DMUI_DiagnosticDescriptor diagnostic{
-					DMUI_STATUS_SEVERITY_WARNING,
+					DMUI_SEVERITY_WARNING,
 					"General",
 					summaries.back().c_str(),
 					nullptr
@@ -68,7 +68,7 @@ namespace vmm_tests
 					"a bounded diagnostic report was rejected");
 			}
 			const DMUI_DiagnosticDescriptor repeated{
-				DMUI_STATUS_SEVERITY_WARNING,
+				DMUI_SEVERITY_WARNING,
 				"General",
 				summaries.front().c_str(),
 				nullptr
@@ -77,7 +77,7 @@ namespace vmm_tests
 				store.Report(9, repeated) == DMUI_RESULT_OK,
 				"an existing diagnostic stopped incrementing at the cap");
 			const DMUI_DiagnosticDescriptor repeatedDropped{
-				DMUI_STATUS_SEVERITY_WARNING,
+				DMUI_SEVERITY_WARNING,
 				"General",
 				summaries[kDiagnosticRecordLimitPerClient].c_str(),
 				nullptr

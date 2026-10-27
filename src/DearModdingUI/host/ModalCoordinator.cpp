@@ -211,7 +211,8 @@ namespace DearModdingUI::ModalCoordinator
 	}
 
 	bool Begin(Owner a_owner, const char* a_id, bool a_modal, bool* a_open,
-		ImGuiWindowFlags a_flags, bool a_hasCloseButton)
+		ImGuiWindowFlags a_flags, bool a_hasCloseButton,
+		const DMUI_Placement* a_placement)
 	{
 		Refresh();
 		auto* popup = Find(a_owner, a_id);
@@ -248,7 +249,12 @@ namespace DearModdingUI::ModalCoordinator
 			ImGui::OpenPopupEx(NativeId(*popup));
 			popup->state = State::kOpen;
 			if (!a_modal)
-				ImGui::SetNextWindowPos(popup->anchor, ImGuiCond_Appearing);
+				ImGui::SetNextWindowPos(
+					a_placement ? ImVec2{ a_placement->position.x, a_placement->position.y } :
+						popup->anchor,
+					ImGuiCond_Appearing,
+					a_placement ? ImVec2{ a_placement->pivot.x, a_placement->pivot.y } :
+						ImVec2{});
 		}
 		return a_modal ?
 			BeginModal(popup->id, a_id, a_hasCloseButton ? a_open : nullptr, a_flags) :

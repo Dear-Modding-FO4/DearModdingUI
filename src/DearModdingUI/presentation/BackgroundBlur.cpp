@@ -1,7 +1,7 @@
 // Gaussian blur after Unrimp by Christian Ofenberg, MIT.
 
 #include <DearModdingUI/presentation/BackgroundBlur.h>
-#include <DearModdingUI/settings/HostSettings.h>
+#include <DearModdingUI/presentation/ThemeSpec.h>
 #include "BlurPipelineState.h"
 
 #include <REX/REX.h>
@@ -713,8 +713,8 @@ namespace DearModdingUI::BackgroundBlur
 	{
 		g_resources.frameContext = nullptr;
 		g_resources.frameTarget = nullptr;
-		const auto settings = HostSettings::EffectivePreview();
-		if (!settings.backgroundBlur ||
+		const auto& effects = Theme::Current().effects;
+		if (!effects.backgroundBlur ||
 			g_regionCount == 0 ||
 			!a_device ||
 			!a_context ||
@@ -771,7 +771,7 @@ namespace DearModdingUI::BackgroundBlur
 		PerformBlur(
 			a_context,
 			description,
-			settings.backgroundBlurStrength);
+			effects.backgroundBlurStrength);
 		CompositeBlur(
 			a_context,
 			a_backBufferView,

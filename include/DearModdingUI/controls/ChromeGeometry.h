@@ -1,6 +1,6 @@
 #pragma once
 
-#include <DearModdingUI/VisualDecisions.h>
+#include <DearModdingUI/presentation/VisualDecisions.h>
 
 namespace DearModdingUI
 {
@@ -31,22 +31,6 @@ namespace DearModdingUI
 		float a_buttonPadding) noexcept
 	{
 		return TitleBarButtonExtent(HostChromeIconSize(a_fontSize), a_buttonPadding);
-	}
-
-	enum class TitleRowButtonExtentPolicy : uint32_t
-	{
-		kTitleBar,
-		kHostChrome
-	};
-
-	[[nodiscard]] constexpr float ResolveTitleRowButtonExtent(
-		TitleRowButtonExtentPolicy a_policy,
-		float a_fontSize,
-		float a_buttonPadding) noexcept
-	{
-		return a_policy == TitleRowButtonExtentPolicy::kHostChrome ?
-			HostChromeButtonExtent(a_fontSize, a_buttonPadding) :
-			TitleBarButtonExtent(a_fontSize, a_buttonPadding);
 	}
 
 	[[nodiscard]] constexpr float RightTitleBarButtonOriginX(
@@ -82,10 +66,10 @@ namespace DearModdingUI
 		float a_rowHeight,
 		float a_contentHeight) noexcept
 	{
-		return a_rowMinY + RowContentOffsetY(
+		return a_rowMinY + dmui::RowContentOffsetY(
 			a_rowHeight,
 			{ a_contentHeight },
-			RowContentMetric::kBox);
+			dmui::RowContentMetric::kBox);
 	}
 
 	[[nodiscard]] constexpr RuledHeadingRuleExtents

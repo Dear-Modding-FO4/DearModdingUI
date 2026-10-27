@@ -315,10 +315,10 @@ namespace DearModdingUI::MCM
 					{
 						page->settings.notes.push_back({
 							compatibility,
-							false
+							dmui::TextTone::kInherit
 						});
 						mod->diagnostics->ReportSummary(
-							DMUI_STATUS_SEVERITY_WARNING,
+							dmui::Severity::kWarning,
 							page->displayName,
 							compatibility);
 					}

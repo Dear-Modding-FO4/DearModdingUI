@@ -1,5 +1,6 @@
 #include "UIAdapterInternal.h"
 #include <DearModdingUI/UIBindings.generated.h>
+#include <DearModdingUI/controls/ColorEdit.h>
 #include "../presentation/PresentationServiceOwners.h"
 #include <Support/Utf8.h>
 
@@ -43,7 +44,7 @@ namespace DearModdingUI::UI
 		}
 		ImU32 Color(uint32_t a_color) noexcept
 		{
-			return ImGui::ColorConvertFloat4ToU32(StableRGBA(a_color));
+			return ImGui::ColorConvertFloat4ToU32(UnpackRgba(a_color));
 		}
 		ImDrawList* Target(DMUI_DrawTarget a_target) noexcept
 		{

@@ -5,9 +5,11 @@
 #include <DearModdingUI/host/MenuDismissal.h>
 
 #include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
 
 #include <algorithm>
 #include <cstring>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -55,8 +57,17 @@ namespace vmm_tests
 				ImGui::SetNextItemWidth(400.0f);
 				DMUI_TextBuffer buffer{ m_storage.data(), m_storage.size(), nullptr, nullptr };
 				DMUI_TextEditState state{};
-				m_result = DrawTextEditor(
-					"Console", "", buffer, a_inputFlags, a_flags, a_cursor, state);
+				m_result = DrawTextField(
+					"Console",
+					buffer,
+					{
+						.flags = a_inputFlags,
+						.editFlags = a_flags,
+						.cursor = a_cursor,
+						.styleSpans = m_style,
+						.styleUserData = m_styleData
+					},
+					state);
 				m_imgui.EndWindow(true);
 				return state;
 			}
@@ -73,7 +84,20 @@ namespace vmm_tests
 
 			[[nodiscard]] DMUI_Result Result() const noexcept { return m_result; }
 
+			void Style(DMUI_TextStyleFn a_style, void* a_data) noexcept
+			{
+				m_style = a_style;
+				m_styleData = a_data;
+			}
+
+			[[nodiscard]] const ImDrawList& DrawList() const
+			{
+				return *ImGui::FindWindowByName("##TextEditor")->DrawList;
+			}
+
 		private:
+			DMUI_TextStyleFn m_style{};
+			void* m_styleData{};
 			support::ImGuiTestContext m_imgui;
 			std::vector<char> m_storage;
 			DMUI_Result m_result{ DMUI_RESULT_OK };
@@ -143,6 +167,38 @@ namespace vmm_tests
 				"captured Escape reverted or deactivated the editor");
 			require(ImGui::GetIO().ConfigInputTextEnterKeepActive == false,
 				"editor leaked the keep-active setting");
+		});
+
+		runner.test("text editor styles the text it holds after this frame's edits", [] {
+			struct Script
+			{
+				std::string seen;
+				size_t length{};
+
+				static DMUI_Result DMUI_CALL Call(
+					void* a_user, const char* a_text, size_t a_length,
+					const DMUI_TextSpan** a_spans, size_t* a_count) noexcept
+				{
+					auto& script = *static_cast<Script*>(a_user);
+					script.seen.assign(a_text, a_length);
+					static DMUI_TextSpan span{};
+					span.offset = 0;
+					span.length = a_length;
+					span.flags = DMUI_TEXT_SPAN_CUSTOM_BACKGROUND;
+					span.backgroundColor = { 1.0f, 0.0f, 0.0f, 1.0f };
+					*a_spans = &span;
+					*a_count = 1;
+					return DMUI_RESULT_OK;
+				}
+			} script;
+			EditorHarness editor{ "ab" };
+			editor.Style(&Script::Call, &script);
+			(void)Focus(editor, DMUI_UI_TEXT_EDIT_FLAGS_NONE);
+			ImGui::GetIO().AddInputCharactersUTF8("X");
+			(void)editor.Frame(DMUI_UI_TEXT_EDIT_FLAGS_NONE);
+			require(editor.Result() == DMUI_RESULT_OK && script.seen == editor.Text() &&
+					script.seen.find('X') != std::string::npos,
+				"the styler did not see the text after this frame's edit");
 		});
 
 		runner.test("text editor rejects conflicting and unknown flags", [] {

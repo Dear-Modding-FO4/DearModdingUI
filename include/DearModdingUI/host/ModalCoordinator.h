@@ -20,7 +20,8 @@ namespace DearModdingUI::ModalCoordinator
 	void Open(Owner a_owner, const char* a_id);
 	[[nodiscard]] bool Begin(
 		Owner a_owner, const char* a_id, bool a_modal, bool* a_open,
-		ImGuiWindowFlags a_flags, bool a_hasCloseButton = true);
+		ImGuiWindowFlags a_flags, bool a_hasCloseButton = true,
+		const DMUI_Placement* a_placement = nullptr);
 	[[nodiscard]] bool IsOpen(Owner a_owner, const char* a_id) noexcept;
 	[[nodiscard]] bool HasBracket(Owner a_owner) noexcept;
 	[[nodiscard]] bool End(Owner a_owner) noexcept;

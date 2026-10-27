@@ -1,5 +1,5 @@
 #include "../support/DearModdingUITestSupport.h"
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 
 namespace vmm_tests
 {
@@ -9,20 +9,20 @@ namespace vmm_tests
 	{
 		runner.test("raw icon glyph validation rejects truncating code points", [] {
 			require(
-				IsRepresentableIconGlyph<ImWchar>(PhosphorGlyph::kSun) &&
-					!IsRepresentableIconGlyph<ImWchar>(char32_t{}) &&
-					!IsRepresentableIconGlyph<ImWchar>(
+				dmui::IsRepresentableIconGlyph<ImWchar>(dmui::PhosphorGlyph::kSun) &&
+					!dmui::IsRepresentableIconGlyph<ImWchar>(char32_t{}) &&
+					!dmui::IsRepresentableIconGlyph<ImWchar>(
 						char32_t{ 0x1E472 }),
 				"raw glyph validation allowed zero, invalid, or truncating values");
-			const auto invalidRaw = IconResolver::Resolve({
+			const auto invalidRaw = dmui::IconResolver::Resolve({
 				.explicitGlyph = char32_t{ 0x110000 }
 			});
-			const auto zeroRaw = IconResolver::Resolve({
+			const auto zeroRaw = dmui::IconResolver::Resolve({
 				.explicitGlyph = char32_t{}
 			});
 			require(
-				invalidRaw.status == IconSelectionStatus::kInvalidRawGlyph &&
-					zeroRaw.status == IconSelectionStatus::kInvalidRawGlyph,
+				invalidRaw.status == dmui::IconSelectionStatus::kInvalidRawGlyph &&
+					zeroRaw.status == dmui::IconSelectionStatus::kInvalidRawGlyph,
 				"invalid raw glyphs were not flagged");
 		});
 	}

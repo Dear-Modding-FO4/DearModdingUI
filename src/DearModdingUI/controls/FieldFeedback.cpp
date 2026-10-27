@@ -18,24 +18,10 @@ namespace DearModdingUI::FieldFeedback
 		std::atomic<FieldFeedbackPlacement> s_placement{
 			DEFAULT_FIELD_FEEDBACK_LAYOUT
 		};
-		std::atomic<uint32_t> s_infoColor{ kDefaultInfoColor };
-		std::atomic<uint32_t> s_warningColor{ kDefaultWarningColor };
-		std::atomic<uint32_t> s_errorColor{ kDefaultErrorColor };
 
 #if defined(DMUI_PREVIEW)
 		thread_local std::optional<FieldFeedbackPlacement> s_previewLayout;
 #endif
-
-		[[nodiscard]] ImVec4 DecodeColor(uint32_t a_color) noexcept
-		{
-			constexpr float inverseByte = 1.0f / 255.0f;
-			return {
-				static_cast<float>(a_color & 0xFFu) * inverseByte,
-				static_cast<float>((a_color >> 8u) & 0xFFu) * inverseByte,
-				static_cast<float>((a_color >> 16u) & 0xFFu) * inverseByte,
-				static_cast<float>((a_color >> 24u) & 0xFFu) * inverseByte
-			};
-		}
 
 		struct FormattedFeedbackText
 		{
@@ -45,10 +31,10 @@ namespace DearModdingUI::FieldFeedback
 
 		[[nodiscard]] FormattedFeedbackText FormatText(
 			std::string_view a_message,
-			DMUI_FieldFeedbackSeverity a_severity) noexcept
+			DMUI_Severity a_severity) noexcept
 		{
 			FormattedFeedbackText text;
-			const std::string_view label{ SeverityLabel(a_severity) };
+			const std::string_view label{ StatusSeverityLabel(a_severity) };
 			std::memcpy(text.bytes.data(), label.data(), label.size());
 			text.size = label.size();
 			text.bytes[text.size++] = ':';
@@ -66,7 +52,7 @@ namespace DearModdingUI::FieldFeedback
 
 		[[nodiscard]] float ContentHeight(
 			std::string_view a_message,
-			DMUI_FieldFeedbackSeverity a_severity,
+			DMUI_Severity a_severity,
 			float a_width) noexcept
 		{
 			const Theme::FontGuard font{ Theme::FontRole::kSubtext };
@@ -80,14 +66,14 @@ namespace DearModdingUI::FieldFeedback
 
 		void DrawTextBlock(
 			std::string_view a_message,
-			DMUI_FieldFeedbackSeverity a_severity,
+			DMUI_Severity a_severity,
 			float a_width) noexcept
 		{
 			const Theme::FontGuard font{ Theme::FontRole::kSubtext };
 			const auto text = FormatText(a_message, a_severity);
 			// Keep subsequent lines anchored to the padded feedback region.
 			ImGui::BeginGroup();
-			ImGui::PushStyleColor(ImGuiCol_Text, SeverityColor(a_severity));
+			ImGui::PushStyleColor(ImGuiCol_Text, Theme::StatusTextColor(a_severity));
 			ImGui::PushTextWrapPos(
 				ImGui::GetCursorPosX() +
 					(std::max)(a_width, ImGui::GetFontSize()));
@@ -117,33 +103,17 @@ namespace DearModdingUI::FieldFeedback
 		}
 	}
 
-	bool IsValidSeverity(
-		DMUI_FieldFeedbackSeverity a_severity) noexcept
-	{
-		return a_severity == DMUI_FIELD_FEEDBACK_SEVERITY_INFO ||
-			a_severity == DMUI_FIELD_FEEDBACK_SEVERITY_WARNING ||
-			a_severity == DMUI_FIELD_FEEDBACK_SEVERITY_ERROR;
-	}
-
 	void SetAppearance(const Appearance& a_appearance) noexcept
 	{
 		s_placement.store(
 			NormalizeFieldFeedbackLayout(a_appearance.placement),
 			std::memory_order_release);
-		s_infoColor.store(a_appearance.infoColor, std::memory_order_release);
-		s_warningColor.store(
-			a_appearance.warningColor,
-			std::memory_order_release);
-		s_errorColor.store(a_appearance.errorColor, std::memory_order_release);
 	}
 
 	Appearance CurrentAppearance() noexcept
 	{
 		return {
-			s_placement.load(std::memory_order_acquire),
-			s_infoColor.load(std::memory_order_acquire),
-			s_warningColor.load(std::memory_order_acquire),
-			s_errorColor.load(std::memory_order_acquire)
+			s_placement.load(std::memory_order_acquire)
 		};
 	}
 
@@ -156,40 +126,9 @@ namespace DearModdingUI::FieldFeedback
 		return s_placement.load(std::memory_order_acquire);
 	}
 
-	ImVec4 SeverityColor(
-		DMUI_FieldFeedbackSeverity a_severity) noexcept
-	{
-		switch (a_severity)
-		{
-		case DMUI_FIELD_FEEDBACK_SEVERITY_WARNING:
-			return DecodeColor(
-				s_warningColor.load(std::memory_order_acquire));
-		case DMUI_FIELD_FEEDBACK_SEVERITY_ERROR:
-			return DecodeColor(
-				s_errorColor.load(std::memory_order_acquire));
-		default:
-			return DecodeColor(
-				s_infoColor.load(std::memory_order_acquire));
-		}
-	}
-
-	const char* SeverityLabel(
-		DMUI_FieldFeedbackSeverity a_severity) noexcept
-	{
-		switch (a_severity)
-		{
-		case DMUI_FIELD_FEEDBACK_SEVERITY_WARNING:
-			return StatusSeverityLabel(DMUI_STATUS_SEVERITY_WARNING);
-		case DMUI_FIELD_FEEDBACK_SEVERITY_ERROR:
-			return StatusSeverityLabel(DMUI_STATUS_SEVERITY_ERROR);
-		default:
-			return StatusSeverityLabel(DMUI_STATUS_SEVERITY_INFO);
-		}
-	}
-
 	float Measure(
 		std::string_view a_message,
-		DMUI_FieldFeedbackSeverity a_severity,
+		DMUI_Severity a_severity,
 		float a_width,
 		bool a_strip) noexcept
 	{
@@ -230,7 +169,7 @@ namespace DearModdingUI::FieldFeedback
 
 	static void DrawFeedbackBlock(
 		std::string_view a_message,
-		DMUI_FieldFeedbackSeverity a_severity,
+		DMUI_Severity a_severity,
 		float a_width,
 		float a_contentExtent,
 		bool a_strip) noexcept
@@ -250,14 +189,14 @@ namespace DearModdingUI::FieldFeedback
 			origin.x + a_width,
 			origin.y + a_contentExtent
 		};
-		auto tint = SeverityColor(a_severity);
+		auto tint = Theme::StatusTextColor(a_severity);
 		tint.w = 0.10f;
 		auto* draw = ImGui::GetWindowDrawList();
 		draw->AddRectFilled(origin, end, ImGui::GetColorU32(tint));
 		draw->AddRectFilled(
 			origin,
 			{ origin.x + 2.0f * Theme::Scale(), end.y },
-			ImGui::GetColorU32(SeverityColor(a_severity)));
+			ImGui::GetColorU32(Theme::StatusTextColor(a_severity)));
 		ImGui::SetCursorScreenPos({
 			origin.x + padding,
 			origin.y + padding

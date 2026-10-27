@@ -1,11 +1,10 @@
 #include <DearModdingUI/controls/LinkRow.h>
 
-#include <DearModdingUI/controls/Controls.h>
-#include <DearModdingUI/VisualDecisions.h>
+#include <DearModdingUI/controls/Button.h>
+#include <DearModdingUI/controls/Tooltip.h>
 #include <DearModdingUI/localization/Localization.h>
 
 #include <imgui/imgui.h>
-#include <imgui/imgui_internal.h>
 
 #include <string_view>
 #include <vector>
@@ -32,37 +31,13 @@ namespace DearModdingUI
 		{
 			const auto& link = a_links[index];
 			ImGui::PushID(static_cast<int>(index));
-			ImGui::BeginDisabled(!link.enabled);
-			const auto clicked =
-				ImGui::Button("##DearModdingUI.Link", { buttonWidth, 0.0f });
-			const ImRect bounds{
-				ImGui::GetItemRectMin(),
-				ImGui::GetItemRectMax()
-			};
-			const auto textSize = ImGui::CalcTextSize(link.label.data());
-			const auto layout = DecideInlineIconLayout(
-				HasIconGlyph(link.glyph),
-				textSize.x,
-				textSize.y,
-				ImGui::GetFontSize(),
-				style.ItemSpacing.x);
-			const ImVec4 clip{
-				bounds.Min.x,
-				bounds.Min.y,
-				bounds.Max.x,
-				bounds.Max.y
-			};
-			(void)DrawIconText(
-				{
-					bounds.GetCenter().x - layout.contentWidth * 0.5f,
-					bounds.Min.y
-				},
-				bounds.GetHeight(),
-				link.glyph,
-				link.label.data(),
-				ImGui::GetColorU32(ImGuiCol_Text),
-				&clip);
-			ImGui::EndDisabled();
+			const auto clicked = DrawButton({
+				.id = "##DearModdingUI.Link",
+				.label = link.label.data(),
+				.glyph = link.glyph,
+				.enabled = link.enabled,
+				.size = { buttonWidth, 0.0f }
+			});
 
 			if (link.enabled && clicked)
 			{
@@ -95,12 +70,7 @@ namespace DearModdingUI
 				}
 			}
 
-			const auto hoverFlags =
-				ImGuiHoveredFlags_DelayNormal |
-				(link.enabled ?
-						ImGuiHoveredFlags_None :
-						ImGuiHoveredFlags_AllowWhenDisabled);
-			if (ImGui::IsItemHovered(hoverFlags) && ImGui::BeginTooltip())
+			if (Tooltip::BeginItem())
 			{
 				if (link.action == DMUI_LINK_ACTION_COPY_TARGET)
 					ImGui::TextUnformatted(Localization::Text(

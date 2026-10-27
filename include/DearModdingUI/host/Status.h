@@ -30,7 +30,7 @@ namespace DearModdingUI
 	{
 		uint64_t generation{ 0 };
 		StatusOwnerKind ownerKind{ StatusOwnerKind::kHost };
-		DMUI_StatusSeverity severity{ DMUI_STATUS_SEVERITY_INFO };
+		DMUI_Severity severity{ DMUI_SEVERITY_INFO };
 		std::string owner;
 		std::string message;
 		std::string attributedText;
@@ -41,24 +41,24 @@ namespace DearModdingUI
 	struct ClientStatus
 	{
 		DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
-		DMUI_StatusSeverity severity{ DMUI_STATUS_SEVERITY_INFO };
+		DMUI_Severity severity{ DMUI_SEVERITY_INFO };
 	};
 
 	[[nodiscard]] const ClientStatus* FindClientStatus(
 		std::span<const ClientStatus> a_statuses,
 		DMUI_ClientHandle a_client) noexcept;
 	[[nodiscard]] const char* StatusSeverityLabel(
-		DMUI_StatusSeverity a_severity,
+		DMUI_Severity a_severity,
 		bool a_localized = true) noexcept;
-	[[nodiscard]] constexpr DMUI_StatusSeverity EffectiveClientStatusSeverity(
+	[[nodiscard]] constexpr DMUI_Severity EffectiveClientStatusSeverity(
 		bool a_callbackFailed,
 		const ClientStatus* a_status) noexcept
 	{
 		if (a_callbackFailed)
-			return DMUI_STATUS_SEVERITY_ERROR;
+			return DMUI_SEVERITY_ERROR;
 		return a_status ?
 			a_status->severity :
-			DMUI_STATUS_SEVERITY_SUCCESS;
+			DMUI_SEVERITY_SUCCESS;
 	}
 	[[nodiscard]] const char* ClientStatusLabel(
 		bool a_callbackFailed,
@@ -75,30 +75,30 @@ namespace DearModdingUI
 		bool truncated{ false };
 	};
 
-	[[nodiscard]] constexpr bool IsValidStatusSeverity(
-		DMUI_StatusSeverity a_severity) noexcept
+	[[nodiscard]] constexpr bool IsValidSeverity(
+		DMUI_Severity a_severity) noexcept
 	{
-		return a_severity == DMUI_STATUS_SEVERITY_INFO ||
-			a_severity == DMUI_STATUS_SEVERITY_SUCCESS ||
-			a_severity == DMUI_STATUS_SEVERITY_WARNING ||
-			a_severity == DMUI_STATUS_SEVERITY_ERROR;
+		return a_severity == DMUI_SEVERITY_INFO ||
+			a_severity == DMUI_SEVERITY_SUCCESS ||
+			a_severity == DMUI_SEVERITY_WARNING ||
+			a_severity == DMUI_SEVERITY_ERROR;
 	}
 
 	[[nodiscard]] constexpr bool IsPersistentStatus(
-		DMUI_StatusSeverity a_severity) noexcept
+		DMUI_Severity a_severity) noexcept
 	{
-		return a_severity == DMUI_STATUS_SEVERITY_WARNING ||
-			a_severity == DMUI_STATUS_SEVERITY_ERROR;
+		return a_severity == DMUI_SEVERITY_WARNING ||
+			a_severity == DMUI_SEVERITY_ERROR;
 	}
 
 	[[nodiscard]] constexpr DMUI_Result ValidateStatusRequest(
 		DMUI_Result a_clientValidation,
-		DMUI_StatusSeverity a_severity,
+		DMUI_Severity a_severity,
 		const char* a_message) noexcept
 	{
 		if (a_clientValidation != DMUI_RESULT_OK)
 			return a_clientValidation;
-		if (!IsValidStatusSeverity(a_severity) || !a_message || !a_message[0])
+		if (!IsValidSeverity(a_severity) || !a_message || !a_message[0])
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		return DMUI_RESULT_OK;
 	}
@@ -157,13 +157,13 @@ namespace DearModdingUI
 		[[nodiscard]] DMUI_Result Set(
 			StatusOwnerKind a_ownerKind,
 			std::string_view a_owner,
-			DMUI_StatusSeverity a_severity,
+			DMUI_Severity a_severity,
 			std::string_view a_message,
 			StatusClock::time_point a_now = StatusClock::now()) noexcept;
 		[[nodiscard]] DMUI_Result SetClient(
 			DMUI_ClientHandle a_client,
 			std::string_view a_owner,
-			DMUI_StatusSeverity a_severity,
+			DMUI_Severity a_severity,
 			std::string_view a_message,
 			StatusClock::time_point a_now = StatusClock::now()) noexcept;
 		[[nodiscard]] std::optional<StatusMessage> Snapshot(
@@ -179,7 +179,7 @@ namespace DearModdingUI
 			StatusOwnerKind a_ownerKind,
 			DMUI_ClientHandle a_client,
 			std::string_view a_owner,
-			DMUI_StatusSeverity a_severity,
+			DMUI_Severity a_severity,
 			std::string_view a_message,
 			StatusClock::time_point a_now) noexcept;
 

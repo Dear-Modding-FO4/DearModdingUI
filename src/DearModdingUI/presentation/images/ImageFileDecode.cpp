@@ -89,7 +89,7 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 			return DMUI_RESULT_OK;
 		}
 
-		DMUI_Result DecodeWIC(std::vector<uint8_t>& a_bytes, DecodedImage& a_image)
+		DMUI_Result DecodeWIC(std::span<const uint8_t> a_bytes, DecodedImage& a_image)
 		{
 			ComPtr<IWICImagingFactory> factory;
 			if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
@@ -98,7 +98,8 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 			ComPtr<IWICStream> stream;
 			ComPtr<IWICBitmapDecoder> decoder;
 			if (FAILED(factory->CreateStream(&stream)) ||
-				FAILED(stream->InitializeFromMemory(a_bytes.data(), static_cast<DWORD>(a_bytes.size()))))
+				FAILED(stream->InitializeFromMemory(
+					const_cast<BYTE*>(a_bytes.data()), static_cast<DWORD>(a_bytes.size()))))
 				return DMUI_RESULT_IMAGE_DECODE_FAILED;
 			const auto decoded = factory->CreateDecoderFromStream(
 				stream.Get(), nullptr, WICDecodeMetadataCacheOnDemand, &decoder);
@@ -136,6 +137,26 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 		}
 	}
 
+	DMUI_Result DecodeBytes(std::span<const uint8_t> a_bytes, DecodedImage& a_image) noexcept
+	{
+		try
+		{
+			if (a_bytes.size() > kMaximumBytes)
+				return DMUI_RESULT_IMAGE_TOO_LARGE;
+			if (a_bytes.size() >= 4 && std::memcmp(a_bytes.data(), "DDS ", 4) == 0)
+				return DecodeDDS(a_bytes, a_image);
+			return DecodeWIC(a_bytes, a_image);
+		}
+		catch (const std::bad_alloc&)
+		{
+			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		}
+		catch (...)
+		{
+			return DMUI_RESULT_IMAGE_DECODE_FAILED;
+		}
+	}
+
 	DMUI_Result DecodeFile(const std::string& a_path, DecodedImage& a_image) noexcept
 	{
 		try
@@ -146,9 +167,7 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 			std::vector<uint8_t> bytes;
 			if (const auto result = ReadFileBytes(path, bytes); result != DMUI_RESULT_OK)
 				return result;
-			if (bytes.size() >= 4 && std::memcmp(bytes.data(), "DDS ", 4) == 0)
-				return DecodeDDS(std::move(bytes), a_image);
-			return DecodeWIC(bytes, a_image);
+			return DecodeBytes(bytes, a_image);
 		}
 		catch (const std::bad_alloc&)
 		{
@@ -158,5 +177,12 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 		{
 			return DMUI_RESULT_IMAGE_DECODE_FAILED;
 		}
+	}
+
+	DMUI_Result DecodeSource(const ImageSource& a_source, DecodedImage& a_image) noexcept
+	{
+		return a_source.bytes ?
+			DecodeBytes(*a_source.bytes, a_image) :
+			DecodeFile(a_source.path, a_image);
 	}
 }

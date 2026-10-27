@@ -1,6 +1,6 @@
 #include "HostAPIEntries.h"
 
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 #include <Support/BoundedString.h>
 
 #include <new>
@@ -32,7 +32,7 @@ namespace DearModdingUI::HostAPIInternal
 		try
 		{
 			*a_glyph = static_cast<uint32_t>(
-				ResolveIconSelection(
+				dmui::ResolveIconSelection(
 					*explicitName,
 					*primaryMetadata,
 					*secondaryMetadata)

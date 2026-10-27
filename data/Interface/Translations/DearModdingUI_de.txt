@@ -166,10 +166,13 @@ $DMUI_Settings_OkabeVermillion	Okabe-Ito-Vermillion, unterscheidbar bei häufige
 $DMUI_Settings_AccessiblePurple	Barrierefreies Violett
 $DMUI_Settings_OkabePurple	Okabe-Ito-Violett, unterscheidbar bei häufigen Farbsehschwächen
 $DMUI_Settings_FeedbackExampleInfo	Änderungen werden beim erneuten Öffnen des Menüs angewendet.
+$DMUI_Settings_FeedbackExampleSuccess	Im aktiven Profil gespeichert.
 $DMUI_Settings_FeedbackExampleWarning	Diese Option kann das Spieltempo beeinflussen.
 $DMUI_Settings_FeedbackExampleError	Minimum darf Maximum nicht überschreiten.
 $DMUI_Settings_FeedbackPreview	Vorschau des Feld-Feedbacks
 $DMUI_Settings_Appearance	Darstellung
+$DMUI_Settings_ThemePreset	Designvorlage
+$DMUI_Settings_ThemePresetHelp	Listet Designdateien in Data/F4SE/Plugins/DearModdingUI/Themes auf. Die Einstellungen darunter überschreiben die Vorlage; Zurücksetzen stellt den Wert der Vorlage wieder her.
 $DMUI_Settings_SidebarLayout	Seitenleistenlayout (sofort gespeichert)
 $DMUI_Settings_AccentColor	Akzentfarbe
 $DMUI_Settings_AccentColorHelp	Färbt Auswahlen, Steuerelemente, Links und jedes Phosphor-Menüsymbol im Farbmodus neu ein.
@@ -194,17 +197,13 @@ $DMUI_Settings_BackgroundBlurHelp	Verwischt das Spiel hinter dem Host-Fenster; D
 $DMUI_Settings_BlurStrength	Unschärfestärke
 $DMUI_Settings_BlurStrengthHelp	Passt die Unschärfe-Sample-Streuung pro Frame an, ohne Grafikressourcen neu zuzuweisen.
 $DMUI_Settings_FeedbackPlacement	Platzierung des Feld-Feedbacks
-$DMUI_Settings_FeedbackInfo	Feld-Feedback: Info
-$DMUI_Settings_FeedbackInfoHelp	Farbe nur für informatives Feld-Feedback.
-$DMUI_Settings_FeedbackWarning	Feld-Feedback: Warnung
-$DMUI_Settings_FeedbackWarningHelp	Farbe nur für Warnungs-Feld-Feedback.
-$DMUI_Settings_FeedbackError	Feld-Feedback: Fehler
-$DMUI_Settings_FeedbackErrorHelp	Farbe nur für Fehler-Feld-Feedback.
 $DMUI_Settings_Readability	Lesbarkeit
 $DMUI_Settings_UiScale	UI-Skalierung (Anwenden erforderlich)
 $DMUI_Settings_UiScaleHelp	Multipliziert die auflösungsabhängige Größenbestimmung; Anwenden erstellt die Typografie einmal neu vor dem nächsten Frame.
 $DMUI_Settings_BodyFontFamily	Schriftfamilie (Anwenden erforderlich)
 $DMUI_Settings_BodyFontFamilyHelp	Listet Schriftfamilien-Ordner in Data/F4SE/Plugins/DearModdingUI/Fonts auf; Anwenden erstellt die ausgewählte Familie einmal neu.
+$DMUI_Settings_MonospaceFontFamily	Schriftfamilie für Festbreite (Anwenden erforderlich)
+$DMUI_Settings_MonospaceFontFamilyHelp	Für Code und Protokolle. Listet dieselben Schriftfamilien-Ordner plus die integrierte Schrift; Anwenden erstellt die ausgewählte Familie einmal neu.
 $DMUI_Settings_AppliedThisFrame	Dieser Frame angewendet: {}
 $DMUI_Settings_HotkeyConflictDefault	Konflikt: vorgeschlagener Standard ist bereits zugewiesen.
 $DMUI_Settings_HotkeyConflictOverride	Konflikt: gespeicherte Belegung ist einer anderen Aktion oder dem Menü-Umschalter zugewiesen.
@@ -231,3 +230,15 @@ $DMUI_Settings_ResolvedTypographySize	Aufgelöste Typografiegröße
 $DMUI_Settings_ResolvedTypographySizeHelp	Abgeleitet aus der Backbuffer-Höhe und der angewendeten UI-Skalierung an einer Frame-Grenze.
 $DMUI_Settings_EffectiveUiScale	Effektive UI-Skalierung
 $DMUI_Settings_EffectiveUiScaleHelp	Abgeleitet aus Auflösung und [Additional] fMenuUiScale.
+$DMUI_SettingsPage_ResetAll	Alle zurücksetzen
+$DMUI_SettingsPage_ResetAllTooltip	Zurücksetzen lädt die Standardwerte aller Einstellungen in den Entwurf. Mit Anwenden speichern.
+$DMUI_SettingsPage_Revert	Verwerfen
+$DMUI_SettingsPage_RevertTooltip	Verwerfen verwirft ausstehende Änderungen und stellt die gespeicherten Einstellungen wieder her.
+$DMUI_SettingsPage_Apply	Anwenden ({})
+$DMUI_SettingsPage_ApplyTooltipOne	Anwenden speichert {} ausstehende Änderung.
+$DMUI_SettingsPage_ApplyTooltipMany	Anwenden speichert {} ausstehende Änderungen.
+$DMUI_SettingsPage_ModifiedOnly	Nur geänderte
+$DMUI_SettingsPage_SearchHint	Einstellungen durchsuchen...
+$DMUI_SettingsPage_UnsupportedControl	Nicht unterstütztes Einstellungssteuerelement.
+$DMUI_SettingsPage_AppliesNow	Wird sofort angewendet.
+$DMUI_SettingsPage_Unavailable	Nicht verfügbar

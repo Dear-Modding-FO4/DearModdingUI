@@ -18,7 +18,7 @@ namespace DearModdingUI
 	struct ClientDiagnosticRecord
 	{
 		DMUI_ClientHandle client{ DMUI_INVALID_CLIENT_HANDLE };
-		DMUI_StatusSeverity severity{ DMUI_STATUS_SEVERITY_INFO };
+		DMUI_Severity severity{ DMUI_SEVERITY_INFO };
 		std::string scope;
 		std::string summary;
 		std::string detail;
@@ -37,7 +37,7 @@ namespace DearModdingUI
 		const DMUI_DiagnosticDescriptor* a_diagnostic) noexcept
 	{
 		if (!a_diagnostic ||
-			!IsValidStatusSeverity(a_diagnostic->severity) ||
+			!IsValidSeverity(a_diagnostic->severity) ||
 			!a_diagnostic->summary || !a_diagnostic->summary[0])
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		return DMUI_RESULT_OK;

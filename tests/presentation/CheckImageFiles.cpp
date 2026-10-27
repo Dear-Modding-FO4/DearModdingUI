@@ -77,6 +77,12 @@ namespace vmm_tests
 
 			std::string Path(const char* a_name) const { return (m_root / a_name).string(); }
 
+			std::vector<uint8_t> Bytes(const char* a_name) const
+			{
+				std::ifstream stream{ m_root / a_name, std::ios::binary };
+				return { std::istreambuf_iterator<char>{ stream }, std::istreambuf_iterator<char>{} };
+			}
+
 		private:
 			void Write(const char* a_name, std::span<const std::byte> a_bytes) const
 			{
@@ -106,6 +112,7 @@ namespace vmm_tests
 				images::SetDevice(nullptr);
 			}
 			DMUI_ImageHandle Load(const std::string& a_path);
+			DMUI_ImageHandle LoadMemory(const std::vector<uint8_t>& a_bytes);
 		};
 
 		DMUI_ImageInfo Info(DMUI_ImageHandle a_handle)
@@ -123,6 +130,15 @@ namespace vmm_tests
 			handles.push_back(handle);
 			require(Info(handle).status == DMUI_IMAGE_STATUS_LOADING,
 				"load published outside the frame boundary");
+			return handle;
+		}
+
+		DMUI_ImageHandle ImageEnvironment::LoadMemory(const std::vector<uint8_t>& a_bytes)
+		{
+			DMUI_ImageHandle handle{};
+			require(images::LoadImageMemory(kOwner, a_bytes.data(), a_bytes.size(), &handle) == DMUI_RESULT_OK,
+				"memory load was not accepted");
+			handles.push_back(handle);
 			return handle;
 		}
 
@@ -259,6 +275,62 @@ namespace vmm_tests
 			require(Complete(image).failure == DMUI_RESULT_FILE_NOT_FOUND, "reload failure was not queryable");
 		});
 
+		runner.test("Memory images decode like files, survive caller buffer reuse and device changes", [&] {
+			ImageEnvironment env;
+			auto png = files.Bytes("Alpha.png");
+			const auto image = env.LoadMemory(png);
+			std::fill(png.begin(), png.end(), uint8_t{ 0 });
+			const auto before = Complete(image);
+			require(before.status == DMUI_IMAGE_STATUS_READY && before.contentWidth == 2,
+				"PNG did not decode from a copied buffer");
+			auto dds = files.Bytes("Tiles.dds");
+			const auto mipped = env.LoadMemory(dds);
+			require(Complete(mipped).status == DMUI_IMAGE_STATUS_READY && Info(mipped).contentWidth == 8,
+				"DDS did not decode from memory");
+			Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> view;
+			view.Attach(images::RetainImageViewForTests(kOwner, mipped));
+			D3D11_SHADER_RESOURCE_VIEW_DESC srv{};
+			view->GetDesc(&srv);
+			require(srv.Format == DXGI_FORMAT_BC1_UNORM && srv.Texture2D.MipLevels == 4,
+				"memory DDS lost its mip chain");
+			auto device = support::CreateImageResources();
+			images::SetDevice(device.device.Get());
+			require(Info(image).status == DMUI_IMAGE_STATUS_LOADING, "device change did not restart loading");
+			const auto after = Complete(image);
+			require(after.status == DMUI_IMAGE_STATUS_READY && after.contentWidth == 2,
+				"memory image did not reload after a device change");
+			images::SetDevice(env.resources.device.Get());
+		});
+
+		runner.test("Memory images report decode failures and reject unusable buffers", [&] {
+			ImageEnvironment env;
+			auto truncated = files.Bytes("Alpha.png");
+			truncated.resize(40);
+			auto brokenDds = files.Bytes("Tiles.dds");
+			brokenDds.resize(brokenDds.size() / 2);
+			const std::array<std::pair<std::vector<uint8_t>, DMUI_Result>, 3> cases{ {
+				{ truncated, DMUI_RESULT_IMAGE_DECODE_FAILED },
+				{ brokenDds, DMUI_RESULT_IMAGE_DECODE_FAILED },
+				{ files.Bytes("Unsupported.bin"), DMUI_RESULT_UNSUPPORTED_RESOURCE }
+			} };
+			for (const auto& [bytes, failure] : cases)
+			{
+				const auto info = Complete(env.LoadMemory(bytes));
+				require(info.status == DMUI_IMAGE_STATUS_FAILED && info.failure == failure,
+					std::string{ "wrong memory failure: " } + DMUI_ResultToString(info.failure));
+			}
+			DMUI_ImageHandle rejected{ 7 };
+			const uint8_t byte{};
+			require(images::LoadImageMemory(kOwner, nullptr, 4, &rejected) == DMUI_RESULT_INVALID_ARGUMENT &&
+				rejected == DMUI_INVALID_IMAGE_HANDLE, "null bytes were accepted");
+			require(images::LoadImageMemory(kOwner, &byte, 0, &rejected) == DMUI_RESULT_INVALID_ARGUMENT,
+				"empty bytes were accepted");
+			// The limit is checked before any byte is read.
+			require(images::LoadImageMemory(kOwner, &byte,
+					images::ImageFiles::kMaximumBytes + 1, &rejected) == DMUI_RESULT_IMAGE_TOO_LARGE &&
+				rejected == DMUI_INVALID_IMAGE_HANDLE, "oversized bytes were accepted");
+		});
+
 		runner.test("File work stays bounded until completion publication", [&] {
 			ImageEnvironment env;
 			using images::ImageFiles::FileQueue;
@@ -276,8 +348,8 @@ namespace vmm_tests
 			FileQueue queue;
 			for (size_t index = 0; index < FileQueue::kCapacity; ++index)
 				require(queue.Submit({ index / FileQueue::kClientCapacity + 1, index + 1, 1, 1 },
-					files.Path("Tiles.png")) == DMUI_RESULT_OK, "global queue rejected within capacity");
-			require(queue.Submit({ 99, 99, 1, 1 }, files.Path("Tiles.png")) == DMUI_RESULT_BUSY,
+					{ files.Path("Tiles.png"), nullptr }) == DMUI_RESULT_OK, "global queue rejected within capacity");
+			require(queue.Submit({ 99, 99, 1, 1 }, { files.Path("Tiles.png"), nullptr }) == DMUI_RESULT_BUSY,
 				"global queue cap did not reject another client's work");
 		});
 	}

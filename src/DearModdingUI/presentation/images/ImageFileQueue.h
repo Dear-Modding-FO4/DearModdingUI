@@ -21,7 +21,7 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 	struct LoadJob
 	{
 		LoadIdentity identity;
-		std::string path;
+		ImageSource source;
 		DecodedImage decoded;
 		DMUI_Result result{ DMUI_RESULT_OK };
 		bool cancelled{};
@@ -33,7 +33,7 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 		static constexpr size_t kCapacity{ 32 };
 		static constexpr size_t kClientCapacity{ 4 };
 		~FileQueue();
-		[[nodiscard]] DMUI_Result Submit(LoadIdentity a_identity, const std::string& a_path) noexcept;
+		[[nodiscard]] DMUI_Result Submit(LoadIdentity a_identity, ImageSource a_source) noexcept;
 		void Cancel(DMUI_ClientHandle a_owner, DMUI_ImageHandle a_handle) noexcept;
 		[[nodiscard]] std::shared_ptr<LoadJob> TakeCompletion() noexcept;
 		[[nodiscard]] bool HasCompletion() const noexcept;

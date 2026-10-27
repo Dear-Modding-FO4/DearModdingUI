@@ -28,7 +28,7 @@ namespace DearModdingUI::MCM
 		void ReportTransient(Diagnostic a_diagnostic) noexcept override;
 		void AttachClient(dmui::Client& a_client) noexcept;
 		void ReportSummary(
-			DMUI_StatusSeverity a_severity,
+			dmui::Severity a_severity,
 			std::string_view a_scope,
 			std::string_view a_summary,
 			std::string_view a_detail = {}) noexcept;
@@ -36,7 +36,7 @@ namespace DearModdingUI::MCM
 	private:
 		struct PendingDiagnostic
 		{
-			DMUI_StatusSeverity severity{ DMUI_STATUS_SEVERITY_INFO };
+			dmui::Severity severity{ dmui::Severity::kInfo };
 			std::string scope;
 			std::string summary;
 			std::string detail;
@@ -44,7 +44,7 @@ namespace DearModdingUI::MCM
 
 		void Submit(const Diagnostic& a_diagnostic) noexcept;
 		void Submit(
-			DMUI_StatusSeverity a_severity,
+			dmui::Severity a_severity,
 			std::string_view a_scope,
 			std::string_view a_summary,
 			std::string_view a_detail) noexcept;

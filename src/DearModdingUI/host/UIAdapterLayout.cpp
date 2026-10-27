@@ -1,4 +1,5 @@
 #include "UIAdapterInternal.h"
+#include <DearModdingUI/controls/Tooltip.h>
 #include <DearModdingUI/UIBindings.generated.h>
 
 #include <imgui/imgui_internal.h>
@@ -61,7 +62,7 @@ namespace DearModdingUI::UI::Bindings
 		const ImVec2 textPosition{ position.x + offset, position.y };
 		ImGui::RenderTextEllipsis(window->DrawList, textPosition, bounds.Max,
 			bounds.Max.x, a_text, a_text + a_length, &textSize);
-		if (clipped && ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip) && ImGui::BeginTooltip())
+		if (clipped && Tooltip::BeginItem())
 		{
 			ImGui::TextUnformatted(a_text, a_text + a_length);
 			ImGui::EndTooltip();

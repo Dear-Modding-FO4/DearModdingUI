@@ -1,8 +1,9 @@
 #pragma once
 
 #include <DearModdingUI/API.h>
-#include <DearModdingUI/VisualDecisions.h>
+#include <DearModdingUI/presentation/VisualDecisions.h>
 #include <DearModdingUI/controls/FieldFeedback.h>
+#include <DearModdingUI/host/Status.h>
 
 #include <cstdint>
 #include <string_view>
@@ -13,7 +14,7 @@ namespace DearModdingUI::SettingsTable
 	{
 		kIdle,
 		kTable,
-		kRow
+		kField
 	};
 
 	class BracketState
@@ -29,19 +30,19 @@ namespace DearModdingUI::SettingsTable
 			return DMUI_RESULT_OK;
 		}
 
-		[[nodiscard]] constexpr DMUI_Result BeginRow(
+		[[nodiscard]] constexpr DMUI_Result BeginField(
 			DMUI_ClientHandle a_owner) noexcept
 		{
 			if (m_phase != Phase::kTable || m_owner != a_owner)
 				return DMUI_RESULT_UNBALANCED_BRACKET;
-			m_phase = Phase::kRow;
+			m_phase = Phase::kField;
 			return DMUI_RESULT_OK;
 		}
 
-		[[nodiscard]] constexpr DMUI_Result EndRow(
+		[[nodiscard]] constexpr DMUI_Result EndField(
 			DMUI_ClientHandle a_owner) noexcept
 		{
-			if (m_phase != Phase::kRow || m_owner != a_owner)
+			if (m_phase != Phase::kField || m_owner != a_owner)
 				return DMUI_RESULT_UNBALANCED_BRACKET;
 			m_phase = Phase::kTable;
 			return DMUI_RESULT_OK;
@@ -85,25 +86,6 @@ namespace DearModdingUI::SettingsTable
 		return DMUI_RESULT_OK;
 	}
 
-	[[nodiscard]] constexpr DMUI_Result ValidateRowOptions(
-		const DMUI_SettingsRowOptions* a_options) noexcept
-	{
-		if (!a_options)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		return DMUI_RESULT_OK;
-	}
-
-	[[nodiscard]] constexpr DMUI_Result ValidateRowBeginOptions(
-		const DMUI_SettingsRowBeginOptions* a_options) noexcept
-	{
-		if (!a_options)
-			return DMUI_RESULT_INVALID_ARGUMENT;
-		return a_options->layout == DMUI_SETTINGS_ROW_LAYOUT_LABEL_VALUE ||
-				a_options->layout == DMUI_SETTINGS_ROW_LAYOUT_FULL_SPAN ?
-			DMUI_RESULT_OK :
-			DMUI_RESULT_INVALID_ARGUMENT;
-	}
-
 	[[nodiscard]] constexpr DMUI_Result ValidateFieldBeginOptions(
 		const DMUI_FieldBeginOptions* a_options) noexcept
 	{
@@ -123,7 +105,7 @@ namespace DearModdingUI::SettingsTable
 			*a_messageLength = 0;
 		if (!a_feedback)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-		if (!FieldFeedback::IsValidSeverity(a_feedback->severity))
+		if (!IsValidSeverity(a_feedback->severity))
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		if (!a_feedback->message)
 			return DMUI_RESULT_OK;
@@ -138,19 +120,6 @@ namespace DearModdingUI::SettingsTable
 		return DMUI_RESULT_OK;
 	}
 
-	[[nodiscard]] constexpr float ResolveResetColumnWidth(
-		bool a_hasGlyph,
-		float a_labelWidth,
-		float a_buttonExtent,
-		float a_framePaddingX) noexcept
-	{
-		return ActionButtonWidth(
-			a_hasGlyph,
-			a_labelWidth,
-			a_buttonExtent,
-			a_framePaddingX);
-	}
-
 	struct BeginResult
 	{
 		DMUI_Result result{ DMUI_RESULT_OK };
@@ -163,7 +132,7 @@ namespace DearModdingUI::SettingsTable
 		bool resetEnabled{ false };
 	};
 
-	enum class RowLayout : uint32_t
+	enum class FieldLayout : uint32_t
 	{
 		kLabelValue,
 		kFullSpan
@@ -189,16 +158,6 @@ namespace DearModdingUI::SettingsTable
 	[[nodiscard]] BeginResult Begin(
 		DMUI_ClientHandle a_owner,
 		const char* a_id) noexcept;
-	[[nodiscard]] BeginResult BeginRow(
-		DMUI_ClientHandle a_owner,
-		const char* a_id,
-		const char* a_label,
-		const char* a_description,
-		RowLayout a_layout = RowLayout::kLabelValue) noexcept;
-	[[nodiscard]] DMUI_Result EndRow(
-		DMUI_ClientHandle a_owner,
-		const FieldEndOptions& a_options,
-		bool& a_resetPressed) noexcept;
 	[[nodiscard]] DMUI_Result End(
 		DMUI_ClientHandle a_owner) noexcept;
 	[[nodiscard]] BeginResult BeginField(
@@ -206,10 +165,10 @@ namespace DearModdingUI::SettingsTable
 		const char* a_id,
 		const char* a_label,
 		const char* a_description,
-		RowLayout a_layout) noexcept;
+		FieldLayout a_layout) noexcept;
 	[[nodiscard]] DMUI_Result SetFieldFeedback(
 		DMUI_ClientHandle a_owner,
-		DMUI_FieldFeedbackSeverity a_severity,
+		DMUI_Severity a_severity,
 		std::string_view a_message) noexcept;
 	[[nodiscard]] DMUI_Result EndField(
 		DMUI_ClientHandle a_owner,

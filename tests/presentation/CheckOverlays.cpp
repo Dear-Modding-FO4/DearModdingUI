@@ -264,7 +264,7 @@ namespace vmm_tests
 			PresentationServices::SetDevice(resources.device.Get());
 			const std::string message = std::string(1000, '\n') + "Worker message";
 			const DMUI_NotificationDescriptor descriptor{
-				DMUI_STATUS_SEVERITY_INFO,
+				DMUI_SEVERITY_INFO,
 				message.c_str(),
 				250,
 				"Optional title"
@@ -291,6 +291,11 @@ namespace vmm_tests
 			require(PresentationServices::PostNotification(registry, 9999, &descriptor) ==
 					DMUI_RESULT_CLIENT_NOT_FOUND,
 				"unregistered client posted a toast");
+			auto invalid = descriptor;
+			invalid.severity = DMUI_SEVERITY_ERROR + 1u;
+			require(PresentationServices::PostNotification(registry, client, &invalid) ==
+					DMUI_RESULT_INVALID_ARGUMENT,
+				"out-of-range notification severity was accepted");
 			{
 				ImGuiFrame frame;
 				const auto* focused = ImGui::GetCurrentContext()->NavWindow;

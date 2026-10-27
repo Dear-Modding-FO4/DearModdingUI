@@ -1,5 +1,10 @@
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/localization/Localization.h>
+#include <DearModdingUI/controls/Button.h>
+#include <DearModdingUI/controls/Spinner.h>
+#include <DearModdingUI/controls/TextInput.h>
+#include <DearModdingUI/controls/TextInput.h>
+#include <DearModdingUI/controls/TextSpans.h>
 #include <DearModdingUI/host/RenderExecution.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <Support/BoundedString.h>
@@ -332,18 +337,23 @@ namespace DearModdingUI::PresentationServices
 				ImGui::TextWrapped("%s", snapshot.body.c_str());
 			if (snapshot.kind == DMUI_DIALOG_KIND_TEXT_ENTRY)
 			{
-				ImGui::SetNextItemWidth(ImGui::GetFontSize() * 24.0f);
-				(void)ImGui::InputTextWithHint(
-					"##dmui.dialog.text",
-					snapshot.hint.c_str(),
-					snapshot.text.data(),
-					snapshot.text.size());
+				DMUI_TextBuffer buffer{
+					snapshot.text.data(), snapshot.text.size(), nullptr, nullptr };
+				DMUI_TextEditState state{};
+				(void)DrawTextField(
+					"dmui.dialog.text",
+					buffer,
+					{
+						.hint = snapshot.hint.c_str(),
+						// The buffer includes its terminator.
+						.maxBytes = static_cast<uint32_t>(snapshot.text.size() - 1),
+						.size = { ImGui::GetFontSize() * 24.0f, 0.0f }
+					},
+					state);
 			}
 			if (!snapshot.error.empty())
-				ImGui::TextColored(
-					Theme::TextColor(dmui::TextTone::kStatusError),
-					"%s",
-					snapshot.error.c_str());
+				(void)DrawTextSpans(
+					snapshot.error, dmui::TextStyle{}.Tone(dmui::TextTone::kError));
 
 			enum class DialogAction
 			{
@@ -353,15 +363,26 @@ namespace DearModdingUI::PresentationServices
 			};
 			auto action = DialogAction::kNone;
 			if (snapshot.event == DMUI_DIALOG_EVENT_SUBMITTED)
+			{
+				DrawSpinner({ .id = "dmui.dialog.working", .size = ImGui::GetFontSize() });
+				ImGui::SameLine();
 				ImGui::TextDisabled(
 					"%s",
 					Localization::Text("$DMUI_Dialog_Working", "Working..."));
+			}
 			else
 			{
-				if (ImGui::Button(snapshot.acceptLabel.c_str()))
+				if (DrawButton({
+						.id = "##dmui.dialog.accept",
+						.label = snapshot.acceptLabel.c_str(),
+						.style = dmui::ButtonStyle::kPrimary
+					}))
 					action = DialogAction::kSubmit;
 				ImGui::SameLine();
-				if (ImGui::Button(snapshot.cancelLabel.c_str()))
+				if (DrawButton({
+						.id = "##dmui.dialog.cancel",
+						.label = snapshot.cancelLabel.c_str()
+					}))
 					action = DialogAction::kCancel;
 				ImGui::SetItemDefaultFocus();
 			}

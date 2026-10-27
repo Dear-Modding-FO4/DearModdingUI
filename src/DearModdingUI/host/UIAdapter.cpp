@@ -1,8 +1,12 @@
 #include "UIAdapterInternal.h"
+#include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/host/PointerRouting.h>
 #include <DearModdingUI/host/RenderExecution.h>
+#include <DearModdingUI/host/ShortcutChord.h>
 #include <DearModdingUI/host/UIAdapter.h>
 #include <DearModdingUI/UIBindings.generated.h>
+#include <DearModdingUI/controls/TextSpans.h>
+#include <DearModdingUI/controls/Tooltip.h>
 #include <DearModdingUI/presentation/Theme.h>
 
 #include <imgui/imgui.h>
@@ -117,77 +121,6 @@ namespace DearModdingUI::UI
 			}
 		}
 
-		[[nodiscard]] DMUI_Result ValidateBuffer(
-			char* a_buffer,
-			uint32_t a_capacity) noexcept
-		{
-			if (!a_buffer || a_capacity == 0)
-				return DMUI_RESULT_INVALID_ARGUMENT;
-			return std::memchr(a_buffer, '\0', a_capacity) ?
-				DMUI_RESULT_OK :
-				DMUI_RESULT_INVALID_ARGUMENT;
-		}
-
-		[[nodiscard]] DMUI_Result ScalarSize(
-			DMUI_UIDataType a_type,
-			uint32_t& a_size) noexcept
-		{
-			switch (a_type)
-			{
-			case DMUI_UI_DATA_TYPE_S8:
-			case DMUI_UI_DATA_TYPE_U8:
-				a_size = 1u;
-				return DMUI_RESULT_OK;
-			case DMUI_UI_DATA_TYPE_S16:
-			case DMUI_UI_DATA_TYPE_U16:
-				a_size = 2u;
-				return DMUI_RESULT_OK;
-			case DMUI_UI_DATA_TYPE_S32:
-			case DMUI_UI_DATA_TYPE_U32:
-			case DMUI_UI_DATA_TYPE_FLOAT:
-				a_size = 4u;
-				return DMUI_RESULT_OK;
-			case DMUI_UI_DATA_TYPE_S64:
-			case DMUI_UI_DATA_TYPE_U64:
-			case DMUI_UI_DATA_TYPE_DOUBLE:
-				a_size = 8u;
-				return DMUI_RESULT_OK;
-			default:
-				return DMUI_RESULT_INVALID_ARGUMENT;
-			}
-		}
-
-		[[nodiscard]] DMUI_Result ValidateScalar(
-			DMUI_UIDataType a_type,
-			void* a_data,
-			uint32_t a_dataSize,
-			const void* a_first,
-			uint32_t a_firstSize,
-			const void* a_second,
-			uint32_t a_secondSize) noexcept
-		{
-			uint32_t required{};
-			const auto typeResult = ScalarSize(a_type, required);
-			if (typeResult != DMUI_RESULT_OK)
-				return typeResult;
-			if (!a_data || a_dataSize != required)
-				return DMUI_RESULT_INVALID_ARGUMENT;
-			const auto aligned = [required](const void* a_value) noexcept {
-				return !a_value ||
-					reinterpret_cast<uintptr_t>(a_value) % required == 0u;
-			};
-			if (!aligned(a_data) ||
-				!aligned(a_first) ||
-				!aligned(a_second))
-				return DMUI_RESULT_INVALID_ARGUMENT;
-			if ((a_first && a_firstSize != required) ||
-				(!a_first && a_firstSize != 0) ||
-				(a_second && a_secondSize != required) ||
-				(!a_second && a_secondSize != 0))
-				return DMUI_RESULT_INVALID_ARGUMENT;
-			return DMUI_RESULT_OK;
-		}
-
 		[[nodiscard]] ImVec2 Native(DMUI_Vec2 a_value) noexcept
 		{
 			return { a_value.x, a_value.y };
@@ -208,15 +141,12 @@ namespace DearModdingUI::UI
 			return { a_value.x, a_value.y, a_value.z, a_value.w };
 		}
 
-		[[nodiscard]] ImVec4 StableRGBA(uint32_t a_rgba) noexcept
+		[[nodiscard]] bool Finite(const DMUI_Placement& a_placement) noexcept
 		{
-			constexpr float scale{ 1.0f / 255.0f };
-			return {
-				static_cast<float>((a_rgba >> 24u) & 0xFFu) * scale,
-				static_cast<float>((a_rgba >> 16u) & 0xFFu) * scale,
-				static_cast<float>((a_rgba >> 8u) & 0xFFu) * scale,
-				static_cast<float>(a_rgba & 0xFFu) * scale
-			};
+			return std::isfinite(a_placement.position.x) &&
+				std::isfinite(a_placement.position.y) &&
+				std::isfinite(a_placement.pivot.x) &&
+				std::isfinite(a_placement.pivot.y);
 		}
 
 		[[nodiscard]] DMUI_Result TranslateInputFlags(
@@ -261,16 +191,44 @@ namespace DearModdingUI::UI
 			return DMUI_RESULT_OK;
 		}
 
-		DMUI_Result DMUI_CALL GetThemeColors(
+		DMUI_Result DMUI_CALL GetThemeTokens(
 			DMUI_ClientHandle a_client,
-			DMUI_ThemeColors* a_colors) noexcept
+			DMUI_ThemeTokens* a_tokens) noexcept
 		{
-			if (!a_colors)
+			if (!a_tokens)
 				return DMUI_RESULT_INVALID_ARGUMENT;
 			const auto validation = Validate(a_client);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
-			*a_colors = Theme::ColorSnapshot();
+			*a_tokens = Theme::TokenSnapshot();
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL GetTime(
+			DMUI_ClientHandle a_client,
+			double* a_seconds) noexcept
+		{
+			if (!a_seconds)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_seconds = 0.0;
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			*a_seconds = ImGui::GetTime();
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL GetDeltaTime(
+			DMUI_ClientHandle a_client,
+			float* a_seconds) noexcept
+		{
+			if (!a_seconds)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_seconds = 0.0f;
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			*a_seconds = ImGui::GetIO().DeltaTime;
 			return DMUI_RESULT_OK;
 		}
 
@@ -284,15 +242,17 @@ namespace DearModdingUI::UI
 			const auto validation = Validate(a_client);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
+			const auto& io = ImGui::GetIO();
+			// Placement works on any page; the edges stay with the owner.
+			a_state->viewport = Stable(io.DisplaySize);
+			if (ImGui::IsMousePosValid(&io.MousePos))
+				a_state->position = Stable(io.MousePos);
 			const auto frame = PointerRouting::FrameFor(RenderExecution::ActivePage());
 			if (!frame)
 				return DMUI_RESULT_OK;
 
-			const auto& io = ImGui::GetIO();
 			a_state->active = 1u;
 			a_state->captured = io.WantCaptureMouse ? 1u : 0u;
-			a_state->position = Stable(io.MousePos);
-			a_state->viewport = Stable(io.DisplaySize);
 			a_state->wheel = frame->wheel;
 			a_state->down = frame->down;
 			a_state->pressed = frame->pressed;
@@ -300,24 +260,27 @@ namespace DearModdingUI::UI
 			return DMUI_RESULT_OK;
 		}
 
-		DMUI_Result DMUI_CALL BeginCombo(
+		DMUI_Result DMUI_CALL Shortcut(
 			DMUI_ClientHandle a_client,
-			const char* a_label,
-			const char* a_previewValue,
-			DMUI_UIComboFlags a_flags,
-			uint32_t* a_visible) noexcept
+			const char* a_chord,
+			DMUI_UIShortcutFlags a_flags,
+			uint32_t* a_pressed) noexcept
 		{
-			if (!a_label || !a_previewValue || !a_visible)
+			if (!a_chord || !a_pressed)
 				return DMUI_RESULT_INVALID_ARGUMENT;
-			*a_visible = 0u;
+			*a_pressed = 0u;
+			if ((a_flags & ~DMUI_UI_SHORTCUT_FLAGS_REPEAT) != 0)
+				return DMUI_RESULT_INVALID_ARGUMENT;
 			const auto validation = Validate(a_client);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
-			ImGuiComboFlags flags{};
-			const auto translated = TranslateComboFlags(a_flags, flags);
-			if (translated != DMUI_RESULT_OK)
-				return translated;
-			*a_visible = ImGui::BeginCombo(a_label, a_previewValue, flags) ? 1u : 0u;
+			const auto chord = ParseShortcutChord(a_chord);
+			if (!chord)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			// Focused routing keeps an active text field's own keys.
+			*a_pressed = ShortcutPressed(
+				*chord,
+				(a_flags & DMUI_UI_SHORTCUT_FLAGS_REPEAT) ? ImGuiInputFlags_Repeat : 0) ? 1u : 0u;
 			return DMUI_RESULT_OK;
 		}
 
@@ -329,11 +292,6 @@ namespace DearModdingUI::UI
 				return validation;                                      \
 			ImGui::native();                                             \
 			return DMUI_RESULT_OK;                                       \
-		}
-
-		DMUI_Result DMUI_CALL EndCombo(DMUI_ClientHandle a_client) noexcept
-		{
-			return EndDrawWindow(a_client, &ImGui::EndCombo);
 		}
 
 		DMUI_Result DMUI_CALL BeginDisabled(
@@ -394,22 +352,35 @@ namespace DearModdingUI::UI
 			return DMUI_RESULT_OK;
 		}
 
-		DMUI_Result DMUI_CALL BeginTooltipAt(
+		DMUI_Result DMUI_CALL BeginItemTooltip(
 			DMUI_ClientHandle a_client,
-			DMUI_Vec2 a_position,
-			DMUI_Vec2 a_pivot,
 			uint32_t* a_visible) noexcept
 		{
 			if (!a_visible)
 				return DMUI_RESULT_INVALID_ARGUMENT;
 			*a_visible = 0u;
-			if (!std::isfinite(a_position.x) || !std::isfinite(a_position.y) ||
-				!std::isfinite(a_pivot.x) || !std::isfinite(a_pivot.y))
+			const auto validation = Validate(a_client);
+			if (validation != DMUI_RESULT_OK)
+				return validation;
+			*a_visible = Tooltip::BeginItem() ? 1u : 0u;
+			return DMUI_RESULT_OK;
+		}
+
+		DMUI_Result DMUI_CALL BeginTooltipAt(
+			DMUI_ClientHandle a_client,
+			DMUI_Placement a_placement,
+			uint32_t* a_visible) noexcept
+		{
+			if (!a_visible)
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			*a_visible = 0u;
+			if (!Finite(a_placement))
 				return DMUI_RESULT_INVALID_ARGUMENT;
 			const auto validation = Validate(a_client);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
-			ImGui::SetNextWindowPos(Native(a_position), ImGuiCond_Always, Native(a_pivot));
+			ImGui::SetNextWindowPos(
+				Native(a_placement.position), ImGuiCond_Always, Native(a_placement.pivot));
 			*a_visible = ImGui::BeginTooltip() ? 1u : 0u;
 			return DMUI_RESULT_OK;
 		}
@@ -557,19 +528,6 @@ namespace DearModdingUI::UI
 
 		DMUI_UI_END(PopID, PopID)
 
-		DMUI_Result DMUI_CALL PopStyleColor(
-			DMUI_ClientHandle a_client,
-			int32_t a_count) noexcept
-		{
-			if (a_count < 0)
-				return DMUI_RESULT_INVALID_ARGUMENT;
-			const auto validation = Validate(a_client);
-			if (validation != DMUI_RESULT_OK)
-				return validation;
-			ImGui::PopStyleColor(a_count);
-			return DMUI_RESULT_OK;
-		}
-
 		DMUI_UI_END(PopTextWrapPos, PopTextWrapPos)
 
 		DMUI_Result DMUI_CALL PushIDString(
@@ -606,38 +564,6 @@ namespace DearModdingUI::UI
 				return validation;
 			ImGui::PushID(reinterpret_cast<const void*>(
 				static_cast<uintptr_t>(a_id)));
-			return DMUI_RESULT_OK;
-		}
-
-		DMUI_Result DMUI_CALL PushStyleColorU32(
-			DMUI_ClientHandle a_client,
-			DMUI_UIColor a_color,
-			uint32_t a_rgba) noexcept
-		{
-			const auto validation = Validate(a_client);
-			if (validation != DMUI_RESULT_OK)
-				return validation;
-			ImGuiCol color{};
-			const auto translated = TranslateColor(a_color, color);
-			if (translated != DMUI_RESULT_OK)
-				return translated;
-			ImGui::PushStyleColor(color, StableRGBA(a_rgba));
-			return DMUI_RESULT_OK;
-		}
-
-		DMUI_Result DMUI_CALL PushStyleColor(
-			DMUI_ClientHandle a_client,
-			DMUI_UIColor a_color,
-			DMUI_Vec4 a_value) noexcept
-		{
-			const auto validation = Validate(a_client);
-			if (validation != DMUI_RESULT_OK)
-				return validation;
-			ImGuiCol color{};
-			const auto translated = TranslateColor(a_color, color);
-			if (translated != DMUI_RESULT_OK)
-				return translated;
-			ImGui::PushStyleColor(color, Native(a_value));
 			return DMUI_RESULT_OK;
 		}
 
@@ -692,22 +618,6 @@ namespace DearModdingUI::UI
 			if (validation != DMUI_RESULT_OK)
 				return validation;
 			ImGui::SetNextItemWidth(a_width);
-			return DMUI_RESULT_OK;
-		}
-
-		DMUI_Result DMUI_CALL SetTooltipText(
-			DMUI_ClientHandle a_client,
-			const char* a_text,
-			size_t a_textLength) noexcept
-		{
-			const auto validation = Validate(a_client);
-			if (validation != DMUI_RESULT_OK)
-				return validation;
-			std::string text;
-			const auto copied = CopyText(a_text, a_textLength, text);
-			if (copied != DMUI_RESULT_OK)
-				return copied;
-			ImGui::SetTooltip("%s", text.c_str());
 			return DMUI_RESULT_OK;
 		}
 
@@ -797,62 +707,31 @@ namespace DearModdingUI::UI
 		DMUI_Result DMUI_CALL Text(
 			DMUI_ClientHandle a_client,
 			const char* a_text,
-			size_t a_textLength) noexcept
+			size_t a_textLength,
+			const DMUI_TextSpan* a_spans,
+			uint32_t a_spanCount,
+			const DMUI_TextOptions* a_options) noexcept
 		{
 			const auto validation = ValidateText(
 				a_client, a_text, a_textLength);
 			if (validation != DMUI_RESULT_OK)
 				return validation;
-			ImGui::TextUnformatted(a_text, a_text + a_textLength);
-			return DMUI_RESULT_OK;
-		}
-
-		DMUI_Result DMUI_CALL TextColored(
-			DMUI_ClientHandle a_client,
-			DMUI_Vec4 a_color,
-			const char* a_text,
-			size_t a_textLength) noexcept
-		{
-			const auto validation = ValidateText(
-				a_client, a_text, a_textLength);
-			if (validation != DMUI_RESULT_OK)
-				return validation;
-			ImGui::PushStyleColor(ImGuiCol_Text, Native(a_color));
-			ImGui::TextUnformatted(a_text, a_text + a_textLength);
-			ImGui::PopStyleColor();
-			return DMUI_RESULT_OK;
-		}
-
-		DMUI_Result DMUI_CALL TextDisabled(
-			DMUI_ClientHandle a_client,
-			const char* a_text,
-			size_t a_textLength) noexcept
-		{
-			const auto validation = ValidateText(
-				a_client, a_text, a_textLength);
-			if (validation != DMUI_RESULT_OK)
-				return validation;
-			ImGui::PushStyleColor(
-				ImGuiCol_Text,
-				ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-			ImGui::TextUnformatted(a_text, a_text + a_textLength);
-			ImGui::PopStyleColor();
-			return DMUI_RESULT_OK;
-		}
-
-		DMUI_Result DMUI_CALL TextWrapped(
-			DMUI_ClientHandle a_client,
-			const char* a_text,
-			size_t a_textLength) noexcept
-		{
-			const auto validation = ValidateText(
-				a_client, a_text, a_textLength);
-			if (validation != DMUI_RESULT_OK)
-				return validation;
-			ImGui::PushTextWrapPos(0.0f);
-			ImGui::TextUnformatted(a_text, a_text + a_textLength);
-			ImGui::PopTextWrapPos();
-			return DMUI_RESULT_OK;
+			constexpr DMUI_TextOptions defaults{};
+			const auto& options = a_options ? *a_options : defaults;
+			if ((!a_spans && a_spanCount != 0) || !ValidTextOptions(options))
+				return DMUI_RESULT_INVALID_ARGUMENT;
+			if (a_spanCount == 0 && options.flags == 0 && options.wrapWidth == 0.0f)
+			{
+				// Plain text keeps ImGui's clipped, unbounded path.
+				ImGui::TextUnformatted(a_text, a_text + a_textLength);
+				return DMUI_RESULT_OK;
+			}
+			const std::string_view text{ a_text, a_textLength };
+			const std::span<const DMUI_TextSpan> spans{
+				a_spanCount ? a_spans : nullptr, a_spanCount };
+			const auto valid = ValidateTextSpans(text, spans, options);
+			return valid != DMUI_RESULT_OK ?
+				valid : DrawTextSpans(text, spans, options);
 		}
 
 		DMUI_Result DMUI_CALL Unindent(

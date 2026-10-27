@@ -34,7 +34,7 @@ namespace DearModdingUI::PresentationServices
 			kNone,
 			kImportedD3D11,
 			kCpuPixels,
-			kFile
+			kEncoded
 		};
 
 		struct ImageEntry
@@ -51,7 +51,7 @@ namespace DearModdingUI::PresentationServices
 			bool reusable{};
 			DMUI_Result failure{ DMUI_RESULT_OK };
 			uint64_t loadGeneration{};
-			std::string path;
+			ImageFiles::ImageSource source;
 			bool queued{};
 		};
 
@@ -152,7 +152,7 @@ namespace DearModdingUI::PresentationServices
 			a_service.files.Cancel(image.owner, MakeImageHandle(a_slot, image.handleGeneration));
 			++image.loadGeneration;
 			image.queued = false;
-			image.path.clear();
+			image.source = {};
 			image.view.Reset();
 			image.status = a_status;
 			image.provenance = ImageProvenance::kNone;
@@ -345,6 +345,37 @@ namespace DearModdingUI::PresentationServices
 		}
 	}
 
+	namespace
+	{
+		// Throws on allocation failure; callers map that to RESOURCE_EXHAUSTED.
+		[[nodiscard]] DMUI_Result LoadEncoded(
+			DMUI_ClientHandle a_client,
+			ImageFiles::ImageSource a_source,
+			DMUI_ImageHandle* a_image)
+		{
+			auto& service = GetImageService();
+			const auto lock = LockImages(service);
+			DMUI_ImageHandle handle{};
+			const auto allocated = PublishImage(service, a_client, {}, 0, 0, ImageProvenance::kEncoded, &handle);
+			if (allocated != DMUI_RESULT_OK)
+				return allocated;
+			auto& image = *FindImage(service, handle);
+			image.source = std::move(a_source);
+			image.status = DMUI_IMAGE_STATUS_LOADING;
+			++image.loadGeneration;
+			const auto submitted = service.files.Submit(
+				{ a_client, handle, image.loadGeneration, image.deviceGeneration }, image.source);
+			if (submitted != DMUI_RESULT_OK)
+			{
+				RecycleImage(service, static_cast<uint32_t>(handle) - 1, DMUI_IMAGE_STATUS_RELEASED);
+				return submitted;
+			}
+			image.queued = true;
+			*a_image = handle;
+			return DMUI_RESULT_OK;
+		}
+	}
+
 	DMUI_Result LoadImageFile(
 		DMUI_ClientHandle a_client, const char* a_utf8Path, DMUI_ImageHandle* a_image) noexcept
 	{
@@ -356,27 +387,31 @@ namespace DearModdingUI::PresentationServices
 			return DMUI_RESULT_INVALID_ARGUMENT;
 		try
 		{
-			std::string source{ *path };
-			auto& service = GetImageService();
-			const auto lock = LockImages(service);
-			DMUI_ImageHandle handle{};
-			const auto allocated = PublishImage(service, a_client, {}, 0, 0, ImageProvenance::kFile, &handle);
-			if (allocated != DMUI_RESULT_OK)
-				return allocated;
-			auto& image = *FindImage(service, handle);
-			image.path = std::move(source);
-			image.status = DMUI_IMAGE_STATUS_LOADING;
-			++image.loadGeneration;
-			const auto submitted = service.files.Submit(
-				{ a_client, handle, image.loadGeneration, image.deviceGeneration }, image.path);
-			if (submitted != DMUI_RESULT_OK)
-			{
-				RecycleImage(service, static_cast<uint32_t>(handle) - 1, DMUI_IMAGE_STATUS_RELEASED);
-				return submitted;
-			}
-			image.queued = true;
-			*a_image = handle;
-			return DMUI_RESULT_OK;
+			return LoadEncoded(a_client, { std::string{ *path }, nullptr }, a_image);
+		}
+		catch (...)
+		{
+			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		}
+	}
+
+	DMUI_Result LoadImageMemory(
+		DMUI_ClientHandle a_client, const void* a_bytes, size_t a_size, DMUI_ImageHandle* a_image) noexcept
+	{
+		if (!a_image || !a_client)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		*a_image = DMUI_INVALID_IMAGE_HANDLE;
+		if (!a_bytes || a_size == 0)
+			return DMUI_RESULT_INVALID_ARGUMENT;
+		if (a_size > ImageFiles::kMaximumBytes)
+			return DMUI_RESULT_IMAGE_TOO_LARGE;
+		try
+		{
+			const auto* first = static_cast<const uint8_t*>(a_bytes);
+			return LoadEncoded(
+				a_client,
+				{ {}, std::make_shared<const std::vector<uint8_t>>(first, first + a_size) },
+				a_image);
 		}
 		catch (...)
 		{
@@ -770,7 +805,7 @@ namespace DearModdingUI::PresentationServices
 			for (uint32_t slot = 0; slot < service.images.size(); ++slot)
 			{
 				auto& image = service.images[slot];
-				if (image.provenance == ImageProvenance::kFile)
+				if (image.provenance == ImageProvenance::kEncoded)
 				{
 					service.files.Cancel(image.owner, MakeImageHandle(slot, image.handleGeneration));
 					++image.loadGeneration;
@@ -834,12 +869,12 @@ namespace DearModdingUI::PresentationServices
 			for (uint32_t slot = 0; slot < service.images.size(); ++slot)
 			{
 				auto& image = service.images[slot];
-				if (image.provenance != ImageProvenance::kFile ||
+				if (image.provenance != ImageProvenance::kEncoded ||
 					image.status != DMUI_IMAGE_STATUS_LOADING || image.queued)
 					continue;
 				const auto result = service.files.Submit(
 					{ image.owner, MakeImageHandle(slot, image.handleGeneration),
-						image.loadGeneration, image.deviceGeneration }, image.path);
+						image.loadGeneration, image.deviceGeneration }, image.source);
 				if (result == DMUI_RESULT_OK)
 					image.queued = true;
 				else if (result != DMUI_RESULT_BUSY)

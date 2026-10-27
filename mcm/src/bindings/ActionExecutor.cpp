@@ -284,7 +284,7 @@ namespace DearModdingUI::MCM
 						{
 							a_settings.notes.push_back({
 								std::move(message),
-								false,
+								dmui::TextTone::kInherit,
 								std::move(noteId)
 							});
 						}

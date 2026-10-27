@@ -84,6 +84,22 @@ namespace DearModdingUI
 		}
 	}
 
+	LogoColors ResolveLogoColors(const Theme::ThemeSpec& a_theme) noexcept
+	{
+		const auto& tokens = a_theme.tokens;
+		if (a_theme.effects.logoColorMode == LogoColorMode::kAccent)
+		{
+			const auto accent = ImGui::GetColorU32(tokens.accent);
+			return { accent, accent, accent, accent };
+		}
+		return {
+			ImGui::ColorConvertFloat4ToU32(tokens.logoTop),
+			ImGui::ColorConvertFloat4ToU32(tokens.logoLeft),
+			ImGui::ColorConvertFloat4ToU32(tokens.logoRight),
+			ImGui::ColorConvertFloat4ToU32(tokens.logoBottom)
+		};
+	}
+
 	void DrawLogo(
 		ImDrawList* a_drawList,
 		ImVec2 a_center,

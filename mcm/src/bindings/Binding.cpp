@@ -333,7 +333,7 @@ namespace DearModdingUI::MCM
 			{
 				a_page.notes.push_back({
 					"Loading setting visibility…",
-					true,
+					dmui::TextTone::kMuted,
 					kPendingNote
 				});
 				a_notes.pending = true;
@@ -348,7 +348,7 @@ namespace DearModdingUI::MCM
 						"Dependent content is shown.",
 						a_summary.unevaluableConditions,
 						a_summary.unevaluableConditions == 1 ? "" : "s"),
-					false,
+					dmui::TextTone::kInherit,
 					kUnavailableNote
 				});
 				a_notes.unavailable = true;
@@ -377,7 +377,7 @@ namespace DearModdingUI::MCM
 				text.append(Describe(reason).pageText);
 			}
 			if (!text.empty())
-				a_page.notes.push_back({ std::move(text), false, kNoteId });
+				a_page.notes.push_back({ std::move(text), dmui::TextTone::kInherit, kNoteId });
 		}
 	}
 

@@ -2,58 +2,76 @@
 
 namespace DearModdingUI::Theme
 {
-	DMUI_ThemeColors MakeColorSnapshot(const ImVec4& a_accent) noexcept
+	DMUI_ThemeTokens TokenSnapshot() noexcept
 	{
+		const auto& tokens = Current().tokens;
 		const auto convert = [](const ImVec4& a_color) {
 			return DMUI_Vec4{ a_color.x, a_color.y, a_color.z, a_color.w };
 		};
-		auto mutedAccent = a_accent;
-		mutedAccent.w = colors::kMutedAccentOpacity;
 		return {
-			convert(kStatusPaletteDefaults.success),
-			convert(kStatusPaletteDefaults.warning),
-			convert(kStatusPaletteDefaults.error),
-			convert(kStatusPaletteDefaults.info),
-			convert(kStatusPaletteDefaults.disable),
-			convert(a_accent),
-			convert(mutedAccent),
-			convert(kFullPalette[ImGuiCol_TableRowBgAlt]),
-			convert(kStatusPaletteDefaults.disable),
-			convert(kStatusPaletteDefaults.error),
-			convert(kStatusPaletteDefaults.warning),
-			convert(kStatusPaletteDefaults.restartNeeded),
-			convert(kStatusPaletteDefaults.currentHotkey),
-			convert(kStatusPaletteDefaults.success),
-			convert(kStatusPaletteDefaults.info)
+			convert(tokens.text),
+			convert(tokens.muted),
+			convert(tokens.accent),
+			convert(tokens.accentMuted),
+			convert(tokens.info),
+			convert(tokens.success),
+			convert(tokens.warning),
+			convert(tokens.error),
+			convert(tokens.disabled),
+			convert(tokens.restartNeeded),
+			convert(tokens.currentHotkey),
+			convert(tokens.rowAlt)
 		};
 	}
 
 	ImVec4 TextColor(dmui::TextTone a_tone) noexcept
 	{
-		const auto snapshot = ColorSnapshot();
-		const auto resolved = dmui::ResolveTextColor(snapshot, a_tone);
-		if (!resolved || !resolved.color)
-			return kFullPalette[ImGuiCol_Text];
-		return {
-			resolved.color->x,
-			resolved.color->y,
-			resolved.color->z,
-			resolved.color->w
-		};
+		const auto& tokens = Current().tokens;
+		switch (a_tone)
+		{
+		case dmui::TextTone::kMuted:
+			return tokens.muted;
+		case dmui::TextTone::kAccent:
+			return tokens.accent;
+		case dmui::TextTone::kAccentMuted:
+			return tokens.accentMuted;
+		case dmui::TextTone::kInfo:
+			return tokens.info;
+		case dmui::TextTone::kSuccess:
+			return tokens.success;
+		case dmui::TextTone::kWarning:
+			return tokens.warning;
+		case dmui::TextTone::kError:
+			return tokens.error;
+		case dmui::TextTone::kDisabled:
+			return tokens.disabled;
+		case dmui::TextTone::kRestartNeeded:
+			return tokens.restartNeeded;
+		case dmui::TextTone::kCurrentHotkey:
+			return tokens.currentHotkey;
+		case dmui::TextTone::kInherit:
+		default:
+			return tokens.text;
+		}
 	}
 
-	ImVec4 StatusTextColor(DMUI_StatusSeverity a_severity) noexcept
+	dmui::TextTone StatusTone(DMUI_Severity a_severity) noexcept
 	{
 		switch (a_severity)
 		{
-		case DMUI_STATUS_SEVERITY_SUCCESS:
-			return TextColor(dmui::TextTone::kStatusSuccess);
-		case DMUI_STATUS_SEVERITY_WARNING:
-			return TextColor(dmui::TextTone::kStatusWarning);
-		case DMUI_STATUS_SEVERITY_ERROR:
-			return TextColor(dmui::TextTone::kStatusError);
+		case DMUI_SEVERITY_SUCCESS:
+			return dmui::TextTone::kSuccess;
+		case DMUI_SEVERITY_WARNING:
+			return dmui::TextTone::kWarning;
+		case DMUI_SEVERITY_ERROR:
+			return dmui::TextTone::kError;
 		default:
-			return TextColor(dmui::TextTone::kStatusInfo);
+			return dmui::TextTone::kInfo;
 		}
+	}
+
+	ImVec4 StatusTextColor(DMUI_Severity a_severity) noexcept
+	{
+		return TextColor(StatusTone(a_severity));
 	}
 }

@@ -1,6 +1,6 @@
 #include "../Harness.h"
 
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 #include <DearModdingUI/host/HostAPIEntries.h>
 
 #include <array>
@@ -34,9 +34,9 @@ namespace vmm_tests
 	{
 		runner.test("host icon query preserves resolver precedence and fallback", [] {
 			const auto wrench =
-				DearModdingUI::FindPhosphorIconGlyphOrZero("wrench");
+				dmui::FindPhosphorIconGlyphOrZero("wrench");
 			const auto hammer =
-				DearModdingUI::FindPhosphorIconGlyphOrZero("hammer");
+				dmui::FindPhosphorIconGlyphOrZero("hammer");
 			require(
 				wrench != 0 && hammer != 0,
 				"representative resolver glyphs were unavailable");
@@ -54,7 +54,7 @@ namespace vmm_tests
 				QueryIconGlyph(
 					nullptr,
 					"host-only-unmatched-label",
-					"gear") == DearModdingUI::PhosphorGlyph::kGear,
+					"gear") == dmui::PhosphorGlyph::kGear,
 				"secondary metadata was not used after a primary miss");
 			require(
 				QueryIconGlyph(nullptr, "host-only-unmatched-label") == 0,
@@ -71,7 +71,7 @@ namespace vmm_tests
 			require(
 				ApiResolveIconGlyph(&request, &glyph) == DMUI_RESULT_OK &&
 					glyph == static_cast<uint32_t>(
-						DearModdingUI::FindPhosphorIconGlyphOrZero("wrench")),
+						dmui::FindPhosphorIconGlyphOrZero("wrench")),
 				"permitted tab was rejected");
 
 			glyph = 0xFFFFFFFFu;
@@ -112,6 +112,44 @@ namespace vmm_tests
 						DMUI_RESULT_INVALID_ARGUMENT &&
 					glyph == 0,
 				"disallowed control text was accepted");
+		});
+
+		runner.test("public glyph constants match the host catalog", [] {
+			using namespace dmui::PhosphorGlyph;
+			const std::array<std::pair<const char*, char32_t>, 24> constants{ {
+				{ "question", kQuestion },
+				{ "archive", kArchive },
+				{ "app-window", kAppWindow },
+				{ "arrow-counter-clockwise", kArrowCounterClockwise },
+				{ "arrows-clockwise", kArrowsClockwise },
+				{ "clipboard-text", kClipboardText },
+				{ "dots-three-circle", kDotsThreeCircle },
+				{ "floppy-disk", kFloppyDisk },
+				{ "gear", kGear },
+				{ "game-controller", kGameController },
+				{ "magnifying-glass", kMagnifyingGlass },
+				{ "monitor", kMonitor },
+				{ "palette", kPalette },
+				{ "shield-check", kShieldCheck },
+				{ "speaker-high", kSpeakerHigh },
+				{ "sun", kSun },
+				{ "trash", kTrash },
+				{ "x", kX },
+				{ "puzzle-piece", kPuzzlePiece },
+				{ "gauge", kGauge },
+				{ "magic-wand", kMagicWand },
+				{ "terminal-window", kTerminalWindow },
+				{ "squares-four", kSquaresFour },
+				{ "files", kFiles }
+			} };
+			for (const auto& [slug, glyph] : constants)
+			{
+				require(
+					glyph != 0 &&
+						dmui::FindPhosphorSlugGlyphOrZero(slug) == glyph,
+					std::string{ "glyph constant drifted from the catalog: " } +
+						slug);
+			}
 		});
 	}
 }

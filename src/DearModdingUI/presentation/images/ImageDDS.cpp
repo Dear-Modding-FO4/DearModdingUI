@@ -7,7 +7,7 @@
 
 namespace DearModdingUI::PresentationServices::ImageFiles
 {
-	DMUI_Result DecodeDDS(std::vector<uint8_t> a_bytes, DecodedImage& a_image)
+	DMUI_Result DecodeDDS(std::span<const uint8_t> a_bytes, DecodedImage& a_image)
 	{
 		const DDS_HEADER* header{};
 		const uint8_t* bits{};
@@ -90,7 +90,7 @@ namespace DearModdingUI::PresentationServices::ImageFiles
 			a_image.mips.push_back({
 				static_cast<size_t>(static_cast<const uint8_t*>(mip.pSysMem) - a_bytes.data()),
 				mip.SysMemPitch, mip.SysMemSlicePitch });
-		a_image.bytes = std::move(a_bytes);
+		a_image.bytes.assign(a_bytes.begin(), a_bytes.end());
 		return DMUI_RESULT_OK;
 	}
 }

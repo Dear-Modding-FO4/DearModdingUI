@@ -22,7 +22,7 @@ namespace vmm_tests
 			require(model.Set(
 						StatusOwnerKind::kHost,
 						"Evil Modding",
-						DMUI_STATUS_SEVERITY_INFO,
+						DMUI_SEVERITY_INFO,
 						"Working",
 						start) == DMUI_RESULT_OK,
 				"info status was rejected");
@@ -37,7 +37,7 @@ namespace vmm_tests
 			require(model.Set(
 						StatusOwnerKind::kHost,
 						"Evil Modding",
-						DMUI_STATUS_SEVERITY_SUCCESS,
+						DMUI_SEVERITY_SUCCESS,
 						"Saved",
 						start) == DMUI_RESULT_OK,
 				"success status was rejected");
@@ -47,7 +47,7 @@ namespace vmm_tests
 			require(model.Set(
 						StatusOwnerKind::kHost,
 						"Evil Modding",
-						DMUI_STATUS_SEVERITY_WARNING,
+						DMUI_SEVERITY_WARNING,
 						"Warning",
 						start) == DMUI_RESULT_OK,
 				"warning status was rejected");
@@ -57,7 +57,7 @@ namespace vmm_tests
 			require(model.Set(
 						StatusOwnerKind::kHost,
 						"Evil Modding",
-						DMUI_STATUS_SEVERITY_ERROR,
+						DMUI_SEVERITY_ERROR,
 						"Error",
 						start) == DMUI_RESULT_OK,
 				"error status was rejected");
@@ -67,22 +67,22 @@ namespace vmm_tests
 			const auto clientStart = StatusClock::time_point{};
 			StatusModel clients;
 			require(clients.SetClient(
-						2, "Second", DMUI_STATUS_SEVERITY_WARNING, "Warning",
+						2, "Second", DMUI_SEVERITY_WARNING, "Warning",
 						clientStart) == DMUI_RESULT_OK &&
 					clients.SetClient(
-						1, "First", DMUI_STATUS_SEVERITY_INFO, "Working",
+						1, "First", DMUI_SEVERITY_INFO, "Working",
 						clientStart) == DMUI_RESULT_OK,
 				"client status was rejected");
 			auto statuses = clients.SnapshotClientStatuses(clientStart);
 			require(
 				statuses.size() == 2 &&
 					statuses[0].client == 1 &&
-					statuses[0].severity == DMUI_STATUS_SEVERITY_INFO &&
+					statuses[0].severity == DMUI_SEVERITY_INFO &&
 					statuses[1].client == 2 &&
-					statuses[1].severity == DMUI_STATUS_SEVERITY_WARNING,
+					statuses[1].severity == DMUI_SEVERITY_WARNING,
 				"client statuses superseded another mod");
 			require(clients.SetClient(
-						2, "Second", DMUI_STATUS_SEVERITY_SUCCESS, "Recovered",
+						2, "Second", DMUI_SEVERITY_SUCCESS, "Recovered",
 						clientStart) == DMUI_RESULT_OK,
 				"client recovery status was rejected");
 			require(clients.SnapshotClientStatuses(
@@ -90,7 +90,7 @@ namespace vmm_tests
 				"transient client statuses did not expire independently");
 			require(clients.SetClient(
 						DMUI_INVALID_CLIENT_HANDLE, "Invalid",
-						DMUI_STATUS_SEVERITY_ERROR, "Error",
+						DMUI_SEVERITY_ERROR, "Error",
 						clientStart) == DMUI_RESULT_INVALID_ARGUMENT,
 				"invalid client status handle was accepted");
 		});
@@ -101,7 +101,7 @@ namespace vmm_tests
 			require(model.Set(
 						StatusOwnerKind::kClient,
 						"Client",
-						DMUI_STATUS_SEVERITY_ERROR,
+						DMUI_SEVERITY_ERROR,
 						"Persistent",
 						start) == DMUI_RESULT_OK,
 				"persistent status was rejected");
@@ -113,7 +113,7 @@ namespace vmm_tests
 			require(model.Set(
 						StatusOwnerKind::kClient,
 						"Client",
-						DMUI_STATUS_SEVERITY_WARNING,
+						DMUI_SEVERITY_WARNING,
 						"Older",
 						start) == DMUI_RESULT_OK,
 				"older persistent status was rejected");
@@ -121,7 +121,7 @@ namespace vmm_tests
 			require(model.Set(
 						StatusOwnerKind::kClient,
 						"Replacement owner",
-						DMUI_STATUS_SEVERITY_ERROR,
+						DMUI_SEVERITY_ERROR,
 						"Replacement",
 						start + std::chrono::milliseconds{ 1 }) == DMUI_RESULT_OK,
 				"replacement status was rejected");
@@ -150,7 +150,7 @@ namespace vmm_tests
 			require(
 					ValidateStatusRequest(
 						registry.CopyClientDisplayName(9999, owner),
-						DMUI_STATUS_SEVERITY_INFO,
+						DMUI_SEVERITY_INFO,
 						"Message") == DMUI_RESULT_CLIENT_NOT_FOUND,
 					"unaccepted status client was not rejected");
 			const auto accepted = registry.CopyClientDisplayName(client, owner);
@@ -160,13 +160,13 @@ namespace vmm_tests
 			require(
 					ValidateStatusRequest(
 						accepted,
-						DMUI_STATUS_SEVERITY_INFO,
+						DMUI_SEVERITY_INFO,
 						nullptr) == DMUI_RESULT_INVALID_ARGUMENT,
 					"null status message was not rejected");
 			require(
 					ValidateStatusRequest(
 						accepted,
-						DMUI_STATUS_SEVERITY_INFO,
+						DMUI_SEVERITY_INFO,
 						"") == DMUI_RESULT_INVALID_ARGUMENT,
 					"empty status message was not rejected");
 			require(

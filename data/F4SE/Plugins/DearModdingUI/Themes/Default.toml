@@ -1,0 +1,235 @@
+# Default theme preset: every supported key at the value the built-in look uses.
+# A preset lists only what it changes; the rest comes from the built-in default.
+#
+# Colors are "#RRGGBB", "#RRGGBBAA", or [r, g, b, a] with channels from 0 to 1.
+# Sizes are unscaled pixels at the 1080p reference; the host scales them to the
+# screen. A key that fails validation is ignored and reported in Health.
+# Accent-driven color slots follow [tokens] accent when a preset leaves them out.
+
+[theme]
+name = "Default"
+
+# ImGui color slots, named without the ImGuiCol_ prefix.
+[colors]
+Text = [1.0, 1.0, 1.0, 1.0]
+TextDisabled = [1.0, 1.0, 1.0, 0.3]
+WindowBg = [0.03, 0.03, 0.03, 0.75]
+ChildBg = [0.0, 0.0, 0.0, 0.0]
+PopupBg = [0.019607844, 0.019607844, 0.019607844, 0.85]
+Border = [0.5, 0.5, 0.5, 0.8]
+BorderShadow = [0.0, 0.0, 0.0, 0.0]
+FrameBg = [0.4, 0.4, 0.4, 0.7]
+FrameBgHovered = [0.26, 0.26, 0.26, 0.4]
+FrameBgActive = [0.4, 0.4, 0.4, 0.45]
+TitleBg = [0.0, 0.0, 0.0, 0.83]
+TitleBgActive = [0.0, 0.0, 0.0, 0.87]
+TitleBgCollapsed = [0.2, 0.2, 0.3, 0.9]
+MenuBarBg = [0.02, 0.02, 0.03, 0.9]
+ScrollbarBg = [0.2, 0.22, 0.27, 0.0]
+ScrollbarGrab = [0.28, 0.28, 0.28, 0.5]
+ScrollbarGrabHovered = [0.42, 0.42, 0.42, 0.75]
+ScrollbarGrabActive = [0.56, 0.56, 0.56, 0.9]
+CheckMark = [1.0, 1.0, 1.0, 1.0]
+CheckboxSelectedBg = [0.25882354, 0.9803922, 0.37647063, 0.5]
+SliderGrab = [0.25882354, 0.9803922, 0.37647063, 1.0]
+SliderGrabActive = [0.25882354, 0.9803922, 0.37647063, 1.0]
+Button = [0.25882354, 0.9803922, 0.37647063, 0.39]
+ButtonHovered = [0.25882354, 0.9803922, 0.37647063, 0.2]
+ButtonActive = [0.25882354, 0.9803922, 0.37647063, 0.59]
+Header = [0.25882354, 0.9803922, 0.37647063, 0.39]
+HeaderHovered = [0.25882354, 0.9803922, 0.37647063, 0.2]
+HeaderActive = [0.25882354, 0.9803922, 0.37647063, 0.59]
+Separator = [0.5, 0.5, 0.5, 0.6]
+SeparatorHovered = [0.7, 0.6, 0.6, 1.0]
+SeparatorActive = [0.9, 0.7, 0.7, 1.0]
+ResizeGrip = [0.6, 0.6, 0.6, 0.8]
+ResizeGripHovered = [0.6, 0.6, 0.6, 0.1]
+ResizeGripActive = [0.6, 0.6, 0.6, 0.1]
+InputTextCursor = [0.25882354, 0.9803922, 0.37647063, 1.0]
+TabHovered = [0.25882354, 0.9803922, 0.37647063, 0.31]
+Tab = [0.25882354, 0.9803922, 0.37647063, 0.8]
+TabSelected = [0.25882354, 0.9803922, 0.37647063, 1.0]
+TabSelectedOverline = [0.25882354, 0.9803922, 0.37647063, 1.0]
+TabDimmed = [0.15, 0.15, 0.15, 0.97]
+TabDimmedSelected = [0.25882354, 0.9803922, 0.37647063, 1.0]
+TabDimmedSelectedOverline = [0.25882354, 0.9803922, 0.37647063, 0.0]
+DockingPreview = [0.25882354, 0.9803922, 0.37647063, 0.5]
+DockingEmptyBg = [0.0, 0.0, 0.0, 0.0]
+PlotLines = [1.0, 1.0, 1.0, 1.0]
+PlotLinesHovered = [0.9, 0.7, 0.0, 1.0]
+PlotHistogram = [0.9, 0.7, 0.0, 1.0]
+PlotHistogramHovered = [0.9, 0.7, 0.0, 1.0]
+TableHeaderBg = [0.26, 0.98, 0.3752, 0.4]
+TableBorderStrong = [0.26, 0.26, 0.26, 1.0]
+TableBorderLight = [0.19, 0.19, 0.19, 1.0]
+TableRowBg = [0.0, 0.0, 0.0, 0.0]
+TableRowBgAlt = [1.0, 1.0, 1.0, 0.06]
+TextLink = [0.25882354, 0.9803922, 0.37647063, 1.0]
+TextSelectedBg = [0.25882354, 0.9803922, 0.37647063, 0.35]
+TreeLines = [0.7, 0.7, 0.7, 0.65]
+DragDropTarget = [0.25882354, 0.9803922, 0.37647063, 1.0]
+DragDropTargetBg = [0.25882354, 0.9803922, 0.37647063, 0.0]
+UnsavedMarker = [0.25882354, 0.9803922, 0.37647063, 1.0]
+NavCursor = [0.25882354, 0.9803922, 0.37647063, 1.0]
+NavWindowingHighlight = [0.3, 0.3, 0.3, 0.56]
+NavWindowingDimBg = [0.2, 0.2, 0.2, 0.35]
+ModalWindowDimBg = [0.2, 0.2, 0.2, 0.35]
+
+# Semantic colors. accentMuted and iconTint follow accent unless set here.
+[tokens]
+text = [1.0, 1.0, 1.0, 1.0]
+muted = [0.5, 0.5, 0.5, 1.0]
+accent = [0.25882354, 0.9803922, 0.37647063, 1.0]
+accentMuted = [0.25882354, 0.9803922, 0.37647063, 0.39]
+info = [0.2, 1.0, 0.328, 1.0]
+success = [0.0, 1.0, 0.0, 1.0]
+warning = [1.0, 0.6, 0.2, 1.0]
+error = [1.0, 0.4, 0.4, 1.0]
+disabled = [0.5, 0.5, 0.5, 1.0]
+restartNeeded = [0.4, 1.0, 0.4, 1.0]
+currentHotkey = [1.0, 1.0, 0.0, 1.0]
+heading = [0.8, 0.8, 0.8, 1.0]
+headingHovered = [0.6, 0.6, 0.6, 1.0]
+searchFrameActive = [0.3, 0.3, 0.3, 0.9]
+rowAlt = [1.0, 1.0, 1.0, 0.06]
+iconTint = [0.25882354, 0.9803922, 0.37647063, 1.0]
+logoTop = [0.61960787, 0.0, 0.3647059, 1.0]
+logoLeft = [0.098039225, 0.48235297, 0.18823531, 1.0]
+logoRight = [0.0, 0.2901961, 0.5019608, 1.0]
+logoBottom = [0.9686275, 0.5803922, 0.1137255, 1.0]
+
+# Unscaled ImGuiStyle sizes; fields are named as in ImGuiStyle.
+[style]
+Alpha = 1.0
+DisabledAlpha = 0.6
+WindowRounding = 12.0
+WindowBorderSize = 2.0
+WindowBorderHoverPadding = 4.0
+ChildRounding = 0.0
+ChildBorderSize = 0.0
+PopupRounding = 0.0
+PopupBorderSize = 1.0
+FrameRounding = 4.0
+FrameBorderSize = 1.0
+IndentSpacing = 8.0
+ColumnsMinSpacing = 6.0
+ScrollbarSize = 12.0
+ScrollbarRounding = 9.0
+ScrollbarPadding = 2.0
+GrabMinSize = 12.0
+GrabRounding = 3.0
+LogSliderDeadzone = 4.0
+ImageRounding = 0.0
+ImageBorderSize = 0.0
+TabRounding = 4.0
+TabBorderSize = 0.0
+TabMinWidthBase = 1.0
+TabMinWidthShrink = 80.0
+TabCloseButtonMinWidthSelected = -1.0
+TabCloseButtonMinWidthUnselected = 0.0
+TabBarBorderSize = 1.0
+TabBarOverlineSize = 1.0
+TreeLinesSize = 1.0
+TreeLinesRounding = 0.0
+MenuItemRounding = 0.0
+SelectableRounding = 0.0
+DragDropTargetRounding = 0.0
+DragDropTargetBorderSize = 2.0
+DragDropTargetPadding = 3.0
+ColorMarkerSize = 3.0
+InputTextCursorSize = 1.0
+SeparatorSize = 1.0
+SeparatorTextBorderSize = 3.0
+DockingSeparatorSize = 2.0
+MouseCursorScale = 1.0
+HoverStationaryDelay = 0.15
+HoverDelayShort = 0.15
+HoverDelayNormal = 0.1
+WindowPadding = [8.0, 8.0]
+WindowMinSize = [32.0, 32.0]
+WindowTitleAlign = [0.0, 0.5]
+FramePadding = [8.0, 4.0]
+ItemSpacing = [4.0, 8.0]
+ItemInnerSpacing = [4.0, 4.0]
+CellPadding = [8.0, 2.0]
+TouchExtraPadding = [0.0, 0.0]
+TableAngledHeadersTextAlign = [0.5, 0.0]
+ButtonTextAlign = [0.5, 0.5]
+SelectableTextAlign = [0.0, 0.0]
+SeparatorTextAlign = [0.0, 0.5]
+SeparatorTextPadding = [20.0, 3.0]
+DisplayWindowPadding = [19.0, 19.0]
+DisplaySafeAreaPadding = [3.0, 3.0]
+
+# Host chrome. Scales multiply the body font size.
+[chrome]
+headerFallbackTextScale = 1.5
+separatorThickness = 3.0
+featureTitleScale = 1.5
+versionTextOpacity = 0.6
+headingMinimizedFactor = 0.7
+searchIconSize = 20.0
+searchIconAlpha = 0.7
+searchIconOffsetX = 8.0
+searchInputPaddingExtra = 14.0
+searchInputFramePaddingY = 6.0
+searchIconStrokeRatio = 0.11
+mutedAccentOpacity = 0.39
+sectionGapScale = 1.0
+panelPadding = [12.0, 12.0]
+
+[effects]
+backgroundBlur = true
+backgroundBlurStrength = 0.5
+iconColorMode = "colored"  # "colored" or "monochrome"
+logoColorMode = "original"  # "original" or "accent"
+
+# baseFontRatio is body pixels per screen pixel of height. Each role sets
+# family (a folder under Fonts, or "ImGui" for the built-in font), weight
+# (thin to black, or 100 to 900), italic, and size (a multiple of the base).
+[typography]
+baseFontRatio = 0.019444445
+
+[typography.body]
+family = "Jost"
+weight = "regular"
+italic = false
+size = 1.0
+
+[typography.title]
+family = "Jost"
+weight = "semibold"
+italic = false
+size = 1.3
+
+[typography.heading]
+family = "Jost"
+weight = "regular"
+italic = false
+size = 1.0
+
+[typography.subheading]
+family = "Jost"
+weight = "regular"
+italic = false
+size = 1.0
+
+[typography.subtext]
+family = "Jost"
+weight = "regular"
+italic = false
+size = 0.9
+
+[typography.monospace]
+family = "JetBrains Mono"
+weight = "regular"
+italic = false
+size = 0.9
+
+# font is a file under Fonts; empty keeps Phosphor. glyphs maps Phosphor icon
+# names to codepoints in that font, for example: gear = 0xE001.
+[icons]
+font = ""
+baselineOffsetRatio = 0.1904762
+
+[icons.glyphs]
