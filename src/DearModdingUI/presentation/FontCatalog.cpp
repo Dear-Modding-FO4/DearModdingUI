@@ -1,12 +1,19 @@
 #include <DearModdingUI/presentation/FontCatalog.h>
+#include <Support/Utf8.h>
+
+#include <REX/REX.h>
 
 #include <algorithm>
 #include <cctype>
+#include <optional>
 #include <system_error>
+#include <tuple>
 #include <utility>
 
 namespace DearModdingUI::FontCatalog
 {
+	using namespace std::literals;
+
 	namespace
 	{
 		[[nodiscard]] std::string Lower(std::string_view a_value)
@@ -18,19 +25,20 @@ namespace DearModdingUI::FontCatalog
 			return result;
 		}
 
-		[[nodiscard]] bool IsFontFile(
-			const std::filesystem::path& a_path)
+		[[nodiscard]] bool IsFontFile(std::string_view a_name)
 		{
-			const auto extension = Lower(a_path.extension().string());
+			const auto dot = a_name.rfind('.');
+			if (dot == std::string_view::npos)
+				return false;
+			const auto extension = Lower(a_name.substr(dot));
 			return extension == ".ttf" ||
 				extension == ".otf" ||
 				extension == ".ttc";
 		}
 
-		[[nodiscard]] int CandidatePriority(
-			const std::filesystem::path& a_path)
+		[[nodiscard]] int CandidatePriority(std::string_view a_name)
 		{
-			const auto stem = Lower(a_path.stem().string());
+			const auto stem = Lower(a_name.substr(0, a_name.rfind('.')));
 			if (stem.contains("regular"))
 				return 0;
 			constexpr std::string_view variants[]{
@@ -43,6 +51,30 @@ namespace DearModdingUI::FontCatalog
 					return 2;
 			}
 			return 1;
+		}
+
+		struct Candidate
+		{
+			int priority;
+			std::string name;
+			std::string relative;
+		};
+
+		[[nodiscard]] std::optional<Candidate> MakeCandidate(
+			const std::filesystem::path& a_path,
+			const std::filesystem::path& a_root)
+		{
+			auto name = Support::PathToUtf8(a_path.filename());
+			if (!name || !IsFontFile(*name))
+				return std::nullopt;
+			auto relative = Support::PathToUtf8(a_path.lexically_relative(a_root));
+			if (!relative)
+			{
+				REX::WARN("DearModdingUI: skipped a font file with an unreadable name"sv);
+				return std::nullopt;
+			}
+			std::ranges::replace(*relative, '\\', '/');
+			return Candidate{ CandidatePriority(*name), Lower(*name), std::move(*relative) };
 		}
 
 		[[nodiscard]] bool SameName(
@@ -68,11 +100,16 @@ namespace DearModdingUI::FontCatalog
 			const auto& entry = *iterator;
 			if (!entry.is_directory(error))
 				continue;
-			const auto familyName = entry.path().filename().string();
-			if (SameName(familyName, "Phosphor"))
+			const auto familyName = Support::PathToUtf8(entry.path().filename());
+			if (!familyName)
+			{
+				REX::WARN("DearModdingUI: skipped a font folder with an unreadable name"sv);
+				continue;
+			}
+			if (SameName(*familyName, "Phosphor"))
 				continue;
 
-			std::vector<std::filesystem::path> candidates;
+			std::vector<Candidate> candidates;
 			std::error_code familyError;
 			for (std::filesystem::recursive_directory_iterator family{
 					 entry.path(),
@@ -82,27 +119,19 @@ namespace DearModdingUI::FontCatalog
 				family != familyEnd && !familyError;
 				family.increment(familyError))
 			{
-				if (family->is_regular_file(familyError) &&
-					IsFontFile(family->path()))
-					candidates.push_back(family->path());
+				if (!family->is_regular_file(familyError))
+					continue;
+				if (auto candidate = MakeCandidate(family->path(), a_root))
+					candidates.push_back(std::move(*candidate));
 			}
 			if (candidates.empty())
 				continue;
 
 			std::ranges::sort(candidates, [](const auto& a_left, const auto& a_right) {
-				return std::pair{
-					CandidatePriority(a_left),
-					Lower(a_left.filename().string())
-				} <
-					std::pair{
-						CandidatePriority(a_right),
-						Lower(a_right.filename().string())
-					};
+				return std::tie(a_left.priority, a_left.name) <
+					std::tie(a_right.priority, a_right.name);
 			});
-			result.push_back({
-				familyName,
-				candidates.front().lexically_relative(a_root).generic_string()
-			});
+			result.push_back({ *familyName, std::move(candidates.front().relative) });
 		}
 
 		std::ranges::sort(result, [](const auto& a_left, const auto& a_right) {

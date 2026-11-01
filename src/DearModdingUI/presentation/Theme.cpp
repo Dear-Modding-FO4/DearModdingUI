@@ -8,6 +8,7 @@
 #include <Support/Revision.h>
 #include <Support/Runtime.h>
 #include <Support/SubsystemHealth.h>
+#include <Support/Utf8.h>
 
 #include <REX/REX.h>
 
@@ -121,7 +122,7 @@ namespace DearModdingUI::Theme
 		{
 			auto path = std::filesystem::path{ Support::GetRuntimeDirectory() };
 			path /= kFontRoot;
-			path /= a_relative;
+			path /= Support::PathFromUtf8(a_relative);
 			return path;
 		}
 
@@ -157,8 +158,10 @@ namespace DearModdingUI::Theme
 			config.OversampleV = 2;
 			config.PixelSnapH = true;
 			config.RasterizerMultiply = 1.1f;
-			const auto file = path.string();
-			return a_atlas.AddFontFromFileTTF(file.c_str(), 0.0f, &config, ranges);
+			const auto file = Support::PathToUtf8(path);
+			return file ?
+				a_atlas.AddFontFromFileTTF(file->c_str(), 0.0f, &config, ranges) :
+				nullptr;
 		}
 
 		[[nodiscard]] bool MergeIconFont(
@@ -178,12 +181,13 @@ namespace DearModdingUI::Theme
 			config.GlyphMinAdvanceX = size;
 			config.GlyphMaxAdvanceX = size;
 			config.DstFont = a_destination;
-			const auto file = path.string();
-			return a_atlas.AddFontFromFileTTF(
-				file.c_str(),
-				size,
-				&config,
-				kIconGlyphRanges) != nullptr;
+			const auto file = Support::PathToUtf8(path);
+			return file &&
+				a_atlas.AddFontFromFileTTF(
+					file->c_str(),
+					size,
+					&config,
+					kIconGlyphRanges) != nullptr;
 		}
 
 		[[nodiscard]] bool MergeSystemFont(

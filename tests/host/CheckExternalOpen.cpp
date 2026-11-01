@@ -1,6 +1,7 @@
 #include "../support/DearModdingUITestSupport.h"
 #include <Platform/files/ExternalOpen.h>
 #include <DearModdingUI/host/Host.h>
+#include <Support/Utf8.h>
 #include <algorithm>
 #include <array>
 #include <filesystem>
@@ -179,7 +180,7 @@ namespace vmm_tests
 					nativeError == 0,
 				"mapped-file resolution failed for a readable read-only file");
 			require(std::filesystem::equivalent(
-						fixture.path, std::filesystem::path{ std::u8string(physical.begin(), physical.end()) }),
+						fixture.path, DearModdingUI::Support::PathFromUtf8(physical)),
 				"resolved physical file identifies a different file");
 			DWORD before{};
 			DWORD after{};
@@ -210,7 +211,7 @@ namespace vmm_tests
 			require(ResolveExternalFile(unicodeRequested, physical, nullptr) == DMUI_RESULT_OK,
 				"Unicode extended path resolution failed");
 			require(std::filesystem::equivalent(unicodeFixture.path,
-						std::filesystem::path{ std::u8string(physical.begin(), physical.end()) }),
+						DearModdingUI::Support::PathFromUtf8(physical)),
 				"Unicode backing filename was corrupted");
 			s_externalResult = DMUI_RESULT_OK;
 			s_externalNativeError = 0;
@@ -222,8 +223,7 @@ namespace vmm_tests
 			require(opener.Open(&descriptor) == DMUI_RESULT_OK &&
 					s_externalRequest.targetKind == DMUI_EXTERNAL_TARGET_DIRECTORY &&
 					std::filesystem::equivalent(unicodeFixture.path.parent_path(),
-						std::filesystem::path{ std::u8string(
-							s_externalRequest.target.begin(), s_externalRequest.target.end()) }),
+						DearModdingUI::Support::PathFromUtf8(s_externalRequest.target)),
 				"real resolution did not reach fake dispatch with the physical parent");
 		});
 
@@ -243,8 +243,8 @@ namespace vmm_tests
 					nativeError == ERROR_FILE_NOT_FOUND && physical == "unchanged" &&
 					!std::filesystem::exists(fixture.path.wstring() + L".missing"),
 				"missing file was created or resolution failure lost its native error");
-			const auto parentText = fixture.path.parent_path().u8string();
-			const std::string parent{ parentText.begin(), parentText.end() };
+			const auto parent =
+				DearModdingUI::Support::PathToUtf8(fixture.path.parent_path()).value_or(std::string{});
 			require(ResolveExternalFile(parent, physical, &nativeError) ==
 						DMUI_RESULT_EXTERNAL_RESOLUTION_UNSUPPORTED &&
 					nativeError == ERROR_DIRECTORY && physical == "unchanged",

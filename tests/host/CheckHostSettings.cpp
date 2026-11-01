@@ -10,6 +10,7 @@
 #include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/ThemeDefaults.h>
 #include <Platform/settings/GameColors.h>
+#include <Support/Utf8.h>
 #include <algorithm>
 #include <array>
 #include <filesystem>
@@ -24,6 +25,19 @@ namespace vmm_tests
 {
 	using namespace DearModdingUI;
 	using namespace support::host;
+
+	namespace
+	{
+		struct RemoveTree
+		{
+			std::filesystem::path path;
+			~RemoveTree()
+			{
+				std::error_code error;
+				std::filesystem::remove_all(path, error);
+			}
+		};
+	}
 
 	void run_host_settings_checks(Runner& runner)
 	{
@@ -548,16 +562,6 @@ namespace vmm_tests
 		});
 
 		runner.test("font families enumerate regular faces and fall back", [] {
-			struct RemoveTree
-			{
-				std::filesystem::path path;
-				~RemoveTree()
-				{
-					std::error_code error;
-					std::filesystem::remove_all(path, error);
-				}
-			};
-
 			const auto root =
 				std::filesystem::temp_directory_path() /
 				"AddictolDearModdingUIFontCatalog";
@@ -597,6 +601,33 @@ namespace vmm_tests
 				"Missing Family", families, "Jost");
 			require(fallback && fallback->name == "Jost",
 				"missing font family did not fall back to Jost");
+		});
+
+		runner.test("font families keep non-ANSI names as UTF-8", [] {
+			// CJK and Cyrillic cannot round-trip through an ANSI code page.
+			const std::string family =
+				"\xE6\x97\xA5\xE6\x9C\xAC-"
+				"\xD0\xA8\xD1\x80\xD0\xB8\xD1\x84\xD1\x82";
+			const auto root =
+				std::filesystem::temp_directory_path() /
+				"AddictolDearModdingUIFontCatalogUtf8";
+			std::error_code error;
+			std::filesystem::remove_all(root, error);
+			const RemoveTree cleanup{ root };
+			const auto folder = root / Support::PathFromUtf8(family);
+			std::filesystem::create_directories(folder, error);
+			std::ofstream(folder / Support::PathFromUtf8(family + "-Regular.ttf")).put('\0');
+
+			const auto families = FontCatalog::Enumerate(root);
+			require(
+				families.size() == 1 &&
+					families.front().name == family &&
+					families.front().regularFile == family + "/" + family + "-Regular.ttf",
+				"non-ANSI font names were not enumerated as UTF-8");
+			require(
+				std::filesystem::exists(
+					root / Support::PathFromUtf8(families.front().regularFile), error),
+				"UTF-8 font file path did not resolve back to the file");
 		});
 	}
 }

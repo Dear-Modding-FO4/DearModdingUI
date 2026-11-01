@@ -2,6 +2,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
+#include <optional>
+#include <string>
+#include <string_view>
 
 namespace DearModdingUI::Support
 {
@@ -50,5 +54,33 @@ namespace DearModdingUI::Support
 			offset += length;
 		}
 		return true;
+	}
+
+	// MSVC throws on names the ANSI page cannot hold, so go through UTF-8.
+	[[nodiscard]] inline std::optional<std::string> PathToUtf8(
+		const std::filesystem::path& a_path) noexcept
+	{
+		try
+		{
+			const auto text = a_path.u8string();
+			return std::string{ reinterpret_cast<const char*>(text.data()), text.size() };
+		}
+		catch (...)
+		{
+			return std::nullopt;
+		}
+	}
+
+	[[nodiscard]] inline std::filesystem::path PathFromUtf8(
+		std::string_view a_text) noexcept
+	{
+		try
+		{
+			return std::filesystem::path{ std::u8string{ a_text.begin(), a_text.end() } };
+		}
+		catch (...)
+		{
+			return {};
+		}
 	}
 }

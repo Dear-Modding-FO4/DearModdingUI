@@ -1,5 +1,7 @@
 #include "DearModdingUITestSupport.h"
 
+#include <Support/Utf8.h>
+
 #include <fstream>
 #include <stdexcept>
 #include <vector>
@@ -91,8 +93,7 @@ DMUI_Result FakeExternalFileResolver(
 
 	std::string ExternalFileFixture::Utf8() const
 	{
-		const auto text = path.u8string();
-		return { text.begin(), text.end() };
+		return DearModdingUI::Support::PathToUtf8(path).value_or(std::string{});
 	}
 
 DMUI_Result FakeExternalOpen(

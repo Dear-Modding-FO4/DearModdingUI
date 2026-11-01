@@ -24,6 +24,7 @@
 #include <RE/B/BSScript_IStackCallbackFunctor.h>
 #include <REX/FModule.h>
 #include <REX/REX.h>
+#include <Support/Utf8.h>
 
 #include <Windows.h>
 #undef ERROR
@@ -87,11 +88,7 @@ namespace DearModdingUI::MCM
 		[[nodiscard]] std::string PathText(
 			const std::filesystem::path& a_path)
 		{
-			const auto value = a_path.u8string();
-			return {
-				reinterpret_cast<const char*>(value.data()),
-				value.size()
-			};
+			return Support::PathToUtf8(a_path).value_or(std::string{});
 		}
 
 		// MCM names translation files after the config folder.

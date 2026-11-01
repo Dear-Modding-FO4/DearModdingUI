@@ -1,4 +1,5 @@
 #include <Support/Runtime.h>
+#include <Support/Utf8.h>
 
 #include <Windows.h>
 
@@ -53,16 +54,8 @@ namespace DearModdingUI::Support
 			static_cast<DWORD>(buffer.size()));
 		if (!length || length >= buffer.size())
 			return {};
-		try
-		{
-			const auto name = std::filesystem::path{
-				std::wstring_view{ buffer.data(), length } }.filename().u8string();
-			return { reinterpret_cast<const char*>(name.data()), name.size() };
-		}
-		catch (...)
-		{
-			return {};
-		}
+		return PathToUtf8(std::filesystem::path{
+			std::wstring_view{ buffer.data(), length } }.filename()).value_or(std::string{});
 	}
 
 	constexpr static std::string	WHITESPACEA = " \n\r\t\f\v";

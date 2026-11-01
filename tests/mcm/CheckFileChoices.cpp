@@ -6,6 +6,8 @@
 
 #include "../Harness.h"
 
+#include <Support/Utf8.h>
+
 #include <algorithm>
 #include <chrono>
 #include <deque>
@@ -197,25 +199,6 @@ namespace vmm_tests
 
 			std::vector<std::optional<dmui::SettingValue>> values;
 		};
-
-		[[nodiscard]] std::filesystem::path Utf8Path(std::string_view a_value)
-		{
-			std::u8string value;
-			value.reserve(a_value.size());
-			for (const auto character : a_value)
-				value.push_back(static_cast<char8_t>(character));
-			return std::filesystem::path{ value };
-		}
-
-		[[nodiscard]] std::string PathText(
-			const std::filesystem::path& a_path)
-		{
-			const auto value = a_path.u8string();
-			return {
-				reinterpret_cast<const char*>(value.data()),
-				value.size()
-			};
-		}
 
 		struct TemporaryDirectory
 		{
@@ -491,11 +474,11 @@ namespace vmm_tests
 		runner.test("Win32 MCM file listing preserves native names and masks", [] {
 			TemporaryDirectory temporary;
 			const auto directory =
-				Utf8Path("files with spaces") / Utf8Path("nested");
+				DearModdingUI::Support::PathFromUtf8("files with spaces") / DearModdingUI::Support::PathFromUtf8("nested");
 			std::filesystem::create_directories(directory);
 			const auto unicodeName =
 				std::string{ "Preset \xE2\x98\x83.xml" };
-			CreateFile(directory / Utf8Path(unicodeName));
+			CreateFile(directory / DearModdingUI::Support::PathFromUtf8(unicodeName));
 			CreateFile(directory / "ExactCase.XML");
 			CreateFile(directory / "ignored.txt");
 			std::filesystem::create_directories(directory / "Folder.xml");
@@ -511,7 +494,7 @@ namespace vmm_tests
 					!std::ranges::contains(*relative, "ignored.txt"),
 				"relative slash paths, Unicode, case, masks, or directories changed");
 
-			auto absoluteText = PathText(directory);
+			auto absoluteText = DearModdingUI::Support::PathToUtf8(directory).value_or(std::string{});
 			std::ranges::replace(absoluteText, '/', '\\');
 			auto absolute = files.List(absoluteText, "*.XML");
 			require(absolute &&
