@@ -5,7 +5,7 @@
 DearModdingUI API repository, which CommonLibF4 re-exports through its public
 `lib/dearmoddingui-api` dependency. Linking that fork is enough to consume
 them. `Client.h` is a header-only C++ wrapper that handles discovery,
-registration, exact ABI matching, and callback error propagation; prefer it
+registration, major.minor ABI negotiation, and callback error propagation; prefer it
 over the raw ABI. Clients compile no Dear ImGui sources and do not link against
 the host DLL. Client drawing uses the separate `dmui::ui` namespace and
 DMUI-owned types. The C contract exposes no Addictol, CommonLibF4, F4SE,
@@ -556,7 +556,7 @@ retires the attachment, releases host-owned COM/resources, and requests immediat
 ## Stable UI and presentation services
 
 `DMUI_HostAPI::ui` points to the complete `DMUI_UIAPI`. `Client::Connect`
-checks the exact ABI before registration and binds this table during page and action callbacks.
+negotiates the ABI before registration and binds this table during page and action callbacks.
 Product versions and the host's internal Dear ImGui version are not compatibility gates.
 
 The API provides frame-demand and swapchain wrappers,

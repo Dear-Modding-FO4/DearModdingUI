@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-01
+
 ### Added
 - **Localization (ABI 2.2)**: `$KEY` registration text is translated from `Interface\Translations\<client id>_<language>.txt`, falling back to `_en`; `resolveText` translates drawn text.
 - **Pointer state (ABI 2.2)**: `getPointerState` reports clicks, wheel input, and cursor position that no DMUI window took to the focused overlay; ImGui does not see those clicks.
@@ -29,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Keys DMUI acts on (hotkeys, Escape, controller B) no longer reach the game or type into text fields, and held game actions release when DMUI takes input.
 - Imported D3D11 images are accepted when a proxy such as ReShade reports the wrapped device from views.
 - MCM buttons no longer keep a stale "hidden by its condition" or "Waiting" description after their condition changes.
+- Host dialogs are centered and sized to fit the screen.
+- Each page opens scrolled to the top instead of keeping the previous page's scroll position.
+- MCM values refresh on the main thread after a save loads.
+- Font folders named outside the system code page, such as in Chinese or Cyrillic, no longer crash the game at startup, and a game folder with accented characters keeps its bundled fonts and icons.
 
 ## [0.2.1] - 2026-10-05
 
@@ -138,7 +144,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional `DearModdingUI-MCM` bridge translating legacy MCM JSON configurations.
 - In-game diagnostic test client and standalone desktop UI preview (`dmui-preview`).
 
-[Unreleased]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.2...v0.1.3

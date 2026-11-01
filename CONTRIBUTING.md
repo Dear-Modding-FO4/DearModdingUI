@@ -39,11 +39,11 @@ Release builds produce two installable packages in `.Build/packages/`:
 
 | Package | Description |
 |---|---|
-| `DearModdingUI-<version>-release.zip` | Core host DLL, configuration, and fonts. |
+| `DearModdingUI-<version>-release.zip` | Core host DLL, configuration, fonts, and translations. |
 | `DearModdingUI-MCM-<version>-release.zip` | Optional bridge DLL for legacy MCM menus. Requires the host. |
 
 Package versions come from `plugin_version` in `xmake.lua`.
-Packaging reads runtime assets from the working tree under `data\F4SE\Plugins`.
+Packaging reads runtime assets from the working tree under `data\F4SE\Plugins` and `data\Interface\Translations`.
 
 ## Local fixtures
 
