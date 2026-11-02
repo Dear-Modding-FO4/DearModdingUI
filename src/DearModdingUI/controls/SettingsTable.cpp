@@ -200,6 +200,13 @@ namespace DearModdingUI::SettingsTable
 			s_state.standalone = false;
 		}
 
+		// Unlabeled full-span rows give the client the whole row layout.
+		[[nodiscard]] bool HostLabelsRow() noexcept
+		{
+			return s_state.layout != RowLayout::kFullSpan ||
+				s_state.labelHeight > 0.0f;
+		}
+
 		void RestoreFullSpanContent() noexcept
 		{
 			if (!s_state.fullSpanClipPushed || !s_state.window)
@@ -451,7 +458,8 @@ namespace DearModdingUI::SettingsTable
 			ImGuiTableRowFlags_None,
 			s_state.buttonExtent + ImGui::GetStyle().CellPadding.y * 2.0f);
 		(void)ImGui::TableSetColumnIndex(0);
-		ImGui::SetNextItemWidth(-FLT_MIN);
+		if (HostLabelsRow())
+			ImGui::SetNextItemWidth(-FLT_MIN);
 		// The value cell is a frame line, so client text centers beside frame controls.
 		if (a_layout == RowLayout::kLabelValue)
 			ImGui::AlignTextToFramePadding();
@@ -513,10 +521,13 @@ namespace DearModdingUI::SettingsTable
 				"##DearModdingUI.SettingsRowReset",
 				{
 					resetContentRect.Min.x,
-					RowContentY(
-						resetContentRect.Min.y,
-						resetContentRect.GetHeight(),
-						s_state.buttonExtent)
+					// Full-span rows can be page-tall; keep Reset on the first line.
+					s_state.layout == RowLayout::kFullSpan ?
+						resetContentRect.Min.y :
+						RowContentY(
+							resetContentRect.Min.y,
+							resetContentRect.GetHeight(),
+							s_state.buttonExtent)
 				},
 				{ s_state.resetWidth, s_state.buttonExtent },
 				SettingsAction::kReset,
@@ -570,10 +581,7 @@ namespace DearModdingUI::SettingsTable
 				FieldFeedback::Region::kContainer);
 			ImGui::PopClipRect();
 		}
-		const auto drawLabel =
-			s_state.layout != RowLayout::kFullSpan ||
-			s_state.labelHeight > 0.0f;
-		if (drawLabel)
+		if (HostLabelsRow())
 		{
 			auto labelRect =
 				s_state.layout == RowLayout::kFullSpan ?
