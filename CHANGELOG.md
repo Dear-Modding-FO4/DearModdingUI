@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Game menu entries**: A DMUI row in the game's Settings menu (`bSettingsMenuEntry`) and optional pause and main menu rows (`sPauseMenuEntry` = `add`/`replace`/`off`, `bMainMenuEntry`, `iPauseMenuEntryPosition`, `iMainMenuEntryPosition`) open the menu.
+
 ## [0.2.2] - 2026-11-01
 
 ### Added

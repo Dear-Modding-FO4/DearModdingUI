@@ -111,7 +111,7 @@ $DMUI_Health_BridgedMods	Mods pontés
 $DMUI_Health_SourceMods	{} mods
 $DMUI_Home_About	DearModdingUI est un menu de paramètres partagé pour Fallout 4. Les mods enregistrent leurs propres pages dans une seule interface au lieu d'avoir chacun un menu séparé, et les mods qui n'ont jamais été conçus pour cela peuvent également apparaître ici.
 $DMUI_Home_FaqOpenQuestion	Comment ouvrir le menu ?
-$DMUI_Home_FaqOpenAnswer	Appuyez sur {} pour ouvrir ou fermer DearModdingUI. Vous pouvez changer cette touche sur la page Paramètres.
+$DMUI_Home_FaqOpenAnswer	Appuyez sur {} pour ouvrir ou fermer DearModdingUI, ou choisissez DMUI dans le menu Paramètres du jeu. Vous pouvez changer cette touche sur la page Paramètres.
 $DMUI_Home_FaqStorageQuestion	Où sont stockés les paramètres ?
 $DMUI_Home_FaqStorageAnswer	Les paramètres de l'hôte sont stockés dans Data/F4SE/Plugins/DearModdingUI.toml.
 $DMUI_Home_FaqMissingPageQuestion	Pourquoi une page de mod est-elle manquante ou grisée ?
@@ -224,6 +224,20 @@ $DMUI_Settings_MenuToggleKeyboard	Basculement du menu (clavier)
 $DMUI_Settings_MenuToggleHelp	Ouvre et ferme le menu partagé. Appliquer enregistre l'assignation pour cette session et les lancements futurs.
 $DMUI_Settings_FallSoulsMode	Mode FallSouls
 $DMUI_Settings_FallSoulsModeHelp	Maintient le jeu en cours d'exécution lorsque ce menu est ouvert. S'applique à la prochaine ouverture du menu.
+$DMUI_Settings_PauseMenuEntry	Entrée du menu pause
+$DMUI_Settings_PauseMenuEntryHelp	Ouvre ce menu depuis le menu pause. Remplacer MCM masque aussi l'entrée Mod Config de MCM.
+$DMUI_Settings_PauseMenuEntryAdd	Ajouter
+$DMUI_Settings_PauseMenuEntryReplace	Remplacer MCM
+$DMUI_Settings_PauseMenuEntryOff	Désactivé
+$DMUI_Settings_PauseMenuEntryPosition	Position de l'entrée du menu pause
+$DMUI_Settings_MainMenuEntry	Entrée du menu principal
+$DMUI_Settings_MainMenuEntryHelp	Ouvre ce menu depuis le menu principal.
+$DMUI_Settings_MainMenuEntryPosition	Position de l'entrée du menu principal
+$DMUI_Settings_MenuEntryPositionHelp	Ligne de l'entrée, comptée depuis le haut. Ouvrez ce menu une fois pour voir quelle ligne se place juste au-dessus de Paramètres.
+$DMUI_Settings_MenuEntryPositionAboveSettings	Ligne de l'entrée, comptée depuis le haut. La ligne {} se place juste au-dessus de Paramètres.
+$DMUI_Settings_SettingsMenuEntry	Entrée du menu Paramètres
+$DMUI_Settings_SettingsMenuEntryHelp	Ajoute ce menu après Audio dans le sous-menu Paramètres des menus pause et principal.
+$DMUI_MenuEntry	DMUI
 $DMUI_Settings_ClientHotkeys	Raccourcis client
 $DMUI_Settings_ClientHotkeysHelp	Les assignations appartiennent à DearModdingUI. Les modifications ci-dessous sont enregistrées immédiatement.
 $DMUI_Settings_NoClientActions	Aucune action client ou assignation enregistrée.

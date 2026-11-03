@@ -132,7 +132,13 @@ namespace vmm_tests
 					true
 				}
 			};
+			settings[1].pauseMenuEntry = PauseMenuEntryMode::kReplace;
+			settings[1].pauseMenuEntryPosition = 3;
+			settings[1].mainMenuEntry = false;
+			settings[2].settingsMenuEntry = true;
+			settings[2].mainMenuEntryPosition = kMaxMenuEntryPosition;
 			settings[2].logoColors = LogoColorMode::kAccent;
+			settings[2].pauseMenuEntry = PauseMenuEntryMode::kOff;
 			for (const auto& runtime : settings)
 			{
 				const auto persisted = EncodeHostInterfaceSettings(runtime);
@@ -163,6 +169,9 @@ namespace vmm_tests
 			persisted.feedbackWarningColor = "#GG0000";
 			persisted.feedbackErrorColor = "12345";
 			persisted.sidebarLayout = "columns";
+			persisted.pauseMenuEntry = "hidden";
+			persisted.pauseMenuEntryPosition = 99;
+			persisted.mainMenuEntryPosition = -4;
 			const auto decoded = DecodeHostInterfaceSettings(persisted);
 			require(
 				decoded.accentColor == kDefaultHostAccentColor,
@@ -205,6 +214,12 @@ namespace vmm_tests
 				"malformed feedback appearance did not fall back");
 			require(decoded.sidebarLayout == SidebarLayoutKind::Tree,
 				"an unavailable sidebar layout did not fall back to tree");
+			require(decoded.pauseMenuEntry == PauseMenuEntryMode::kOff,
+				"an unknown pause menu entry mode did not fall back to off");
+			require(decoded.pauseMenuEntryPosition == kMaxMenuEntryPosition,
+				"the pause menu entry position did not clamp");
+			require(decoded.mainMenuEntryPosition == 1,
+				"the main menu entry position did not clamp");
 		});
 
 		runner.test("host settings health distinguishes absent valid and malformed files", [] {

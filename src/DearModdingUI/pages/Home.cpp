@@ -50,8 +50,8 @@ namespace DearModdingUI
 					"How do I open the menu?"),
 				Localization::Format(
 					"$DMUI_Home_FaqOpenAnswer",
-					"Press {} to open or close DearModdingUI. You can change "
-					"this key on the Settings page.",
+					"Press {} to open or close DearModdingUI, or choose DMUI in "
+					"the game's Settings menu. You can change this key on the Settings page.",
 					a_toggleKeyName)
 			},
 			{

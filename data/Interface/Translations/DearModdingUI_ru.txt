@@ -119,7 +119,7 @@ $DMUI_Health_BridgedMods	Связанные моды
 $DMUI_Health_SourceMods	{} модов
 $DMUI_Home_About	DearModdingUI — общее меню настроек для Fallout 4. Моды регистрируют свои страницы в одном оверлее вместо отдельного меню у каждого, а моды, изначально не созданные для него, тоже могут отображаться здесь.
 $DMUI_Home_FaqOpenQuestion	Как открыть меню?
-$DMUI_Home_FaqOpenAnswer	Нажмите {}, чтобы открыть или закрыть DearModdingUI. Клавишу можно изменить на странице «Настройки».
+$DMUI_Home_FaqOpenAnswer	Нажмите {}, чтобы открыть или закрыть DearModdingUI, или выберите DMUI в меню «Настройки» игры. Клавишу можно изменить на странице «Настройки».
 $DMUI_Home_FaqStorageQuestion	Где хранятся настройки?
 $DMUI_Home_FaqStorageAnswer	Настройки хоста хранятся в Data/F4SE/Plugins/DearModdingUI.toml.
 $DMUI_Home_FaqMissingPageQuestion	Почему страница мода отсутствует или недоступна?
@@ -238,6 +238,20 @@ $DMUI_Settings_MenuToggleKeyboard	Переключение меню (клави�
 $DMUI_Settings_MenuToggleHelp	Открывает и закрывает общее меню. «Применить» сохраняет назначение для этой сессии и будущих запусков.
 $DMUI_Settings_FallSoulsMode	Режим FallSouls
 $DMUI_Settings_FallSoulsModeHelp	Игра продолжается, пока меню открыто. Применяется при следующем открытии меню.
+$DMUI_Settings_PauseMenuEntry	Пункт в меню паузы
+$DMUI_Settings_PauseMenuEntryHelp	Открывает это меню из меню паузы. «Заменить MCM» также скрывает пункт Mod Config из MCM.
+$DMUI_Settings_PauseMenuEntryAdd	Добавить
+$DMUI_Settings_PauseMenuEntryReplace	Заменить MCM
+$DMUI_Settings_PauseMenuEntryOff	Выкл.
+$DMUI_Settings_PauseMenuEntryPosition	Позиция пункта в меню паузы
+$DMUI_Settings_MainMenuEntry	Пункт в главном меню
+$DMUI_Settings_MainMenuEntryHelp	Открывает это меню из главного меню.
+$DMUI_Settings_MainMenuEntryPosition	Позиция пункта в главном меню
+$DMUI_Settings_MenuEntryPositionHelp	Строка пункта, считая сверху. Откройте это меню один раз, чтобы увидеть, какая строка находится прямо над «Настройками».
+$DMUI_Settings_MenuEntryPositionAboveSettings	Строка пункта, считая сверху. Строка {} находится прямо над «Настройками».
+$DMUI_Settings_SettingsMenuEntry	Пункт в меню «Настройки»
+$DMUI_Settings_SettingsMenuEntryHelp	Добавляет это меню после «Звука» в подменю «Настройки» меню паузы и главного меню.
+$DMUI_MenuEntry	DMUI
 $DMUI_Settings_ClientHotkeys	Горячие клавиши клиента
 $DMUI_Settings_ClientHotkeysHelp	Назначения принадлежат DearModdingUI. Изменения ниже сохраняются немедленно.
 $DMUI_Settings_NoClientActions	Клиентские действия или сохранённые переопределения отсутствуют.

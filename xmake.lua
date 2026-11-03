@@ -183,6 +183,7 @@ local source_sets = {
         "src/Main.cpp",
         "src/Platform/input/CarrierMenu.cpp",
         "src/Platform/input/GameInput.cpp",
+        "src/Platform/menus/StartMenuEntry.cpp",
         "src/Platform/rendering/**.cpp",
         "src/Support/Detours.cpp",
     },

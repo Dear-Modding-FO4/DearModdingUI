@@ -41,6 +41,45 @@ namespace DearModdingUI
 		return a_mode == LogoColorMode::kAccent ? "accent" : "original";
 	}
 
+	enum class StartMenu : uint32_t
+	{
+		kPause,
+		kMain
+	};
+
+	enum class PauseMenuEntryMode
+	{
+		kAdd,
+		kReplace,
+		kOff
+	};
+
+	[[nodiscard]] constexpr std::optional<PauseMenuEntryMode> ParsePauseMenuEntryMode(
+		std::string_view a_value) noexcept
+	{
+		if (a_value == "add")
+			return PauseMenuEntryMode::kAdd;
+		if (a_value == "replace")
+			return PauseMenuEntryMode::kReplace;
+		if (a_value == "off")
+			return PauseMenuEntryMode::kOff;
+		return std::nullopt;
+	}
+
+	[[nodiscard]] constexpr std::string_view PauseMenuEntryModeName(
+		PauseMenuEntryMode a_mode) noexcept
+	{
+		switch (a_mode)
+		{
+		case PauseMenuEntryMode::kReplace:
+			return "replace";
+		case PauseMenuEntryMode::kOff:
+			return "off";
+		default:
+			return "add";
+		}
+	}
+
 	struct HostAccentColor
 	{
 		uint8_t red{ 0x42 };
@@ -84,6 +123,8 @@ namespace DearModdingUI
 	inline constexpr HostPaletteColor kDefaultPaletteBackgroundColor{
 		0x05, 0x05, 0x05
 	};
+	inline constexpr int32_t kDefaultMenuEntryPosition{ 1 };
+	inline constexpr int32_t kMaxMenuEntryPosition{ 16 };
 	inline constexpr float kDefaultWindowBackgroundOpacity{ 0.75f };
 	inline constexpr float kMinWindowBackgroundOpacity{ 0.20f };
 	inline constexpr float kMaxWindowBackgroundOpacity{ 1.0f };
@@ -125,6 +166,11 @@ namespace DearModdingUI
 		};
 		bool fallSoulsMode{ false };
 		LogoColorMode logoColors{ LogoColorMode::kOriginal };
+		PauseMenuEntryMode pauseMenuEntry{ PauseMenuEntryMode::kOff };
+		int32_t pauseMenuEntryPosition{ kDefaultMenuEntryPosition };
+		bool mainMenuEntry{ false };
+		int32_t mainMenuEntryPosition{ kDefaultMenuEntryPosition };
+		bool settingsMenuEntry{ true };
 
 		[[nodiscard]] bool operator==(
 			const HostInterfaceSettings&) const noexcept = default;
@@ -186,6 +232,11 @@ namespace DearModdingUI
 		std::string feedbackErrorColor{ EncodeHostAccentColor(kDefaultFeedbackErrorColor) };
 		bool fallSoulsMode{ false };
 		std::string logoColors{ "original" };
+		std::string pauseMenuEntry{ "off" };
+		int32_t pauseMenuEntryPosition{ kDefaultMenuEntryPosition };
+		bool mainMenuEntry{ false };
+		int32_t mainMenuEntryPosition{ kDefaultMenuEntryPosition };
+		bool settingsMenuEntry{ true };
 
 		[[nodiscard]] bool operator==(
 			const PersistedHostInterfaceSettings&) const noexcept = default;
@@ -327,6 +378,17 @@ namespace DearModdingUI
 			a_settings.iconColorMode = Theme::IconColorMode::kColored;
 		if (a_settings.logoColors != LogoColorMode::kAccent)
 			a_settings.logoColors = LogoColorMode::kOriginal;
+		if (a_settings.pauseMenuEntry != PauseMenuEntryMode::kAdd &&
+			a_settings.pauseMenuEntry != PauseMenuEntryMode::kReplace)
+			a_settings.pauseMenuEntry = PauseMenuEntryMode::kOff;
+		a_settings.pauseMenuEntryPosition = std::clamp(
+			a_settings.pauseMenuEntryPosition,
+			int32_t{ 1 },
+			kMaxMenuEntryPosition);
+		a_settings.mainMenuEntryPosition = std::clamp(
+			a_settings.mainMenuEntryPosition,
+			int32_t{ 1 },
+			kMaxMenuEntryPosition);
 		a_settings.sidebarLayout =
 			NormalizeUserSidebarLayout(a_settings.sidebarLayout);
 		a_settings.feedbackPlacement =
@@ -393,7 +455,12 @@ namespace DearModdingUI
 				a_settings.feedbackErrorColor,
 				kDefaultFeedbackErrorColor),
 			a_settings.fallSoulsMode,
-			ParseLogoColorMode(a_settings.logoColors).value_or(LogoColorMode::kOriginal)
+			ParseLogoColorMode(a_settings.logoColors).value_or(LogoColorMode::kOriginal),
+			ParsePauseMenuEntryMode(a_settings.pauseMenuEntry).value_or(PauseMenuEntryMode::kOff),
+			a_settings.pauseMenuEntryPosition,
+			a_settings.mainMenuEntry,
+			a_settings.mainMenuEntryPosition,
+			a_settings.settingsMenuEntry
 		});
 	}
 
@@ -422,7 +489,12 @@ namespace DearModdingUI
 			EncodeHostAccentColor(a_settings.feedbackWarningColor),
 			EncodeHostAccentColor(a_settings.feedbackErrorColor),
 			a_settings.fallSoulsMode,
-			std::string{ LogoColorModeName(a_settings.logoColors) }
+			std::string{ LogoColorModeName(a_settings.logoColors) },
+			std::string{ PauseMenuEntryModeName(a_settings.pauseMenuEntry) },
+			a_settings.pauseMenuEntryPosition,
+			a_settings.mainMenuEntry,
+			a_settings.mainMenuEntryPosition,
+			a_settings.settingsMenuEntry
 		};
 	}
 
@@ -474,6 +546,10 @@ namespace DearModdingUI
 		void NotifyMenuVisible(bool a_visible) noexcept;
 		void SetPageActive(bool a_active) noexcept;
 		[[nodiscard]] uint64_t PageRevision() noexcept;
+		// The 1-based entry position directly above that menu's Settings row.
+		void ReportRowAboveSettings(StartMenu a_menu, uint32_t a_row) noexcept;
+		// Empty until that menu has opened this session.
+		[[nodiscard]] std::optional<uint32_t> RowAboveSettings(StartMenu a_menu) noexcept;
 		[[nodiscard]] bool SetHotkeyOverride(
 			std::string_view a_id,
 			std::string_view a_chord,

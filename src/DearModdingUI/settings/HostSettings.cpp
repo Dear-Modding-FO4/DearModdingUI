@@ -50,6 +50,7 @@ namespace DearModdingUI::HostSettings
 		HostSettingsHealthState s_configurationHealthState;
 		// Covers both Current() and EffectivePreview().
 		Support::Revision s_revision;
+		std::array<std::atomic<uint32_t>, 2> s_rowAboveSettings{};
 
 		class ConfigurationHealthReporter final : public HealthReporter
 		{
@@ -447,6 +448,17 @@ namespace DearModdingUI::HostSettings
 	void SetPageActive(bool a_active) noexcept
 	{
 		StorePageActive(a_active);
+	}
+
+	void ReportRowAboveSettings(StartMenu a_menu, uint32_t a_row) noexcept
+	{
+		s_rowAboveSettings[static_cast<uint32_t>(a_menu)].store(a_row, std::memory_order_release);
+	}
+
+	std::optional<uint32_t> RowAboveSettings(StartMenu a_menu) noexcept
+	{
+		const auto row = s_rowAboveSettings[static_cast<uint32_t>(a_menu)].load(std::memory_order_acquire);
+		return row ? std::optional{ row } : std::nullopt;
 	}
 
 	uint64_t PageRevision() noexcept

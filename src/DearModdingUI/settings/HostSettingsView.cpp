@@ -843,6 +843,127 @@ namespace DearModdingUI
 				{
 					settings.fallSoulsMode = defaults.fallSoulsMode;
 				}
+				const auto drawPosition = [&](
+					const char* a_id,
+					const char* a_label,
+					int32_t& a_position,
+					int32_t a_default,
+					StartMenu a_menu) noexcept {
+					const auto aboveSettings = HostSettings::RowAboveSettings(a_menu);
+					const auto help = aboveSettings ?
+						Localization::Format(
+							"$DMUI_Settings_MenuEntryPositionAboveSettings",
+							"Row of the entry, counted from the top. Row {} sits directly above Settings.",
+							*aboveSettings) :
+						std::string{ Localization::Text(
+							"$DMUI_Settings_MenuEntryPositionHelp",
+							"Row of the entry, counted from the top. Open this menu once to see which row sits directly above Settings.") };
+					if (DrawSettingsRow(
+							a_id,
+							a_label,
+							help.c_str(),
+							true,
+							[&]() noexcept {
+								ImGui::SetNextItemWidth(ControlWidth());
+								(void)ImGui::SliderInt(
+									"##Value",
+									&a_position,
+									1,
+									kMaxMenuEntryPosition,
+									"%d",
+									ImGuiSliderFlags_AlwaysClamp);
+							},
+							[&]() noexcept { return a_position != a_default; }))
+						a_position = a_default;
+				};
+
+				if (DrawSettingsRow(
+						"PauseMenuEntry",
+						Localization::Text(
+							"$DMUI_Settings_PauseMenuEntry",
+							"Pause menu entry"),
+						Localization::Text(
+							"$DMUI_Settings_PauseMenuEntryHelp",
+							"Opens this menu from the pause menu. Replace MCM also hides MCM's Mod Config entry."),
+						true,
+						[&]() noexcept {
+							auto mode = static_cast<int>(settings.pauseMenuEntry);
+							const char* const modes[]{
+								Localization::Text(
+									"$DMUI_Settings_PauseMenuEntryAdd",
+									"Add"),
+								Localization::Text(
+									"$DMUI_Settings_PauseMenuEntryReplace",
+									"Replace MCM"),
+								Localization::Text(
+									"$DMUI_Settings_PauseMenuEntryOff",
+									"Off")
+							};
+							ImGui::SetNextItemWidth(ControlWidth());
+							if (ImGui::Combo("##Value", &mode, modes, static_cast<int>(std::size(modes))))
+								settings.pauseMenuEntry = static_cast<PauseMenuEntryMode>(mode);
+						},
+						[&]() noexcept {
+							return settings.pauseMenuEntry !=
+								defaults.pauseMenuEntry;
+						}))
+				{
+					settings.pauseMenuEntry = defaults.pauseMenuEntry;
+				}
+				drawPosition(
+					"PauseMenuEntryPosition",
+					Localization::Text("$DMUI_Settings_PauseMenuEntryPosition", "Pause menu entry position"),
+					settings.pauseMenuEntryPosition,
+					defaults.pauseMenuEntryPosition,
+					StartMenu::kPause);
+				if (DrawSettingsRow(
+						"MainMenuEntry",
+						Localization::Text(
+							"$DMUI_Settings_MainMenuEntry",
+							"Main menu entry"),
+						Localization::Text(
+							"$DMUI_Settings_MainMenuEntryHelp",
+							"Opens this menu from the main menu."),
+						true,
+						[&]() noexcept {
+							(void)ImGui::Checkbox(
+								"##Value",
+								&settings.mainMenuEntry);
+						},
+						[&]() noexcept {
+							return settings.mainMenuEntry !=
+								defaults.mainMenuEntry;
+						}))
+				{
+					settings.mainMenuEntry = defaults.mainMenuEntry;
+				}
+				drawPosition(
+					"MainMenuEntryPosition",
+					Localization::Text("$DMUI_Settings_MainMenuEntryPosition", "Main menu entry position"),
+					settings.mainMenuEntryPosition,
+					defaults.mainMenuEntryPosition,
+					StartMenu::kMain);
+				if (DrawSettingsRow(
+						"SettingsMenuEntry",
+						Localization::Text(
+							"$DMUI_Settings_SettingsMenuEntry",
+							"Settings menu entry"),
+						Localization::Text(
+							"$DMUI_Settings_SettingsMenuEntryHelp",
+							"Adds this menu after Audio in the Settings submenu of the pause and main menus."),
+						true,
+						[&]() noexcept {
+							(void)ImGui::Checkbox(
+								"##Value",
+								&settings.settingsMenuEntry);
+						},
+						[&]() noexcept {
+							return settings.settingsMenuEntry !=
+								defaults.settingsMenuEntry;
+						}))
+				{
+					settings.settingsMenuEntry = defaults.settingsMenuEntry;
+				}
 				(void)SettingsTable::End(DMUI_INVALID_CLIENT_HANDLE);
 			}
 

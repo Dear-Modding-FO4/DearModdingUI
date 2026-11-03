@@ -8,6 +8,7 @@
 #include <DearModdingUI/host/Shell.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <Platform/input/GameInput.h>
+#include <Platform/menus/StartMenuEntry.h>
 #include <Platform/rendering/PlatformImGui.h>
 
 #include <F4SE/F4SE.h>
@@ -77,10 +78,18 @@ namespace DearModdingUI::Plugin
 			case F4SE::MessagingInterface::kGameLoaded:
 				PlatformImGui::HandleGameTransition();
 				break;
+			case F4SE::MessagingInterface::kPostPostLoad:
+				// The title menu shows its rows while game data still loads.
+				(void)DearModdingUI::StartMenuEntry::Register(&ToggleHost);
+				break;
 			case F4SE::MessagingInterface::kGameDataReady:
 				PlatformImGui::HandleGameTransition();
 				if (a_message->data)
+				{
 					(void)GameInput::InstallHooks();
+					if (!DearModdingUI::StartMenuEntry::Register(&ToggleHost))
+						REX::ERROR("DearModdingUI: menu entry registration failed"sv);
+				}
 				break;
 			default:
 				break;

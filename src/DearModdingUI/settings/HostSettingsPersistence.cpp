@@ -300,6 +300,11 @@ namespace DearModdingUI
 			section["sMenuToggleKey"] = a_settings.menuToggleKey;
 			section["sMenuToggleGamepad"] = a_settings.menuToggleGamepad;
 			section["bMenuFallSoulsMode"] = a_settings.fallSoulsMode;
+			section["sPauseMenuEntry"] = a_settings.pauseMenuEntry;
+			section["iPauseMenuEntryPosition"] = a_settings.pauseMenuEntryPosition;
+			section["bMainMenuEntry"] = a_settings.mainMenuEntry;
+			section["iMainMenuEntryPosition"] = a_settings.mainMenuEntryPosition;
+			section["bSettingsMenuEntry"] = a_settings.settingsMenuEntry;
 			section["sFieldFeedbackLayout"] = a_settings.feedbackPlacement;
 			section["sFieldFeedbackInfoColor"] =
 				a_settings.feedbackInfoColor;
@@ -451,6 +456,33 @@ namespace DearModdingUI
 						"sMenuLogoColors",
 						Quoted(a_settings.logoColors),
 						Quoted(LogoColorModeName(runtime.logoColors))));
+			}
+			if (!ParsePauseMenuEntryMode(a_settings.pauseMenuEntry))
+			{
+				AppendCorrection(
+					a_corrections,
+					Replacement(
+						"sPauseMenuEntry",
+						Quoted(a_settings.pauseMenuEntry),
+						Quoted(PauseMenuEntryModeName(runtime.pauseMenuEntry))));
+			}
+			if (runtime.pauseMenuEntryPosition != a_settings.pauseMenuEntryPosition)
+			{
+				AppendCorrection(
+					a_corrections,
+					Replacement(
+						"iPauseMenuEntryPosition",
+						a_settings.pauseMenuEntryPosition,
+						runtime.pauseMenuEntryPosition));
+			}
+			if (runtime.mainMenuEntryPosition != a_settings.mainMenuEntryPosition)
+			{
+				AppendCorrection(
+					a_corrections,
+					Replacement(
+						"iMainMenuEntryPosition",
+						a_settings.mainMenuEntryPosition,
+						runtime.mainMenuEntryPosition));
 			}
 			if (!ParseUserSidebarLayout(a_settings.sidebarLayout))
 			{
@@ -707,6 +739,31 @@ namespace DearModdingUI
 				section,
 				"bMenuFallSoulsMode",
 				settings.fallSoulsMode,
+				result.corrections);
+			settings.pauseMenuEntry = ReadSetting<std::string>(
+				section,
+				"sPauseMenuEntry",
+				settings.pauseMenuEntry,
+				result.corrections);
+			settings.pauseMenuEntryPosition = ReadSetting<int32_t>(
+				section,
+				"iPauseMenuEntryPosition",
+				settings.pauseMenuEntryPosition,
+				result.corrections);
+			settings.settingsMenuEntry = ReadSetting<bool>(
+				section,
+				"bSettingsMenuEntry",
+				settings.settingsMenuEntry,
+				result.corrections);
+			settings.mainMenuEntry = ReadSetting<bool>(
+				section,
+				"bMainMenuEntry",
+				settings.mainMenuEntry,
+				result.corrections);
+			settings.mainMenuEntryPosition = ReadSetting<int32_t>(
+				section,
+				"iMainMenuEntryPosition",
+				settings.mainMenuEntryPosition,
 				result.corrections);
 			settings.feedbackPlacement = ReadSetting<std::string>(
 				section,

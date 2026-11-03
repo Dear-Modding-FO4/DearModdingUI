@@ -350,6 +350,11 @@ namespace DearModdingUI
 		return GetService().menuVisible.load(std::memory_order_acquire);
 	}
 
+	DMUI_HostState CurrentHostState() noexcept
+	{
+		return GetService().state.load(std::memory_order_acquire);
+	}
+
 	HostInputMode CurrentInputMode() noexcept
 	{
 		return IsMenuVisible() ? HostInputMode::kShell :

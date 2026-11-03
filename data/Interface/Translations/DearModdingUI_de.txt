@@ -111,7 +111,7 @@ $DMUI_Health_BridgedMods	Überbrückte Mods
 $DMUI_Health_SourceMods	{} Mods
 $DMUI_Home_About	DearModdingUI ist ein gemeinsames Einstellungsmenü für Fallout 4. Mods registrieren ihre eigenen Seiten in einer gemeinsamen Oberfläche, anstatt jeweils ein separates Menü mitzuliefern, und Mods, die nie dafür entwickelt wurden, können hier ebenfalls erscheinen.
 $DMUI_Home_FaqOpenQuestion	Wie öffne ich das Menü?
-$DMUI_Home_FaqOpenAnswer	{} drücken, um DearModdingUI zu öffnen oder zu schließen. Sie können diese Taste auf der Einstellungsseite ändern.
+$DMUI_Home_FaqOpenAnswer	{} drücken, um DearModdingUI zu öffnen oder zu schließen, oder DMUI im Einstellungsmenü des Spiels auswählen. Sie können diese Taste auf der Einstellungsseite ändern.
 $DMUI_Home_FaqStorageQuestion	Wo werden die Einstellungen gespeichert?
 $DMUI_Home_FaqStorageAnswer	Host-Einstellungen werden in Data/F4SE/Plugins/DearModdingUI.toml gespeichert.
 $DMUI_Home_FaqMissingPageQuestion	Warum fehlt eine Mod-Seite oder ist ausgegraut?
@@ -224,6 +224,20 @@ $DMUI_Settings_MenuToggleKeyboard	Menü-Umschalter (Tastatur)
 $DMUI_Settings_MenuToggleHelp	Öffnet und schließt das gemeinsame Menü. Anwenden speichert die Belegung für diese Sitzung und zukünftige Starts.
 $DMUI_Settings_FallSoulsMode	FallSouls-Modus
 $DMUI_Settings_FallSoulsModeHelp	Spiel weiterlaufen lassen, während dieses Menü geöffnet ist. Wird beim nächsten Öffnen des Menüs angewendet.
+$DMUI_Settings_PauseMenuEntry	Pausenmenü-Eintrag
+$DMUI_Settings_PauseMenuEntryHelp	Öffnet dieses Menü aus dem Pausenmenü. „MCM ersetzen“ blendet zusätzlich den MCM-Eintrag „Mod Config“ aus.
+$DMUI_Settings_PauseMenuEntryAdd	Hinzufügen
+$DMUI_Settings_PauseMenuEntryReplace	MCM ersetzen
+$DMUI_Settings_PauseMenuEntryOff	Aus
+$DMUI_Settings_PauseMenuEntryPosition	Position des Pausenmenü-Eintrags
+$DMUI_Settings_MainMenuEntry	Hauptmenü-Eintrag
+$DMUI_Settings_MainMenuEntryHelp	Öffnet dieses Menü aus dem Hauptmenü.
+$DMUI_Settings_MainMenuEntryPosition	Position des Hauptmenü-Eintrags
+$DMUI_Settings_MenuEntryPositionHelp	Zeile des Eintrags, von oben gezählt. Öffnen Sie dieses Menü einmal, um zu sehen, welche Zeile direkt über Einstellungen liegt.
+$DMUI_Settings_MenuEntryPositionAboveSettings	Zeile des Eintrags, von oben gezählt. Zeile {} liegt direkt über Einstellungen.
+$DMUI_Settings_SettingsMenuEntry	Einstellungen-Eintrag
+$DMUI_Settings_SettingsMenuEntryHelp	Fügt dieses Menü im Einstellungen-Untermenü von Pausen- und Hauptmenü nach Audio hinzu.
+$DMUI_MenuEntry	DMUI
 $DMUI_Settings_ClientHotkeys	Client-Hotkeys
 $DMUI_Settings_ClientHotkeysHelp	Belegungen gehören zu DearModdingUI. Änderungen unten werden sofort gespeichert.
 $DMUI_Settings_NoClientActions	Keine Client-Aktionen oder gespeicherten Überschreibungen.

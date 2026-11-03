@@ -36,6 +36,7 @@ namespace DearModdingUI
 	[[nodiscard]] bool NeedsFrame() noexcept;
 	[[nodiscard]] bool HasSettingsPages() noexcept;
 	[[nodiscard]] bool IsMenuVisible() noexcept;
+	[[nodiscard]] DMUI_HostState CurrentHostState() noexcept;
 	[[nodiscard]] HostInputMode CurrentInputMode() noexcept;
 	// Overlay focus owns world pointer input unless the shell is open.
 	[[nodiscard]] DMUI_PageHandle PointerOwnerPage() noexcept;

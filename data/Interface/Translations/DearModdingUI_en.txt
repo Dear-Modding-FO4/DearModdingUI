@@ -111,7 +111,7 @@ $DMUI_Health_BridgedMods	Bridged mods
 $DMUI_Health_SourceMods	{} mods
 $DMUI_Home_About	DearModdingUI is a shared settings menu for Fallout 4. Mods register their own pages in one overlay instead of each shipping a separate menu, and mods that were never built for it can appear here too.
 $DMUI_Home_FaqOpenQuestion	How do I open the menu?
-$DMUI_Home_FaqOpenAnswer	Press {} to open or close DearModdingUI. You can change this key on the Settings page.
+$DMUI_Home_FaqOpenAnswer	Press {} to open or close DearModdingUI, or choose DMUI in the game's Settings menu. You can change this key on the Settings page.
 $DMUI_Home_FaqStorageQuestion	Where are settings stored?
 $DMUI_Home_FaqStorageAnswer	Host settings are stored in Data/F4SE/Plugins/DearModdingUI.toml.
 $DMUI_Home_FaqMissingPageQuestion	Why is a mod page missing or grayed out?
@@ -224,6 +224,20 @@ $DMUI_Settings_MenuToggleKeyboard	Menu toggle (keyboard)
 $DMUI_Settings_MenuToggleHelp	Opens and closes the shared menu. Apply saves the binding for this session and future launches.
 $DMUI_Settings_FallSoulsMode	FallSouls mode
 $DMUI_Settings_FallSoulsModeHelp	Keep the game running while this menu is open. Applies the next time the menu opens.
+$DMUI_Settings_PauseMenuEntry	Pause menu entry
+$DMUI_Settings_PauseMenuEntryHelp	Opens this menu from the pause menu. Replace MCM also hides MCM's Mod Config entry.
+$DMUI_Settings_PauseMenuEntryAdd	Add
+$DMUI_Settings_PauseMenuEntryReplace	Replace MCM
+$DMUI_Settings_PauseMenuEntryOff	Off
+$DMUI_Settings_PauseMenuEntryPosition	Pause menu entry position
+$DMUI_Settings_MainMenuEntry	Main menu entry
+$DMUI_Settings_MainMenuEntryHelp	Opens this menu from the main menu.
+$DMUI_Settings_MainMenuEntryPosition	Main menu entry position
+$DMUI_Settings_MenuEntryPositionHelp	Row of the entry, counted from the top. Open this menu once to see which row sits directly above Settings.
+$DMUI_Settings_MenuEntryPositionAboveSettings	Row of the entry, counted from the top. Row {} sits directly above Settings.
+$DMUI_Settings_SettingsMenuEntry	Settings menu entry
+$DMUI_Settings_SettingsMenuEntryHelp	Adds this menu after Audio in the Settings submenu of the pause and main menus.
+$DMUI_MenuEntry	DMUI
 $DMUI_Settings_ClientHotkeys	Client hotkeys
 $DMUI_Settings_ClientHotkeysHelp	Bindings are owned by DearModdingUI. Changes below are saved immediately.
 $DMUI_Settings_NoClientActions	No client actions or saved overrides.
