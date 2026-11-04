@@ -167,32 +167,31 @@ namespace DearModdingUIPreview
 			ControllerNavigation::Reset();
 			Hotkeys::ReleaseActiveKeys();
 		}
-		if (CursorLoader::HandleWindowMessage(
-				a_window, a_message, static_cast<uint64_t>(a_lparam)))
+		if (a_message == WM_SETCURSOR &&
+			CursorLoader::ApplySetCursor(a_window, LOWORD(a_lparam)))
 			return 1;
-		const auto escapeDecision =
-			DearModdingUI::PlatformImGui::DecideEscapeMessage(
-				a_message,
-				static_cast<uint32_t>(a_wparam),
-				static_cast<uint64_t>(a_lparam),
+		namespace Platform = DearModdingUI::PlatformImGui;
+		const auto keyPressed = a_message == WM_KEYDOWN || a_message == WM_SYSKEYDOWN;
+		const auto keyReleased = a_message == WM_KEYUP || a_message == WM_SYSKEYUP;
+		const auto escapeDecision = a_wparam == Platform::kEscapeVirtualKey && (keyPressed || keyReleased) ?
+			Platform::DecideEscapeEdge(
+				keyPressed,
+				// Bit 30 marks a repeat only on keydown.
+				keyPressed && (a_lparam & (1LL << 30)) != 0,
 				CurrentInputMode() != HostInputMode::kGameplay,
-				Hotkeys::OwnsKey(DearModdingUI::PlatformImGui::kEscapeKeyCode));
-		if (escapeDecision ==
-			DearModdingUI::PlatformImGui::EscapeMessageDecision::kCapture)
+				Hotkeys::OwnsKey(Platform::kEscapeKeyCode)) :
+			Platform::EscapeDecision::kForward;
+		if (escapeDecision == Platform::EscapeDecision::kCapture)
 		{
-			Hotkeys::Claim(DearModdingUI::PlatformImGui::kEscapeKeyCode);
+			Hotkeys::Claim(Platform::kEscapeKeyCode);
 			CaptureMenuEscapePress(
 				CurrentInputMode(),
 				PresentationServices::HasActiveDialog(),
 				PresentationServices::ActiveDialogPopupId());
 		}
-		else if (escapeDecision ==
-				DearModdingUI::PlatformImGui::EscapeMessageDecision::
-					kConsumeAndRelease ||
-			escapeDecision ==
-				DearModdingUI::PlatformImGui::EscapeMessageDecision::
-					kReleaseAndForward)
-			(void)Hotkeys::HandleKey(DearModdingUI::PlatformImGui::kEscapeKeyCode, 0, false, false);
+		else if (escapeDecision == Platform::EscapeDecision::kConsumeAndRelease ||
+			escapeDecision == Platform::EscapeDecision::kReleaseAndForward)
+			(void)Hotkeys::HandleKey(Platform::kEscapeKeyCode, 0, false, false);
 
 		const auto imguiHandled =
 			m_imguiBackendReady &&
@@ -201,11 +200,8 @@ namespace DearModdingUIPreview
 				a_message,
 				a_wparam,
 				a_lparam);
-		if (escapeDecision !=
-				DearModdingUI::PlatformImGui::EscapeMessageDecision::kForward &&
-			escapeDecision !=
-				DearModdingUI::PlatformImGui::EscapeMessageDecision::
-					kReleaseAndForward)
+		if (escapeDecision != Platform::EscapeDecision::kForward &&
+			escapeDecision != Platform::EscapeDecision::kReleaseAndForward)
 			return 1;
 		if (imguiHandled)
 			return 1;

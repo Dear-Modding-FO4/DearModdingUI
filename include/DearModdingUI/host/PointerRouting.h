@@ -28,9 +28,6 @@ namespace DearModdingUI::PointerRouting
 	[[nodiscard]] Verdict RouteRelease(DMUI_PageHandle a_owner, uint32_t a_button) noexcept;
 	[[nodiscard]] Verdict RouteWheel(
 		DMUI_PageHandle a_owner, DMUI_Vec2 a_notches, DMUI_Vec2 a_position, bool a_excluded) noexcept;
-	// Mouse capture was lost, so no release will arrive: held buttons end now.
-	void LoseCapture() noexcept;
-	[[nodiscard]] bool HoldsButtons() noexcept;
 	// Render thread, before NewFrame: pending edges become this frame's input.
 	void BeginFrame(DMUI_PageHandle a_owner) noexcept;
 	void Reset() noexcept;

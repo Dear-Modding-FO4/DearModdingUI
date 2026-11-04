@@ -73,7 +73,7 @@ namespace vmm_tests
 			registry.SetReservedChord(kMenuDefaultGamepadToggleChord, HotkeySlot::kGamepad);
 			bool blocked = false;
 			const auto decide = [&] {
-				return DecideInputQueue(blocked, kMenuInputSuppression, registry.IsToggleChordHeld());
+				return SuppressesGameInput(blocked, registry.IsToggleChordHeld());
 			};
 			const auto route = [&](uint32_t a_code, bool a_pressed, bool a_repeat = false) {
 				if (registry.HandleKey(a_code, 0, a_pressed, a_repeat) == HotkeyMessageResult::kMenuToggle)
@@ -81,26 +81,26 @@ namespace vmm_tests
 			};
 			for (const auto code : { kPadLB, kPadRB, kPadBack })
 				route(code, true);
-			require(blocked && decide() == InputQueueDecision::kDiscard,
+			require(blocked && decide(),
 				"opening chord did not block game input");
 			for (const auto code : { kPadLB, kPadRB, kPadBack })
 				route(code, false);
 
 			for (const auto code : { kPadLB, kPadRB, kPadBack })
 				route(code, true);
-			require(!blocked && registry.IsToggleChordHeld() && decide() == InputQueueDecision::kDiscard,
+			require(!blocked && registry.IsToggleChordHeld() && decide(),
 				"closing chord leaked into gameplay");
 			route(kPadBack, false);
 			route(kPadLB, true, true);
 			route(kPadRB, false);
-			require(registry.IsToggleChordHeld() && decide() == InputQueueDecision::kDiscard,
+			require(registry.IsToggleChordHeld() && decide(),
 				"trigger release allowed a remaining shoulder hold into gameplay");
 			route(kPadLB, false);
-			require(!registry.IsToggleChordHeld() && decide() == InputQueueDecision::kForward,
+			require(!registry.IsToggleChordHeld() && !decide(),
 				"final release kept gameplay blocked");
 
 			route(kPadLB, true);
-			require(decide() == InputQueueDecision::kForward,
+			require(!decide(),
 				"an old toggle activation blocked a fresh partial chord");
 			route(kPadRB, true);
 			route(kPadBack, true);
@@ -108,18 +108,18 @@ namespace vmm_tests
 				"fresh chord did not reopen the menu");
 			registry.ReleaseActiveKeys();
 			blocked = false;
-			require(!registry.IsToggleChordHeld() && decide() == InputQueueDecision::kForward,
+			require(!registry.IsToggleChordHeld() && !decide(),
 				"focus-loss or disconnect reconciliation retained the toggle hold");
 
 			registry.SetReservedChord(ParseHotkeyChord("Mouse3+Mouse4").chord);
 			blocked = true;
 			route(kMouseButtonOffset + 2, true);
 			route(kMouseButtonOffset + 3, true);
-			require(!blocked && decide() == InputQueueDecision::kDiscard,
+			require(!blocked && decide(),
 				"keyboard-slot mouse toggle did not retain its hold");
 			route(kMouseButtonOffset + 3, false);
 			route(kMouseButtonOffset + 2, false);
-			require(decide() == InputQueueDecision::kForward,
+			require(!decide(),
 				"mouse toggle release kept gameplay blocked");
 			RequireHeldOpeningChordIsSuppressed();
 		});

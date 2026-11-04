@@ -151,6 +151,7 @@ $DMUI_Health_NoDiagnostics	Aucun diagnostic client n'a été signalé.
 $DMUI_Health_SubsystemTypography	Typographie
 $DMUI_Health_SubsystemConfiguration	Configuration
 $DMUI_Health_SubsystemGameInput	Entrée du jeu
+$DMUI_Health_SubsystemThreadTap	Saisie de texte
 $DMUI_Health_SubsystemRenderer	Moteur de rendu
 $DMUI_Pages_SettingsResetTooltip	Réinitialiser enregistre immédiatement la disposition par défaut de la barre latérale et charge les autres valeurs par défaut d'interface dans le brouillon. Utilisez Appliquer pour les enregistrer.
 $DMUI_Pages_SettingsRevertTooltip	Annuler supprime les modifications d'interface en attente et restaure les paramètres enregistrés. Les modifications de la disposition de la barre latérale sont déjà enregistrées.
@@ -265,8 +266,8 @@ $DMUI_Typography_ReadyOne	Famille "{}" chargée avec tous les rôles fournis, le
 $DMUI_Typography_ReadyOther	Famille "{}" chargée avec tous les rôles fournis, les icônes Phosphor et {} polices de remplacement système.
 $DMUI_Typography_Rebuilding	Reconstruction de l'atlas de polices pour la famille demandée.
 $DMUI_Input_WaitingForGameData	En attente que les données du jeu soient prêtes.
-$DMUI_Input_Installing	Installation de l'interception de {}, {} et {}.
-$DMUI_Input_Ready	Interception de {}, {} et {} installée.
+$DMUI_Input_Installing	Installation de l'interception de {}, {}, {} et {}.
+$DMUI_Input_Ready	Interception de {}, {}, {} et {} installée.
 $DMUI_Input_SingletonUnavailable	Le singleton de {} est indisponible ; redémarrez une fois les données du jeu prêtes.
 $DMUI_Input_ReceiverOffsetMismatch	La disposition du récepteur {} ne correspond pas à cette version du jeu ; vérifiez les versions du jeu et du plugin.
 $DMUI_Input_VtableUnavailable	La vtable du récepteur {} est indisponible ; redémarrez le jeu.
@@ -276,6 +277,8 @@ $DMUI_Input_PatchFailed	Le patch du récepteur {} a échoué ; recherchez un hoo
 $DMUI_Input_OriginalTargetLost	Le hook de {} a perdu sa cible d'origine ; redémarrez le jeu.
 $DMUI_Input_InterceptionFailed	L'interception de {} a échoué.
 $DMUI_Input_InterceptionUnavailable	L'interception requise des entrées du jeu est indisponible.
+$DMUI_Input_TapReady	Intercepteur de messages installé sur le thread d'interface {}.
+$DMUI_Input_TapFailed	L'intercepteur de messages du thread de la fenêtre est indisponible ; la saisie de texte et la prise en charge du curseur ne fonctionneront pas.
 $DMUI_Renderer_DataMissing	Les données du moteur de rendu sont nulles.
 $DMUI_Renderer_NotInitialized	Les données du moteur de rendu ne sont pas initialisées.
 $DMUI_Renderer_WindowObjectMissing	La fenêtre de rendu actuelle est nulle.

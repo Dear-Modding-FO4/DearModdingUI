@@ -151,6 +151,7 @@ $DMUI_Health_NoDiagnostics	No client diagnostics have been reported.
 $DMUI_Health_SubsystemTypography	Typography
 $DMUI_Health_SubsystemConfiguration	Configuration
 $DMUI_Health_SubsystemGameInput	Game input
+$DMUI_Health_SubsystemThreadTap	Text input
 $DMUI_Health_SubsystemRenderer	Renderer
 $DMUI_Pages_SettingsResetTooltip	Reset saves the default sidebar layout immediately and loads other shipped interface defaults into the draft. Use Apply to save those.
 $DMUI_Pages_SettingsRevertTooltip	Revert discards pending interface edits and restores saved settings. Sidebar layout changes are already saved.
@@ -265,8 +266,8 @@ $DMUI_Typography_ReadyOne	Loaded "{}" with all bundled roles, Phosphor icons, an
 $DMUI_Typography_ReadyOther	Loaded "{}" with all bundled roles, Phosphor icons, and {} system fallback fonts.
 $DMUI_Typography_Rebuilding	Rebuilding the font atlas for the requested family.
 $DMUI_Input_WaitingForGameData	Waiting for the game-data-ready prerequisite.
-$DMUI_Input_Installing	Installing {}, {}, and {} interception.
-$DMUI_Input_Ready	{}, {}, and {} interception installed.
+$DMUI_Input_Installing	Installing {}, {}, {}, and {} interception.
+$DMUI_Input_Ready	{}, {}, {}, and {} interception installed.
 $DMUI_Input_SingletonUnavailable	{} singleton is unavailable; restart after game data is ready.
 $DMUI_Input_ReceiverOffsetMismatch	{} receiver layout did not match this runtime; verify the game and plugin versions.
 $DMUI_Input_VtableUnavailable	{} receiver vtable is unavailable; restart the game.
@@ -276,6 +277,8 @@ $DMUI_Input_PatchFailed	{} receiver patch failed; check for an incompatible inpu
 $DMUI_Input_OriginalTargetLost	{} hook lost its original target; restart the game.
 $DMUI_Input_InterceptionFailed	{} interception failed.
 $DMUI_Input_InterceptionUnavailable	Required game-input interception is unavailable.
+$DMUI_Input_TapReady	Message tap installed on UI thread {}.
+$DMUI_Input_TapFailed	The window thread message tap is unavailable; typed text and cursor ownership will not work.
 $DMUI_Renderer_DataMissing	Renderer data is null.
 $DMUI_Renderer_NotInitialized	Renderer data is not initialized.
 $DMUI_Renderer_WindowObjectMissing	The current renderer window is null.

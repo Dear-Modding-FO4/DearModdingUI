@@ -151,6 +151,7 @@ $DMUI_Health_NoDiagnostics	Keine Client-Diagnosen wurden gemeldet.
 $DMUI_Health_SubsystemTypography	Typografie
 $DMUI_Health_SubsystemConfiguration	Konfiguration
 $DMUI_Health_SubsystemGameInput	Spieleingabe
+$DMUI_Health_SubsystemThreadTap	Texteingabe
 $DMUI_Health_SubsystemRenderer	Renderer
 $DMUI_Pages_SettingsResetTooltip	Zurücksetzen speichert das Standard-Seitenleistenlayout sofort und lädt andere mitgelieferte Schnittstellenstandards in den Entwurf. Verwenden Sie Anwenden, um diese zu speichern.
 $DMUI_Pages_SettingsRevertTooltip	Verwerfen verwirft ausstehende Schnittstellenbearbeitungen und stellt gespeicherte Einstellungen wieder her. Änderungen am Seitenleistenlayout wurden bereits gespeichert.
@@ -265,8 +266,8 @@ $DMUI_Typography_ReadyOne	Schriftfamilie "{}" mit allen mitgelieferten Schriftst
 $DMUI_Typography_ReadyOther	Schriftfamilie "{}" mit allen mitgelieferten Schriftstilen, Phosphor-Symbolen und {} System-Ersatzschriften geladen.
 $DMUI_Typography_Rebuilding	Der Schriftatlas wird für die angeforderte Familie neu aufgebaut.
 $DMUI_Input_WaitingForGameData	Wartet darauf, dass die Spieldaten bereit sind.
-$DMUI_Input_Installing	Das Abfangen von {}, {} und {} wird installiert.
-$DMUI_Input_Ready	Das Abfangen von {}, {} und {} ist installiert.
+$DMUI_Input_Installing	Das Abfangen von {}, {}, {} und {} wird installiert.
+$DMUI_Input_Ready	Das Abfangen von {}, {}, {} und {} ist installiert.
 $DMUI_Input_SingletonUnavailable	Das Singleton von {} ist nicht verfügbar; starten Sie neu, sobald die Spieldaten bereit sind.
 $DMUI_Input_ReceiverOffsetMismatch	Das Receiver-Layout von {} stimmt nicht mit dieser Laufzeit überein; prüfen Sie die Spiel- und Plugin-Versionen.
 $DMUI_Input_VtableUnavailable	Die vtable des Receivers {} ist nicht verfügbar; starten Sie das Spiel neu.
@@ -276,6 +277,8 @@ $DMUI_Input_PatchFailed	Der Patch des Receivers {} ist fehlgeschlagen; prüfen S
 $DMUI_Input_OriginalTargetLost	Der Hook von {} hat sein ursprüngliches Ziel verloren; starten Sie das Spiel neu.
 $DMUI_Input_InterceptionFailed	Das Abfangen von {} ist fehlgeschlagen.
 $DMUI_Input_InterceptionUnavailable	Das erforderliche Abfangen der Spieleingaben ist nicht verfügbar.
+$DMUI_Input_TapReady	Nachrichten-Tap auf dem UI-Thread {} installiert.
+$DMUI_Input_TapFailed	Der Nachrichten-Tap des Fensterthreads ist nicht verfügbar; Texteingabe und Cursorübernahme funktionieren nicht.
 $DMUI_Renderer_DataMissing	Die Renderer-Daten sind null.
 $DMUI_Renderer_NotInitialized	Die Renderer-Daten sind nicht initialisiert.
 $DMUI_Renderer_WindowObjectMissing	Das aktuelle Renderer-Fenster ist null.

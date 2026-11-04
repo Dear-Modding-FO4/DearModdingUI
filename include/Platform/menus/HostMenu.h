@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace DearModdingUI::CarrierMenu
+namespace DearModdingUI::HostMenu
 {
 	enum class Event : uint32_t
 	{
@@ -11,8 +11,7 @@ namespace DearModdingUI::CarrierMenu
 		kShutdown,
 		kBackendFailure,
 		kRetarget,
-		kGameTransition,
-		kOverlayOnly
+		kGameTransition
 	};
 
 	enum class Action : uint32_t

@@ -7,6 +7,7 @@
 #include <DearModdingUI/presentation/BackgroundBlur.h>
 #include <Platform/imgui/ImGuiWin32Integration.h>
 #include <Platform/input/CursorLoader.h>
+#include <Platform/input/EngineFocus.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/host/MenuDismissal.h>
@@ -126,6 +127,10 @@ namespace DearModdingUIPreview
 			if (!options.language.empty())
 				Localization::SetLanguage(options.language);
 			Theme::Initialize(window.Handle());
+			// No engine here; the window thread stands in for the UI thread.
+			EngineFocus::SetSource([]() noexcept {
+				return EngineFocus::Snapshot{ true, GetCurrentThreadId() };
+			});
 			CursorLoader::Initialize(window.Handle());
 			if (!ImGui_ImplWin32_Init(window.Handle()))
 			{
@@ -361,7 +366,7 @@ namespace DearModdingUIPreview
 				BackgroundBlur::BeginFrame();
 				PresentationServices::BeginFrame();
 				ImGui_ImplDX11_NewFrame();
-				const auto inputFocused = options.screenshot.has_value() || CursorLoader::HasFocus();
+				const auto inputFocused = options.screenshot.has_value() || EngineFocus::Active();
 				const auto hadGamepad = (ImGui::GetIO().BackendFlags & ImGuiBackendFlags_HasGamepad) != 0;
 				ControllerNavigation::BeginDesktopInput();
 				if (inputFocused)

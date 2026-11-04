@@ -1,7 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/host/Hotkeys.h>
-#include <Platform/input/CarrierMenu.h>
+#include <Platform/menus/HostMenu.h>
 #include <Platform/rendering/PlatformImGui.h>
 #include <Platform/rendering/FrameSubmission.h>
 
@@ -16,6 +16,8 @@
 #include <string_view>
 
 #undef ERROR
+
+struct ImGuiIO;
 
 namespace DearModdingUI::PlatformImGuiDetail
 {
@@ -65,8 +67,9 @@ namespace DearModdingUI::PlatformImGuiDetail
 		std::atomic<IDXGISwapChain*> activeSwapChain{ nullptr };
 		std::atomic<HWND> activeWindow{ nullptr };
 		std::atomic<bool> drawingEnabled{ false };
-		std::atomic<bool> windowReady{ false };
 		std::atomic<bool> gameLoaded{ false };
+		// Toggles polled off the UI thread, applied by the frame thread.
+		std::atomic<uint32_t> pendingToggles{ 0 };
 		std::atomic<Backend> backend{ Backend::kUninitialized };
 		PlatformImGui::FrameSubmission frameSubmission;
 	};
@@ -98,6 +101,8 @@ namespace DearModdingUI::PlatformImGuiDetail
 	void SetRendererReadyLocked() noexcept;
 
 	void DrawFrameLocked(IDXGISwapChain* a_swapChain) noexcept;
+	// The pointer in backbuffer space, from the native cursor when it is bound.
+	[[nodiscard]] PlatformImGui::MousePosition SamplePointerLocked() noexcept;
 	[[nodiscard]] bool InstallGameCursorHook() noexcept;
 	void DrawBeforeGameCursorLocked(PlatformImGui::MousePosition a_position) noexcept;
 	void NoteGameCursorUnavailableLocked(std::string_view a_reason) noexcept;
@@ -106,28 +111,18 @@ namespace DearModdingUI::PlatformImGuiDetail
 	void ResetBackBufferFailureLocked() noexcept;
 	void ShutdownBackendLocked() noexcept;
 
-	struct BackendMessageResult
-	{
-		LRESULT result{ 0 };
-		bool handled{ false };
-		bool swallow{ false };
-	};
+	void RefreshInputLanguageLocked(HWND a_window, ImGuiIO& a_io) noexcept;
 
-	[[nodiscard]] BackendMessageResult HandleBackendWindowMessageLocked(
-		HWND a_window,
-		UINT a_message,
-		WPARAM a_wparam,
-		LPARAM a_lparam,
-		bool a_escapeConsumed) noexcept;
+	// Typed text arrives on the window thread and joins the next frame.
+	void DrainTextInputLocked() noexcept;
+	void ClearTextInput() noexcept;
+	void PublishTextCapture(bool a_wantsText) noexcept;
 
-	[[nodiscard]] bool HasWindowHook(HWND a_window) noexcept;
-	[[nodiscard]] bool SubclassWindowLocked(HWND a_window) noexcept;
-	// GetKeyState matches the current message; GetAsyncKeyState is live.
-	[[nodiscard]] uint32_t HeldModifiers(SHORT (WINAPI* a_keyState)(int)) noexcept;
 	[[nodiscard]] DearModdingUI::HotkeyContextState CurrentHotkeyContextState() noexcept;
 	void RefreshHotkeyContext() noexcept;
+	void DrainQueuedToggles() noexcept;
 	void SetModalInputStateLocked(bool a_visible) noexcept;
 	void ApplyDrawingRequestLocked(bool a_enabled) noexcept;
 	void CloseModalStateLocked(
-		DearModdingUI::CarrierMenu::Event a_event) noexcept;
+		DearModdingUI::HostMenu::Event a_event) noexcept;
 }

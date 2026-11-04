@@ -1,4 +1,5 @@
 #include <Platform/input/CursorLoader.h>
+#include <Platform/input/EngineFocus.h>
 #include <DearModdingUI/VisualDecisions.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
 
@@ -20,29 +21,11 @@ namespace DearModdingUI::CursorLoader
 		bool g_previousNoMouseCursorChange{ false };
 		Source g_source{ Source::kSoftware };
 
-		void RequestCursorUpdate() noexcept
+		// SetCursor is thread-affine; later WM_SETCURSORs reach the tap.
+		void HideOsCursorNow() noexcept
 		{
-			if (!HasFocus())
-				return;
-			POINT position{};
-			RECT client{};
-			if (!GetCursorPos(&position) ||
-				!ScreenToClient(g_window, &position) ||
-				!GetClientRect(g_window, &client) ||
-				!PtInRect(&client, position))
-				return;
-
-			// Let the window's current owner choose its cursor on the window thread.
-			if (!PostMessageW(
-					g_window,
-					WM_SETCURSOR,
-					reinterpret_cast<WPARAM>(g_window),
-					MAKELPARAM(HTCLIENT, WM_MOUSEMOVE)))
-			{
-				REX::WARN(
-					"DearModdingUI: cursor update could not be queued (Windows error {})",
-					GetLastError());
-			}
+			if (EngineFocus::Active() && EngineFocus::OnUiThread())
+				SetCursor(nullptr);
 		}
 	}
 
@@ -62,18 +45,11 @@ namespace DearModdingUI::CursorLoader
 		io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
 	}
 
-	bool HasFocus() noexcept
-	{
-		const auto focused = GetForegroundWindow();
-		return g_window && focused &&
-			(focused == g_window || IsChild(g_window, focused));
-	}
-
 	void PrepareFrame(
 		bool a_modalVisible) noexcept
 	{
 		const auto cursor = DecideCursorPresentation(
-			g_window && a_modalVisible && HasFocus());
+			g_window && a_modalVisible && EngineFocus::Active());
 		ImGui::GetIO().MouseDrawCursor =
 			g_source == Source::kSoftware && cursor.drawSoftwareCursor &&
 			!ControllerNavigation::IsNavigating();
@@ -82,11 +58,10 @@ namespace DearModdingUI::CursorLoader
 		{
 		case CursorOwnershipTransition::kAcquire:
 			g_owned = true;
-			RequestCursorUpdate();
+			HideOsCursorNow();
 			break;
 		case CursorOwnershipTransition::kRelease:
 			g_owned = false;
-			RequestCursorUpdate();
 			break;
 		default:
 			break;
@@ -105,14 +80,9 @@ namespace DearModdingUI::CursorLoader
 		context.IO.MousePos = { a_x, a_y };
 	}
 
-	bool HandleWindowMessage(
-		void* a_window,
-		uint32_t a_message,
-		uint64_t a_lparam) noexcept
+	bool ApplySetCursor(void* a_window, uint32_t a_hitTest) noexcept
 	{
-		if (a_window != g_window || !g_owned || !HasFocus() ||
-			a_message != WM_SETCURSOR ||
-			LOWORD(a_lparam) != HTCLIENT)
+		if (a_window != g_window || !g_owned || !EngineFocus::Active() || a_hitTest != HTCLIENT)
 			return false;
 		SetCursor(nullptr);
 		return true;
@@ -129,11 +99,7 @@ namespace DearModdingUI::CursorLoader
 					~ImGuiConfigFlags_NoMouseCursorChange;
 			}
 		}
-		if (g_owned)
-		{
-			g_owned = false;
-			RequestCursorUpdate();
-		}
+		g_owned = false;
 		g_window = nullptr;
 		g_previousNoMouseCursorChange = false;
 		g_source = Source::kSoftware;

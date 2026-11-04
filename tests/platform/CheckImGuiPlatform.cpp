@@ -1,6 +1,7 @@
 #include <Platform/rendering/ImGuiPlatformTargets.h>
 #include <Platform/rendering/FrameSubmission.h>
 #include <Platform/input/GameInput.h>
+#include <Platform/input/ToggleOutcome.h>
 #include "../Harness.h"
 
 namespace
@@ -18,17 +19,7 @@ namespace vmm_tests
 
 	void run_imgui_platform_checks(Runner& runner)
 	{
-		runner.test("Win32 scan codes distinguish extended keys and lock overrides", [] {
-			require(KeyboardKeyCode(0x1D, false, 0x11) == 0x1D &&
-					KeyboardKeyCode(0x1D, true, 0x11) == 0x9D,
-				"left and right Ctrl collided");
-			require(KeyboardKeyCode(0x48, false, 0x68) == 0x48 &&
-					KeyboardKeyCode(0x48, true, 0x26) == 0xC8 &&
-					KeyboardKeyCode(0x1C, true, 0x0D) == 0x9C,
-				"numpad and extended navigation keys collided");
-			require(KeyboardKeyCode(0x45, false, 0x13) == 0xC5 &&
-					KeyboardKeyCode(0x45, true, 0x90) == 0x45,
-				"Pause and NumLock overrides did not preserve identity");
+		runner.test("engine mouse ids map to catalog button and wheel codes", [] {
 			using namespace DearModdingUI::KeyCatalog;
 			for (uint32_t id = 0; id < kMouseButtonCount; ++id)
 				require(MouseKeyCode(id) == kMouseButtonOffset + id, "mouse button code drifted");
@@ -184,95 +175,53 @@ namespace vmm_tests
 				"a reused address with a new vtable must establish a new predecessor");
 		});
 
-		runner.test("window messages are classified and swallowed by capture state", [] {
-			require(ClassifyMessage(0x0100) == MessageClass::kKeyboard, "WM_KEYDOWN is keyboard");
-			require(ClassifyMessage(0x0200) == MessageClass::kMouse, "WM_MOUSEMOVE is mouse");
-			require(ClassifyMessage(0x00FF) == MessageClass::kOther, "WM_INPUT is neither");
-
-			require(SwallowsGameWindowMessage(0x0201, true, false),
-				"captured mouse input did not stop at the menu");
-			require(SwallowsGameWindowMessage(0x0100, false, true),
-				"captured keys did not stop at the menu");
-			require(!SwallowsGameWindowMessage(0x0201, false, false) &&
-					!SwallowsGameWindowMessage(0x00FF, true, true),
-				"uncaptured or non-input messages stopped reaching the game");
-			require(!SwallowsGameWindowMessage(0x0200, true, true),
-				"WM_MOUSEMOVE cannot reach the game's native cursor");
-		});
-
 		runner.test("Escape ownership follows the visible host press pair", [] {
 			require(
-				DecideEscapeMessage(
-					kKeyDownMessage,
-					kEscapeVirtualKey,
-					1,
-					false,
-					false) == EscapeMessageDecision::kForward,
+				DecideEscapeEdge(true, false, false, false) == EscapeDecision::kForward,
 				"closed-host Escape must remain game-owned");
 			require(
-				DecideEscapeMessage(
-					kKeyDownMessage,
-					kEscapeVirtualKey,
-					1,
-					true,
-					false) == EscapeMessageDecision::kCapture,
+				DecideEscapeEdge(true, false, true, false) == EscapeDecision::kCapture,
 				"a fresh visible-host Escape must be captured");
 			require(
-				DecideEscapeMessage(
-					kKeyDownMessage,
-					kEscapeVirtualKey,
-					kKeyRepeatBit | 1,
-					false,
-					true) == EscapeMessageDecision::kConsume,
+				DecideEscapeEdge(true, true, false, true) == EscapeDecision::kConsume,
 				"a held captured Escape leaked after the host closed");
 			require(
-				DecideEscapeMessage(
-					kKeyUpMessage,
-					kEscapeVirtualKey,
-					1,
-					false,
-					true) ==
-					EscapeMessageDecision::kConsumeAndRelease,
+				DecideEscapeEdge(false, false, false, true) == EscapeDecision::kConsumeAndRelease,
 				"the captured Escape release leaked after host close");
 			require(
-				DecideEscapeMessage(
-					kKeyDownMessage,
-					kEscapeVirtualKey,
-					kKeyRepeatBit | 1,
-					true,
-					false) == EscapeMessageDecision::kForward,
+				DecideEscapeEdge(true, true, true, false) == EscapeDecision::kForward,
 				"opening the host while Escape is held captured a repeat");
 			require(
-				DecideEscapeMessage(
-					kKeyDownMessage,
-					kEscapeVirtualKey,
-					1,
-					false,
-					true) ==
-					EscapeMessageDecision::kReleaseAndForward,
+				DecideEscapeEdge(true, false, false, true) == EscapeDecision::kReleaseAndForward,
 				"a new closed-host Escape inherited stale ownership");
 			require(
-				DecideEscapeMessage(
-					kKeyUpMessage,
-					0x10,
-					1,
-					true,
-					true) == EscapeMessageDecision::kForward,
-				"captured Escape also consumed a modifier release");
-			require(
-				DecideEscapeMessage(
-					0x0008,
-					kEscapeVirtualKey,
-					0,
-					false,
-					true) == EscapeMessageDecision::kForward &&
-				DecideEscapeMessage(
-					kKeyDownMessage,
-					kEscapeVirtualKey,
-					kKeyRepeatBit | 1,
-					false,
-					true) == EscapeMessageDecision::kConsume,
-				"focus loss discarded ownership before a held repeat");
+				DecideEscapeEdge(false, false, true, false) == EscapeDecision::kForward,
+				"an unowned Escape release was consumed");
+		});
+
+		runner.test("a refused toggle names the first gate that stopped it", [] {
+			using namespace DearModdingUI::ToggleOutcome;
+			require(ClassifyReadiness(false, true, false) == Readiness::kRendererNotAttached &&
+					ClassifyReadiness(true, false, true) == Readiness::kBackendFailed &&
+					ClassifyReadiness(true, false, false) == Readiness::kBackendUninitialized &&
+					ClassifyReadiness(true, true, false) == Readiness::kReady,
+				"renderer readiness misnamed its gate");
+
+			Gates gates{ true, true, Readiness::kBackendUninitialized, false };
+			require(Classify(gates) == Outcome::kBackendUninitialized, "a pre-Present press was not named");
+			gates.engineActive = false;
+			require(Classify(gates) == Outcome::kEngineInactive, "engine focus loss was hidden by the renderer gate");
+			gates.inputHooks = false;
+			require(Classify(gates) == Outcome::kInputHooksFailed, "failed hooks were hidden by a later gate");
+			gates = { true, true, Readiness::kReady, false };
+			require(Classify(gates) == Outcome::kHostNotReady, "a refusal with every gate open was unnamed");
+			gates.hostAccepted = true;
+			require(Classify(gates) == Outcome::kToggled, "an accepted toggle was reported as dropped");
+
+			ChangeFilter filter;
+			require(filter.Changed(Outcome::kBackendFailed) && !filter.Changed(Outcome::kBackendFailed) &&
+					filter.Changed(Outcome::kToggled),
+				"repeated presses with one cause must log once");
 		});
 	}
 }

@@ -10,6 +10,7 @@
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/RenderExecution.h>
 #include <Support/CoalescedTask.h>
+#include <Support/OnceFlag.h>
 #include <Support/SubsystemHealth.h>
 
 #include <atomic>
@@ -452,22 +453,9 @@ namespace DearModdingUI::PlatformImGuiDetail
 			context.activeWindow.store(
 				context.attachment.window,
 				std::memory_order_release);
-			context.windowReady.store(
-				HasWindowHook(context.attachment.window),
-				std::memory_order_release);
 			context.activeSwapChain.store(
 				context.attachment.swapChain.Get(),
 				std::memory_order_release);
-			if (context.gameLoaded.load(
-					std::memory_order_acquire) &&
-				!context.windowReady.load(
-					std::memory_order_acquire) &&
-				!SubclassWindowLocked(context.attachment.window))
-			{
-				REX::WARN(
-					"Platform Imgui: active renderer window could not be subclassed before Present"sv);
-			}
-
 			SetRendererBoundLocked();
 			return true;
 		}
@@ -574,11 +562,26 @@ namespace DearModdingUI::PlatformImGuiDetail
 			}
 		}
 
+		// A swapchain other than the active one presenting names a proxy chain.
+		void NoteForeignPresent(IDXGISwapChain* a_swapChain, UINT a_flags) noexcept
+		{
+			static Support::OnceFlag s_logged;
+			if ((a_flags & DXGI_PRESENT_TEST) != 0)
+				return;
+			auto* const active = Context().activeSwapChain.load(std::memory_order_acquire);
+			if (a_swapChain != active && s_logged.First())
+			{
+				REX::INFO("Platform Imgui: Present on swapchain {} while the active swapchain is {}"sv,
+					static_cast<void*>(a_swapChain), static_cast<void*>(active));
+			}
+		}
+
 		HRESULT WINAPI HKPresent(
 			IDXGISwapChain* a_swapChain,
 			UINT a_syncInterval,
 			UINT a_flags) noexcept
 		{
+			NoteForeignPresent(a_swapChain, a_flags);
 			const auto original =
 				SwapChainHooks::PreviousPresent(a_swapChain, &HKPresent);
 			if (!original)
@@ -600,9 +603,10 @@ namespace DearModdingUI::PlatformImGuiDetail
 				context.activeSwapChain.load(
 					std::memory_order_acquire))
 			{
+				if ((a_flags & DXGI_PRESENT_TEST) == 0)
+					DrainQueuedToggles();
 				const auto drawRequested = (a_flags & DXGI_PRESENT_TEST) == 0 &&
 					(context.backend.load(std::memory_order_acquire) == Backend::kUninitialized ||
-						!context.windowReady.load(std::memory_order_acquire) ||
 						context.drawingEnabled.load(std::memory_order_acquire) ||
 						DearModdingUI::NeedsFrame());
 				std::optional<DearModdingUI::RenderExecution::Guard> execution;
@@ -619,20 +623,6 @@ namespace DearModdingUI::PlatformImGuiDetail
 					if (drawRequested)
 					{
 						LogExecutionTransition(execution->NoteBinding(context.attachmentGeneration));
-						const auto activeWindow =
-							context.activeWindow.load(std::memory_order_acquire);
-						if (activeWindow &&
-							activeWindow == context.attachment.window &&
-							context.gameLoaded.load(std::memory_order_acquire) &&
-							!context.windowReady.load(std::memory_order_acquire))
-						{
-							if (!SubclassWindowLocked(context.attachment.window))
-							{
-								CloseModalStateLocked(
-									DearModdingUI::CarrierMenu::Event::kBackendFailure);
-								DearModdingUI::FailBackendInitialization();
-							}
-						}
 						DrawFrameLocked(a_swapChain);
 					}
 					submissionSequence = context.frameSubmission.Sequence();
@@ -762,7 +752,7 @@ namespace DearModdingUI::PlatformImGuiDetail
 			return;
 
 		CloseModalStateLocked(
-			DearModdingUI::CarrierMenu::Event::kRetarget);
+			DearModdingUI::HostMenu::Event::kRetarget);
 		ReleaseBackBufferLocked();
 		ResetBackBufferFailureLocked();
 		ShutdownBackendLocked();
@@ -771,9 +761,6 @@ namespace DearModdingUI::PlatformImGuiDetail
 			std::memory_order_release);
 		context.activeWindow.store(
 			nullptr,
-			std::memory_order_release);
-		context.windowReady.store(
-			false,
 			std::memory_order_release);
 		context.attachment = {};
 		context.reconciledProbe = {};

@@ -1,12 +1,18 @@
 #include <Platform/input/GameInput.h>
 #include <DearModdingUI/host/Hotkeys.h>
 #include <Support/Detours.h>
+#include <Support/OnceFlag.h>
+#include <Platform/input/EngineFocus.h>
+#include <Platform/input/EngineKeys.h>
 #include <Platform/rendering/PlatformImGui.h>
 #include <F4SE/InputMap.h>
 
+#include <RE/B/BSInputDevice.h>
+#include <RE/B/BSInputDeviceManager.h>
 #include <RE/B/BSInputEventReceiver.h>
 #include <RE/B/BSInputEventUser.h>
 #include <RE/B/ButtonEvent.h>
+#include <RE/C/CharacterEvent.h>
 #include <RE/D/DeviceConnectEvent.h>
 #include <RE/M/MouseMoveEvent.h>
 #include <RE/T/ThumbstickEvent.h>
@@ -17,11 +23,16 @@
 #include <RE/P/PlayerControls.h>
 #include <REX/REX.h>
 
-#include <algorithm>
+#include <Windows.h>
+
 #include <array>
 #include <atomic>
 #include <mutex>
 #include <string_view>
+#include <type_traits>
+#include <utility>
+
+#undef ERROR
 
 namespace DearModdingUI::GameInput
 {
@@ -33,19 +44,33 @@ namespace DearModdingUI::GameInput
 			RE::BSInputEventReceiver*,
 			const RE::InputEvent*);
 
-		struct ReceiverHook
+		using TClearInputState = void (*)(RE::BSInputDevice*);
+
+		template <class Target>
+		struct VTableHook
 		{
-			std::atomic<TPerformInputProcessing> original{ nullptr };
-			std::atomic<bool> missingOriginalLogged{ false };
+			std::atomic<Target> original{ nullptr };
+			Support::OnceFlag missingOriginalLogged;
 		};
+
+		using ReceiverHook = VTableHook<TPerformInputProcessing>;
 
 		static ReceiverHook s_menuControlsHook{};
 		static ReceiverHook s_playerControlsHook{};
 		static ReceiverHook s_playerCameraHook{};
+		static VTableHook<TClearInputState> s_keyboardClearHook{};
 		static std::atomic<bool> s_installAttempted{ false };
 		static std::atomic<bool> s_installed{ false };
-		static std::atomic<bool> s_blocked{ false };
-		static std::atomic<bool> s_runtimeFailureReported{ false };
+		static std::atomic<bool> s_suppressed{ false };
+		static Support::OnceFlag s_runtimeFailureReported;
+
+		constexpr std::array kHooks{
+			InputReceiver::kMenuControls,
+			InputReceiver::kPlayerControls,
+			InputReceiver::kPlayerCamera,
+			InputReceiver::kKeyboardDevice
+		};
+		static_assert(kHooks.size() == kInputHookCount);
 
 		constexpr Support::Phrase kWaitingForGameData{
 			"$DMUI_Input_WaitingForGameData",
@@ -55,6 +80,10 @@ namespace DearModdingUI::GameInput
 		class InputHealthReporter final : public DearModdingUI::HealthReporter
 		{
 		public:
+			explicit InputHealthReporter(std::string_view a_label) noexcept :
+				m_label(a_label)
+			{}
+
 			void Report(
 				DearModdingUI::HealthEvent a_event,
 				const DearModdingUI::HealthSnapshot& a_snapshot) noexcept override
@@ -63,23 +92,28 @@ namespace DearModdingUI::GameInput
 				using DearModdingUI::HealthState;
 				if (a_snapshot.state == HealthState::kFailed)
 				{
-					REX::ERROR("[{}] Game-input interception Failed: {}"sv,
+					REX::ERROR("[{}] {} Failed: {}"sv,
 						a_snapshot.identity,
+						m_label,
 						a_snapshot.reason.English());
 				}
 				else if (a_snapshot.state == HealthState::kReady)
 				{
-					REX::INFO("[{}] Game-input interception {}: {}"sv,
+					REX::INFO("[{}] {} {}: {}"sv,
 						a_snapshot.identity,
+						m_label,
 						a_event == HealthEvent::kRecovery ?
 							"recovered" :
 							"Ready",
 						a_snapshot.reason.English());
 				}
 			}
+
+		private:
+			std::string_view m_label;
 		};
 
-		InputHealthReporter s_inputHealthReporter;
+		InputHealthReporter s_inputHealthReporter{ "Game-input interception" };
 		DearModdingUI::SubsystemHealth s_inputHealth{
 			"dmui.input.game-interception",
 			{ "$DMUI_Health_SubsystemGameInput", "Game input" },
@@ -87,48 +121,35 @@ namespace DearModdingUI::GameInput
 			DearModdingUI::HostSubsystemHealthRegistry()
 		};
 
-		void ObserveMenuInput(
-			RE::MenuControls& a_controls,
-			const RE::InputEvent* a_queueHead)
-		{
-			for (auto* event = a_queueHead; event; event = event->next)
-			{
-				const auto* connection = event->As<RE::DeviceConnectEvent>();
-				for (auto* handler : a_controls.handlers)
-				{
-					if (*event->handled == RE::InputEvent::HANDLED_RESULT::kStop)
-						break;
-					if (!handler->inputEventHandlingEnabled)
-						continue;
+		InputHealthReporter s_tapHealthReporter{ "Window thread tap" };
+		DearModdingUI::SubsystemHealth s_tapHealth{
+			"dmui.input.thread-tap",
+			{ "$DMUI_Health_SubsystemThreadTap", "Text input" },
+			s_tapHealthReporter,
+			DearModdingUI::HostSubsystemHealthRegistry()
+		};
 
-					// Device-switch observers use the predicate without accepting game actions.
-					if (handler->ShouldHandleEvent(event) && connection)
-						handler->OnDeviceConnectEvent(connection);
-				}
-			}
+		// Mouse moves drive the game cursor and device events its input mode.
+		[[nodiscard]] bool IsSuppressible(const RE::InputEvent& a_event) noexcept
+		{
+			return a_event.As<RE::ButtonEvent>() ||
+				a_event.As<RE::CharacterEvent>() ||
+				a_event.As<RE::ThumbstickEvent>();
 		}
 
 		void PublishRuntimeFailure(InputReceiver a_receiver) noexcept
 		{
-			if (s_runtimeFailureReported.exchange(true, std::memory_order_acq_rel))
+			if (!s_runtimeFailureReported.First())
 				return;
 			try
 			{
-				std::array outcomes{
-					InputReceiverHookOutcome{
-						InputReceiver::kMenuControls,
-						InputHookFailure::kNone },
-					InputReceiverHookOutcome{
-						InputReceiver::kPlayerControls,
-						InputHookFailure::kNone },
-					InputReceiverHookOutcome{
-						InputReceiver::kPlayerCamera,
-						InputHookFailure::kNone }
-				};
-				for (auto& outcome : outcomes)
+				std::array<InputReceiverHookOutcome, kInputHookCount> outcomes{};
+				for (size_t index = 0; index < kHooks.size(); ++index)
 				{
-					if (outcome.receiver == a_receiver)
-						outcome.failure = InputHookFailure::kOriginalTargetLost;
+					outcomes[index] = { kHooks[index],
+						kHooks[index] == a_receiver ?
+							InputHookFailure::kOriginalTargetLost :
+							InputHookFailure::kNone };
 				}
 				const auto observation = ClassifyInputHookHealth(outcomes);
 				(void)s_inputHealth.Observe(
@@ -142,88 +163,92 @@ namespace DearModdingUI::GameInput
 			}
 		}
 
-		enum class KeyEdge : uint8_t
-		{
-			kNone,
-			kPress,
-			kRelease
-		};
-
-		// Edges the window procedure consumed before the engine polls raw input.
-		class KeyboardEdgeLedger
-		{
-		public:
-			void Note(uint32_t a_code, bool a_pressed, bool a_consumed) noexcept
-			{
-				if (a_code >= m_pending.size())
-					return;
-				// A new edge supersedes one the engine never reported.
-				m_pending[a_code].store(
-					a_consumed ? (a_pressed ? KeyEdge::kPress : KeyEdge::kRelease) : KeyEdge::kNone,
-					std::memory_order_release);
-			}
-
-			[[nodiscard]] bool Take(uint32_t a_code, KeyEdge a_edge) noexcept
-			{
-				if (a_code >= m_pending.size() || a_edge == KeyEdge::kNone)
-					return false;
-				auto expected = a_edge;
-				return m_pending[a_code].compare_exchange_strong(
-					expected, KeyEdge::kNone, std::memory_order_acq_rel);
-			}
-
-		private:
-			std::array<std::atomic<KeyEdge>, 256> m_pending{};
-		};
-
 		// Receivers poll overlapping queues, so events are tracked by time code.
 		class EventObserver
 		{
 		public:
 			// Observes each event once, in whichever receiver polls it first.
+			// Every engine receiver and menu skips kStop events.
 			template <class Observe>
-			void ObserveNew(const RE::InputEvent* a_queueHead, Observe&& a_observe) noexcept
+			void ObserveNew(
+				const RE::InputEvent* a_queueHead,
+				bool a_suppress,
+				Observe&& a_observe) noexcept
 			{
 				const std::scoped_lock lock{ m_mutex };
+				// Poll sorts by code, so a modifier can trail the key it affects.
+				FoldModifiers(a_queueHead);
 				for (auto* event = a_queueHead; event; event = event->next)
 				{
-					if (m_seen && static_cast<int32_t>(event->timeCode - m_observedThrough) <= 0)
+					if (!IsNew(*event, m_seen, m_observedThrough))
 						continue;
 					m_seen = true;
 					m_observedThrough = event->timeCode;
-					if (a_observe(*event))
-						m_hidden[m_next++ % m_hidden.size()] = event->timeCode;
+					if (a_observe(*event, m_modifiers.Mask()) ||
+						(a_suppress && IsSuppressible(*event)))
+						const_cast<RE::InputEvent*>(event)->handled =
+							RE::InputEvent::HANDLED_RESULT::kStop;
 				}
 			}
 
-			[[nodiscard]] bool HidesAny(const RE::InputEvent* a_queueHead) noexcept
+			[[nodiscard]] uint32_t Modifiers() noexcept
 			{
 				const std::scoped_lock lock{ m_mutex };
-				for (auto* event = a_queueHead; event; event = event->next)
-				{
-					if (std::ranges::find(m_hidden, event->timeCode) != m_hidden.end())
-						return true;
-				}
-				return false;
+				return m_modifiers.Mask();
+			}
+
+			void ResetModifiers() noexcept
+			{
+				const std::scoped_lock lock{ m_mutex };
+				m_modifiers.Reset();
 			}
 
 		private:
+			[[nodiscard]] static bool IsNew(
+				const RE::InputEvent& a_event, bool a_seen, uint32_t a_observedThrough) noexcept
+			{
+				return !a_seen || static_cast<int32_t>(a_event.timeCode - a_observedThrough) > 0;
+			}
+
+			void FoldModifiers(const RE::InputEvent* a_queueHead) noexcept
+			{
+				std::array<EngineKeys::KeyEdge, 16> batch;
+				size_t count{ 0 };
+				const auto flush = [&]() noexcept {
+					m_modifiers.FoldBatch({ batch.data(), count });
+					count = 0;
+				};
+				auto seen = m_seen;
+				auto observedThrough = m_observedThrough;
+				for (auto* event = a_queueHead; event; event = event->next)
+				{
+					if (!IsNew(*event, seen, observedThrough))
+						continue;
+					seen = true;
+					observedThrough = event->timeCode;
+					const auto* button = event->As<RE::ButtonEvent>();
+					if (!button || button->device != RE::INPUT_DEVICE::kKeyboard)
+						continue;
+					batch[count++] = { static_cast<uint32_t>(button->idCode),
+						EngineKeys::ClassifyEdge(button->value, button->heldDownSecs) };
+					if (count == batch.size())
+						flush();
+				}
+				flush();
+			}
+
 			std::mutex m_mutex;
-			std::array<uint32_t, 16> m_hidden{ [] {
-				std::array<uint32_t, 16> unset{};
-				unset.fill(UINT32_MAX);
-				return unset;
-			}() };
-			size_t m_next{ 0 };
+			EngineKeys::ModifierShadow m_modifiers;
 			uint32_t m_observedThrough{ 0 };
 			bool m_seen{ false };
 		};
 
-		static KeyboardEdgeLedger s_ledger{};
 		static EventObserver s_observer{};
 
 		// True when DMUI acted on this event's edge, so the game must not see it.
-		[[nodiscard]] bool ObserveEvent(const RE::InputEvent& a_event) noexcept
+		[[nodiscard]] bool ObserveEvent(
+			const RE::InputEvent& a_event,
+			uint32_t a_modifiers) noexcept
 		{
 			if (const auto* connection = a_event.As<RE::DeviceConnectEvent>();
 				connection && connection->device == RE::INPUT_DEVICE::kGamepad && !connection->connected)
@@ -239,24 +264,40 @@ namespace DearModdingUI::GameInput
 			const auto* button = a_event.As<RE::ButtonEvent>();
 			if (!button)
 				return false;
-			if (button->device == RE::INPUT_DEVICE::kKeyboard)
-				return s_ledger.Take(button->idCode, button->QJustPressed() ? KeyEdge::kPress :
-					button->value == 0.0f ? KeyEdge::kRelease : KeyEdge::kNone);
-			uint32_t code = 0;
-			bool pulse = false;
-			if (button->device == RE::INPUT_DEVICE::kMouse)
+			PlatformImGui::ButtonEdge edge{
+				.edge = EngineKeys::ClassifyEdge(button->value, button->heldDownSecs),
+				.id = static_cast<uint32_t>(button->idCode),
+				.value = button->value,
+				.modifiers = a_modifiers
+			};
+			switch (button->device.get())
 			{
-				code = PlatformImGui::MouseKeyCode(button->idCode);
-				pulse = button->idCode == static_cast<uint32_t>(RE::BS_BUTTON_CODE::kWheelUp) ||
-					button->idCode == static_cast<uint32_t>(RE::BS_BUTTON_CODE::kWheelDown);
+			case RE::INPUT_DEVICE::kKeyboard:
+				edge.device = PlatformImGui::InputDevice::kKeyboard;
+				break;
+			case RE::INPUT_DEVICE::kMouse:
+				edge.device = PlatformImGui::InputDevice::kMouse;
+				edge.id = PlatformImGui::MouseKeyCode(button->idCode);
+				break;
+			case RE::INPUT_DEVICE::kGamepad:
+				edge.device = PlatformImGui::InputDevice::kGamepad;
+				edge.id = F4SE::InputMap::GamepadMaskToKeycode(button->idCode);
+				break;
+			default:
+				return false;
 			}
-			else if (button->device == RE::INPUT_DEVICE::kGamepad)
-				code = F4SE::InputMap::GamepadMaskToKeycode(button->idCode);
-			// Only edges hide; a held owned button still reaches the game.
-			return code && code < F4SE::InputMap::kMaxMacros &&
-				PlatformImGui::ObserveButton(
-					code, button->QPressed(), !pulse && button->QHeldDown(), pulse, button->value) &&
-				(pulse || !button->QHeldDown());
+			return edge.id && edge.id < F4SE::InputMap::kMaxMacros && PlatformImGui::ObserveButton(edge);
+		}
+
+		// ClearInputState sends no release edges for held keys.
+		void ReleaseHeldInput() noexcept
+		{
+			s_observer.ResetModifiers();
+			const auto released = PlatformImGui::ResetInput();
+			REX::INFO(
+				"DearModdingUI: engine cleared keyboard input state (polling {}, {} held keys released)"sv,
+				EngineFocus::Polling(),
+				released);
 		}
 
 		static void Forward(
@@ -268,25 +309,20 @@ namespace DearModdingUI::GameInput
 			const auto original = a_hook.original.load(std::memory_order_acquire);
 			if (!original)
 			{
-				if (!a_hook.missingOriginalLogged.exchange(true, std::memory_order_acq_rel))
+				if (a_hook.missingOriginalLogged.First())
 					PublishRuntimeFailure(a_receiverKind);
 				return;
 			}
 
-			s_observer.ObserveNew(a_queueHead, ObserveEvent);
-			const auto decision = DecideInputQueue(
-				s_blocked.load(std::memory_order_acquire),
-				kMenuInputSuppression,
-				s_observer.HidesAny(a_queueHead) || DearModdingUI::Hotkeys::IsToggleChordHeld());
-			if (decision == InputQueueDecision::kDiscard &&
-				a_receiverKind == InputReceiver::kMenuControls)
-			{
-				ObserveMenuInput(
-					*static_cast<RE::MenuControls*>(a_receiver), a_queueHead);
-			}
-			original(
-				a_receiver,
-				decision == InputQueueDecision::kDiscard ? nullptr : a_queueHead);
+			s_observer.ObserveNew(
+				a_queueHead,
+				SuppressesGameInput(
+					s_suppressed.load(std::memory_order_acquire),
+					DearModdingUI::Hotkeys::IsToggleChordHeld()),
+				[](const RE::InputEvent& a_event, uint32_t a_modifiers) noexcept {
+					return ObserveEvent(a_event, a_modifiers);
+				});
+			original(a_receiver, a_queueHead);
 		}
 
 		static void HKMenuControls(
@@ -322,6 +358,36 @@ namespace DearModdingUI::GameInput
 				a_queueHead);
 		}
 
+		template <class Target>
+		[[nodiscard]] InputHookFailure PatchVTableSlot(
+			void** a_vtable,
+			uint32_t a_slot,
+			std::type_identity_t<Target> a_hook,
+			VTableHook<Target>& a_record) noexcept
+		{
+			const auto current = reinterpret_cast<Target>(a_vtable[a_slot]);
+			if (!current)
+				return InputHookFailure::kTargetUnavailable;
+			if (current == a_hook)
+				return InputHookFailure::kAlreadyHooked;
+
+			a_record.original.store(current, std::memory_order_release);
+			const auto previous = reinterpret_cast<Target>(
+				Support::DetourVTable(
+					reinterpret_cast<uintptr_t>(a_vtable),
+					reinterpret_cast<uintptr_t>(a_hook),
+					a_slot));
+			if (!previous)
+			{
+				a_record.original.store(nullptr, std::memory_order_release);
+				return InputHookFailure::kPatchFailed;
+			}
+			if (previous != a_hook)
+				a_record.original.store(previous, std::memory_order_release);
+
+			return InputHookFailure::kNone;
+		}
+
 		template <class T>
 		[[nodiscard]] InputHookFailure InstallReceiver(
 			T* a_instance,
@@ -346,34 +412,41 @@ namespace DearModdingUI::GameInput
 			if (!vtable)
 				return InputHookFailure::kVtableUnavailable;
 
-			const auto current = reinterpret_cast<TPerformInputProcessing>(
-				vtable[kPerformInputProcessingSlot]);
-			if (!current)
-				return InputHookFailure::kTargetUnavailable;
-			if (current == a_hook)
-				return InputHookFailure::kAlreadyHooked;
+			return PatchVTableSlot(
+				vtable, kPerformInputProcessingSlot, a_hook, a_record);
+		}
 
-			a_record.original.store(current, std::memory_order_release);
-			const auto previous = reinterpret_cast<TPerformInputProcessing>(
-				Support::DetourVTable(
-					reinterpret_cast<uintptr_t>(vtable),
-					reinterpret_cast<uintptr_t>(a_hook),
-					kPerformInputProcessingSlot));
-			if (!previous)
-			{
-				a_record.original.store(nullptr, std::memory_order_release);
-				return InputHookFailure::kPatchFailed;
-			}
-			if (previous != a_hook)
-				a_record.original.store(previous, std::memory_order_release);
+		static void HKClearInputState(RE::BSInputDevice* a_device) noexcept
+		{
+			if (const auto original = s_keyboardClearHook.original.load(std::memory_order_acquire))
+				original(a_device);
+			else if (s_keyboardClearHook.missingOriginalLogged.First())
+				PublishRuntimeFailure(InputReceiver::kKeyboardDevice);
+			ReleaseHeldInput();
+		}
 
-			return InputHookFailure::kNone;
+		[[nodiscard]] InputHookFailure InstallKeyboardDevice() noexcept
+		{
+			const auto* manager = RE::BSInputDeviceManager::GetSingleton();
+			auto* device = manager ?
+				manager->devices[std::to_underlying(RE::BSInputDeviceManager::BS_DEVICES::kKeyboard)] :
+				nullptr;
+			if (!device)
+				return InputHookFailure::kSingletonUnavailable;
+			auto** const vtable = *reinterpret_cast<void***>(device);
+			if (!vtable)
+				return InputHookFailure::kVtableUnavailable;
+			return PatchVTableSlot(
+				vtable, kClearInputStateSlot, &HKClearInputState, s_keyboardClearHook);
 		}
 	}
 
 	void InitializeHealth() noexcept
 	{
 		(void)s_inputHealth.Observe(
+			DearModdingUI::HealthState::kWaiting,
+			Support::Message{ kWaitingForGameData });
+		(void)s_tapHealth.Observe(
 			DearModdingUI::HealthState::kWaiting,
 			Support::Message{ kWaitingForGameData });
 	}
@@ -391,14 +464,14 @@ namespace DearModdingUI::GameInput
 				DearModdingUI::HealthState::kProgressing,
 				AllReceiversMessage({
 					"$DMUI_Input_Installing",
-					"Installing {}, {}, and {} interception."
+					"Installing {}, {}, {}, and {} interception."
 				}));
 		}
 		catch (...)
 		{
 			// Health is advisory; installation still proceeds.
 		}
-		const std::array outcomes{
+		const std::array<InputReceiverHookOutcome, kInputHookCount> outcomes{
 			InputReceiverHookOutcome{
 				InputReceiver::kMenuControls,
 				InstallReceiver(
@@ -419,7 +492,10 @@ namespace DearModdingUI::GameInput
 					RE::PlayerCamera::GetSingleton(),
 					kPlayerCameraReceiverOffset,
 					&HKPlayerCamera,
-					s_playerCameraHook) }
+					s_playerCameraHook) },
+			InputReceiverHookOutcome{
+				InputReceiver::kKeyboardDevice,
+				InstallKeyboardDevice() }
 		};
 		try
 		{
@@ -441,9 +517,39 @@ namespace DearModdingUI::GameInput
 		}
 	}
 
-	void SetBlocked(bool a_blocked) noexcept
+	bool HooksInstalled() noexcept
 	{
-		if (s_blocked.exchange(a_blocked, std::memory_order_acq_rel) || !a_blocked)
+		return s_installed.load(std::memory_order_acquire);
+	}
+
+	uint32_t HeldModifiers() noexcept
+	{
+		return s_observer.Modifiers();
+	}
+
+	void PublishThreadTapHealth(uint32_t a_thread, bool a_installed) noexcept
+	{
+		try
+		{
+			(void)s_tapHealth.Observe(
+				a_installed ? DearModdingUI::HealthState::kReady : DearModdingUI::HealthState::kFailed,
+				a_installed ?
+					Support::Message{ Support::Phrase{
+						"$DMUI_Input_TapReady",
+						"Message tap installed on UI thread {}." }, a_thread } :
+					Support::Message{ Support::Phrase{
+						"$DMUI_Input_TapFailed",
+						"The window thread message tap is unavailable; typed text and cursor ownership will not work." } });
+		}
+		catch (...)
+		{
+			// Health is advisory; the log already names the failure.
+		}
+	}
+
+	void SuppressGameInput(bool a_suppressed) noexcept
+	{
+		if (s_suppressed.exchange(a_suppressed, std::memory_order_acq_rel) || !a_suppressed)
 			return;
 		// Mirror the engine's menu-mode release, which non-pausing menus skip.
 		if (auto* controls = RE::PlayerControls::GetSingleton())
@@ -451,10 +557,5 @@ namespace DearModdingUI::GameInput
 			controls->data.setupHeldStatesForRelease = true;
 			controls->data.checkHeldStates = true;
 		}
-	}
-
-	void NoteKeyboardEdge(uint32_t a_engineCode, bool a_pressed, bool a_consumed) noexcept
-	{
-		s_ledger.Note(a_engineCode, a_pressed, a_consumed);
 	}
 }

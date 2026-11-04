@@ -114,14 +114,7 @@ namespace DearModdingUI
 	{
 		using namespace PlatformImGuiDetail;
 		const ContextLock lock;
-		auto& context = Context();
-		const auto enable = a_enabled &&
-			PlatformImGui::IsInstalled(
-				context.installState.load(std::memory_order_acquire)) &&
-			context.activeSwapChain.load(std::memory_order_acquire) != nullptr &&
-			context.windowReady.load(std::memory_order_acquire) &&
-			context.backend.load(std::memory_order_acquire) == Backend::kReady;
-		ApplyDrawingRequestLocked(enable);
+		ApplyDrawingRequestLocked(a_enabled && IsReady());
 	}
 
 	void PlatformImGui::HandleGameTransition() noexcept
@@ -129,18 +122,25 @@ namespace DearModdingUI
 		using namespace PlatformImGuiDetail;
 		const ContextLock lock;
 		CloseModalStateLocked(
-			DearModdingUI::CarrierMenu::Event::kGameTransition);
+			DearModdingUI::HostMenu::Event::kGameTransition);
+	}
+
+	PlatformImGui::Readiness PlatformImGui::CurrentReadiness() noexcept
+	{
+		using namespace PlatformImGuiDetail;
+		auto& context = Context();
+		const auto backend = context.backend.load(std::memory_order_acquire);
+		return PlatformImGui::ClassifyReadiness(
+			PlatformImGui::IsInstalled(
+				context.installState.load(std::memory_order_acquire)) &&
+				context.activeSwapChain.load(std::memory_order_acquire) != nullptr,
+			backend == Backend::kReady,
+			backend == Backend::kFailed);
 	}
 
 	bool PlatformImGui::IsReady() noexcept
 	{
-		using namespace PlatformImGuiDetail;
-		auto& context = Context();
-		return PlatformImGui::IsInstalled(
-				context.installState.load(std::memory_order_acquire)) &&
-			context.activeSwapChain.load(std::memory_order_acquire) != nullptr &&
-			context.windowReady.load(std::memory_order_acquire) &&
-			context.backend.load(std::memory_order_acquire) == Backend::kReady;
+		return CurrentReadiness() == Readiness::kReady;
 	}
 
 	bool PlatformImGui::QueryVideoMemory(

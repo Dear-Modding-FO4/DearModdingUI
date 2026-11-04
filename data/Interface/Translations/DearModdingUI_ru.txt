@@ -165,6 +165,7 @@ $DMUI_Health_NoDiagnostics	Клиентская диагностика не за
 $DMUI_Health_SubsystemTypography	Типографика
 $DMUI_Health_SubsystemConfiguration	Конфигурация
 $DMUI_Health_SubsystemGameInput	Ввод игры
+$DMUI_Health_SubsystemThreadTap	Ввод текста
 $DMUI_Health_SubsystemRenderer	Рендерер
 $DMUI_Pages_SettingsResetTooltip	Сброс немедленно сохраняет макет боковой панели по умолчанию и загружает остальные предустановленные значения интерфейса в черновик. Используйте «Применить» для их сохранения.
 $DMUI_Pages_SettingsRevertTooltip	Вернуть отменяет ожидающие изменения интерфейса и восстанавливает сохранённые настройки. Изменения макета боковой панели уже сохранены.
@@ -283,8 +284,8 @@ $DMUI_Typography_ReadyMany	Загружено семейство «{}» со в�
 $DMUI_Typography_ReadyOther	Загружено семейство «{}» со всеми встроенными ролями, значками Phosphor и {} системными резервными шрифтами.
 $DMUI_Typography_Rebuilding	Пересборка атласа шрифтов для запрошенного семейства.
 $DMUI_Input_WaitingForGameData	Ожидание готовности данных игры.
-$DMUI_Input_Installing	Установка перехвата для {}, {} и {}.
-$DMUI_Input_Ready	Перехват для {}, {} и {} установлен.
+$DMUI_Input_Installing	Установка перехвата для {}, {}, {} и {}.
+$DMUI_Input_Ready	Перехват для {}, {}, {} и {} установлен.
 $DMUI_Input_SingletonUnavailable	Синглтон {} недоступен; перезапустите игру, когда данные игры будут готовы.
 $DMUI_Input_ReceiverOffsetMismatch	Структура приёмника {} не соответствует этой версии игры; проверьте версии игры и плагина.
 $DMUI_Input_VtableUnavailable	Таблица виртуальных функций приёмника {} недоступна; перезапустите игру.
@@ -294,6 +295,8 @@ $DMUI_Input_PatchFailed	Не удалось применить патч к пр�
 $DMUI_Input_OriginalTargetLost	Перехват {} потерял исходную цель; перезапустите игру.
 $DMUI_Input_InterceptionFailed	Не удалось установить перехват для {}.
 $DMUI_Input_InterceptionUnavailable	Необходимый перехват ввода игры недоступен.
+$DMUI_Input_TapReady	Перехват сообщений установлен в потоке интерфейса {}.
+$DMUI_Input_TapFailed	Перехват сообщений потока окна недоступен; ввод текста и управление курсором работать не будут.
 $DMUI_Renderer_DataMissing	Данные рендерера равны null.
 $DMUI_Renderer_NotInitialized	Данные рендерера не инициализированы.
 $DMUI_Renderer_WindowObjectMissing	Текущее окно рендерера равно null.

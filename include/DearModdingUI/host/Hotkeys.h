@@ -5,6 +5,7 @@
 #include <Support/Revision.h>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <mutex>
@@ -159,7 +160,8 @@ namespace DearModdingUI
 			DMUI_HotkeyActionHandle a_action,
 			bool a_enabled) noexcept;
 		void SetContext(HotkeyContextState a_context) noexcept;
-		void ReleaseActiveKeys() noexcept;
+		// Returns how many held keys were dropped.
+		size_t ReleaseActiveKeys() noexcept;
 		[[nodiscard]] bool IsToggleChordHeld() const noexcept;
 		void Claim(uint32_t a_keyCode) noexcept;
 		[[nodiscard]] bool OwnsKey(uint32_t a_keyCode) const noexcept;
@@ -289,7 +291,8 @@ namespace DearModdingUI
 			DMUI_HotkeyActionHandle a_action,
 			bool a_enabled) noexcept;
 		void SetContext(HotkeyContextState a_context) noexcept;
-		void ReleaseActiveKeys() noexcept;
+		// Returns how many held keys were dropped.
+		size_t ReleaseActiveKeys() noexcept;
 		[[nodiscard]] bool IsToggleChordHeld() noexcept;
 		void Claim(uint32_t a_keyCode) noexcept;
 		[[nodiscard]] bool OwnsKey(uint32_t a_keyCode) noexcept;

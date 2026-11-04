@@ -1,4 +1,4 @@
-#include <Platform/input/CarrierMenu.h>
+#include <Platform/menus/HostMenu.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/host/ModalCoordinator.h>
@@ -7,15 +7,23 @@
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/Shell.h>
 #include <DearModdingUI/presentation/Theme.h>
+#include <Platform/input/EngineFocus.h>
 #include <Platform/input/GameInput.h>
 #include <Platform/menus/StartMenuEntry.h>
+#include <Platform/input/ToggleOutcome.h>
 #include <Platform/rendering/PlatformImGui.h>
 
 #include <F4SE/F4SE.h>
+#include <RE/B/BSInputDeviceManager.h>
+#include <RE/M/Main.h>
 #include <REX/REX.h>
+
+#include <Windows.h>
 
 #include <atomic>
 #include <mutex>
+
+#undef ERROR
 
 namespace DearModdingUI::Plugin
 {
@@ -23,7 +31,19 @@ namespace DearModdingUI::Plugin
 
 	namespace
 	{
-		std::atomic<bool> s_backendFailureLogged{ false };
+		ToggleOutcome::ChangeFilter s_toggleOutcomes;
+
+		EngineFocus::Snapshot ReadEngineFocus() noexcept
+		{
+			const auto* main = RE::Main::GetSingleton();
+			const auto* devices = RE::BSInputDeviceManager::GetSingleton();
+			if (!main || !devices)
+				return {};
+			// The window thread pumps messages; threadID is the fallback.
+			const auto window = reinterpret_cast<HWND>(main->hwnd);
+			const auto windowThread = window ? GetWindowThreadProcessId(window, nullptr) : 0;
+			return { devices->pollingEnabled, windowThread ? windowThread : main->threadID };
+		}
 
 		void SetupHost(void* a_window) noexcept
 		{
@@ -51,19 +71,28 @@ namespace DearModdingUI::Plugin
 
 		void ToggleHost() noexcept
 		{
+			const auto readiness = PlatformImGui::CurrentReadiness();
 			const auto open = DearModdingUI::DecideMenuToggle(
 				DearModdingUI::IsMenuVisible(),
-				PlatformImGui::IsReady());
+				readiness == PlatformImGui::Readiness::kReady);
 			const auto result = DearModdingUI::SetMenuVisible(open);
 			PlatformImGui::SetDrawingEnabled(
 				result == DMUI_RESULT_OK && open);
-			if (open && result != DMUI_RESULT_OK &&
-				!s_backendFailureLogged.exchange(true, std::memory_order_acq_rel))
-			{
-				REX::ERROR(
-					"DearModdingUI: menu cannot open, result {}"sv,
-					result);
-			}
+
+			const auto outcome = ToggleOutcome::Classify({
+				.inputHooks = GameInput::HooksInstalled(),
+				.engineActive = EngineFocus::Active(),
+				.renderer = readiness,
+				.hostAccepted = result == DMUI_RESULT_OK });
+			if (!s_toggleOutcomes.Changed(outcome))
+				return;
+			if (outcome == ToggleOutcome::Outcome::kToggled)
+				REX::INFO("DearModdingUI: menu toggle {}"sv, open ? "opened"sv : "closed"sv);
+			else
+				REX::WARN(
+					"DearModdingUI: menu toggle dropped: {} (host result {})"sv,
+					ToggleOutcome::Name(outcome),
+					static_cast<int>(result));
 		}
 
 		void MessageListener(F4SE::MessagingInterface::Message* a_message) noexcept
@@ -81,6 +110,8 @@ namespace DearModdingUI::Plugin
 			case F4SE::MessagingInterface::kPostPostLoad:
 				// The title menu shows its rows while game data still loads.
 				(void)DearModdingUI::StartMenuEntry::Register(&ToggleHost);
+				// Game data loads on a worker that exits; this is the main thread.
+				(void)PlatformImGui::InstallThreadTap();
 				break;
 			case F4SE::MessagingInterface::kGameDataReady:
 				PlatformImGui::HandleGameTransition();
@@ -89,6 +120,8 @@ namespace DearModdingUI::Plugin
 					(void)GameInput::InstallHooks();
 					if (!DearModdingUI::StartMenuEntry::Register(&ToggleHost))
 						REX::ERROR("DearModdingUI: menu entry registration failed"sv);
+					(void)PlatformImGui::VerifyThreadTap();
+					PlatformImGui::LogEngineFocus("game data ready");
 				}
 				break;
 			default:
@@ -98,8 +131,8 @@ namespace DearModdingUI::Plugin
 			if (a_message->type != F4SE::MessagingInterface::kGameLoaded)
 				return;
 
-			if (!DearModdingUI::CarrierMenu::Register())
-				REX::ERROR("DearModdingUI: carrier menu registration failed"sv);
+			if (!DearModdingUI::HostMenu::Register())
+				REX::ERROR("DearModdingUI: host menu registration failed"sv);
 			if (!PlatformImGui::InitializeWindow())
 				REX::ERROR("DearModdingUI: render-window initialization failed"sv);
 		}
@@ -111,6 +144,7 @@ namespace DearModdingUI::Plugin
 			static bool initialized{ false };
 			std::call_once(once, [&]() noexcept {
 				F4SE::Init(a_f4se);
+				EngineFocus::SetSource(&ReadEngineFocus);
 				REX::INFO("DearModdingUI initializing"sv);
 
 				DearModdingUI::HostSettings::Initialize();

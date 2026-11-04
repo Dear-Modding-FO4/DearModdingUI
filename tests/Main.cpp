@@ -10,6 +10,8 @@ int main()
 	Runner runner;
 	run_subsystem_health_checks(runner);
 	run_imgui_platform_checks(runner);
+	run_engine_key_checks(runner);
+	run_thread_message_tap_checks(runner);
 	run_imgui_win32_integration_checks(runner);
 	run_coalesced_task_checks(runner);
 	run_papyrus_callable_checks(runner);

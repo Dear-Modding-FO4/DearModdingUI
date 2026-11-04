@@ -93,16 +93,17 @@ namespace vmm_tests
 			using GameInput::InputHookFailure;
 			using GameInput::InputReceiver;
 			using GameInput::InputReceiverHookOutcome;
-			std::array<InputReceiverHookOutcome, 3> outcomes{ {
+			std::array<InputReceiverHookOutcome, GameInput::kInputHookCount> outcomes{ {
 				{ InputReceiver::kMenuControls, InputHookFailure::kNone },
 				{ InputReceiver::kPlayerControls, InputHookFailure::kNone },
-				{ InputReceiver::kPlayerCamera, InputHookFailure::kNone }
+				{ InputReceiver::kPlayerCamera, InputHookFailure::kNone },
+				{ InputReceiver::kKeyboardDevice, InputHookFailure::kNone }
 			} };
 			const auto ready = GameInput::ClassifyInputHookHealth(outcomes);
 			require(
 				ready.state == HealthState::kReady &&
 					ready.reason.English() ==
-						"MenuControls, PlayerControls, and PlayerCamera interception installed.",
+						"MenuControls, PlayerControls, PlayerCamera, and KeyboardDevice interception installed.",
 				"the ready input reason changed");
 
 			outcomes[2].failure = InputHookFailure::kPatchFailed;

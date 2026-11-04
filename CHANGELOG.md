@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Game menu entries**: A DMUI row in the game's Settings menu (`bSettingsMenuEntry`) and optional pause and main menu rows (`sPauseMenuEntry` = `add`/`replace`/`off`, `bMainMenuEntry`, `iPauseMenuEntryPosition`, `iMainMenuEntryPosition`) open the menu.
 
+### Changed
+- **Input source**: The menu toggle, hotkeys, mouse, wheel, and gamepad are read from the game's input queue, so they work from game-data-ready regardless of other window subclasses.
+- While the menu is open, player controls, the console, the Pip-Boy, and game menus underneath ignore keys, mouse buttons, and the gamepad.
+- The game menu DMUI opens is now registered as `DearModdingUI_Menu`.
+- Held keys are released when the engine clears its input state, such as on Alt+Tab.
+- With NumLock off, numpad cursor keys act as digits.
+- The menu toggle log names the reason a press was dropped, and Health lists the message tap as "Text input".
+
+### Fixed
+- Escape closes only DMUI when it was opened from the Settings, pause, or main menu, instead of also closing the game menu underneath.
+
 ## [0.2.2] - 2026-11-01
 
 ### Added

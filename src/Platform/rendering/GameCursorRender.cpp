@@ -10,7 +10,7 @@
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
 #include <DearModdingUI/host/RenderExecution.h>
-#include <Platform/input/CursorLoader.h>
+#include <Platform/input/EngineFocus.h>
 #include <Support/Detours.h>
 
 #include <atomic>
@@ -50,16 +50,16 @@ namespace DearModdingUI::PlatformImGuiDetail
 			auto& context = Context();
 			if (context.backend.load(std::memory_order_acquire) != Backend::kReady ||
 				context.attachmentLifecycle != PlatformImGui::AttachmentLifecycle::kActive ||
-				!DearModdingUI::CursorLoader::HasFocus())
+				!DearModdingUI::EngineFocus::Active())
 				return accepted;
 
 			ApplyDrawingRequestLocked(
 				DearModdingUI::CurrentInputMode() != DearModdingUI::HostInputMode::kGameplay);
 			if (!context.drawingEnabled.load(std::memory_order_acquire))
 				return accepted;
-			if (!DearModdingUI::CarrierMenu::IsOpen())
+			if (!DearModdingUI::HostMenu::IsOpen())
 			{
-				NoteGameCursorUnavailableLocked("the cursor carrier has not joined the menu stack");
+				NoteGameCursorUnavailableLocked("the host menu has not joined the menu stack");
 				return accepted;
 			}
 			const auto* ui = RE::UI::GetSingleton();

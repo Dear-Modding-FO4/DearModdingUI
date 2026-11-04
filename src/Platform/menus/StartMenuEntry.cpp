@@ -3,6 +3,7 @@
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/settings/HostSettings.h>
+#include <Support/OnceFlag.h>
 
 #include <RE/B/BSTEvent.h>
 #include <RE/M/MainMenu.h>
@@ -81,12 +82,12 @@ namespace DearModdingUI::StartMenuEntry
 			"Menu_mc is missing"sv,
 			"its listeners could not be attached"sv
 		};
-		std::array<std::atomic<bool>, static_cast<uint32_t>(Failure::kCount)> s_failuresLogged{};
+		std::array<Support::OnceFlag, static_cast<uint32_t>(Failure::kCount)> s_failuresLogged{};
 
 		void LogLayoutFailure(Failure a_failure) noexcept
 		{
 			const auto index = static_cast<uint32_t>(a_failure);
-			if (!s_failuresLogged[index].exchange(true, std::memory_order_acq_rel))
+			if (s_failuresLogged[index].First())
 				REX::ERROR("DearModdingUI: menu entry skipped, {}"sv, kFailureDetails[index]);
 		}
 

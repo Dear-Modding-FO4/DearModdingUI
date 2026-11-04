@@ -100,18 +100,6 @@ namespace DearModdingUI::PointerRouting
 		s_state.pendingWheel = {};
 	}
 
-	void LoseCapture() noexcept
-	{
-		s_state.pendingReleased |= s_state.divertedHeld;
-		s_state.divertedHeld = 0;
-		s_state.forwardedHeld = 0;
-	}
-
-	bool HoldsButtons() noexcept
-	{
-		return (s_state.forwardedHeld | s_state.divertedHeld) != 0;
-	}
-
 	void Reset() noexcept
 	{
 		s_state = {};

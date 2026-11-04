@@ -1,4 +1,4 @@
-#include <Platform/input/CarrierMenu.h>
+#include <Platform/menus/HostMenu.h>
 
 #include <DearModdingUI/settings/HostSettings.h>
 
@@ -8,19 +8,20 @@
 #include <RE/I/IMenu.h>
 #include <RE/U/UI.h>
 #include <RE/U/UIMessageQueue.h>
+#include <Support/OnceFlag.h>
 #include <REX/REX.h>
 
 #include <atomic>
 #include <mutex>
 #include <string_view>
 
-namespace DearModdingUI::CarrierMenu
+namespace DearModdingUI::HostMenu
 {
 	namespace
 	{
 		using namespace std::literals;
 
-		inline constexpr auto kMenuName = "Addictol_DearModdingUI_CursorCarrier";
+		inline constexpr auto kMenuName = "DearModdingUI_Menu";
 		inline constexpr auto kMoviePath = "Interface/CursorMenu.swf"sv;
 		std::atomic<bool> s_onStack{ false };
 
@@ -31,11 +32,11 @@ namespace DearModdingUI::CarrierMenu
 				!HostSettings::Current().fallSoulsMode);
 		}
 
-		class CursorCarrierMenu final :
+		class HostGameMenu final :
 			public RE::IMenu
 		{
 		public:
-			CursorCarrierMenu()
+			HostGameMenu()
 			{
 				auto* scaleform = RE::BSScaleformManager::GetSingleton();
 				if (!scaleform || !scaleform->LoadMovieEx(*this, kMoviePath) || !uiMovie)
@@ -94,10 +95,10 @@ namespace DearModdingUI::CarrierMenu
 			[[nodiscard]] static RE::IMenu* Creator(
 				[[maybe_unused]] const RE::UIMessage& a_message)
 			{
-				auto* menu = new CursorCarrierMenu();
+				auto* menu = new HostGameMenu();
 				if (!menu->Valid())
 				{
-					REX::ERROR("DearModdingUI: carrier could not load Interface/CursorMenu.swf"sv);
+					REX::ERROR("DearModdingUI: host menu could not load Interface/CursorMenu.swf"sv);
 					delete menu;
 					return nullptr;
 				}
@@ -107,8 +108,8 @@ namespace DearModdingUI::CarrierMenu
 
 		std::atomic<bool> s_registrationAttempted{ false };
 		std::atomic<bool> s_registered{ false };
-		std::atomic<bool> s_taskFailureLogged{ false };
-		std::atomic<bool> s_queueFailureLogged{ false };
+		Support::OnceFlag s_taskFailureLogged;
+		Support::OnceFlag s_queueFailureLogged;
 		std::mutex s_stateLock;
 		State s_state{};
 
@@ -118,7 +119,7 @@ namespace DearModdingUI::CarrierMenu
 			const RE::BSAutoReadLock lock{ RE::UI::GetMenuMapRWLock() };
 			const auto entry = a_ui.menuMap.find(name);
 			return entry != a_ui.menuMap.end() &&
-				entry->second.create == &CursorCarrierMenu::Creator;
+				entry->second.create == &HostGameMenu::Creator;
 		}
 
 		[[nodiscard]] bool Dispatch(Action a_action) noexcept
@@ -128,8 +129,8 @@ namespace DearModdingUI::CarrierMenu
 			auto* tasks = F4SE::GetTaskInterface();
 			if (!tasks)
 			{
-				if (!s_taskFailureLogged.exchange(true, std::memory_order_acq_rel))
-					REX::ERROR("DearModdingUI: carrier menu UI task interface is unavailable"sv);
+				if (s_taskFailureLogged.First())
+					REX::ERROR("DearModdingUI: host menu UI task interface is unavailable"sv);
 				return false;
 			}
 
@@ -148,8 +149,8 @@ namespace DearModdingUI::CarrierMenu
 				auto* queue = RE::UIMessageQueue::GetSingleton();
 				if (!queue)
 				{
-					if (!s_queueFailureLogged.exchange(true, std::memory_order_acq_rel))
-						REX::ERROR("DearModdingUI: carrier menu message queue is unavailable"sv);
+					if (s_queueFailureLogged.First())
+						REX::ERROR("DearModdingUI: host menu message queue is unavailable"sv);
 					return;
 				}
 				queue->AddMessage(name, message);
@@ -168,7 +169,7 @@ namespace DearModdingUI::CarrierMenu
 		auto* ui = RE::UI::GetSingleton();
 		if (!ui)
 		{
-			REX::ERROR("DearModdingUI: carrier menu registration failed because UI is unavailable"sv);
+			REX::ERROR("DearModdingUI: host menu registration failed because UI is unavailable"sv);
 			return false;
 		}
 		if (HasExpectedRegistration(*ui))
@@ -182,19 +183,19 @@ namespace DearModdingUI::CarrierMenu
 			const RE::BSAutoReadLock lock{ RE::UI::GetMenuMapRWLock() };
 			if (ui->menuMap.find(name) != ui->menuMap.end())
 			{
-				REX::ERROR("DearModdingUI: carrier menu registration failed because \"{}\" is already registered"sv,
+				REX::ERROR("DearModdingUI: host menu registration failed because \"{}\" is already registered"sv,
 					kMenuName);
 				return false;
 			}
 		}
 
-		ui->RegisterMenu(kMenuName, &CursorCarrierMenu::Creator);
+		ui->RegisterMenu(kMenuName, &HostGameMenu::Creator);
 		const auto registered = HasExpectedRegistration(*ui);
 		s_registered.store(registered, std::memory_order_release);
 		if (registered)
-			REX::INFO("DearModdingUI: registered carrier menu \"{}\""sv, kMenuName);
+			REX::INFO("DearModdingUI: registered host menu \"{}\""sv, kMenuName);
 		else
-			REX::ERROR("DearModdingUI: carrier menu registration was not retained by UI"sv);
+			REX::ERROR("DearModdingUI: host menu registration was not retained by UI"sv);
 		return registered;
 	}
 

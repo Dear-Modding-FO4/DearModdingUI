@@ -388,15 +388,17 @@ namespace DearModdingUI
 		return m_capturing;
 	}
 
-	void HotkeyRegistry::ReleaseActiveKeys() noexcept
+	size_t HotkeyRegistry::ReleaseActiveKeys() noexcept
 	{
 		const std::scoped_lock lock{ m_mutex };
+		const auto held = static_cast<size_t>(std::ranges::count(m_heldKeys, true));
 		m_capturing = false;
 		m_capture.reset();
 		m_heldKeys.fill(false);
 		m_heldToggleChords = {};
 		for (auto& active : m_activeKeys)
 			ReleaseKeyLocked(active);
+		return held;
 	}
 
 	void HotkeyRegistry::Claim(uint32_t a_keyCode) noexcept
@@ -879,9 +881,9 @@ namespace DearModdingUI
 			RegistryInstance().SetContext(a_context);
 		}
 
-		void ReleaseActiveKeys() noexcept
+		size_t ReleaseActiveKeys() noexcept
 		{
-			RegistryInstance().ReleaseActiveKeys();
+			return RegistryInstance().ReleaseActiveKeys();
 		}
 
 		void Claim(uint32_t a_keyCode) noexcept

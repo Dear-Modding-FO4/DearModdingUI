@@ -17,7 +17,7 @@ namespace vmm_tests
 	void run_asset_contract_checks(Runner&);
 	void run_host_control_checks(Runner&);
 	void run_host_settings_checks(Runner&);
-	void run_carrier_menu_checks(Runner&);
+	void run_host_menu_checks(Runner&);
 	void run_registry_lifecycle_checks(Runner&);
 	void run_text_viewer_checks(Runner&);
 	void run_text_editor_checks(Runner&);
@@ -41,7 +41,7 @@ namespace vmm_tests
 		run_asset_contract_checks(runner);
 		run_host_control_checks(runner);
 		run_host_settings_checks(runner);
-		run_carrier_menu_checks(runner);
+		run_host_menu_checks(runner);
 		run_registry_lifecycle_checks(runner);
 		run_text_viewer_checks(runner);
 		run_text_editor_checks(runner);

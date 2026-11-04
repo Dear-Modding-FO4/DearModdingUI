@@ -5,22 +5,9 @@
 
 namespace DearModdingUI::PlatformImGui
 {
-	[[nodiscard]] constexpr uint32_t KeyboardKeyCode(
-		uint8_t a_scanCode,
-		bool a_extended,
-		uint32_t a_virtualKey) noexcept
-	{
-		if (a_virtualKey == 0x13)
-			return 0xC5;
-		if (a_virtualKey == 0x90)
-			return 0x45;
-		return a_scanCode | (a_extended ? 0x80u : 0u);
-	}
-
 	inline constexpr uint32_t kPresentSlot = 8;
 	inline constexpr uint32_t kResizeBuffersSlot = 13;
 	inline constexpr uint32_t kPresentTestFlag = 0x00000001;
-	inline constexpr uint32_t kWindowNcDestroyMessage = 0x0082;
 
 	struct AttachmentIdentity
 	{
@@ -234,10 +221,24 @@ namespace DearModdingUI::PlatformImGui
 			a_presented.generation == a_activeGeneration;
 	}
 
-	[[nodiscard]] constexpr bool ShouldInitializeHost(
-		bool a_windowReady) noexcept
+	enum class Readiness : uint32_t
 	{
-		return a_windowReady;
+		kReady,
+		kRendererNotAttached,
+		kBackendUninitialized,
+		kBackendFailed
+	};
+
+	[[nodiscard]] constexpr Readiness ClassifyReadiness(
+		bool a_attached,
+		bool a_backendReady,
+		bool a_backendFailed) noexcept
+	{
+		if (!a_attached)
+			return Readiness::kRendererNotAttached;
+		if (a_backendFailed)
+			return Readiness::kBackendFailed;
+		return a_backendReady ? Readiness::kReady : Readiness::kBackendUninitialized;
 	}
 
 	[[nodiscard]] constexpr bool ShouldRenderHostFrame(
@@ -245,11 +246,6 @@ namespace DearModdingUI::PlatformImGui
 		bool a_overlayDemanded) noexcept
 	{
 		return a_modalVisible || a_overlayDemanded;
-	}
-
-	[[nodiscard]] constexpr bool ShouldSuppressGameInput(bool a_modalVisible) noexcept
-	{
-		return a_modalVisible;
 	}
 
 	[[nodiscard]] constexpr bool RequiresBackendReset(
@@ -360,131 +356,6 @@ namespace DearModdingUI::PlatformImGui
 		return a_state == InstallState::kInstalled;
 	}
 
-	enum class MessageClass : uint32_t
-	{
-		kOther,
-		kMouse,
-		kKeyboard
-	};
-
-	// Win32 message numbers, spelled out so the pure input logic stays testable without Windows headers.
-	inline constexpr uint32_t kKeyboardMessageFirst = 0x0100;
-	inline constexpr uint32_t kKeyboardMessageLast = 0x0109;
-	inline constexpr uint32_t kMouseMessageFirst = 0x0200;
-	inline constexpr uint32_t kMouseMessageLast = 0x020E;
-	inline constexpr uint32_t kKeyDownMessage = 0x0100;
-	inline constexpr uint32_t kKeyUpMessage = 0x0101;
-	inline constexpr uint32_t kSysKeyDownMessage = 0x0104;
-	inline constexpr uint32_t kSysKeyUpMessage = 0x0105;
-	inline constexpr uint64_t kKeyRepeatBit = uint64_t{ 1 } << 30;
-
-	[[nodiscard]] constexpr MessageClass ClassifyMessage(uint32_t a_message) noexcept
-	{
-		if (a_message >= kMouseMessageFirst && a_message <= kMouseMessageLast)
-			return MessageClass::kMouse;
-		if (a_message >= kKeyboardMessageFirst && a_message <= kKeyboardMessageLast)
-			return MessageClass::kKeyboard;
-		return MessageClass::kOther;
-	}
-
-	// Everything the menu does not capture still reaches the game, including focus and system messages.
-	[[nodiscard]] constexpr bool SwallowsMessage(
-		MessageClass a_class,
-		bool a_wantCaptureMouse,
-		bool a_wantCaptureKeyboard) noexcept
-	{
-		switch (a_class)
-		{
-		case MessageClass::kMouse:
-			return a_wantCaptureMouse;
-		case MessageClass::kKeyboard:
-			return a_wantCaptureKeyboard;
-		default:
-			return false;
-		}
-	}
-
-	[[nodiscard]] constexpr bool SwallowsGameWindowMessage(
-		uint32_t a_message,
-		bool a_wantCaptureMouse,
-		bool a_wantCaptureKeyboard) noexcept
-	{
-		// The native cursor consumes the original WM_MOUSEMOVE client coordinates.
-		return a_message != kMouseMessageFirst &&
-			SwallowsMessage(ClassifyMessage(a_message), a_wantCaptureMouse, a_wantCaptureKeyboard);
-	}
-
-	enum class PointerMessageKind : uint32_t
-	{
-		kNone,
-		kPress,
-		kRelease,
-		kWheel
-	};
-
-	struct PointerMessage
-	{
-		PointerMessageKind kind{ PointerMessageKind::kNone };
-		// Engine mouse button index, as MouseKeyCode takes it.
-		uint32_t button{};
-		// Notches; positive y is away from the user, positive x is right.
-		float wheelX{};
-		float wheelY{};
-	};
-
-	inline constexpr uint32_t kLeftButtonDownMessage = 0x0201;
-	inline constexpr uint32_t kLeftButtonUpMessage = 0x0202;
-	inline constexpr uint32_t kLeftButtonDoubleClickMessage = 0x0203;
-	inline constexpr uint32_t kRightButtonDownMessage = 0x0204;
-	inline constexpr uint32_t kRightButtonUpMessage = 0x0205;
-	inline constexpr uint32_t kRightButtonDoubleClickMessage = 0x0206;
-	inline constexpr uint32_t kMiddleButtonDownMessage = 0x0207;
-	inline constexpr uint32_t kMiddleButtonUpMessage = 0x0208;
-	inline constexpr uint32_t kMiddleButtonDoubleClickMessage = 0x0209;
-	inline constexpr uint32_t kMouseWheelMessage = 0x020A;
-	inline constexpr uint32_t kExtraButtonDownMessage = 0x020B;
-	inline constexpr uint32_t kExtraButtonUpMessage = 0x020C;
-	inline constexpr uint32_t kExtraButtonDoubleClickMessage = 0x020D;
-	inline constexpr uint32_t kMouseHorizontalWheelMessage = 0x020E;
-	inline constexpr uint32_t kCaptureChangedMessage = 0x0215;
-	inline constexpr uint32_t kExtraButton2 = 2;
-	inline constexpr uint32_t kWheelDelta = 120;
-
-	// Double clicks are presses, as the ImGui Win32 backend treats them.
-	[[nodiscard]] constexpr PointerMessage ClassifyPointerMessage(
-		uint32_t a_message,
-		uint64_t a_wparam) noexcept
-	{
-		const auto high = static_cast<uint32_t>((a_wparam >> 16) & 0xFFFFu);
-		const auto extra = high == kExtraButton2 ? 4u : 3u;
-		const auto notches = static_cast<float>(static_cast<int16_t>(high)) /
-			static_cast<float>(kWheelDelta);
-		switch (a_message)
-		{
-		case kLeftButtonDownMessage: case kLeftButtonDoubleClickMessage:
-			return { PointerMessageKind::kPress, 0 };
-		case kLeftButtonUpMessage: return { PointerMessageKind::kRelease, 0 };
-		case kRightButtonDownMessage: case kRightButtonDoubleClickMessage:
-			return { PointerMessageKind::kPress, 1 };
-		case kRightButtonUpMessage: return { PointerMessageKind::kRelease, 1 };
-		case kMiddleButtonDownMessage: case kMiddleButtonDoubleClickMessage:
-			return { PointerMessageKind::kPress, 2 };
-		case kMiddleButtonUpMessage: return { PointerMessageKind::kRelease, 2 };
-		case kExtraButtonDownMessage: case kExtraButtonDoubleClickMessage:
-			return { PointerMessageKind::kPress, extra };
-		case kExtraButtonUpMessage: return { PointerMessageKind::kRelease, extra };
-		case kMouseWheelMessage: return { PointerMessageKind::kWheel, 0, 0.0f, notches };
-		case kMouseHorizontalWheelMessage: return { PointerMessageKind::kWheel, 0, notches, 0.0f };
-		default:
-			return {};
-		}
-	}
-
-	[[nodiscard]] constexpr bool IsKeyRepeat(uint64_t a_lparam) noexcept
-	{
-		return (a_lparam & kKeyRepeatBit) != 0;
-	}
-
 	[[nodiscard]] constexpr uint32_t MouseKeyCode(uint32_t a_idCode) noexcept
 	{
 		if (a_idCode < DearModdingUI::KeyCatalog::kMouseButtonCount)
@@ -496,20 +367,16 @@ namespace DearModdingUI::PlatformImGui
 		return 0;
 	}
 
-	// The key a hotkey would bind for this message; horizontal wheel has none.
-	[[nodiscard]] constexpr uint32_t PointerKeyCode(const PointerMessage& a_message) noexcept
+	[[nodiscard]] constexpr bool IsMouseWheelCode(uint32_t a_code) noexcept
 	{
-		using namespace DearModdingUI::KeyCatalog;
-		if (a_message.kind != PointerMessageKind::kWheel)
-			return MouseKeyCode(a_message.button);
-		return a_message.wheelY > 0.0f ? static_cast<uint32_t>(kMouseWheelOffset) :
-			a_message.wheelY < 0.0f ? static_cast<uint32_t>(kMouseWheelOffset) + 1u : 0u;
+		return a_code == DearModdingUI::KeyCatalog::kMouseWheelOffset ||
+			a_code == DearModdingUI::KeyCatalog::kMouseWheelOffset + 1;
 	}
 
 	inline constexpr uint32_t kEscapeVirtualKey = 0x1B;
 	inline constexpr uint32_t kEscapeKeyCode = 0x01;
 
-	enum class EscapeMessageDecision : uint32_t
+	enum class EscapeDecision : uint32_t
 	{
 		kForward,
 		kCapture,
@@ -518,49 +385,19 @@ namespace DearModdingUI::PlatformImGui
 		kReleaseAndForward
 	};
 
-	[[nodiscard]] constexpr EscapeMessageDecision DecideEscapeMessage(
-		uint32_t a_message,
-		uint32_t a_virtualKey,
-		uint64_t a_lparam,
+	// An Escape press the visible host captured is owned until its release.
+	[[nodiscard]] constexpr EscapeDecision DecideEscapeEdge(
+		bool a_pressed,
+		bool a_repeat,
 		bool a_menuVisible,
 		bool a_pressConsumed) noexcept
 	{
-		if (a_virtualKey != kEscapeVirtualKey)
-			return EscapeMessageDecision::kForward;
-		if (a_message == kKeyDownMessage ||
-			a_message == kSysKeyDownMessage)
-		{
-			if (IsKeyRepeat(a_lparam))
-				return a_pressConsumed ?
-					EscapeMessageDecision::kConsume :
-					EscapeMessageDecision::kForward;
-			if (a_menuVisible)
-				return EscapeMessageDecision::kCapture;
-			return a_pressConsumed ?
-				EscapeMessageDecision::kReleaseAndForward :
-				EscapeMessageDecision::kForward;
-		}
-		if ((a_message == kKeyUpMessage ||
-				a_message == kSysKeyUpMessage) &&
-			a_pressConsumed)
-			return EscapeMessageDecision::kConsumeAndRelease;
-		return EscapeMessageDecision::kForward;
-	}
-
-	[[nodiscard]] constexpr bool HandlesWindowMessage(
-		bool a_activeWindow,
-		bool a_drawingRequested,
-		bool a_backendReady,
-		bool a_hasContext) noexcept
-	{
-		return a_activeWindow &&
-			a_drawingRequested &&
-			a_backendReady &&
-			a_hasContext;
-	}
-
-	[[nodiscard]] constexpr bool RetiresWindowHook(uint32_t a_message) noexcept
-	{
-		return a_message == kWindowNcDestroyMessage;
+		if (!a_pressed)
+			return a_pressConsumed ? EscapeDecision::kConsumeAndRelease : EscapeDecision::kForward;
+		if (a_repeat)
+			return a_pressConsumed ? EscapeDecision::kConsume : EscapeDecision::kForward;
+		if (a_menuVisible)
+			return EscapeDecision::kCapture;
+		return a_pressConsumed ? EscapeDecision::kReleaseAndForward : EscapeDecision::kForward;
 	}
 }

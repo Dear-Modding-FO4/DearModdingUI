@@ -4,8 +4,9 @@
 #include <Platform/imgui/ImGuiWin32Integration.h>
 
 #include <DearModdingUI/presentation/BackgroundBlur.h>
-#include <Platform/input/CarrierMenu.h>
+#include <Platform/menus/HostMenu.h>
 #include <Platform/input/CursorLoader.h>
+#include <Platform/input/EngineFocus.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
@@ -129,8 +130,7 @@ namespace DearModdingUI::PlatformImGuiDetail
 			const auto& attachment = context.attachment;
 			if (!attachment.device ||
 				!attachment.context ||
-				!attachment.window ||
-				!context.windowReady.load(std::memory_order_acquire))
+				!attachment.window)
 			{
 				REX::ERROR(
 					"Platform Imgui: the active swapchain has no complete render binding"sv);
@@ -229,7 +229,7 @@ namespace DearModdingUI::PlatformImGuiDetail
 			if (!ready)
 			{
 				CloseModalStateLocked(
-					DearModdingUI::CarrierMenu::Event::kBackendFailure);
+					DearModdingUI::HostMenu::Event::kBackendFailure);
 				if (firstInitialization)
 					DearModdingUI::FailBackendInitialization();
 				else
@@ -315,7 +315,7 @@ namespace DearModdingUI::PlatformImGuiDetail
 				DearModdingUI::CursorLoader::ApplyNativePosition(
 					a_nativePosition->x, a_nativePosition->y);
 			}
-			else if (!DearModdingUI::CursorLoader::HasFocus())
+			else if (!DearModdingUI::EngineFocus::Active())
 			{
 				constexpr auto unavailable = -(std::numeric_limits<float>::max)();
 				DearModdingUI::CursorLoader::ApplyNativePosition(unavailable, unavailable);
@@ -367,98 +367,6 @@ namespace DearModdingUI::PlatformImGuiDetail
 				{ static_cast<float>(cursor->cursorPosX), static_cast<float>(cursor->cursorPosY) },
 				client.width, client.height, buffer.width, buffer.height);
 			DearModdingUI::CursorLoader::ApplyNativePosition(position.x, position.y);
-		}
-
-		[[nodiscard]] MousePosition MapClientPointToBackBufferLocked(
-			HWND a_window,
-			MousePosition a_position) noexcept
-		{
-			const auto client = ReadClientSize(a_window);
-			return MapClientToBackBuffer(
-				a_position,
-				client.width,
-				client.height,
-				s_backendState.backBufferIdentity.width,
-				s_backendState.backBufferIdentity.height);
-		}
-
-		[[nodiscard]] LPARAM MapMouseMoveToBackBufferLocked(
-			HWND a_window,
-			LPARAM a_lparam) noexcept
-		{
-			const MousePosition position{
-				static_cast<float>(
-					static_cast<int16_t>(LOWORD(a_lparam))),
-				static_cast<float>(
-					static_cast<int16_t>(HIWORD(a_lparam)))
-			};
-			const auto mapped = MapClientPointToBackBufferLocked(a_window, position);
-			if (mapped.x == position.x && mapped.y == position.y)
-				return a_lparam;
-			return MAKELPARAM(
-				static_cast<int16_t>(mapped.x),
-				static_cast<int16_t>(mapped.y));
-		}
-
-		// Button lparams are client pixels, wheel lparams are screen pixels.
-		[[nodiscard]] DMUI_Vec2 MessagePointerPositionLocked(
-			HWND a_window,
-			const PointerMessage& a_message,
-			LPARAM a_lparam) noexcept
-		{
-			POINT point{ static_cast<int16_t>(LOWORD(a_lparam)), static_cast<int16_t>(HIWORD(a_lparam)) };
-			if (a_message.kind == PointerMessageKind::kWheel)
-				ScreenToClient(a_window, std::addressof(point));
-			const auto mapped = MapClientPointToBackBufferLocked(
-				a_window, { static_cast<float>(point.x), static_cast<float>(point.y) });
-			return { mapped.x, mapped.y };
-		}
-
-		static_assert(
-			DMUI_POINTER_BUTTON_LEFT == 1u &&
-			DMUI_POINTER_BUTTON_RIGHT == 2u &&
-			DMUI_POINTER_BUTTON_MIDDLE == 4u &&
-			DMUI_POINTER_BUTTON_X1 == 8u &&
-			DMUI_POINTER_BUTTON_X2 == 16u);
-
-		// Hotkeys claim mouse input later, from the engine queue.
-		[[nodiscard]] bool HotkeyWouldTake(const PointerMessage& a_message) noexcept
-		{
-			const auto key = PointerKeyCode(a_message);
-			if (!key)
-				return false;
-			RefreshHotkeyContext();
-			return DearModdingUI::Hotkeys::WouldActOn(key, HeldModifiers(&GetKeyState));
-		}
-
-		[[nodiscard]] DearModdingUI::PointerRouting::Verdict RoutePointerMessageLocked(
-			HWND a_window,
-			const PointerMessage& a_message,
-			LPARAM a_lparam) noexcept
-		{
-			using namespace DearModdingUI::PointerRouting;
-			const auto owner = DearModdingUI::PointerOwnerPage();
-			const auto button = 1u << a_message.button;
-			if (a_message.kind == PointerMessageKind::kRelease)
-				return RouteRelease(owner, button);
-			if (a_message.kind == PointerMessageKind::kNone)
-				return Verdict::kForward;
-			const auto position = MessagePointerPositionLocked(a_window, a_message, a_lparam);
-			const auto excluded =
-				owner != DMUI_INVALID_PAGE_HANDLE && HotkeyWouldTake(a_message);
-			return a_message.kind == PointerMessageKind::kPress ?
-				RoutePress(owner, button, position, excluded) :
-				RouteWheel(owner, { a_message.wheelX, a_message.wheelY }, position, excluded);
-		}
-
-		// Like the ImGui backend, so an off-window release still arrives.
-		void FollowDivertedCaptureLocked(HWND a_window, PointerMessageKind a_kind) noexcept
-		{
-			if (a_kind == PointerMessageKind::kPress && GetCapture() == nullptr)
-				SetCapture(a_window);
-			else if (a_kind == PointerMessageKind::kRelease &&
-				!DearModdingUI::PointerRouting::HoldsButtons() && GetCapture() == a_window)
-				ReleaseCapture();
 		}
 
 		struct PipelineState
@@ -542,6 +450,7 @@ namespace DearModdingUI::PlatformImGuiDetail
 			DearModdingUI::ImGuiWin32Integration::NewFrameWithoutGamepad();
 			io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
 			ApplyBackBufferCoordinateSpaceLocked(a_nativePosition);
+			DrainTextInputLocked();
 			DearModdingUI::PointerRouting::BeginFrame(DearModdingUI::PointerOwnerPage());
 			DearModdingUI::ControllerNavigation::PrepareFrame(DearModdingUI::CurrentInputMode());
 			if (a_nativePosition)
@@ -549,6 +458,7 @@ namespace DearModdingUI::PlatformImGuiDetail
 			ImGui::NewFrame();
 			context.callbacks.draw();
 			ImGui::Render();
+			PublishTextCapture(io.WantCaptureKeyboard);
 
 			const PipelineState previousState{ context.attachment.context.Get() };
 			if (shellVisible)
@@ -585,7 +495,7 @@ namespace DearModdingUI::PlatformImGuiDetail
 			{
 				REX::ERROR("DearModdingUI: closing the menu because {}"sv,
 					s_backendState.nativeCursorIssue);
-				CloseModalStateLocked(DearModdingUI::CarrierMenu::Event::kBackendFailure);
+				CloseModalStateLocked(DearModdingUI::HostMenu::Event::kBackendFailure);
 				s_backendState.nativeCursorWait.reset();
 			}
 			s_backendState.nativeCursorIssue = "the native cursor screen-space pass was not observed";
@@ -610,7 +520,7 @@ namespace DearModdingUI::PlatformImGuiDetail
 		auto& context = Context();
 		DearModdingUI::PresentationServices::InvalidateDevice();
 		CloseModalStateLocked(
-			DearModdingUI::CarrierMenu::Event::kShutdown);
+			DearModdingUI::HostMenu::Event::kShutdown);
 		DearModdingUI::CursorLoader::Shutdown();
 		context.frameSubmission.Reset();
 		s_backendState.nativeCursorWait.reset();
@@ -629,17 +539,10 @@ namespace DearModdingUI::PlatformImGuiDetail
 	void DrawFrameLocked(IDXGISwapChain* a_swapChain) noexcept
 	{
 		auto& context = Context();
-		if (!ShouldInitializeHost(
-				context.windowReady.load(std::memory_order_acquire)))
-		{
-			DearModdingUI::CarrierMenu::Handle(
-				DearModdingUI::CarrierMenu::Event::kOverlayOnly);
-			return;
-		}
 		if (!BackendReadyLocked())
 		{
 			CloseModalStateLocked(
-				DearModdingUI::CarrierMenu::Event::kBackendFailure);
+				DearModdingUI::HostMenu::Event::kBackendFailure);
 			return;
 		}
 
@@ -648,7 +551,7 @@ namespace DearModdingUI::PlatformImGuiDetail
 		const auto overlayDemanded =
 			DearModdingUI::NeedsFrame() && !modalVisible;
 		ApplyDrawingRequestLocked(modalVisible);
-		if (modalVisible && DearModdingUI::CursorLoader::HasFocus())
+		if (modalVisible && DearModdingUI::EngineFocus::Active())
 		{
 			WaitForNativeCursorLocked();
 			return;
@@ -704,54 +607,24 @@ namespace DearModdingUI::PlatformImGuiDetail
 		SubmitFrameLocked(nativeTarget.Get(), position);
 	}
 
-	BackendMessageResult HandleBackendWindowMessageLocked(
-		HWND a_window,
-		UINT a_message,
-		WPARAM a_wparam,
-		LPARAM a_lparam,
-		bool a_escapeConsumed) noexcept
+	MousePosition SamplePointerLocked() noexcept
 	{
-		auto& context = Context();
-		BackendMessageResult result;
-		const auto modalVisible =
-			context.drawingEnabled.load(std::memory_order_acquire);
-		if (!HandlesWindowMessage(
-				a_window ==
-					context.activeWindow.load(std::memory_order_acquire),
-				modalVisible,
-				context.backend.load(std::memory_order_acquire) ==
-					Backend::kReady,
-				ImGui::GetCurrentContext() != nullptr))
-			return result;
+		const auto* cursor = RE::MenuCursor::GetSingleton();
+		const auto client = ReadClientSize(Context().attachment.window);
+		const auto& buffer = s_backendState.backBufferIdentity;
+		if (cursor && cursor->registeredCursors && client.width && client.height && buffer.Valid())
+		{
+			return MapNativeCursorToBackBuffer(
+				{ static_cast<float>(cursor->cursorPosX), static_cast<float>(cursor->cursorPosY) },
+				client.width, client.height, buffer.width, buffer.height);
+		}
+		const auto& mouse = ImGui::GetIO().MousePos;
+		return { mouse.x, mouse.y };
+	}
 
-		auto& io = ImGui::GetIO();
-		const auto backendLparam = a_message == WM_MOUSEMOVE ?
-			MapMouseMoveToBackBufferLocked(a_window, a_lparam) :
-			a_lparam;
-		const auto pointer = ClassifyPointerMessage(a_message, a_wparam);
-		if (a_message == kCaptureChangedMessage &&
-			reinterpret_cast<HWND>(a_lparam) != a_window)
-			DearModdingUI::PointerRouting::LoseCapture();
-		// ImGui would drop focus and active widgets on a world click.
-		const auto diverted =
-			RoutePointerMessageLocked(a_window, pointer, a_lparam) ==
-			DearModdingUI::PointerRouting::Verdict::kDivert;
-		if (diverted)
-			FollowDivertedCaptureLocked(a_window, pointer.kind);
-		result.result = diverted ?
-			0 :
-			ImGui_ImplWin32_WndProcHandlerEx(
-				a_window,
-				a_message,
-				a_wparam,
-				backendLparam,
-				io);
-		result.swallow = a_escapeConsumed ||
-			SwallowsGameWindowMessage(
-				a_message,
-				io.WantCaptureMouse,
-				io.WantCaptureKeyboard);
-		result.handled = true;
-		return result;
+	void RefreshInputLanguageLocked(HWND a_window, ImGuiIO& a_io) noexcept
+	{
+		// The backend's code page serves the IME path of ANSI windows.
+		(void)ImGui_ImplWin32_WndProcHandlerEx(a_window, WM_INPUTLANGCHANGE, 0, 0, a_io);
 	}
 }

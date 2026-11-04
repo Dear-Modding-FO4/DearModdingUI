@@ -128,6 +128,7 @@ end
 local source_sets = {
     core = {
         "src/DearModdingUI/host/Diagnostics.cpp",
+        "src/DearModdingUI/host/HeldInput.cpp",
         "src/DearModdingUI/host/Hotkeys.cpp",
         "src/DearModdingUI/host/IconResolution.cpp",
         "src/DearModdingUI/host/HostAPISettingsRows.cpp",
@@ -163,6 +164,9 @@ local source_sets = {
         "src/DearModdingUI/presentation/ThemeLayout.cpp",
         "src/Platform/files/ExternalOpen.cpp",
         "src/Platform/input/CursorLoader.cpp",
+        "src/Platform/input/EngineFocus.cpp",
+        "src/Platform/input/EngineKeys.cpp",
+        "src/Platform/input/ThreadMessageTap.cpp",
         "src/Platform/settings/GameColors.cpp",
         "src/Platform/localization/TranslationFiles.cpp",
         "src/DearModdingUI/localization/Localization.cpp"
@@ -181,7 +185,7 @@ local source_sets = {
     },
     runtime = {
         "src/Main.cpp",
-        "src/Platform/input/CarrierMenu.cpp",
+        "src/Platform/menus/HostMenu.cpp",
         "src/Platform/input/GameInput.cpp",
         "src/Platform/menus/StartMenuEntry.cpp",
         "src/Platform/rendering/**.cpp",
