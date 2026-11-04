@@ -371,3 +371,7 @@ $DMUI_SettingsPage_SearchHint	Rechercher des paramètres...
 $DMUI_SettingsPage_UnsupportedControl	Contrôle de paramètre non pris en charge.
 $DMUI_SettingsPage_AppliesNow	S'applique immédiatement.
 $DMUI_SettingsPage_Unavailable	Indisponible
+$DMUI_ToggleHint_Title	Appuyez sur {} pour ouvrir le menu
+$DMUI_ToggleHint_TitleGamepad	Appuyez sur {} ou {} pour ouvrir le menu
+$DMUI_ToggleHint_SettingsRow	Ou choisissez {} dans le menu Paramètres du jeu.
+$DMUI_ToggleHint_ChangeKey	Modifiable dans ses paramètres.

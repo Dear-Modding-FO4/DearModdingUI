@@ -371,3 +371,7 @@ $DMUI_SettingsPage_SearchHint	Einstellungen durchsuchen...
 $DMUI_SettingsPage_UnsupportedControl	Nicht unterstütztes Einstellungssteuerelement.
 $DMUI_SettingsPage_AppliesNow	Wird sofort angewendet.
 $DMUI_SettingsPage_Unavailable	Nicht verfügbar
+$DMUI_ToggleHint_Title	Drücke {}, um das Menü zu öffnen
+$DMUI_ToggleHint_TitleGamepad	Drücke {} oder {}, um das Menü zu öffnen
+$DMUI_ToggleHint_SettingsRow	Oder wähle {} im Einstellungsmenü des Spiels.
+$DMUI_ToggleHint_ChangeKey	Neu belegen in den Einstellungen.

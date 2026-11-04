@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/API.h>
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
@@ -97,6 +98,12 @@ namespace DearModdingUI::PresentationServices
 		const Registry& a_registry,
 		DMUI_ClientHandle a_client,
 		const DMUI_NotificationDescriptor* a_descriptor) noexcept;
+	// A toast from the host itself, outside the client duration bounds.
+	void PostHostNotification(
+		DMUI_StatusSeverity a_severity,
+		std::string_view a_title,
+		std::string_view a_message,
+		std::chrono::milliseconds a_duration) noexcept;
 	void DrawNotifications(bool a_cursorActive) noexcept;
 
 	[[nodiscard]] DMUI_Result DrawAnnotatedPlot(

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Toggle hint**: The first launch shows a toast naming the menu key and the game Settings row; `bToggleHintShown` records that it was shown.
 - **Game menu entries**: A DMUI row in the game's Settings menu (`bSettingsMenuEntry`) and optional pause and main menu rows (`sPauseMenuEntry` = `add`/`replace`/`off`, `bMainMenuEntry`, `iPauseMenuEntryPosition`, `iMainMenuEntryPosition`) open the menu.
 
 ### Changed

@@ -6,6 +6,7 @@
 #include <DearModdingUI/host/MenuToggleChord.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/Shell.h>
+#include <DearModdingUI/host/ToggleHint.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <Platform/input/EngineFocus.h>
 #include <Platform/input/GameInput.h>
@@ -122,6 +123,8 @@ namespace DearModdingUI::Plugin
 						REX::ERROR("DearModdingUI: menu entry registration failed"sv);
 					(void)PlatformImGui::VerifyThreadTap();
 					PlatformImGui::LogEngineFocus("game data ready");
+					const auto* devices = RE::BSInputDeviceManager::GetSingleton();
+					DearModdingUI::ToggleHint::ShowOnce(devices && devices->IsGamepadConnected());
 				}
 				break;
 			default:

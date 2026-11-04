@@ -297,6 +297,34 @@ namespace vmm_tests
 			std::filesystem::remove_all(root, error);
 		});
 
+		runner.test("toggle hint state survives a settings save and reload", [] {
+			const auto root =
+				std::filesystem::current_path() /
+				".Build" /
+				"Tests" /
+				"toggle-hint-fixture";
+			std::error_code error;
+			std::filesystem::remove_all(root, error);
+			std::filesystem::create_directories(root, error);
+			const auto path = root / "DearModdingUI.toml";
+
+			std::ofstream(path) << "[Additional]\nsMenuToggleKey = \"F11\"\n";
+			auto loaded = LoadHostInterfaceSettings(path);
+			require(!loaded.toggleHintShown,
+				"a config from before the hint showed it as already seen");
+
+			auto persisted = EncodeHostInterfaceSettings(loaded.settings);
+			persisted.toggleHintShown = true;
+			require(PersistHostInterfaceSettings(path, persisted).saved,
+				"the hint state could not be saved");
+			loaded = LoadHostInterfaceSettings(path);
+			require(loaded.disposition == HostSettingsLoadDisposition::kLoaded &&
+					loaded.toggleHintShown &&
+					loaded.settings.menuToggleKey == "F11",
+				"a saved hint state or setting did not reload");
+			std::filesystem::remove_all(root, error);
+		});
+
 		runner.test("host settings health reports actual accepted fallbacks", [] {
 			const auto root =
 				std::filesystem::current_path() /

@@ -305,6 +305,7 @@ namespace DearModdingUI
 			section["bMainMenuEntry"] = a_settings.mainMenuEntry;
 			section["iMainMenuEntryPosition"] = a_settings.mainMenuEntryPosition;
 			section["bSettingsMenuEntry"] = a_settings.settingsMenuEntry;
+			section["bToggleHintShown"] = a_settings.toggleHintShown;
 			section["sFieldFeedbackLayout"] = a_settings.feedbackPlacement;
 			section["sFieldFeedbackInfoColor"] =
 				a_settings.feedbackInfoColor;
@@ -755,6 +756,11 @@ namespace DearModdingUI
 				"bSettingsMenuEntry",
 				settings.settingsMenuEntry,
 				result.corrections);
+			settings.toggleHintShown = ReadSetting<bool>(
+				section,
+				"bToggleHintShown",
+				settings.toggleHintShown,
+				result.corrections);
 			settings.mainMenuEntry = ReadSetting<bool>(
 				section,
 				"bMainMenuEntry",
@@ -800,6 +806,7 @@ namespace DearModdingUI
 			};
 			readBindings("Hotkeys", result.hotkeys);
 			readBindings("GamepadHotkeys", result.gamepadHotkeys);
+			result.toggleHintShown = settings.toggleHintShown;
 			result.settings = NormalizeSettings(
 				std::move(settings),
 				result.corrections);

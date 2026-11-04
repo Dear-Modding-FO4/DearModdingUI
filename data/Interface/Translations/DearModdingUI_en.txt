@@ -371,3 +371,7 @@ $DMUI_SettingsPage_SearchHint	Search settings...
 $DMUI_SettingsPage_UnsupportedControl	Unsupported setting control.
 $DMUI_SettingsPage_AppliesNow	Applies now.
 $DMUI_SettingsPage_Unavailable	Unavailable
+$DMUI_ToggleHint_Title	Press {} to open the menu
+$DMUI_ToggleHint_TitleGamepad	Press {} or {} to open the menu
+$DMUI_ToggleHint_SettingsRow	Or select {} in the game's Settings menu.
+$DMUI_ToggleHint_ChangeKey	Rebind it in its settings.

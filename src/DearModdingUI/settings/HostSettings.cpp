@@ -46,6 +46,8 @@ namespace DearModdingUI::HostSettings
 		HostInterfaceSettings s_settings;
 		using OverridesBySlot = std::array<std::map<std::string, std::string>, 2>;
 		OverridesBySlot s_hotkeyOverrides;
+		bool s_toggleHintShown{ false };
+		bool s_loaded{ false };
 		std::mutex s_configurationHealthMutex;
 		HostSettingsHealthState s_configurationHealthState;
 		// Covers both Current() and EffectivePreview().
@@ -174,6 +176,8 @@ namespace DearModdingUI::HostSettings
 					const std::scoped_lock lock{ s_settingsMutex };
 					s_settings = std::move(loaded.settings);
 					s_hotkeyOverrides = { std::move(loaded.hotkeys), std::move(loaded.gamepadHotkeys) };
+					s_toggleHintShown = loaded.toggleHintShown;
+					s_loaded = loaded.disposition != HostSettingsLoadDisposition::kFailed;
 					for (const auto slot : kHotkeySlots)
 						Hotkeys::InitializeOverrides(s_hotkeyOverrides[static_cast<size_t>(slot)], slot);
 					UpdateMenuToggleChord();
@@ -240,6 +244,7 @@ namespace DearModdingUI::HostSettings
 		[[nodiscard]] bool SaveSettings(
 			const HostInterfaceSettings& a_settings,
 			const OverridesBySlot& a_hotkeyOverrides,
+			bool a_toggleHintShown,
 			Support::Message& a_error) noexcept
 		{
 			try
@@ -248,6 +253,7 @@ namespace DearModdingUI::HostSettings
 					EncodeNormalizedHostInterfaceSettings(a_settings);
 				persisted.hotkeys = a_hotkeyOverrides[0];
 				persisted.gamepadHotkeys = a_hotkeyOverrides[1];
+				persisted.toggleHintShown = a_toggleHintShown;
 				const auto result = PersistHostInterfaceSettings(
 					ConfigPath(),
 					persisted);
@@ -307,7 +313,7 @@ namespace DearModdingUI::HostSettings
 				const std::scoped_lock lock{ s_settingsMutex };
 				auto updated = s_hotkeyOverrides;
 				updated[static_cast<size_t>(a_slot)] = Hotkeys::Overrides(a_slot);
-				if (SaveSettings(s_settings, updated, error))
+				if (SaveSettings(s_settings, updated, s_toggleHintShown, error))
 				{
 					s_hotkeyOverrides = std::move(updated);
 					return true;
@@ -367,7 +373,7 @@ namespace DearModdingUI::HostSettings
 					Localization::Text(kSettingsSavedText));
 				return true;
 			}
-			if (!SaveSettings(a_settings, s_hotkeyOverrides, error))
+			if (!SaveSettings(a_settings, s_hotkeyOverrides, s_toggleHintShown, error))
 			{
 				REX::WARN(
 					"DearModdingUI: interface settings could not be persisted: {}"sv,
@@ -397,7 +403,7 @@ namespace DearModdingUI::HostSettings
 			{
 				auto updated = s_settings;
 				updated.sidebarLayout = layout;
-				if (SaveSettings(updated, s_hotkeyOverrides, error))
+				if (SaveSettings(updated, s_hotkeyOverrides, s_toggleHintShown, error))
 				{
 					s_settings = std::move(updated);
 					s_revision.Advance();
@@ -464,6 +470,23 @@ namespace DearModdingUI::HostSettings
 	uint64_t PageRevision() noexcept
 	{
 		return s_pageRevision.load(std::memory_order_acquire);
+	}
+
+	bool ClaimToggleHint() noexcept
+	{
+		EnsureLoaded();
+		Support::Message error;
+		{
+			const std::scoped_lock lock{ s_settingsMutex };
+			// Saving over a file that failed to load would discard it.
+			if (s_toggleHintShown || !s_loaded)
+				return false;
+			s_toggleHintShown = true;
+			if (SaveSettings(s_settings, s_hotkeyOverrides, true, error))
+				return true;
+		}
+		REX::WARN("DearModdingUI: toggle hint state could not be persisted: {}"sv, error.English());
+		return true;
 	}
 
 	bool SetHotkeyOverride(

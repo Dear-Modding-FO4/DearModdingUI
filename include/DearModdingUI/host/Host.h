@@ -5,6 +5,7 @@
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/host/Registry.h>
 #include <DearModdingUI/host/Status.h>
+#include <Support/Message.h>
 
 #include <optional>
 #include <string_view>
@@ -16,6 +17,8 @@
 namespace DearModdingUI
 {
 	inline constexpr std::string_view kHostDisplayName{ "Evil Modding" };
+	// The row the game's start menus show for opening the host.
+	inline constexpr Support::Phrase kMenuEntryLabel{ "$DMUI_MenuEntry", "DMUI" };
 	inline constexpr std::string_view kHostVersion{ DMUI_VERSION };
 
 	// Older minors of this major see a prefix of the current tables.

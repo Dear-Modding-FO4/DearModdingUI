@@ -174,6 +174,7 @@ local source_sets = {
     ui = {
         "src/DearModdingUI/host/Host*.cpp",
         "src/DearModdingUI/host/Shell.cpp",
+        "src/DearModdingUI/host/ToggleHint.cpp",
         "src/DearModdingUI/controls/Faq.cpp",
         "src/DearModdingUI/controls/LinkRow.cpp",
         "src/DearModdingUI/pages/HostPageViews.cpp",

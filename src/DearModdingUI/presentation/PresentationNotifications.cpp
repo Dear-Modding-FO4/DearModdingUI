@@ -1,6 +1,7 @@
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/controls/FieldFeedback.h>
+#include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/Registry.h>
 #include <Support/BoundedString.h>
 #include <Support/PublishingLock.h>
@@ -116,6 +117,14 @@ namespace DearModdingUI::PresentationServices
 				a_draw.AddText({ a_position.x, a_position.y + height }, a_color, "...");
 		}
 
+		void Enqueue(Notifications::Toast a_toast)
+		{
+			auto& service = GetNotificationService();
+			const auto lock = LockNotifications(service);
+			if (service.queue.Post(std::move(a_toast)))
+				REX::DEBUG("DearModdingUI: notification queue full; dropped oldest queued toast");
+		}
+
 		[[nodiscard]] ImVec4 SeverityColor(DMUI_StatusSeverity a_severity) noexcept
 		{
 			switch (a_severity)
@@ -155,15 +164,34 @@ namespace DearModdingUI::PresentationServices
 				(std::clamp)(a_descriptor->durationMilliseconds ?
 					a_descriptor->durationMilliseconds : 5000u, 250u, 30000u)
 			};
-			auto& service = GetNotificationService();
-			const auto lock = LockNotifications(service);
-			if (service.queue.Post(std::move(toast)))
-				REX::DEBUG("DearModdingUI: notification queue full; dropped oldest queued toast");
+			Enqueue(std::move(toast));
 			return DMUI_RESULT_OK;
 		}
 		catch (...)
 		{
 			return DMUI_RESULT_RESOURCE_EXHAUSTED;
+		}
+	}
+
+	void PostHostNotification(
+		DMUI_StatusSeverity a_severity,
+		std::string_view a_title,
+		std::string_view a_message,
+		std::chrono::milliseconds a_duration) noexcept
+	{
+		try
+		{
+			Notifications::Toast toast;
+			toast.severity = a_severity;
+			toast.clientName = kHostDisplayName;
+			toast.title = a_title;
+			toast.message = a_message;
+			toast.duration = a_duration;
+			Enqueue(std::move(toast));
+		}
+		catch (...)
+		{
+			REX::WARN("DearModdingUI: host notification could not be queued");
 		}
 	}
 

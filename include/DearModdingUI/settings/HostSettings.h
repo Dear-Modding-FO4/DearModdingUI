@@ -237,6 +237,8 @@ namespace DearModdingUI
 		bool mainMenuEntry{ false };
 		int32_t mainMenuEntryPosition{ kDefaultMenuEntryPosition };
 		bool settingsMenuEntry{ true };
+		// Host state, not a preference; the Settings page never edits it.
+		bool toggleHintShown{ false };
 
 		[[nodiscard]] bool operator==(
 			const PersistedHostInterfaceSettings&) const noexcept = default;
@@ -546,6 +548,8 @@ namespace DearModdingUI
 		void NotifyMenuVisible(bool a_visible) noexcept;
 		void SetPageActive(bool a_active) noexcept;
 		[[nodiscard]] uint64_t PageRevision() noexcept;
+		// True once per install: the caller shows the toggle hint, now saved.
+		[[nodiscard]] bool ClaimToggleHint() noexcept;
 		// The 1-based entry position directly above that menu's Settings row.
 		void ReportRowAboveSettings(StartMenu a_menu, uint32_t a_row) noexcept;
 		// Empty until that menu has opened this session.

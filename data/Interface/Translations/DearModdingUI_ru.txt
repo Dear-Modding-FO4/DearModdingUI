@@ -391,3 +391,7 @@ $DMUI_SettingsPage_SearchHint	Поиск настроек...
 $DMUI_SettingsPage_UnsupportedControl	Неподдерживаемый элемент настройки.
 $DMUI_SettingsPage_AppliesNow	Применяется сразу.
 $DMUI_SettingsPage_Unavailable	Недоступно
+$DMUI_ToggleHint_Title	Нажмите {}, чтобы открыть меню
+$DMUI_ToggleHint_TitleGamepad	Нажмите {} или {}, чтобы открыть меню
+$DMUI_ToggleHint_SettingsRow	Или выберите {} в меню настроек игры.
+$DMUI_ToggleHint_ChangeKey	Клавиша меняется в настройках.

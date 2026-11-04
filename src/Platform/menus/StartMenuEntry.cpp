@@ -230,7 +230,7 @@ namespace DearModdingUI::StartMenuEntry
 				if (current)
 					(void)a_list.entries.RemoveElement(*current);
 				a_movie.CreateObject(&entry);
-				if (!entry.SetMember("text", Value{ Localization::Text("$DMUI_MenuEntry", "DMUI") }) ||
+				if (!entry.SetMember("text", Value{ Localization::Text(kMenuEntryLabel) }) ||
 					!entry.SetMember("index", Value{ kEntryIndex }) ||
 					!a_list.Insert(slot, entry))
 				{
