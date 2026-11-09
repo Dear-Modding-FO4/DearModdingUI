@@ -6,6 +6,7 @@
 #include <REX/REX.h>
 
 #include <algorithm>
+#include <array>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -19,11 +20,7 @@ namespace DearModdingUI::Localization
 	{
 		using TranslationTable = Support::TextMap<std::string>;
 
-		struct OwnerTables
-		{
-			const TranslationTable* language{ nullptr };
-			const TranslationTable* english{ nullptr };
-		};
+		using OwnerTables = Support::TextMap<const TranslationTable*>;
 
 		// Tables are never freed, so returned strings live for the process.
 		struct Catalog
@@ -31,7 +28,11 @@ namespace DearModdingUI::Localization
 			std::mutex mutex;
 			std::string languageOverride;
 			std::string language;
-			Support::TextMap<OwnerTables> owners;
+			// sLanguage holds its built-in default until the game reads its INIs.
+			bool gameLanguageReadable{ false };
+			// Each owner's table in the active language, and in English.
+			OwnerTables translated;
+			OwnerTables english;
 			std::vector<std::unique_ptr<const TranslationTable>> tables;
 		};
 
@@ -81,9 +82,9 @@ namespace DearModdingUI::Localization
 		{
 			if (a_catalog.language.empty())
 			{
-				a_catalog.language = a_catalog.languageOverride.empty() ?
-					ReadGameLanguage() :
-					a_catalog.languageOverride;
+				a_catalog.language = !a_catalog.languageOverride.empty() ?
+					a_catalog.languageOverride :
+					a_catalog.gameLanguageReadable ? ReadGameLanguage() : std::string{};
 			}
 			return !a_catalog.language.empty();
 		}
@@ -103,15 +104,17 @@ namespace DearModdingUI::Localization
 			return a_catalog.tables.emplace_back(std::move(table)).get();
 		}
 
-		[[nodiscard]] const OwnerTables& OwnerLocked(Catalog& a_catalog, std::string_view a_owner)
+		[[nodiscard]] const TranslationTable* TableLocked(
+			Catalog& a_catalog,
+			OwnerTables& a_tables,
+			std::string_view a_owner,
+			std::string_view a_language)
 		{
-			if (const auto found = a_catalog.owners.find(a_owner); found != a_catalog.owners.end())
+			if (const auto found = a_tables.find(a_owner); found != a_tables.end())
 				return found->second;
-			OwnerTables tables{ LoadTable(a_catalog, a_owner, a_catalog.language) };
-			tables.english = a_catalog.language == "en"sv ?
-				tables.language :
-				LoadTable(a_catalog, a_owner, "en"sv);
-			return a_catalog.owners.emplace(std::string{ a_owner }, tables).first->second;
+			const auto* table = LoadTable(a_catalog, a_owner, a_language);
+			a_tables.emplace(std::string{ a_owner }, table);
+			return table;
 		}
 	}
 
@@ -124,6 +127,19 @@ namespace DearModdingUI::Localization
 			});
 	}
 
+	void EnableGameLanguage() noexcept
+	{
+		try
+		{
+			auto& catalog = Instance();
+			const std::scoped_lock lock{ catalog.mutex };
+			catalog.gameLanguageReadable = true;
+		}
+		catch (...)
+		{
+		}
+	}
+
 	void SetLanguage(std::string_view a_language) noexcept
 	{
 		try
@@ -132,7 +148,8 @@ namespace DearModdingUI::Localization
 			const std::scoped_lock lock{ catalog.mutex };
 			catalog.languageOverride = a_language;
 			catalog.language.clear();
-			catalog.owners.clear();
+			catalog.translated.clear();
+			catalog.english.clear();
 		}
 		catch (...)
 		{
@@ -155,19 +172,38 @@ namespace DearModdingUI::Localization
 
 	namespace
 	{
+		enum class Tables
+		{
+			kTranslated,
+			kTranslatedThenEnglish,
+			kEnglish
+		};
+
 		[[nodiscard]] const std::string* Lookup(
 			std::string_view a_owner,
 			std::string_view a_key,
-			bool a_englishFallback) noexcept
+			Tables a_tables) noexcept
 		{
 			try
 			{
 				auto& catalog = Instance();
 				const std::scoped_lock lock{ catalog.mutex };
-				if (!ValidOwner(a_owner) || !IsTextKey(a_key) || !EnsureLanguageLocked(catalog))
+				if (!ValidOwner(a_owner) || !IsTextKey(a_key))
 					return nullptr;
-				const auto& owner = OwnerLocked(catalog, a_owner);
-				for (const auto* table : { owner.language, a_englishFallback ? owner.english : nullptr })
+				// English needs no language, which is unknown while mods register.
+				if (a_tables != Tables::kEnglish && !EnsureLanguageLocked(catalog))
+					return nullptr;
+				const auto english = [&] {
+					return TableLocked(catalog, catalog.english, a_owner, "en"sv);
+				};
+				std::array<const TranslationTable*, 2> tables{};
+				if (a_tables != Tables::kEnglish)
+					tables[0] = catalog.language == "en"sv ?
+						english() :
+						TableLocked(catalog, catalog.translated, a_owner, catalog.language);
+				if (a_tables != Tables::kTranslated)
+					tables[1] = english();
+				for (const auto* table : tables)
 				{
 					if (!table)
 						continue;
@@ -185,7 +221,12 @@ namespace DearModdingUI::Localization
 
 	const std::string* FindTranslation(std::string_view a_owner, std::string_view a_key) noexcept
 	{
-		return Lookup(a_owner, a_key, true);
+		return Lookup(a_owner, a_key, Tables::kTranslatedThenEnglish);
+	}
+
+	const std::string* FindEnglish(std::string_view a_owner, std::string_view a_key) noexcept
+	{
+		return Lookup(a_owner, a_key, Tables::kEnglish);
 	}
 
 	void Translate(std::string& a_text, std::string_view a_owner)
@@ -208,7 +249,7 @@ namespace DearModdingUI::Localization
 				std::string_view a_key) const noexcept override
 			{
 				// English text would pair with this language's plural category.
-				const auto* translated = Lookup(kHostOwner, a_key, false);
+				const auto* translated = Lookup(kHostOwner, a_key, Tables::kTranslated);
 				return translated ? std::optional<std::string_view>{ *translated } : std::nullopt;
 			}
 

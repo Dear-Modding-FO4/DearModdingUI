@@ -9,18 +9,23 @@
 namespace DearModdingUI
 {
 
-	// Each client's keys come from its own <client id>_<language>.txt file.
+	// Icons come from untranslated names, then <client id> files translate them.
 	void Registry::TranslateRegistrations()
 	{
 		for (auto& client : m_clients)
 		{
+			client.iconMetadata = IconMetadata(client.id, client.displayName);
 			Localization::Translate(client.displayName, client.id);
 			Localization::Translate(client.bridgeSourceLabel, client.id);
 		}
 		for (auto& category : m_categories)
+		{
+			category.iconMetadata = IconMetadata(category.clientId, category.displayName);
 			Localization::Translate(category.displayName, category.clientId);
+		}
 		for (auto& page : m_pages)
 		{
+			page.iconMetadata = IconMetadata(page.clientId, page.displayName);
 			Localization::Translate(page.displayName, page.clientId);
 			Localization::Translate(page.summary, page.clientId);
 			page.clientDisplayName = FindClient(page.client)->displayName;
@@ -28,6 +33,9 @@ namespace DearModdingUI
 		}
 		for (auto& action : m_actions)
 		{
+			action.iconSelection = ResolveIconSelection(
+				action.iconName,
+				IconMetadata(action.clientId, action.displayLabel));
 			Localization::Translate(action.displayLabel, action.clientId);
 			Localization::Translate(action.tooltip, action.clientId);
 			action.clientDisplayName = FindClient(action.client)->displayName;

@@ -285,6 +285,8 @@ namespace DearModdingUI
 				std::memory_order_acq_rel))
 			return expected == DMUI_HOST_STATE_INITIALIZING ||
 				expected == DMUI_HOST_STATE_READY;
+		// A frame is only presented after the game has read its INIs.
+		Localization::EnableGameLanguage();
 		if (!service.registry.Freeze())
 		{
 			FailBackendInitialization();

@@ -1,6 +1,8 @@
 #include "../Harness.h"
+#include "../support/DearModdingUITestSupport.h"
 #include "../support/LanguageScope.h"
 
+#include <DearModdingUI/host/Registry.h>
 #include <DearModdingUI/localization/Localization.h>
 #include <Platform/localization/TranslationFiles.h>
 #include <Support/Runtime.h>
@@ -198,6 +200,41 @@ namespace vmm_tests
 			require(
 				Localization::FindTranslation("DmuiCatalogCheck", "$DMUI_Check_Missing") == nullptr,
 				"an unknown key resolved");
+		});
+
+		runner.test("a keyed page guesses its icon from English once the language is known", [] {
+			using namespace support::host;
+			const TemporaryTranslation translated{
+				"DmuiIconCheck_xx.txt",
+				"$DMUI_Check_Page\tBeleuchtung\n"
+			};
+			const TemporaryTranslation english{
+				"DmuiIconCheck_en.txt",
+				"$DMUI_Check_Page\tLighting\n"
+			};
+			// Mods register before the game's language is readable.
+			DearModdingUI::Registry registry;
+			CallbackState state;
+			const auto client = AddClient(registry, "DmuiIconCheck", "Icon Check", state);
+			const auto keyed = AddPage(registry, client, "keyed", "$DMUI_Check_Page", nullptr, 0,
+				DMUI_PAGE_KIND_SETTINGS, state);
+			const auto literal = AddPage(registry, client, "literal", "Lighting", nullptr, 1,
+				DMUI_PAGE_KIND_SETTINGS, state);
+			const auto missing = AddPage(registry, client, "missing", "$DMUI_Check_Missing", nullptr, 2,
+				DMUI_PAGE_KIND_SETTINGS, state);
+			const LanguageScope language{ "xx" };
+			require(registry.Freeze(), "the registry did not freeze");
+
+			const auto* keyedPage = registry.Navigation().FindPage(keyed);
+			const auto* literalPage = registry.Navigation().FindPage(literal);
+			const auto* missingPage = registry.Navigation().FindPage(missing);
+			require(keyedPage && literalPage && missingPage, "a registered page left navigation");
+			require(keyedPage->displayName == "Beleuchtung", "the keyed page was not translated");
+			require(keyedPage->iconSelection.GlyphOr({}) != char32_t{} &&
+					keyedPage->iconSelection.GlyphOr({}) == literalPage->iconSelection.GlyphOr({}),
+				"a keyed page and its English name chose different icons");
+			require(missingPage->iconSelection.GlyphOr({}) == char32_t{},
+				"a key without English text guessed an icon from the key");
 		});
 
 		runner.test("a malformed translated template shows English", [] {

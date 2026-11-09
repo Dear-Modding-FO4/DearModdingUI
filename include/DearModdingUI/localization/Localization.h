@@ -14,6 +14,9 @@ namespace DearModdingUI::Localization
 	// Only a whole "$KEY" is a key; text merely containing '$' is literal.
 	[[nodiscard]] bool IsTextKey(std::string_view a_text) noexcept;
 
+	// The game reads its INIs after kPostPostLoad; call once they are loaded.
+	void EnableGameLanguage() noexcept;
+
 	// Uses a_language instead of the game's sLanguage; for the preview.
 	void SetLanguage(std::string_view a_language) noexcept;
 
@@ -22,6 +25,11 @@ namespace DearModdingUI::Localization
 
 	// From <owner>_<language>.txt, then <owner>_en.txt; null if neither.
 	[[nodiscard]] const std::string* FindTranslation(
+		std::string_view a_owner,
+		std::string_view a_key) noexcept;
+
+	// From <owner>_en.txt only, whatever the active language; null if absent.
+	[[nodiscard]] const std::string* FindEnglish(
 		std::string_view a_owner,
 		std::string_view a_key) noexcept;
 

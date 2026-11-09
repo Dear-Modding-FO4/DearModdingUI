@@ -93,7 +93,6 @@ namespace DearModdingUI
 				return DMUI_RESULT_RESOURCE_EXHAUSTED;
 
 			client.handle = m_nextClient++;
-			client.iconMetadata = IconMetadata(client.displayName);
 			m_clients.push_back(std::move(client));
 			PublishLocked();
 			*a_client = m_clients.back().handle;
@@ -174,7 +173,6 @@ namespace DearModdingUI
 			page.handle = m_nextPage++;
 			page.clientId = client->id;
 			page.clientDisplayName = client->displayName;
-			page.iconMetadata = IconMetadata(page.displayName);
 			page.imguiLabel = PageImGuiLabel(page);
 			m_pages.push_back(std::move(page));
 			PublishLocked();
@@ -233,7 +231,6 @@ namespace DearModdingUI
 				return DMUI_RESULT_DUPLICATE_CATEGORY_ID;
 
 			category.clientId = client->id;
-			category.iconMetadata = IconMetadata(category.displayName);
 			m_categories.push_back(std::move(category));
 			PublishLocked();
 			return DMUI_RESULT_OK;
@@ -302,9 +299,6 @@ namespace DearModdingUI
 			action.handle = m_nextAction++;
 			action.clientId = client->id;
 			action.clientDisplayName = client->displayName;
-			action.iconSelection = ResolveIconSelection(
-				action.iconName,
-				IconMetadata(action.displayLabel));
 			m_actions.push_back(std::move(action));
 			PublishLocked();
 			*a_action = m_actions.back().handle;

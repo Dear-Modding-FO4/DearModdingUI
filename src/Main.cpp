@@ -7,6 +7,7 @@
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/host/Shell.h>
 #include <DearModdingUI/host/ToggleHint.h>
+#include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <Platform/input/EngineFocus.h>
 #include <Platform/input/GameInput.h>
@@ -118,6 +119,7 @@ namespace DearModdingUI::Plugin
 				PlatformImGui::HandleGameTransition();
 				if (a_message->data)
 				{
+					Localization::EnableGameLanguage();
 					(void)GameInput::InstallHooks();
 					if (!DearModdingUI::StartMenuEntry::Register(&ToggleHost))
 						REX::ERROR("DearModdingUI: menu entry registration failed"sv);

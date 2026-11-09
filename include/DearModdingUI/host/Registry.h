@@ -54,10 +54,15 @@ namespace DearModdingUI
 		std::string iconName;
 	};
 
-	// Keys never seed icon guessing, so translation cannot change icons.
-	[[nodiscard]] inline std::string IconMetadata(std::string_view a_sourceName)
+	// A key guesses from its English text, so translation cannot change icons.
+	[[nodiscard]] inline std::string IconMetadata(
+		std::string_view a_owner,
+		std::string_view a_sourceName)
 	{
-		return Localization::IsTextKey(a_sourceName) ? std::string{} : std::string{ a_sourceName };
+		if (!Localization::IsTextKey(a_sourceName))
+			return std::string{ a_sourceName };
+		const auto* english = Localization::FindEnglish(a_owner, a_sourceName);
+		return english ? *english : std::string{};
 	}
 
 	// The stable ### suffix keeps ImGui state when the visible name is translated.
