@@ -1,6 +1,6 @@
 #include "HostAPIEntries.h"
 
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 #include <Support/BoundedString.h>
 
 #include <new>

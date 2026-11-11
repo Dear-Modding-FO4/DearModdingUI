@@ -135,10 +135,9 @@ failure fails the page callback instead
 of using stale local inference. The existing callback isolation then
 permanently disables that page after the failed draw.
 
-`IconGlyphs.h` still exposes `IconResolver`, `ResolveIconSelection`, and
-`ResolveAutomaticIconGlyph` as offline or compile-time snapshot utilities.
-Do not use `ResolveAutomaticIconGlyph` for host-authoritative client drawing:
-its vocabulary is compiled into the mod and cannot receive later host updates.
+`IconGlyphs.h` exposes only the Phosphor glyph constants. The vocabulary and
+resolver are host-only (`presentation\IconResolver.h`), so no icon inference is
+compiled into a mod; clients ask the host through `Client::ResolveIconGlyph`.
 Raw `Client::DrawSectionHeader`, collapsing-section, and link operations remain
 unchanged; zero still means no icon and they do not infer automatically.
 

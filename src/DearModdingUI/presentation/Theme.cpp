@@ -1,7 +1,7 @@
 #include <DearModdingUI/presentation/Theme.h>
 #include <DearModdingUI/presentation/FontCatalog.h>
 #include <DearModdingUI/settings/HostSettings.h>
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 #include <DearModdingUI/presentation/TypographyHealth.h>
 #include <DearModdingUI/localization/Localization.h>
 #include <Platform/fonts/SystemFonts.h>

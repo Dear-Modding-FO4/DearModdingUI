@@ -1,5 +1,5 @@
 #include <DearModdingUI/navigation/Navigation.h>
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 #include <DearModdingUI/host/Registry.h>
 #include <DearModdingUI/localization/Localization.h>
 

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Mods, categories, pages, and actions named with translation keys get automatic icons from the key's English text.
+- **Icons are host-only**: The Phosphor icon vocabulary, its generator, and the resolver moved from the API headers into the host. `IconGlyphs.h` keeps the `PhosphorGlyph` constants and `IsRepresentableIconGlyph`; `IconResolver`, `ResolveIconSelection`, `ResolveAutomaticIconGlyph`, and the other lookup functions are no longer available to clients, which ask the host with `Client::ResolveIconGlyph`. The ABI is unchanged.
 - **Input source**: The menu toggle, hotkeys, mouse, wheel, and gamepad are read from the game's input queue, so they work from game-data-ready regardless of other window subclasses.
 - While the menu is open, player controls, the console, the Pip-Boy, and game menus underneath ignore keys, mouse buttons, and the gamepad.
 - The game menu DMUI opens is now registered as `DearModdingUI_Menu`.

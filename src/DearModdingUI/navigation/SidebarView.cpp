@@ -4,7 +4,7 @@
 #include <DearModdingUI/controls/Controls.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 #include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <imgui/imgui.h>

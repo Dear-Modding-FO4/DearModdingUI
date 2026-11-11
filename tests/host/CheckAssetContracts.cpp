@@ -1,5 +1,5 @@
 #include "../support/DearModdingUITestSupport.h"
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 
 namespace vmm_tests
 {

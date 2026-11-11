@@ -122,6 +122,8 @@ jobs:
             $expected = [IO.File]::ReadAllText($comparisons[$name]).Replace("`r`n", "`n")
             if ($actual -cne $expected) { throw "Generated contract differs: $name" }
           }
+      - name: Check Phosphor vocabulary generation
+        run: python tools/phosphor-icons/GeneratePhosphorGlyphs.py --check
       - name: Check plugin exports
         shell: pwsh
         run: |

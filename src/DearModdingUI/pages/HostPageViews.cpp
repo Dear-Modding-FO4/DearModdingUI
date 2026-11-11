@@ -7,7 +7,7 @@
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/settings/HostSettings.h>
 #include <DearModdingUI/settings/HostSettingsView.h>
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 #include <DearModdingUI/controls/LinkRow.h>
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/controls/SettingsTable.h>

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <DearModdingUI/API.h>
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 
 #include <array>
 #include <cstddef>

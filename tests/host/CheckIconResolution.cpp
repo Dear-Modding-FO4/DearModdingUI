@@ -1,6 +1,6 @@
 #include "../Harness.h"
 
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 #include <DearModdingUI/host/HostAPIEntries.h>
 
 #include <array>

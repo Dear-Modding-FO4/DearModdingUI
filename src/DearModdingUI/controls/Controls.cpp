@@ -3,7 +3,7 @@
 #include <DearModdingUI/TextInput.h>
 #include <DearModdingUI/controls/TextInput.h>
 #include <DearModdingUI/settings/HostSettings.h>
-#include <DearModdingUI/IconGlyphs.h>
+#include <DearModdingUI/presentation/IconResolver.h>
 #include <DearModdingUI/localization/Localization.h>
 #include <DearModdingUI/controls/SettingsTable.h>
 #include <DearModdingUI/VisualDecisions.h>

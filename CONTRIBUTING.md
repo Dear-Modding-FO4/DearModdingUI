@@ -138,6 +138,14 @@ Use `--update-baseline` to record a new version's manifest, or to refresh an
 unreleased minor during development. Never edit
 the generated headers directly: CI regenerates and compares them.
 
+The host-only icon vocabulary (`include\DearModdingUI\presentation\PhosphorGlyphs.generated.h`)
+comes from pinned Phosphor snapshots (see `tools\phosphor-icons\UPSTREAM.md`):
+
+```powershell
+python tools/phosphor-icons/GeneratePhosphorGlyphs.py
+python tools/phosphor-icons/GeneratePhosphorGlyphs.py --check
+```
+
 ## Guidelines
 
 - Use American English in code, comments, and documentation.
