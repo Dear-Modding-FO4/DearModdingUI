@@ -119,9 +119,10 @@ namespace DearModdingUI::PresentationServices
 				const auto y =
 					plotMaximum.y -
 					ratio * (plotMaximum.y - plotMinimum.y);
-				drawList->AddLine(
-					{ plotMinimum.x, y },
-					{ plotMaximum.x, y },
+				drawList->AddLineH(
+					plotMinimum.x,
+					plotMaximum.x,
+					y,
 					ImGui::GetColorU32(ImVec4{
 						line.color.x,
 						line.color.y,

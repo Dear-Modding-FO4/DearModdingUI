@@ -186,7 +186,7 @@ namespace DearModdingUI::UI
 			DMUI_Vec2 min, DMUI_Vec2 max, uint32_t color, float rounding, float thickness) noexcept
 		{
 			return Draw(client, target, Rect(min, max) && Size(rounding) && Size(thickness), [&](ImDrawList& list) {
-				list.AddRect(Native(min), Native(max), Color(color), rounding, 0, thickness);
+				list.AddRect(Native(min), Native(max), Color(color), rounding, thickness);
 				return DMUI_RESULT_OK;
 			});
 		}
@@ -247,7 +247,7 @@ namespace DearModdingUI::UI
 			return Points(client, target, points, count, closed <= 1 && Size(thickness),
 				[&](ImDrawList& list, const auto& native) {
 					list.AddPolyline(native.data(), static_cast<int>(count), Color(color),
-						closed ? ImDrawFlags_Closed : 0, thickness);
+						thickness, closed ? ImDrawFlags_Closed : ImDrawFlags_None);
 				});
 		}
 		DMUI_Result DMUI_CALL DrawListAddPolygonFilled(DMUI_ClientHandle client, DMUI_DrawTarget target,

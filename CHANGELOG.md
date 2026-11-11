@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Game menu entries**: A DMUI row in the game's Settings menu (`bSettingsMenuEntry`) and optional pause and main menu rows (`sPauseMenuEntry` = `add`/`replace`/`off`, `bMainMenuEntry`, `iPauseMenuEntryPosition`, `iMainMenuEntryPosition`) open the menu.
 
 ### Changed
+- **Dear ImGui 1.93.0**: Lines drawn through the draw list are no longer shifted half a pixel, outlines stroke inside their rectangle, and fractional thicknesses render at their exact width, so host rules and client draw-list strokes are slightly thinner and sit on the coordinates given.
 - Mods, categories, pages, and actions named with translation keys get automatic icons from the key's English text.
 - **Icons are host-only**: The Phosphor icon vocabulary, its generator, and the resolver moved from the API headers into the host. `IconGlyphs.h` keeps the `PhosphorGlyph` constants and `IsRepresentableIconGlyph`; `IconResolver`, `ResolveIconSelection`, `ResolveAutomaticIconGlyph`, and the other lookup functions are no longer available to clients, which ask the host with `Client::ResolveIconGlyph`. The ABI is unchanged.
 - **Input source**: The menu toggle, hotkeys, mouse, wheel, and gamepad are read from the game's input queue, so they work from game-data-ready regardless of other window subclasses.

@@ -72,7 +72,7 @@ namespace DearModdingUI
 			color.w *= 0.65f + 0.25f * std::sin(static_cast<float>(ImGui::GetTime()) * 4.0f);
 			ImGui::GetWindowDrawList()->AddRect(
 				origin, ImGui::GetItemRectMax(), ImGui::GetColorU32(color),
-				ImGui::GetStyle().FrameRounding, 0, 1.5f);
+				ImGui::GetStyle().FrameRounding, 1.5f);
 		}
 		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) || ImGui::IsItemFocused())
 			ImGui::SetTooltip("%s%s%s%s%s%s%s",
@@ -295,9 +295,10 @@ namespace DearModdingUI
 			const auto draw = [&](const HorizontalRuleSegment& a_segment) {
 				if (a_segment.maxX <= a_segment.minX)
 					return;
-				ImGui::GetWindowDrawList()->AddLine(
-					{ a_segment.minX, a_y },
-					{ a_segment.maxX, a_y },
+				ImGui::GetWindowDrawList()->AddLineH(
+					a_segment.minX,
+					a_segment.maxX,
+					a_y,
 					packed,
 					thickness > 0.0f ? thickness : 1.0f);
 			};

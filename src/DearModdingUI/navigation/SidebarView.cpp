@@ -214,9 +214,10 @@ namespace DearModdingUI
 			{
 				auto color = style.Colors[ImGuiCol_Border];
 				color.w *= Theme::kFeatureHeadingDefaults.minimizedFactor;
-				ImGui::GetWindowDrawList()->AddLine(
-					{ start.x + style.FramePadding.x, start.y },
-					{ start.x + style.FramePadding.x, bottom },
+				ImGui::GetWindowDrawList()->AddLineV(
+					start.x + style.FramePadding.x,
+					start.y,
+					bottom,
 					ImGui::GetColorU32(color),
 					thickness);
 			}

@@ -35,8 +35,8 @@
 #error "DearModdingUI requires Dear ImGui docking support"
 #endif
 
-static_assert(IMGUI_VERSION_NUM == 19291);
-static_assert(std::string_view{ IMGUI_VERSION } == "1.92.9b");
+static_assert(IMGUI_VERSION_NUM == 19300);
+static_assert(std::string_view{ IMGUI_VERSION } == "1.93.0");
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandlerEx(
 	HWND hWnd,

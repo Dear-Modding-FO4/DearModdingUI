@@ -387,8 +387,7 @@ namespace vmm_tests
 				const auto hidden = SettingsTable::Begin(owner, "hidden-row");
 				require(hidden.result == DMUI_RESULT_OK && hidden.visible,
 					"settings table did not begin");
-				ImGui::GetCurrentTable()->TempData->ReconcileColumnsRequests[1].Flags |=
-					ImGuiTableColumnFlags_Disabled;
+				ImGui::GetCurrentTable()->Columns[1].Flags |= ImGuiTableColumnFlags_Disabled;
 				const auto invisibleRow = SettingsTable::BeginRow(
 					owner, "row", "Setting", nullptr);
 				require(invisibleRow.result == DMUI_RESULT_OK && !invisibleRow.visible,

@@ -220,7 +220,7 @@ namespace DearModdingUI::PresentationServices
 				background.w = (std::max)(background.w, 0.96f);
 				draw->AddRectFilled(minimum, maximum, ImGui::GetColorU32(background), style.WindowRounding);
 				draw->AddRect(minimum, maximum, ImGui::GetColorU32(ImGuiCol_Border), style.WindowRounding,
-					0, style.WindowBorderSize);
+					style.WindowBorderSize);
 				const auto accent = ImGui::GetColorU32(SeverityColor(toast.severity));
 				draw->AddRectFilled({ minimum.x, minimum.y + padding },
 					{ minimum.x + fontSize * 0.18f, maximum.y - padding }, accent, fontSize * 0.09f);
