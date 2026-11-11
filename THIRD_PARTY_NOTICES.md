@@ -33,6 +33,6 @@ The DearModdingUI shell, theme, font roles, cursor behavior, and blur were porte
 
 ## Fonts
 
-Jost and Atkinson Hyperlegible are distributed under the SIL Open Font License 1.1. Their license texts are retained beside the font files as `OFL.txt`; Atkinson Hyperlegible also includes an `UPSTREAM.md` provenance record.
+Jost, Atkinson Hyperlegible, and JetBrains Mono are distributed under the SIL Open Font License 1.1. Their license texts are retained beside the font files as `OFL.txt`; Atkinson Hyperlegible and JetBrains Mono also include an `UPSTREAM.md` provenance record.
 
 The Phosphor icon font is distributed under the MIT License. Its license and pinned upstream provenance are retained beside the font as `LICENSE` and `UPSTREAM.md`.

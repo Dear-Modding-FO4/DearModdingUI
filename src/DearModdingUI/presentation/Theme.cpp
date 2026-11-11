@@ -321,6 +321,10 @@ namespace DearModdingUI::Theme
 				g_effectiveBodyFontFamily = "Built-in fallback";
 				outcome.emergencyFontUsed = body.font != nullptr;
 			}
+			// A missing monospace face keeps a fixed pitch through the built-in font.
+			auto& monospace = Role(FontRole::kMonospace);
+			if (!monospace.font)
+				monospace.font = loadFile({});
 			for (auto& role : g_roles)
 			{
 				if (!role.font)

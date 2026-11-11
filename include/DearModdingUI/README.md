@@ -99,7 +99,8 @@ Body-font families are enumerated from subfolders of
 `Data\F4SE\Plugins\DearModdingUI\Fonts`; the selected regular face is rebuilt only between frames.
 Atkinson Hyperlegible and Jost ship with the host, and users can add another family without changing
 code. A missing or failed family falls back to Jost, while a missing icon font falls back to text-only
-labels without disabling the menu or the C ABI host.
+labels without disabling the menu or the C ABI host. The monospace role uses the bundled JetBrains Mono
+and falls back to the built-in vector font when that face is missing.
 Stable category IDs are used for expansion identity, so equal labels with different
 IDs remain distinct. The resolver indexes the complete shipped Phosphor names,
 accepted upstream aliases, descriptive tags, and a small reviewed domain
