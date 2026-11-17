@@ -48,8 +48,6 @@ jobs:
             }
           }
           "version=$version" >> $env:GITHUB_OUTPUT
-      - name: Add MSVC to PATH
-        uses: ilammy/msvc-dev-cmd@v1
       - name: Set up xmake
         uses: xmake-io/github-action-setup-xmake@v1
         with:
@@ -127,7 +125,12 @@ jobs:
       - name: Check plugin exports
         shell: pwsh
         run: |
-          $exports = (dumpbin /exports ".Build/release/F4SE/Plugins/DearModdingUI.dll") -join "`n"
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $dumpbin = & $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe' | Select-Object -First 1
+          if (-not $dumpbin) { throw 'dumpbin was not found.' }
+          $exports = (& $dumpbin /exports ".Build/release/F4SE/Plugins/DearModdingUI.dll") -join "`n"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           foreach ($symbol in @('DMUI_GetAPI','F4SEPlugin_Load','F4SEPlugin_Query','F4SEPlugin_Version')) {
             if ($exports -notmatch [regex]::Escape($symbol)) { throw "Missing $symbol" }
