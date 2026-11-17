@@ -95,9 +95,19 @@ namespace DearModdingUI::PlatformImGuiDetail
 		IDXGISwapChain* a_swapChain) noexcept;
 	void PollRendererReconciliation() noexcept;
 	void RequestRendererReconciliation() noexcept;
+	enum class RetirementCause : uint32_t
+	{
+		kReplaced,
+		kPresentFailed,
+		kResizeFailed
+	};
+
+	// a_result is the failing call's HRESULT; unused for a replacement.
 	void RetireActiveAttachmentLocked(
 		IDXGISwapChain* a_swapChain,
-		HWND a_window) noexcept;
+		HWND a_window,
+		RetirementCause a_cause,
+		HRESULT a_result = S_OK) noexcept;
 	void SetRendererReadyLocked() noexcept;
 
 	void DrawFrameLocked(IDXGISwapChain* a_swapChain) noexcept;

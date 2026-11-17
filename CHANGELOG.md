@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The log names why the host let go of the game's renderer, including the error code `Present` or `ResizeBuffers` returned.
+
 ## [0.2.3] - 2026-11-16
 
 ### Added

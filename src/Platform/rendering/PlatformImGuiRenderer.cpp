@@ -442,7 +442,7 @@ namespace DearModdingUI::PlatformImGuiDetail
 			}
 
 			if (decision == AttachmentDecision::kReplace)
-				RetireActiveAttachmentLocked(nullptr, nullptr);
+				RetireActiveAttachmentLocked(nullptr, nullptr, RetirementCause::kReplaced);
 
 			context.attachment = std::move(a_snapshot.attachment);
 			context.reconciledProbe = a_snapshot.probe;
@@ -654,7 +654,8 @@ namespace DearModdingUI::PlatformImGuiDetail
 						if (observe)
 							LogExecutionTransition(execution->NoteBinding(context.attachmentGeneration));
 						if (IsDefinitiveSwapChainLoss(static_cast<uint32_t>(result)))
-							RetireActiveAttachmentLocked(a_swapChain, nullptr);
+							RetireActiveAttachmentLocked(
+								a_swapChain, nullptr, RetirementCause::kPresentFailed, result);
 					}
 				}
 				if (observe)
@@ -704,7 +705,9 @@ namespace DearModdingUI::PlatformImGuiDetail
 					const ContextLock lock;
 					RetireActiveAttachmentLocked(
 						a_swapChain,
-						nullptr);
+						nullptr,
+						RetirementCause::kResizeFailed,
+						result);
 				}
 				return result;
 			}
@@ -742,7 +745,9 @@ namespace DearModdingUI::PlatformImGuiDetail
 
 	void RetireActiveAttachmentLocked(
 		IDXGISwapChain* a_swapChain,
-		HWND a_window) noexcept
+		HWND a_window,
+		RetirementCause a_cause,
+		HRESULT a_result) noexcept
 	{
 		auto& context = Context();
 		if ((a_swapChain &&
@@ -750,6 +755,25 @@ namespace DearModdingUI::PlatformImGuiDetail
 			(a_window &&
 				context.attachment.window != a_window))
 			return;
+
+		// Retirement closes the menu, so the log must name what forced it.
+		auto* const retired = static_cast<void*>(context.attachment.swapChain.Get());
+		if (a_cause == RetirementCause::kReplaced)
+		{
+			REX::INFO(
+				"Platform Imgui: renderer attachment retired: a different binding replaces swapchain {} (binding {})"sv,
+				retired,
+				context.attachmentGeneration);
+		}
+		else
+		{
+			REX::WARN(
+				"Platform Imgui: renderer attachment retired: {} returned 0x{:08X} on swapchain {} (binding {})"sv,
+				a_cause == RetirementCause::kPresentFailed ? "Present"sv : "ResizeBuffers"sv,
+				static_cast<uint32_t>(a_result),
+				retired,
+				context.attachmentGeneration);
+		}
 
 		CloseModalStateLocked(
 			DearModdingUI::HostMenu::Event::kRetarget);
