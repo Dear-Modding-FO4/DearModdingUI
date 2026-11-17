@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-16
+
 ### Added
 - **Monospace font**: The monospace role uses the bundled JetBrains Mono. The built-in vector font is the fallback when the face is missing.
 - **Toggle hint**: The first launch shows a toast naming the menu key and the game Settings row; `bToggleHintShown` records that it was shown.
@@ -26,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Non-English games no longer get stuck in English when a mod asks for translated text while it loads.
 - Escape closes only DMUI when it was opened from the Settings, pause, or main menu, instead of also closing the game menu underneath.
+- Unlabeled full-span rows leave their width to the client, and Reset stays on the first line of a tall row.
 
 ## [0.2.2] - 2026-11-01
 
@@ -164,7 +167,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional `DearModdingUI-MCM` bridge translating legacy MCM JSON configurations.
 - In-game diagnostic test client and standalone desktop UI preview (`dmui-preview`).
 
-[Unreleased]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Dear-Modding-FO4/DearModdingUI/compare/v0.1.3...v0.2.0
