@@ -3,7 +3,6 @@
 #include <DearModdingUI/host/Hotkeys.h>
 #include <Platform/menus/HostMenu.h>
 #include <Platform/rendering/PlatformImGui.h>
-#include <Platform/rendering/FrameSubmission.h>
 
 #include <Windows.h>
 #include <d3d11.h>
@@ -11,9 +10,7 @@
 #include <wrl/client.h>
 
 #include <atomic>
-#include <cstddef>
 #include <cstdint>
-#include <string_view>
 
 #undef ERROR
 
@@ -28,55 +25,33 @@ namespace DearModdingUI::PlatformImGuiDetail
 		kFailed
 	};
 
-	struct Attachment
+	// The engine's device, context and window; captured once, kept for the process.
+	struct RenderDevice
 	{
-		Microsoft::WRL::ComPtr<IDXGISwapChain> swapChain;
 		Microsoft::WRL::ComPtr<ID3D11Device> device;
 		Microsoft::WRL::ComPtr<ID3D11DeviceContext> context;
 		Microsoft::WRL::ComPtr<IDXGIAdapter3> videoMemoryAdapter;
-		HWND window{ nullptr };
-
-		[[nodiscard]] PlatformImGui::AttachmentIdentity Identity() const noexcept
-		{
-			return {
-				reinterpret_cast<uintptr_t>(swapChain.Get()),
-				reinterpret_cast<uintptr_t>(device.Get()),
-				reinterpret_cast<uintptr_t>(context.Get()),
-				reinterpret_cast<uintptr_t>(window)
-			};
-		}
 	};
 
-	// ContextLock owns attachment mutation. installState release-publishes the
-	// immutable callback bundle to the render and window threads.
+	// ContextLock guards mutation; initialized publishes the callbacks.
 	struct PlatformContext
 	{
-		Attachment attachment;
-		uint64_t attachmentGeneration{ 1 };
-		PlatformImGui::AttachmentLifecycle attachmentLifecycle{
-			PlatformImGui::AttachmentLifecycle::kVacant
-		};
-		PlatformImGui::AttachmentSource attachmentSource{
-			PlatformImGui::AttachmentSource::kRenderer
-		};
-		PlatformImGui::RendererProbe reconciledProbe{};
+		RenderDevice render;
 		PlatformImGui::Callbacks callbacks{};
-		std::atomic<PlatformImGui::InstallState> installState{
-			PlatformImGui::InstallState::kNotAttempted
-		};
-		std::atomic<IDXGISwapChain*> activeSwapChain{ nullptr };
-		std::atomic<HWND> activeWindow{ nullptr };
+		std::atomic<bool> initialized{ false };
+		std::atomic<bool> uiPassObserved{ false };
+		// Its exit ends every kGameDataReady and kGameLoaded handler.
+		std::atomic<HANDLE> gameDataThread{ nullptr };
+		std::atomic<HWND> window{ nullptr };
 		std::atomic<bool> drawingEnabled{ false };
-		std::atomic<bool> gameLoaded{ false };
-		// Toggles polled off the UI thread, applied by the frame thread.
+		// Toggles polled off the UI thread, applied by the next UI pass.
 		std::atomic<uint32_t> pendingToggles{ 0 };
 		std::atomic<Backend> backend{ Backend::kUninitialized };
-		PlatformImGui::FrameSubmission frameSubmission;
 	};
 
 	[[nodiscard]] PlatformContext& Context() noexcept;
 
-	// Lock order is renderer data lock -> ContextLock; Locked functions require it.
+	// Locked functions require it.
 	class ContextLock
 	{
 	public:
@@ -89,37 +64,12 @@ namespace DearModdingUI::PlatformImGuiDetail
 		ContextLock& operator=(ContextLock&&) = delete;
 	};
 
-	[[nodiscard]] bool InstallRendererReconciliation() noexcept;
-	[[nodiscard]] bool InitializeRendererReconciliation() noexcept;
-	[[nodiscard]] PlatformImGui::AttachmentResult AttachExplicitSwapChain(
-		IDXGISwapChain* a_swapChain) noexcept;
-	void PollRendererReconciliation() noexcept;
-	void RequestRendererReconciliation() noexcept;
-	enum class RetirementCause : uint32_t
-	{
-		kReplaced,
-		kPresentFailed,
-		kResizeFailed
-	};
-
-	// a_result is the failing call's HRESULT; unused for a replacement.
-	void RetireActiveAttachmentLocked(
-		IDXGISwapChain* a_swapChain,
-		HWND a_window,
-		RetirementCause a_cause,
-		HRESULT a_result = S_OK) noexcept;
-	void SetRendererReadyLocked() noexcept;
-
-	void DrawFrameLocked(IDXGISwapChain* a_swapChain) noexcept;
-	// The pointer in backbuffer space, from the native cursor when it is bound.
+	void InitializeRendererHealth() noexcept;
+	void DrawUiPassLocked() noexcept;
+	[[nodiscard]] bool QueryVideoMemoryLocked(uint64_t& a_used, uint64_t& a_budget) noexcept;
+	// The pointer in frame-target space, from the native cursor when it is bound.
 	[[nodiscard]] PlatformImGui::MousePosition SamplePointerLocked() noexcept;
 	[[nodiscard]] bool InstallGameCursorHook() noexcept;
-	void DrawBeforeGameCursorLocked(PlatformImGui::MousePosition a_position) noexcept;
-	void NoteGameCursorUnavailableLocked(std::string_view a_reason) noexcept;
-	void ResetGameCursorWaitLocked() noexcept;
-	void ReleaseBackBufferLocked() noexcept;
-	void ResetBackBufferFailureLocked() noexcept;
-	void ShutdownBackendLocked() noexcept;
 
 	void RefreshInputLanguageLocked(HWND a_window, ImGuiIO& a_io) noexcept;
 

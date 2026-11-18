@@ -251,7 +251,7 @@ $DMUI_Settings_HostFacts	Host facts (read-only)
 $DMUI_Settings_HostFactsHelp	Values resolved by the DearModdingUI host.
 $DMUI_Settings_PixelSize	{} px
 $DMUI_Settings_ResolvedTypographySize	Resolved typography size
-$DMUI_Settings_ResolvedTypographySizeHelp	Derived from the backbuffer height and the applied UI scale at a frame boundary.
+$DMUI_Settings_ResolvedTypographySizeHelp	Derived from the UI target height and the applied UI scale at a frame boundary.
 $DMUI_Settings_EffectiveUiScale	Effective UI scale
 $DMUI_Settings_EffectiveUiScaleHelp	Derived from resolution and [Additional] fMenuUiScale.
 $DMUI_Typography_NoAtlas	No usable font atlas could be prepared. Verify the bundled font files and restart.
@@ -279,18 +279,8 @@ $DMUI_Input_InterceptionFailed	{} interception failed.
 $DMUI_Input_InterceptionUnavailable	Required game-input interception is unavailable.
 $DMUI_Input_TapReady	Message tap installed on UI thread {}.
 $DMUI_Input_TapFailed	The window thread message tap is unavailable; typed text and cursor ownership will not work.
-$DMUI_Renderer_DataMissing	Renderer data is null.
-$DMUI_Renderer_NotInitialized	Renderer data is not initialized.
-$DMUI_Renderer_WindowObjectMissing	The current renderer window is null.
-$DMUI_Renderer_SwapChainMissing	The current renderer window has no swapchain.
-$DMUI_Renderer_DeviceMissing	Renderer data has no D3D11 device.
-$DMUI_Renderer_ContextMissing	Renderer data has no D3D11 device context.
-$DMUI_Renderer_WindowHandleMissing	The current renderer window has no HWND.
-$DMUI_Renderer_BindingChanged	The renderer binding changed while it was captured.
-$DMUI_Renderer_InvalidBinding	The attachment candidate is invalid.
-$DMUI_Renderer_HookInstallationFailed	The renderer binding was valid but swapchain hooks could not be installed.
-$DMUI_Renderer_BindingValid	The renderer binding is valid.
-$DMUI_Renderer_WaitingForPresent	The renderer binding is valid but Present has not been observed.
+$DMUI_Renderer_BackendFailed	Dear ImGui could not be initialized on the game's renderer.
+$DMUI_Renderer_WaitingForGameData	Waiting for the game to finish loading its data.
 $DMUI_Config_CorrectionWrongType	{} had the wrong value type and used its default
 $DMUI_Config_CorrectionReplaced	{} {} used {}
 $DMUI_Config_BindingIgnored	{}.{} was ignored because it was not text

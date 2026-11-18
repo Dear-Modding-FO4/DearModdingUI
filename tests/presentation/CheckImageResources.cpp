@@ -28,7 +28,6 @@ namespace vmm_tests
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameDraw
 			};
-			(void)execution.NoteBinding(1);
 			PresentationServices::SetDevice(resources.device.Get());
 			PresentationServices::BeginFrame();
 
@@ -151,7 +150,6 @@ namespace vmm_tests
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameObservation
 			};
-			(void)execution.NoteBinding(1);
 			PresentationServices::SetDevice(resources.device.Get());
 			const std::array<uint8_t, 8> pixels{
 				10, 20, 30, 40, 50, 60, 70, 80
@@ -291,7 +289,6 @@ namespace vmm_tests
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameObservation
 			};
-			(void)execution.NoteBinding(1);
 			PresentationServices::SetDevice(resources.device.Get());
 			struct UnsupportedFormat
 			{
@@ -393,7 +390,6 @@ namespace vmm_tests
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameDraw
 			};
-			(void)execution.NoteBinding(1);
 			PresentationServices::SetDevice(resources.device.Get());
 			PresentationServices::BeginFrame();
 			const DMUI_D3D11ImageDescriptor descriptor{

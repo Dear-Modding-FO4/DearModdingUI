@@ -251,7 +251,7 @@ $DMUI_Settings_HostFacts	Host-Informationen (schreibgeschützt)
 $DMUI_Settings_HostFactsHelp	Vom DearModdingUI-Host aufgelöste Werte.
 $DMUI_Settings_PixelSize	{} px
 $DMUI_Settings_ResolvedTypographySize	Aufgelöste Typografiegröße
-$DMUI_Settings_ResolvedTypographySizeHelp	Abgeleitet aus der Backbuffer-Höhe und der angewendeten UI-Skalierung an einer Frame-Grenze.
+$DMUI_Settings_ResolvedTypographySizeHelp	Abgeleitet aus der Höhe des UI-Ziels und der angewendeten UI-Skalierung an einer Frame-Grenze.
 $DMUI_Settings_EffectiveUiScale	Effektive UI-Skalierung
 $DMUI_Settings_EffectiveUiScaleHelp	Abgeleitet aus Auflösung und [Additional] fMenuUiScale.
 $DMUI_Typography_NoAtlas	Es konnte kein verwendbarer Schriftatlas vorbereitet werden. Prüfen Sie die mitgelieferten Schriftdateien und starten Sie neu.
@@ -279,18 +279,8 @@ $DMUI_Input_InterceptionFailed	Das Abfangen von {} ist fehlgeschlagen.
 $DMUI_Input_InterceptionUnavailable	Das erforderliche Abfangen der Spieleingaben ist nicht verfügbar.
 $DMUI_Input_TapReady	Nachrichten-Tap auf dem UI-Thread {} installiert.
 $DMUI_Input_TapFailed	Der Nachrichten-Tap des Fensterthreads ist nicht verfügbar; Texteingabe und Cursorübernahme funktionieren nicht.
-$DMUI_Renderer_DataMissing	Die Renderer-Daten sind null.
-$DMUI_Renderer_NotInitialized	Die Renderer-Daten sind nicht initialisiert.
-$DMUI_Renderer_WindowObjectMissing	Das aktuelle Renderer-Fenster ist null.
-$DMUI_Renderer_SwapChainMissing	Das aktuelle Renderer-Fenster hat keine Swapchain.
-$DMUI_Renderer_DeviceMissing	Die Renderer-Daten enthalten kein D3D11-Gerät.
-$DMUI_Renderer_ContextMissing	Die Renderer-Daten enthalten keinen D3D11-Gerätekontext.
-$DMUI_Renderer_WindowHandleMissing	Das aktuelle Renderer-Fenster hat kein HWND.
-$DMUI_Renderer_BindingChanged	Die Renderer-Bindung hat sich während der Erfassung geändert.
-$DMUI_Renderer_InvalidBinding	Der Kandidat für die Anbindung ist ungültig.
-$DMUI_Renderer_HookInstallationFailed	Die Renderer-Bindung war gültig, aber die Swapchain-Hooks konnten nicht installiert werden.
-$DMUI_Renderer_BindingValid	Die Renderer-Bindung ist gültig.
-$DMUI_Renderer_WaitingForPresent	Die Renderer-Bindung ist gültig, aber Present wurde noch nicht beobachtet.
+$DMUI_Renderer_BackendFailed	Dear ImGui konnte auf dem Renderer des Spiels nicht initialisiert werden.
+$DMUI_Renderer_WaitingForGameData	Warte, bis das Spiel seine Daten fertig geladen hat.
 $DMUI_Config_CorrectionWrongType	{}: falscher Werttyp, Standardwert verwendet
 $DMUI_Config_CorrectionReplaced	{} {} wurde durch {} ersetzt
 $DMUI_Config_BindingIgnored	{}.{} wurde ignoriert, da es kein Text war

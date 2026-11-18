@@ -8,9 +8,7 @@ namespace DearModdingUI::HostMenu
 	{
 		kOpen,
 		kClose,
-		kShutdown,
 		kBackendFailure,
-		kRetarget,
 		kGameTransition
 	};
 
@@ -38,6 +36,5 @@ namespace DearModdingUI::HostMenu
 	}
 
 	[[nodiscard]] bool Register() noexcept;
-	[[nodiscard]] bool IsOpen() noexcept;
 	void Handle(Event a_event) noexcept;
 }

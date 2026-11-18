@@ -1,12 +1,14 @@
+// CommonLib declarations must precede the Windows SDK macros.
+#include <RE/C/CursorMenu.h>
+#include <RE/U/UI.h>
+
 #include "PlatformImGuiInternal.h"
 
 #include <DearModdingUI/host/Host.h>
+#include <DearModdingUI/host/RenderExecution.h>
 #include <Support/ProcessLifetime.h>
-#include <Support/Runtime.h>
 
 #include <REX/REX.h>
-
-#include <memory>
 
 namespace DearModdingUI
 {
@@ -51,63 +53,86 @@ namespace DearModdingUI
 		}
 	}
 
-	bool PlatformImGui::InstallHooks(Callbacks a_callbacks) noexcept
+	bool PlatformImGui::Initialize(Callbacks a_callbacks) noexcept
 	{
 		using namespace PlatformImGuiDetail;
 		auto& context = Context();
-		auto expected = PlatformImGui::InstallState::kNotAttempted;
-		if (!context.installState.compare_exchange_strong(
-				expected,
-				PlatformImGui::InstallState::kAttempted,
-				std::memory_order_acq_rel))
-			return PlatformImGui::IsInstalled(expected);
-
+		if (context.initialized.load(std::memory_order_acquire))
+			return true;
 		if (!a_callbacks.Valid())
 		{
-			context.installState.store(
-				PlatformImGui::InstallState::kRejected,
-				std::memory_order_release);
-			REX::ERROR(
-				"[dmui.render.reconciliation] Platform Imgui: required callback bundle is incomplete"sv);
+			REX::ERROR("Platform Imgui: required callback bundle is incomplete"sv);
 			DearModdingUI::FailBackendInitialization();
 			return false;
 		}
-
-		context.callbacks = a_callbacks;
-		if (!InstallGameCursorHook() || !InstallRendererReconciliation())
+		if (!InstallGameCursorHook())
 		{
-			context.installState.store(
-				PlatformImGui::InstallState::kRejected,
-				std::memory_order_release);
 			DearModdingUI::FailBackendInitialization();
 			return false;
 		}
-
-		context.installState.store(
-			PlatformImGui::InstallState::kInstalled,
-			std::memory_order_release);
-		REX::INFO(
-			"[dmui.render.reconciliation] Platform Imgui: renderer reconciliation installed"sv);
+		context.callbacks = a_callbacks;
+		InitializeRendererHealth();
+		context.initialized.store(true, std::memory_order_release);
 		return true;
 	}
 
-	bool PlatformImGui::InitializeWindow() noexcept
+	namespace
 	{
-		using namespace PlatformImGuiDetail;
-		if (!PlatformImGui::IsInstalled(
-				Context().installState.load(std::memory_order_acquire)))
+		// The engine itself checks menu state this way inside the same pass.
+		[[nodiscard]] bool GameCursorOpen() noexcept
 		{
-			REX::ERROR(
-				"[dmui.render.reconciliation] Platform Imgui: renderer reconciliation was not installed"sv);
-			return false;
+			auto* ui = RE::UI::GetSingleton();
+			static const RE::BSFixedString cursorMenu{ RE::CursorMenu::MENU_NAME };
+			return ui && ui->GetMenuOpen(cursorMenu);
 		}
-		return InitializeRendererReconciliation();
 	}
 
-	PlatformImGui::AttachmentResult PlatformImGui::AttachSwapChain(
-		IDXGISwapChain* a_swapChain) noexcept
+	void PlatformImGui::DrawUiPass(UiPassSite a_site) noexcept
 	{
-		return PlatformImGuiDetail::AttachExplicitSwapChain(a_swapChain);
+		using namespace PlatformImGuiDetail;
+		auto& context = Context();
+		if (!context.initialized.load(std::memory_order_acquire))
+			return;
+		// The frame menu is asked before the cursor, so one site draws.
+		if (a_site == UiPassSite::kFrameMenu && GameCursorOpen())
+			return;
+		if (!context.uiPassObserved.exchange(true, std::memory_order_acq_rel))
+			REX::INFO("Platform Imgui: the game's UI pass reached the host on thread {}"sv, GetCurrentThreadId());
+
+		// Toggle callbacks take the context lock themselves.
+		DrainQueuedToggles();
+		{
+			const DearModdingUI::RenderExecution::Guard execution{
+				DearModdingUI::RenderExecution::Phase::kFrameObservation
+			};
+			DearModdingUI::ObserveFrame();
+		}
+		const DearModdingUI::RenderExecution::Guard execution{
+			DearModdingUI::RenderExecution::Phase::kFrameDraw
+		};
+		const ContextLock lock;
+		DrawUiPassLocked();
+	}
+
+	void PlatformImGui::HandleFrameMenuClosed() noexcept
+	{
+		using namespace PlatformImGuiDetail;
+		const ContextLock lock;
+		CloseModalStateLocked(DearModdingUI::HostMenu::Event::kClose);
+	}
+
+	void PlatformImGui::NoteGameDataThread() noexcept
+	{
+		using namespace PlatformImGuiDetail;
+		auto* const thread = OpenThread(SYNCHRONIZE, FALSE, GetCurrentThreadId());
+		if (!thread)
+		{
+			REX::ERROR("Platform Imgui: the game-data thread could not be opened (Windows error {})"sv, GetLastError());
+			return;
+		}
+		HANDLE expected{ nullptr };
+		if (!Context().gameDataThread.compare_exchange_strong(expected, thread, std::memory_order_acq_rel))
+			CloseHandle(thread);
 	}
 
 	void PlatformImGui::SetDrawingEnabled(bool a_enabled) noexcept
@@ -131,9 +156,7 @@ namespace DearModdingUI
 		auto& context = Context();
 		const auto backend = context.backend.load(std::memory_order_acquire);
 		return PlatformImGui::ClassifyReadiness(
-			PlatformImGui::IsInstalled(
-				context.installState.load(std::memory_order_acquire)) &&
-				context.activeSwapChain.load(std::memory_order_acquire) != nullptr,
+			context.uiPassObserved.load(std::memory_order_acquire),
 			backend == Backend::kReady,
 			backend == Backend::kFailed);
 	}
@@ -149,18 +172,6 @@ namespace DearModdingUI
 	{
 		using namespace PlatformImGuiDetail;
 		const ContextLock lock;
-		const auto& adapter = Context().attachment.videoMemoryAdapter;
-		if (!adapter)
-			return false;
-
-		DXGI_QUERY_VIDEO_MEMORY_INFO info{};
-		if (FAILED(adapter->QueryVideoMemoryInfo(
-				0,
-				DXGI_MEMORY_SEGMENT_GROUP_LOCAL,
-				std::addressof(info))))
-			return false;
-		a_used = info.CurrentUsage;
-		a_budget = info.Budget;
-		return true;
+		return QueryVideoMemoryLocked(a_used, a_budget);
 	}
 }

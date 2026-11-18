@@ -100,7 +100,7 @@ namespace DearModdingUI::PlatformImGuiDetail
 		for (size_t index = 0; index < count; ++index)
 		{
 			if (events[index].languageChanged)
-				RefreshInputLanguageLocked(Context().activeWindow.load(std::memory_order_acquire), io);
+				RefreshInputLanguageLocked(Context().window.load(std::memory_order_acquire), io);
 			else
 				io.AddInputCharacterUTF16(events[index].unit);
 		}

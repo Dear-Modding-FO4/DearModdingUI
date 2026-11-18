@@ -251,7 +251,7 @@ $DMUI_Settings_HostFacts	Informations de l'hôte (lecture seule)
 $DMUI_Settings_HostFactsHelp	Valeurs résolues par l'hôte DearModdingUI.
 $DMUI_Settings_PixelSize	{} px
 $DMUI_Settings_ResolvedTypographySize	Taille de typographie résolue
-$DMUI_Settings_ResolvedTypographySizeHelp	Dérivée de la hauteur du backbuffer et de l'échelle d'interface appliquée à une limite d'image.
+$DMUI_Settings_ResolvedTypographySizeHelp	Dérivée de la hauteur de la cible d'interface et de l'échelle d'interface appliquée à une limite d'image.
 $DMUI_Settings_EffectiveUiScale	Échelle d'interface effective
 $DMUI_Settings_EffectiveUiScaleHelp	Dérivée de la résolution et de [Additional] fMenuUiScale.
 $DMUI_Typography_NoAtlas	Aucun atlas de polices utilisable n'a pu être préparé. Vérifiez les fichiers de polices fournis et redémarrez.
@@ -279,18 +279,8 @@ $DMUI_Input_InterceptionFailed	L'interception de {} a échoué.
 $DMUI_Input_InterceptionUnavailable	L'interception requise des entrées du jeu est indisponible.
 $DMUI_Input_TapReady	Intercepteur de messages installé sur le thread d'interface {}.
 $DMUI_Input_TapFailed	L'intercepteur de messages du thread de la fenêtre est indisponible ; la saisie de texte et la prise en charge du curseur ne fonctionneront pas.
-$DMUI_Renderer_DataMissing	Les données du moteur de rendu sont nulles.
-$DMUI_Renderer_NotInitialized	Les données du moteur de rendu ne sont pas initialisées.
-$DMUI_Renderer_WindowObjectMissing	La fenêtre de rendu actuelle est nulle.
-$DMUI_Renderer_SwapChainMissing	La fenêtre de rendu actuelle n'a pas de swapchain.
-$DMUI_Renderer_DeviceMissing	Les données du moteur de rendu n'ont pas de périphérique D3D11.
-$DMUI_Renderer_ContextMissing	Les données du moteur de rendu n'ont pas de contexte de périphérique D3D11.
-$DMUI_Renderer_WindowHandleMissing	La fenêtre de rendu actuelle n'a pas de HWND.
-$DMUI_Renderer_BindingChanged	La liaison du moteur de rendu a changé pendant sa capture.
-$DMUI_Renderer_InvalidBinding	Le candidat à l'attachement n'est pas valide.
-$DMUI_Renderer_HookInstallationFailed	La liaison du moteur de rendu était valide, mais les hooks de la swapchain n'ont pas pu être installés.
-$DMUI_Renderer_BindingValid	La liaison du moteur de rendu est valide.
-$DMUI_Renderer_WaitingForPresent	La liaison du moteur de rendu est valide, mais Present n'a pas encore été observé.
+$DMUI_Renderer_BackendFailed	Dear ImGui n'a pas pu être initialisé sur le moteur de rendu du jeu.
+$DMUI_Renderer_WaitingForGameData	En attente de la fin du chargement des données du jeu.
 $DMUI_Config_CorrectionWrongType	{} : type de valeur incorrect, valeur par défaut utilisée
 $DMUI_Config_CorrectionReplaced	{} {} remplacé par {}
 $DMUI_Config_BindingIgnored	{}.{} a été ignoré car ce n'était pas du texte

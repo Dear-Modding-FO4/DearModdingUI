@@ -8,7 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- The log names why the host let go of the game's renderer, including the error code `Present` or `ResizeBuffers` returned.
+- **Drawing follows the game's UI pass**: upscalers, frame generation, ReShade, and ENB can no longer detach DMUI, and the game cursor draws on top.
+- Clients can register during `kGameLoaded` even when another plugin displaces F4SE's hook.
+- Frame observers and queued hotkey callbacks run once per UI pass, before the host draws, instead of after `Present`.
+- `attachSwapChain` succeeds without doing anything; the host needs no swapchain.
+- Overlays appear in game screenshots, like the game's own UI.
+
+### Fixed
+- The menu no longer closes in a loop when the swapchain's `Present` reports device loss.
+- The menu no longer closes itself when the game cursor is not drawn for two seconds.
+- The first-launch hint is recorded as shown only once the host can draw it.
 
 ## [0.2.3] - 2026-11-16
 

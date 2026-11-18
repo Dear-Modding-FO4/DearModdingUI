@@ -26,8 +26,9 @@ renderer is ready: register at `kPostPostLoad` and wait for exactly one lifecycl
 All table operations are part of the ABI. Runtime availability is reported by
 operation results and lifecycle callbacks, not by table negotiation.
 
-Client, category, page, action, hotkey-action, frame-observer, and page-activity-observer registration closes when the first valid
-active-swapchain `Present` begins host initialization. Register them immediately after the client. All descriptor strings are copied;
+Client, category, page, action, hotkey-action, frame-observer, and page-activity-observer registration closes when host
+initialization begins on the first engine UI pass after the game-data thread has exited, which is after every
+`kGameDataReady` and `kGameLoaded` handler has returned. Register them immediately after the client. All descriptor strings are copied;
 callback and userdata pointers must remain valid for the process lifetime. IDs use ASCII letters,
 digits, `.`, `_`, and `-`. Client IDs are process-wide; page and action IDs are unique within their client.
 Categories are client-scoped first-class declarations with stable IDs, display names, and `sortKey`.
@@ -445,8 +446,9 @@ The registry matches all input sources. Bound keyboard presses, repeats, and mat
 swallowed synchronously; mouse/gamepad input is observed without changing the game's input queue.
 A chord fires on the last required press and releases when that triggering key is released.
 Client events are queued. Both press and release callbacks are dispatched FIFO in the serialized
-post-`Present` observer scope, so they cannot overlap page, action, or frame-observer callbacks even
-when the game migrates `Present` between OS threads. Repeats are coalesced, events survive stalled presentation,
+observer scope at the start of each engine UI pass, so they cannot overlap page, action, or frame-observer
+callbacks even when loading screens move the pass to another OS thread. Repeats are coalesced, events survive
+frames without a UI pass,
 and the 512-event queue reserves release capacity for every accepted press. Overflow drops and logs a
 whole press/release pair rather than leaving a client in a held state. The C++ wrapper exposes
 `AddHotkeyAction`, `QueryHotkeyBinding`, and `UnregisterHotkeyAction`.
@@ -454,9 +456,9 @@ whole press/release pair rather than leaving a client in a held state. The C++ w
 ## Frame observation and video memory
 
 The `registerFrameObserver` entry accepts a descriptor with a callback and user data. The host
-calls each observer in a non-drawing execution scope after every successful non-test active-swapchain
-`Present`, regardless of menu visibility. The active attachment is revalidated after `Present`, so a
-retired or rebound swapchain does not dispatch stale observers. The scope permits render services such
+calls each observer in a non-drawing execution scope once per engine UI pass, before the host draws,
+regardless of menu visibility. The pass runs whenever the game renders its interface, including the main
+menu and loading screens; blocking movie playback has none. The scope permits render services such
 as image import before any UI frame is demanded, while drawing services still require a page or action
 callback. Registration is permanent for the process lifetime. The host
 contains C++ and Windows structured exceptions, recovers shared ImGui state, and permanently disables a
@@ -474,7 +476,7 @@ has no unregister counterpart. The C++ wrapper stores callbacks in stable storag
 `AddPageActivityObserver`.
 
 The `queryVideoMemory` entry returns current local-segment usage and budget in bytes from the
-adapter retained from the active swapchain. A non-OK result means no authoritative information is
+adapter of the game's D3D11 device. A non-OK result means no authoritative information is
 available. The C++ wrapper returns `std::optional<dmui::VideoMemoryInfo>`.
 
 ## Shared status
@@ -507,13 +509,15 @@ reports could not be retained.
 api->setStatus(clientHandle, DMUI_STATUS_SEVERITY_SUCCESS, "Settings saved.");
 ```
 
-Focused modal drawing runs before Fallout 4's native cursor on the attached backbuffer.
-The host owns cursor/input handling; clients must not manage it themselves. Focus loss keeps the
-menu open but suspends input capture. Overlay-only drawing remains at `Present` without cursor or
-input capture. Initialization and frame observers retain their existing `Present` timing.
+The host draws in the engine's screen-space UI pass, from an invisible, always-open game menu, or from
+the game cursor's menu while the cursor is open. Either way it draws after the game's menus and before
+Fallout 4's cursor, into the render target the pass has bound. Page, action, overlay, observer, and lifecycle callbacks therefore run
+while the engine holds its menu-stack lock: open or close game menus through the UI message queue,
+never synchronously. The host owns cursor/input handling; clients must not manage it themselves.
+Focus loss keeps the menu open but suspends input capture. Overlay-only drawing has no cursor or
+input capture.
 
-The standalone host initializes on the first valid active-swapchain `Present` whenever any client was
-accepted. Clients can open the common menu by selecting one of their registered settings pages through
+Clients can open the common menu by selecting one of their registered settings pages through
 the host API. Menu toggles remain in `[Additional]`: `sMenuToggleKey` defaults to `End`;
 `sMenuToggleGamepad` defaults to `PadBack+PadLB+PadRB` and accepts `none`. Each reserves its exact
 chord against client hotkeys in the same slot.
@@ -527,31 +531,11 @@ while navigating.
 X uses the focused row's existing reset operation; Y opens search. Text entry needs a keyboard.
 Capture ignores buttons held before it opens; release a fresh chord to bind it, or use Esc/B to cancel.
 
-## Final swapchain handoff
+## Swapchain handoff
 
-A client that replaces the renderer's swapchain declares
-`DMUI_CLIENT_CAPABILITY_RENDERER_REPLACEMENT` when registering. After it publishes the final native
-swapchain, it calls `attachSwapChain(clientHandle, nativeSwapChain)`.
-On Windows/D3D11, `nativeSwapChain` is an `IDXGISwapChain*`; the public ABI keeps it
-opaque and exposes no D3D types.
-
-The host validates the client handle and capability, combines the override with the engine renderer's
-device, immediate context, and current window, installs its final `Present`/`ResizeBuffers` dispatch,
-and retains its own COM references. Attachment is allowed while waiting for the first `Present` and
-after the host is ready. A ready retarget keeps the shared ImGui context and safely reinitializes the
-platform/renderer backends. Missing engine renderer data, initialization, window,
-swapchain, device, or context returns `DMUI_RESULT_HOST_NOT_READY`. An attachment
-racing backend initialization or a change to the captured renderer binding returns
-`DMUI_RESULT_RENDERER_BUSY`. The client may retain its final swapchain and retry
-either transient result later; the host does not queue a rejected call.
-An invalid or unhookable native object returns
-`DMUI_RESULT_SWAPCHAIN_REJECTED`. Regular clients receive
-`DMUI_RESULT_CLIENT_CAPABILITY_REQUIRED`.
-
-The host reconciles against the engine's current renderer state throughout the session. An explicit
-override remains authoritative while its engine device, context, and window are current; a renderer
-generation change replaces it. Destruction of the active window or a definitive DXGI device loss
-retires the attachment, releases host-owned COM/resources, and requests immediate reconciliation.
+`attachSwapChain` remains in the ABI 2 table. The host needs no swapchain, so for a valid client handle and
+non-null pointer it does nothing and returns `DMUI_RESULT_OK`. `DMUI_CLIENT_CAPABILITY_RENDERER_REPLACEMENT`
+is still accepted at registration and has no effect.
 
 ## Stable UI and presentation services
 
@@ -559,7 +543,7 @@ retires the attachment, releases host-owned COM/resources, and requests immediat
 negotiates the ABI before registration and binds this table during page and action callbacks.
 Product versions and the host's internal Dear ImGui version are not compatibility gates.
 
-The API provides frame-demand and swapchain wrappers,
+The API provides frame-demand wrappers,
 contextual hotkey enablement, owner/generation-scoped D3D11 image resources,
 host-owned generic CPU-pixel images, opt-in managed overlay windows, copied
 toast notifications, annotated plots, and single-active
@@ -769,16 +753,5 @@ if (api->registerPage(clientHandle, &page, &pageHandle) != DMUI_RESULT_OK)
 	DMUI_ActionHandle actionHandle{};
 	if (api->registerAction(clientHandle, &action, &actionHandle) != DMUI_RESULT_OK)
 		ReportActionRegistrationFailure();
-}
-```
-
-A renderer-replacing client sets `client.capabilities` to
-`DMUI_CLIENT_CAPABILITY_RENDERER_REPLACEMENT`, stores the returned API table and client handle, then
-hands off its final published proxy:
-
-```cpp
-if (api->attachSwapChain(clientHandle, finalSwapChain) != DMUI_RESULT_OK)
-{
-	ReportHandoffFailure();
 }
 ```

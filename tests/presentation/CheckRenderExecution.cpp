@@ -17,7 +17,7 @@ namespace vmm_tests
 
 	void run_presentation_render_execution_checks(Runner& runner)
 	{
-		runner.test("active Present scopes migrate without rebinding the device", [] {
+		runner.test("render scopes migrate between threads without rebinding the device", [] {
 			auto resources = CreateImageResources();
 			std::mutex mutex;
 			std::condition_variable condition;
@@ -32,7 +32,6 @@ namespace vmm_tests
 					RenderExecution::Guard execution{
 						RenderExecution::Phase::kBackendInitialization
 					};
-					(void)execution.NoteBinding(41);
 					PresentationServices::SetDevice(resources.device.Get());
 					startupGeneration = PresentationServices::DeviceGeneration();
 				}
@@ -69,13 +68,12 @@ namespace vmm_tests
 				RenderExecution::Guard execution{
 					RenderExecution::Phase::kFrameObservation
 				};
-				(void)execution.NoteBinding(41);
 				{
 					const RenderExecution::ClientGuard observer{
 						42, false
 					};
 					require(RenderExecution::IsActiveClient(42, false),
-						"cold observer did not inherit active Present authorization");
+						"cold observer did not inherit active render authorization");
 					require(!RenderExecution::IsActiveClient(42, true),
 						"cold observer acquired drawing authorization");
 				}
@@ -148,13 +146,13 @@ namespace vmm_tests
 			DMUI_ImageHandle image{};
 			require(PresentationServices::ImportD3D11Image(
 						42, &descriptor, &image) == DMUI_RESULT_WRONG_THREAD,
-				"completed Present scope left its caller authorized");
+				"completed render scope left its caller authorized");
 			require(PresentationServices::DeviceGeneration() == renderGeneration,
 				"thread migration invalidated the stable render device");
 			PresentationServices::InvalidateDevice();
 		});
 
-		runner.test("overlapping Present callback scopes serialize and restore nesting", [] {
+		runner.test("overlapping render callback scopes serialize and restore nesting", [] {
 			std::mutex mutex;
 			std::condition_variable condition;
 			bool firstEntered{};
@@ -174,7 +172,6 @@ namespace vmm_tests
 				RenderExecution::Guard execution{
 					RenderExecution::Phase::kFrameObservation
 				};
-				(void)execution.NoteBinding(7);
 				{
 					const RenderExecution::ClientGuard client{
 						70, false
@@ -205,7 +202,6 @@ namespace vmm_tests
 				RenderExecution::Guard execution{
 					RenderExecution::Phase::kFrameDraw
 				};
-				(void)execution.NoteBinding(7);
 				const RenderExecution::ClientGuard outer{
 					71, false
 				};
@@ -213,14 +209,12 @@ namespace vmm_tests
 					RenderExecution::Guard nested{
 						RenderExecution::Phase::kFrameDraw
 					};
-					(void)nested.NoteBinding(7);
 					const RenderExecution::ClientGuard inner{
 						72, true
 					};
 					nestedAuthorized =
 						RenderExecution::ActivePhase() ==
 							RenderExecution::Phase::kFrameDraw &&
-						RenderExecution::ActiveBinding() == 7 &&
 						RenderExecution::IsActiveClient(72, true);
 				}
 				outerRestored =
@@ -257,7 +251,7 @@ namespace vmm_tests
 			first.join();
 			second.join();
 			require(!overlapped && maximumActive == 1,
-				"overlapping Present scopes entered client execution");
+				"overlapping render scopes entered client execution");
 			require(firstAuthorized && nestedAuthorized && outerRestored &&
 					secondStillAuthorized,
 				"nested or handed-off execution authorization was not restored");
@@ -267,7 +261,6 @@ namespace vmm_tests
 				RenderExecution::Guard execution{
 					RenderExecution::Phase::kFrameObservation
 				};
-				(void)execution.NoteBinding(8);
 				throw std::runtime_error{ "guard release" };
 			}
 			catch (const std::runtime_error&)

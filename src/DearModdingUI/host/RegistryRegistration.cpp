@@ -52,7 +52,6 @@ namespace DearModdingUI
 		{
 			RegisteredClient client{};
 			client.version = a_descriptor->version;
-			client.capabilities = a_descriptor->capabilities;
 			client.origin = a_descriptor->origin;
 			client.onHostReady = a_descriptor->onHostReady;
 			client.onHostUnavailable = a_descriptor->onHostUnavailable;

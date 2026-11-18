@@ -17,24 +17,15 @@ namespace vmm_tests
 
 	void run_registry_registration_checks(Runner& runner)
 	{
-		runner.test("swapchain handoff requires a registered renderer replacement client", [] {
+		runner.test("client registration accepts only published capabilities", [] {
 			Registry registry;
 			CallbackState state;
-			const auto regular = AddClient(registry, "regular.mod", "Regular", state);
-			require(registry.ValidateSwapChainClient(regular) ==
-					DMUI_RESULT_CLIENT_CAPABILITY_REQUIRED,
-				"a regular client gained renderer replacement access");
-			require(registry.ValidateSwapChainClient(9999) == DMUI_RESULT_CLIENT_NOT_FOUND,
-				"an unknown client gained renderer replacement access");
-
 			auto renderer = Client("renderer.mod", "Renderer", state);
 			renderer.capabilities = DMUI_CLIENT_CAPABILITY_RENDERER_REPLACEMENT;
 			DMUI_ClientHandle rendererHandle{};
 			require(registry.RegisterClient(
 						&renderer, &rendererHandle) == DMUI_RESULT_OK,
 				"renderer replacement client was rejected");
-			require(registry.ValidateSwapChainClient(rendererHandle) == DMUI_RESULT_OK,
-				"renderer replacement capability was not retained");
 
 			auto unknown = Client("unknown.mod", "Unknown", state);
 			unknown.capabilities = 0x80000000u;

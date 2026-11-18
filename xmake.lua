@@ -186,6 +186,8 @@ local source_sets = {
     },
     runtime = {
         "src/Main.cpp",
+        "src/Platform/menus/FrameMenu.cpp",
+        "src/Platform/menus/HiddenMenu.cpp",
         "src/Platform/menus/HostMenu.cpp",
         "src/Platform/input/GameInput.cpp",
         "src/Platform/menus/StartMenuEntry.cpp",

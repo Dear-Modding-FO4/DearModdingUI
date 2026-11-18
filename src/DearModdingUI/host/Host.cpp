@@ -150,7 +150,7 @@ namespace DearModdingUI
 			return result == DMUI_RESULT_OK;
 		}
 
-		// Frame observers run after Present, outside the frame, where there is nothing to isolate.
+		// Observers run outside the host frame, so there is nothing to isolate.
 		template <class InvokeCallback>
 		[[nodiscard]] bool InvokeNonDrawingClientCallback(
 			const ClientCallbackIdentity& a_identity,
@@ -285,7 +285,7 @@ namespace DearModdingUI
 				std::memory_order_acq_rel))
 			return expected == DMUI_HOST_STATE_INITIALIZING ||
 				expected == DMUI_HOST_STATE_READY;
-		// A frame is only presented after the game has read its INIs.
+		// Initialization waits for game data, so the game has read its INIs.
 		Localization::EnableGameLanguage();
 		if (!service.registry.Freeze())
 		{

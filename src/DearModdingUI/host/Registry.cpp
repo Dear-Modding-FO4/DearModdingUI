@@ -271,17 +271,6 @@ namespace DearModdingUI
 		}
 	}
 
-	DMUI_Result Registry::ValidateSwapChainClient(DMUI_ClientHandle a_client) const noexcept
-	{
-		const std::scoped_lock lock{ m_mutex };
-		const auto* client = FindClient(a_client);
-		if (!client)
-			return DMUI_RESULT_CLIENT_NOT_FOUND;
-		return (client->capabilities & DMUI_CLIENT_CAPABILITY_RENDERER_REPLACEMENT) != 0 ?
-			DMUI_RESULT_OK :
-			DMUI_RESULT_CLIENT_CAPABILITY_REQUIRED;
-	}
-
 	DMUI_Result Registry::ValidateClient(DMUI_ClientHandle a_client) const noexcept
 	{
 		const auto validate = [&]() noexcept {

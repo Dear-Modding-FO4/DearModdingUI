@@ -24,7 +24,6 @@ namespace DearModdingUI
 		DMUI_ClientOrigin origin{ DMUI_CLIENT_ORIGIN_NATIVE };
 		std::string bridgeSourceLabel;
 		uint32_t version{ 0 };
-		DMUI_ClientCapabilities capabilities{ DMUI_CLIENT_CAPABILITY_NONE };
 
 		DMUI_HostReadyCallback onHostReady{ nullptr };
 		DMUI_HostUnavailableCallback onHostUnavailable{ nullptr };
@@ -178,8 +177,6 @@ namespace DearModdingUI
 			DMUI_PageKind a_kind,
 			std::string* a_clientId = nullptr,
 			std::string* a_pageId = nullptr) const noexcept;
-		[[nodiscard]] DMUI_Result ValidateSwapChainClient(
-			DMUI_ClientHandle a_client) const noexcept;
 		[[nodiscard]] DMUI_Result ValidateClient(
 			DMUI_ClientHandle a_client) const noexcept;
 		[[nodiscard]] DMUI_Result CopyClientDisplayName(

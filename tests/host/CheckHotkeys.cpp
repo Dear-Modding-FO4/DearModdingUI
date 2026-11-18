@@ -466,7 +466,6 @@ namespace vmm_tests
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameObservation
 			};
-			(void)execution.NoteBinding(1);
 			CallbackState state;
 			const auto later = Register(registry, 1, "Zulu.Toggle", "F10", state);
 			const auto earlier = Register(registry, 2, "Alpha.Toggle", "F10", state);
@@ -493,7 +492,6 @@ namespace vmm_tests
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameObservation
 			};
-			(void)execution.NoteBinding(1);
 			CallbackState state;
 			auto action = Register(registry, 1, "Example.Toggle", "F10", state);
 			require(registry.SetOverride("Example.Toggle", "Ctrl+F11") ==
@@ -559,7 +557,6 @@ namespace vmm_tests
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameObservation
 			};
-			(void)execution.NoteBinding(1);
 			CallbackState state;
 			const auto action = Register(registry, 1, "Example.Toggle", "F10", state);
 			require(registry.Unregister(2, action) == DMUI_RESULT_ACTION_NOT_FOUND,
@@ -582,7 +579,6 @@ namespace vmm_tests
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameObservation
 			};
-			(void)execution.NoteBinding(1);
 			CallbackState state;
 			const auto action = Register(registry, 1, "Example.Toggle", "F10", state);
 			require(registry.HandleKey(0x44, 0, true, false) ==

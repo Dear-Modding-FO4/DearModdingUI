@@ -154,7 +154,6 @@ namespace DearModdingUIPreview
 				RenderExecution::Guard execution{
 					RenderExecution::Phase::kBackendInitialization
 				};
-				(void)execution.NoteBinding(1);
 				PresentationServices::SetDevice(renderer.Device());
 
 				if (!BeginBackendInitialization())
@@ -354,7 +353,6 @@ namespace DearModdingUIPreview
 				RenderExecution::Guard execution{
 					RenderExecution::Phase::kFrameDraw
 				};
-				(void)execution.NoteBinding(1);
 				if (!renderer.ApplyResize(a_error) ||
 					!Theme::PrepareFrame(renderer.Height()))
 				{
@@ -427,7 +425,6 @@ namespace DearModdingUIPreview
 				RenderExecution::Guard execution{
 					RenderExecution::Phase::kFrameObservation
 				};
-				(void)execution.NoteBinding(1);
 				ObserveFrame();
 			}
 			return true;

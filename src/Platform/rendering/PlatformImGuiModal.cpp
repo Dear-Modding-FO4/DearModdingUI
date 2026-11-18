@@ -24,8 +24,6 @@ namespace DearModdingUI::PlatformImGuiDetail
 			active,
 			std::memory_order_acq_rel);
 		GameInput::SuppressGameInput(active);
-		if (previous != active)
-			ResetGameCursorWaitLocked();
 		if (previous == active || !ImGui::GetCurrentContext())
 			return;
 
@@ -56,7 +54,7 @@ namespace DearModdingUI::PlatformImGuiDetail
 		(void)DearModdingUI::ReleaseHeldInput();
 		SetModalInputStateLocked(false);
 		DearModdingUI::EndOverlayFocus(
-			a_event == DearModdingUI::HostMenu::Event::kShutdown ?
+			a_event == DearModdingUI::HostMenu::Event::kBackendFailure ?
 				DMUI_OVERLAY_FOCUS_END_HOST_UNAVAILABLE :
 				DMUI_OVERLAY_FOCUS_END_INTERRUPTED);
 		DearModdingUI::CloseMenu();

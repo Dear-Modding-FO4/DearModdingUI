@@ -265,7 +265,7 @@ $DMUI_Settings_HostFacts	Данные хоста (только чтение)
 $DMUI_Settings_HostFactsHelp	Значения, определённые хостом DearModdingUI.
 $DMUI_Settings_PixelSize	{} px
 $DMUI_Settings_ResolvedTypographySize	Итоговый размер типографики
-$DMUI_Settings_ResolvedTypographySizeHelp	Выводится из высоты заднего буфера и применённого масштаба интерфейса на границе кадра.
+$DMUI_Settings_ResolvedTypographySizeHelp	Выводится из высоты цели интерфейса и применённого масштаба интерфейса на границе кадра.
 $DMUI_Settings_EffectiveUiScale	Эффективный масштаб интерфейса
 $DMUI_Settings_EffectiveUiScaleHelp	Выводится из разрешения и [Additional] fMenuUiScale.
 $DMUI_Typography_NoAtlas	Не удалось подготовить пригодный атлас шрифтов. Проверьте входящие в комплект файлы шрифтов и перезапустите игру.
@@ -297,18 +297,8 @@ $DMUI_Input_InterceptionFailed	Не удалось установить пере
 $DMUI_Input_InterceptionUnavailable	Необходимый перехват ввода игры недоступен.
 $DMUI_Input_TapReady	Перехват сообщений установлен в потоке интерфейса {}.
 $DMUI_Input_TapFailed	Перехват сообщений потока окна недоступен; ввод текста и управление курсором работать не будут.
-$DMUI_Renderer_DataMissing	Данные рендерера равны null.
-$DMUI_Renderer_NotInitialized	Данные рендерера не инициализированы.
-$DMUI_Renderer_WindowObjectMissing	Текущее окно рендерера равно null.
-$DMUI_Renderer_SwapChainMissing	У текущего окна рендерера нет swapchain.
-$DMUI_Renderer_DeviceMissing	В данных рендерера нет устройства D3D11.
-$DMUI_Renderer_ContextMissing	В данных рендерера нет контекста устройства D3D11.
-$DMUI_Renderer_WindowHandleMissing	У текущего окна рендерера нет HWND.
-$DMUI_Renderer_BindingChanged	Привязка рендерера изменилась во время захвата.
-$DMUI_Renderer_InvalidBinding	Кандидат для подключения недействителен.
-$DMUI_Renderer_HookInstallationFailed	Привязка рендерера действительна, но не удалось установить перехватчики swapchain.
-$DMUI_Renderer_BindingValid	Привязка рендерера действительна.
-$DMUI_Renderer_WaitingForPresent	Привязка рендерера действительна, но вызов Present ещё не наблюдался.
+$DMUI_Renderer_BackendFailed	Не удалось инициализировать Dear ImGui на рендерере игры.
+$DMUI_Renderer_WaitingForGameData	Ожидание завершения загрузки игровых данных.
 $DMUI_Config_CorrectionWrongType	{}: неверный тип значения, использовано значение по умолчанию
 $DMUI_Config_CorrectionReplaced	{} {} заменено на {}
 $DMUI_Config_BindingIgnored	{}.{} проигнорировано, так как это не текст

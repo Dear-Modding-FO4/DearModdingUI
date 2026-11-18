@@ -13,7 +13,7 @@ namespace DearModdingUI::ToggleOutcome
 		kToggled,
 		kInputHooksFailed,
 		kEngineInactive,
-		kRendererNotAttached,
+		kWaitingForUiPass,
 		kBackendUninitialized,
 		kBackendFailed,
 		kHostNotReady
@@ -23,7 +23,7 @@ namespace DearModdingUI::ToggleOutcome
 	{
 		bool inputHooks{ false };
 		bool engineActive{ false };
-		PlatformImGui::Readiness renderer{ PlatformImGui::Readiness::kRendererNotAttached };
+		PlatformImGui::Readiness renderer{ PlatformImGui::Readiness::kWaitingForUiPass };
 		bool hostAccepted{ false };
 	};
 
@@ -39,8 +39,8 @@ namespace DearModdingUI::ToggleOutcome
 			return Outcome::kEngineInactive;
 		switch (a_gates.renderer)
 		{
-		case Readiness::kRendererNotAttached:
-			return Outcome::kRendererNotAttached;
+		case Readiness::kWaitingForUiPass:
+			return Outcome::kWaitingForUiPass;
 		case Readiness::kBackendUninitialized:
 			return Outcome::kBackendUninitialized;
 		case Readiness::kBackendFailed:
@@ -60,8 +60,8 @@ namespace DearModdingUI::ToggleOutcome
 			return "input-hooks-failed";
 		case Outcome::kEngineInactive:
 			return "engine-inactive";
-		case Outcome::kRendererNotAttached:
-			return "renderer-not-attached";
+		case Outcome::kWaitingForUiPass:
+			return "waiting-for-ui-pass";
 		case Outcome::kBackendUninitialized:
 			return "backend-uninitialized";
 		case Outcome::kBackendFailed:

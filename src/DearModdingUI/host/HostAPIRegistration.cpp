@@ -4,7 +4,6 @@
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/Hotkeys.h>
 #include <DearModdingUI/presentation/PresentationServices.h>
-#include <DearModdingUI/host/SwapChainAttachment.h>
 #include <DearModdingUI/host/UIAdapter.h>
 #include <Platform/rendering/PlatformImGui.h>
 
@@ -216,21 +215,10 @@ namespace DearModdingUI::HostAPIInternal
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiAttachSwapChain(DMUI_ClientHandle a_client,
 														   void *a_nativeSwapChain) noexcept
 	{
+		// The host draws in the engine's UI pass, so no swapchain is needed.
 		if (a_client == DMUI_INVALID_CLIENT_HANDLE || !a_nativeSwapChain)
 			return DMUI_RESULT_INVALID_ARGUMENT;
-
-		auto &service = GetService();
-		const auto state = service.state.load(std::memory_order_acquire);
-		if (state == DMUI_HOST_STATE_INITIALIZING)
-			return DMUI_RESULT_RENDERER_BUSY;
-		if (state != DMUI_HOST_STATE_WAITING_FOR_PRESENT && state != DMUI_HOST_STATE_READY)
-			return StateResult(state);
-
-		const auto clientResult = service.registry.ValidateSwapChainClient(a_client);
-		if (clientResult != DMUI_RESULT_OK)
-			return clientResult;
-		return SwapChainAttachmentResult(PlatformImGui::AttachSwapChain(
-			static_cast<IDXGISwapChain *>(a_nativeSwapChain)));
+		return GetService().registry.ValidateClient(a_client);
 	}
 
 	[[nodiscard]] DMUI_Result DMUI_CALL ApiSetStatus(DMUI_ClientHandle a_client,

@@ -1,4 +1,7 @@
+// CommonLib declarations must precede the Windows SDK macros.
+#include <RE/B/BSGraphics.h>
 #include <RE/M/MenuCursor.h>
+#include <REX/REX.h>
 
 #include "PlatformImGuiInternal.h"
 #include <Platform/imgui/ImGuiWin32Integration.h>
@@ -14,16 +17,15 @@
 #include <DearModdingUI/presentation/PresentationServices.h>
 #include <DearModdingUI/presentation/Theme.h>
 #include <Platform/rendering/D3D11State.h>
+#include <Support/OnceFlag.h>
 #include <Support/Runtime.h>
 #include <Support/ProcessLifetime.h>
-
-#include <REX/REX.h>
+#include <Support/SubsystemHealth.h>
 
 #include <imgui/imgui.h>
 #include <imgui/backends/imgui_impl_dx11.h>
 #include <imgui/backends/imgui_impl_win32.h>
 
-#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <limits>
@@ -52,26 +54,60 @@ namespace DearModdingUI::PlatformImGuiDetail
 
 	namespace
 	{
+		// The target the UI pass has bound when the host draws.
+		struct FrameTarget
+		{
+			Microsoft::WRL::ComPtr<ID3D11RenderTargetView> view;
+			Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
+			uint32_t width{ 0 };
+			uint32_t height{ 0 };
+		};
+
 		struct BackendState
 		{
-			Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
-			Microsoft::WRL::ComPtr<ID3D11RenderTargetView> backBufferView;
-			BackBufferIdentity backBufferIdentity;
-			bool backBufferFailureLogged{ false };
+			uint32_t targetWidth{ 0 };
+			uint32_t targetHeight{ 0 };
 			bool coordinateSpaceLogged{ false };
+			Support::OnceFlag targetMissingLogged;
 			std::string iniPath;
-			std::optional<std::chrono::steady_clock::time_point> nativeCursorWait;
-			std::string_view nativeCursorIssue{ "the native cursor screen-space pass was not observed" };
 		};
 
 		Support::ProcessLifetime<BackendState> s_backendStorage;
 		BackendState& s_backendState = s_backendStorage.value;
+
+		class RendererHealthReporter final :
+			public DearModdingUI::HealthReporter
+		{
+		public:
+			void Report(
+				[[maybe_unused]] DearModdingUI::HealthEvent a_event,
+				const DearModdingUI::HealthSnapshot& a_snapshot) noexcept override
+			{
+				if (a_snapshot.state == DearModdingUI::HealthState::kReady)
+					REX::INFO("[dmui.render] Platform Imgui: renderer state: ready"sv);
+				else if (a_snapshot.state == DearModdingUI::HealthState::kFailed)
+					REX::ERROR("[dmui.render] Platform Imgui: renderer state failed: {}"sv, a_snapshot.reason.English());
+			}
+		};
+
+		RendererHealthReporter s_rendererHealthReporter;
+		DearModdingUI::SubsystemHealth s_rendererHealth{
+			"dmui.render",
+			{ "$DMUI_Health_SubsystemRenderer", "Renderer" },
+			s_rendererHealthReporter,
+			DearModdingUI::HostSubsystemHealthRegistry()
+		};
 
 		struct ClientSize
 		{
 			uint32_t width{ 0 };
 			uint32_t height{ 0 };
 		};
+
+		[[nodiscard]] HWND GameWindow() noexcept
+		{
+			return Context().window.load(std::memory_order_acquire);
+		}
 
 		[[nodiscard]] ClientSize ReadClientSize(HWND a_window) noexcept
 		{
@@ -124,58 +160,83 @@ namespace DearModdingUI::PlatformImGuiDetail
 			a_io.IniSavingRate = 10.0f;
 		}
 
-		[[nodiscard]] bool InitializeBackendLocked() noexcept
+		[[nodiscard]] Microsoft::WRL::ComPtr<IDXGIAdapter3> AcquireVideoMemoryAdapter(
+			ID3D11Device* a_device) noexcept
 		{
-			auto& context = Context();
-			const auto& attachment = context.attachment;
-			if (!attachment.device ||
-				!attachment.context ||
-				!attachment.window)
+			Microsoft::WRL::ComPtr<IDXGIDevice> dxgiDevice;
+			Microsoft::WRL::ComPtr<IDXGIAdapter> adapter;
+			Microsoft::WRL::ComPtr<IDXGIAdapter3> adapter3;
+			if (FAILED(a_device->QueryInterface(
+					IID_PPV_ARGS(dxgiDevice.ReleaseAndGetAddressOf()))) ||
+				FAILED(dxgiDevice->GetParent(
+					IID_PPV_ARGS(adapter.ReleaseAndGetAddressOf()))) ||
+				FAILED(adapter->QueryInterface(
+					IID_PPV_ARGS(adapter3.ReleaseAndGetAddressOf()))))
+				return {};
+			return adapter3;
+		}
+
+		// The engine creates its device once and never replaces it.
+		[[nodiscard]] bool CaptureRenderDeviceLocked() noexcept
+		{
+			const auto* renderer = RE::BSGraphics::GetRendererData();
+			const auto* window = RE::BSGraphics::GetCurrentRendererWindow();
+			if (!renderer || !renderer->initialized || !renderer->device ||
+				!renderer->context || !window || !window->hwnd)
 			{
 				REX::ERROR(
-					"Platform Imgui: the active swapchain has no complete render binding"sv);
+					"Platform Imgui: the game renderer has no complete device, context and window"sv);
+				return false;
+			}
+			auto& context = Context();
+			auto& render = context.render;
+			render.device = reinterpret_cast<ID3D11Device*>(renderer->device);
+			render.context = reinterpret_cast<ID3D11DeviceContext*>(renderer->context);
+			render.videoMemoryAdapter = AcquireVideoMemoryAdapter(render.device.Get());
+			context.window.store(reinterpret_cast<HWND>(window->hwnd), std::memory_order_release);
+			return true;
+		}
+
+		[[nodiscard]] bool InitializeBackendLocked() noexcept
+		{
+			if (!CaptureRenderDeviceLocked())
+				return false;
+			auto& context = Context();
+			const auto& render = context.render;
+			const auto window = GameWindow();
+
+			auto* imguiContext = ImGui::CreateContext();
+			if (!imguiContext)
+			{
+				REX::ERROR(
+					"Platform Imgui: ImGui::CreateContext() failed"sv);
 				return false;
 			}
 
-			auto* imguiContext = ImGui::GetCurrentContext();
-			const auto createdContext = imguiContext == nullptr;
-			if (createdContext)
-			{
-				imguiContext = ImGui::CreateContext();
-				if (!imguiContext)
-				{
-					REX::ERROR(
-						"Platform Imgui: ImGui::CreateContext() failed"sv);
-					return false;
-				}
+			auto& io = ImGui::GetIO();
+			io.ConfigFlags |=
+				ImGuiConfigFlags_NavEnableKeyboard |
+				ImGuiConfigFlags_NavEnableGamepad |
+				ImGuiConfigFlags_DockingEnable;
+			io.IniFilename = nullptr;
+			io.MouseDrawCursor = false;
+			ConfigureIniPath(io);
+			context.callbacks.setup(window);
 
-				auto& io = ImGui::GetIO();
-				io.ConfigFlags |=
-					ImGuiConfigFlags_NavEnableKeyboard |
-					ImGuiConfigFlags_NavEnableGamepad |
-					ImGuiConfigFlags_DockingEnable;
-				io.IniFilename = nullptr;
-				io.MouseDrawCursor = false;
-				ConfigureIniPath(io);
-				context.callbacks.setup(attachment.window);
-			}
-
-			if (!ImGui_ImplWin32_Init(attachment.window))
+			if (!ImGui_ImplWin32_Init(window))
 			{
-				if (createdContext)
-					ImGui::DestroyContext(imguiContext);
+				ImGui::DestroyContext(imguiContext);
 				REX::ERROR(
 					"Platform Imgui: ImGui_ImplWin32_Init() failed"sv);
 				return false;
 			}
 
 			if (!ImGui_ImplDX11_Init(
-					attachment.device.Get(),
-					attachment.context.Get()))
+					render.device.Get(),
+					render.context.Get()))
 			{
 				ImGui_ImplWin32_Shutdown();
-				if (createdContext)
-					ImGui::DestroyContext(imguiContext);
+				ImGui::DestroyContext(imguiContext);
 				REX::ERROR(
 					"Platform Imgui: ImGui_ImplDX11_Init() failed"sv);
 				return false;
@@ -185,22 +246,29 @@ namespace DearModdingUI::PlatformImGuiDetail
 			{
 				ImGui_ImplDX11_Shutdown();
 				ImGui_ImplWin32_Shutdown();
-				if (createdContext)
-					ImGui::DestroyContext(imguiContext);
+				ImGui::DestroyContext(imguiContext);
 				REX::ERROR(
 					"Platform Imgui: D3D11 device-object creation failed"sv);
 				return false;
 			}
 
 			DearModdingUI::CursorLoader::Initialize(
-				attachment.window, DearModdingUI::CursorLoader::Source::kGame);
+				window, DearModdingUI::CursorLoader::Source::kGame);
 			DearModdingUI::PresentationServices::SetDevice(
-				attachment.device.Get());
+				render.device.Get());
 			REX::INFO(
-				"Platform Imgui: ImGui initialized on the active swapchain"sv);
+				"Platform Imgui: ImGui initialized on the game's device"sv);
 			return true;
 		}
 
+		// Clients register through kGameLoaded, sent just before this exit.
+		[[nodiscard]] bool GameDataThreadFinished() noexcept
+		{
+			const auto thread = Context().gameDataThread.load(std::memory_order_acquire);
+			return thread && WaitForSingleObject(thread, 0) == WAIT_OBJECT_0;
+		}
+
+		// Registration closes on the first pass after the game-data thread has exited.
 		[[nodiscard]] bool BackendReadyLocked() noexcept
 		{
 			auto& context = Context();
@@ -214,13 +282,8 @@ namespace DearModdingUI::PlatformImGuiDetail
 				break;
 			}
 
-			const auto firstInitialization =
-				ImGui::GetCurrentContext() == nullptr;
-			if (firstInitialization)
-			{
-				if (!DearModdingUI::BeginBackendInitialization())
-					return false;
-			}
+			if (!GameDataThreadFinished() || !DearModdingUI::BeginBackendInitialization())
+				return false;
 
 			const auto ready = InitializeBackendLocked();
 			context.backend.store(
@@ -230,85 +293,62 @@ namespace DearModdingUI::PlatformImGuiDetail
 			{
 				CloseModalStateLocked(
 					DearModdingUI::HostMenu::Event::kBackendFailure);
-				if (firstInitialization)
-					DearModdingUI::FailBackendInitialization();
-				else
-				{
-					DearModdingUI::SetBackendUnavailable(
-						DMUI_UNAVAILABLE_BACKEND_FAILED);
-				}
-			}
-			else if (firstInitialization)
-				DearModdingUI::CompleteBackendInitialization(
-					ImGui::GetCurrentContext());
-			if (ready)
-				SetRendererReadyLocked();
-			return ready;
-		}
-
-		[[nodiscard]] bool EnsureBackBufferLocked(
-			IDXGISwapChain* a_swapChain) noexcept
-		{
-			Microsoft::WRL::ComPtr<ID3D11Texture2D> candidate;
-			if (FAILED(a_swapChain->GetBuffer(
-					0,
-					IID_PPV_ARGS(
-						candidate.ReleaseAndGetAddressOf()))) ||
-				!candidate)
-				return false;
-
-			D3D11_TEXTURE2D_DESC description{};
-			candidate->GetDesc(std::addressof(description));
-			const BackBufferIdentity identity{
-				reinterpret_cast<uintptr_t>(candidate.Get()),
-				description.Width,
-				description.Height
-			};
-			const auto decision = DecideBackBuffer(
-				s_backendState.backBufferIdentity,
-				identity,
-				s_backendState.backBufferView != nullptr);
-			if (decision == BackBufferDecision::kSkip)
-				return false;
-			if (decision == BackBufferDecision::kKeep)
-				return true;
-
-			Microsoft::WRL::ComPtr<ID3D11RenderTargetView> view;
-			if (FAILED(Context().attachment.device->CreateRenderTargetView(
-					candidate.Get(),
-					nullptr,
-					view.GetAddressOf())) ||
-				!view)
-			{
-				ReleaseBackBufferLocked();
-				if (!std::exchange(
-						s_backendState.backBufferFailureLogged,
-						true))
-				{
-					REX::ERROR(
-						"Platform Imgui: creating the active swapchain backbuffer view failed"sv);
-				}
+				DearModdingUI::FailBackendInitialization();
+				(void)s_rendererHealth.Observe(
+					DearModdingUI::HealthState::kFailed,
+					Support::Message{ Support::Phrase{
+						"$DMUI_Renderer_BackendFailed",
+						"Dear ImGui could not be initialized on the game's renderer." } });
 				return false;
 			}
-
-			ReleaseBackBufferLocked();
-			s_backendState.backBuffer = std::move(candidate);
-			s_backendState.backBufferView = std::move(view);
-			s_backendState.backBufferIdentity = identity;
-			s_backendState.backBufferFailureLogged = false;
+			DearModdingUI::CompleteBackendInitialization(
+				ImGui::GetCurrentContext());
+			(void)s_rendererHealth.Observe(DearModdingUI::HealthState::kReady, {});
+			context.callbacks.ready();
 			return true;
 		}
 
-		void ApplyBackBufferCoordinateSpaceLocked(
+		[[nodiscard]] std::optional<FrameTarget> ReadBoundTargetLocked() noexcept
+		{
+			FrameTarget target;
+			Context().render.context->OMGetRenderTargets(
+				1, target.view.GetAddressOf(), nullptr);
+			if (!target.view)
+				return std::nullopt;
+			Microsoft::WRL::ComPtr<ID3D11Resource> resource;
+			target.view->GetResource(resource.GetAddressOf());
+			if (!resource || FAILED(resource.As(&target.texture)))
+				return std::nullopt;
+			D3D11_TEXTURE2D_DESC description{};
+			target.texture->GetDesc(std::addressof(description));
+			if (!description.Width || !description.Height)
+				return std::nullopt;
+			target.width = description.Width;
+			target.height = description.Height;
+			return target;
+		}
+
+		[[nodiscard]] std::optional<MousePosition> NativeCursorPositionLocked(
+			const FrameTarget& a_target) noexcept
+		{
+			const auto* cursor = RE::MenuCursor::GetSingleton();
+			const auto client = ReadClientSize(GameWindow());
+			if (!cursor || !cursor->registeredCursors || !client.width || !client.height)
+				return std::nullopt;
+			return MapNativeCursorToTarget(
+				{ static_cast<float>(cursor->cursorPosX), static_cast<float>(cursor->cursorPosY) },
+				client.width, client.height, a_target.width, a_target.height);
+		}
+
+		void ApplyCoordinateSpaceLocked(
 			std::optional<MousePosition> a_nativePosition) noexcept
 		{
 			auto& io = ImGui::GetIO();
-			const auto client = ReadClientSize(Context().attachment.window);
+			const auto window = GameWindow();
+			const auto client = ReadClientSize(window);
 			io.DisplaySize = {
-				static_cast<float>(
-					s_backendState.backBufferIdentity.width),
-				static_cast<float>(
-					s_backendState.backBufferIdentity.height)
+				static_cast<float>(s_backendState.targetWidth),
+				static_cast<float>(s_backendState.targetHeight)
 			};
 			if (a_nativePosition)
 			{
@@ -322,27 +362,23 @@ namespace DearModdingUI::PlatformImGuiDetail
 			}
 			else
 			{
-				const auto mouse = MapClientToBackBuffer(
-					ReadClientMousePosition(Context().attachment.window),
+				const auto mouse = MapClientToTarget(
+					ReadClientMousePosition(window),
 					client.width, client.height,
-					s_backendState.backBufferIdentity.width,
-					s_backendState.backBufferIdentity.height);
+					s_backendState.targetWidth,
+					s_backendState.targetHeight);
 				io.AddMousePosEvent(mouse.x, mouse.y);
 			}
-			if ((client.width !=
-						s_backendState.backBufferIdentity.width ||
-					client.height !=
-						s_backendState.backBufferIdentity.height) &&
-				!std::exchange(
-					s_backendState.coordinateSpaceLogged,
-					true))
+			if ((client.width != s_backendState.targetWidth ||
+					client.height != s_backendState.targetHeight) &&
+				!std::exchange(s_backendState.coordinateSpaceLogged, true))
 			{
 				REX::INFO(
-					"Platform Imgui: client {}x{} differs from backbuffer {}x{}; input is mapped to the backbuffer"sv,
+					"Platform Imgui: client {}x{} differs from the UI target {}x{}; input is mapped to the target"sv,
 					client.width,
 					client.height,
-					s_backendState.backBufferIdentity.width,
-					s_backendState.backBufferIdentity.height);
+					s_backendState.targetWidth,
+					s_backendState.targetHeight);
 			}
 		}
 
@@ -352,20 +388,22 @@ namespace DearModdingUI::PlatformImGuiDetail
 			if (!target)
 				return;
 			auto* cursor = RE::MenuCursor::GetSingleton();
-			const auto client = ReadClientSize(Context().attachment.window);
+			const auto client = ReadClientSize(GameWindow());
 			if (!cursor || !client.width || !client.height)
 				return;
-			const auto& buffer = s_backendState.backBufferIdentity;
-			const auto native = MapNativeCursorToBackBuffer(
-				{ target->x, target->y }, buffer.width, buffer.height, client.width, client.height);
+			const auto native = MapNativeCursorToTarget(
+				{ target->x, target->y },
+				s_backendState.targetWidth, s_backendState.targetHeight,
+				client.width, client.height);
 			// The engine setter also dispatches the position to registered Scaleform cursors.
 			using SetCursorPos = void (*)(RE::MenuCursor*, int32_t, int32_t);
 			static const REL::Relocation<SetCursorPos> setCursorPos{ REL::VariantID{ 865628, 2287488 } };
 			setCursorPos(cursor, static_cast<int32_t>(std::lround(native.x)),
 				static_cast<int32_t>(std::lround(native.y)));
-			const auto position = MapNativeCursorToBackBuffer(
+			const auto position = MapNativeCursorToTarget(
 				{ static_cast<float>(cursor->cursorPosX), static_cast<float>(cursor->cursorPosY) },
-				client.width, client.height, buffer.width, buffer.height);
+				client.width, client.height,
+				s_backendState.targetWidth, s_backendState.targetHeight);
 			DearModdingUI::CursorLoader::ApplyNativePosition(position.x, position.y);
 		}
 
@@ -417,29 +455,13 @@ namespace DearModdingUI::PlatformImGuiDetail
 			DearModdingUI::Rendering::ShaderState<ID3D11ComputeShader> compute;
 		};
 
-		[[nodiscard]] PresentAttachmentToken ActiveFrameAttachment() noexcept
-		{
-			const auto& context = Context();
-			return {
-				reinterpret_cast<uintptr_t>(context.attachment.swapChain.Get()),
-				context.attachmentGeneration
-			};
-		}
-
 		void SubmitFrameLocked(
-			ID3D11RenderTargetView* a_target,
-			std::optional<MousePosition> a_nativePosition = std::nullopt) noexcept
+			const FrameTarget& a_target,
+			std::optional<MousePosition> a_nativePosition) noexcept
 		{
 			auto& context = Context();
-			const auto attachment = ActiveFrameAttachment();
-			if (!context.frameSubmission.Claim(attachment))
+			if (!DearModdingUI::Theme::PrepareFrame(a_target.height))
 				return;
-			if (!DearModdingUI::Theme::PrepareFrame(
-					s_backendState.backBufferIdentity.height))
-			{
-				NoteGameCursorUnavailableLocked("host typography could not prepare the frame");
-				return;
-			}
 			const auto shellVisible = DearModdingUI::IsMenuVisible();
 			DearModdingUI::BackgroundBlur::BeginFrame();
 			DearModdingUI::PresentationServices::BeginFrame();
@@ -449,7 +471,9 @@ namespace DearModdingUI::PlatformImGuiDetail
 			auto& io = ImGui::GetIO();
 			DearModdingUI::ImGuiWin32Integration::NewFrameWithoutGamepad();
 			io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
-			ApplyBackBufferCoordinateSpaceLocked(a_nativePosition);
+			s_backendState.targetWidth = a_target.width;
+			s_backendState.targetHeight = a_target.height;
+			ApplyCoordinateSpaceLocked(a_nativePosition);
 			DrainTextInputLocked();
 			DearModdingUI::PointerRouting::BeginFrame(DearModdingUI::PointerOwnerPage());
 			DearModdingUI::ControllerNavigation::PrepareFrame(DearModdingUI::CurrentInputMode());
@@ -460,163 +484,74 @@ namespace DearModdingUI::PlatformImGuiDetail
 			ImGui::Render();
 			PublishTextCapture(io.WantCaptureKeyboard);
 
-			const PipelineState previousState{ context.attachment.context.Get() };
+			auto* deviceContext = context.render.context.Get();
+			const PipelineState previousState{ deviceContext };
 			if (shellVisible)
 			{
 				DearModdingUI::BackgroundBlur::Render(
-					context.attachment.device.Get(),
-					context.attachment.context.Get(),
-					s_backendState.backBuffer.Get(),
-					a_target);
+					context.render.device.Get(),
+					deviceContext,
+					a_target.texture.Get(),
+					a_target.view.Get());
 			}
-			context.attachment.context->OMSetRenderTargets(1, &a_target, nullptr);
+			deviceContext->OMSetRenderTargets(1, a_target.view.GetAddressOf(), nullptr);
 			ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 			DearModdingUI::PresentationServices::CompleteRenderSubmission();
-			context.frameSubmission.Complete(attachment);
 		}
+	}
 
-		void WaitForNativeCursorLocked() noexcept
+	void InitializeRendererHealth() noexcept
+	{
+		try
 		{
-			if (Context().frameSubmission.Submitted(ActiveFrameAttachment()))
-			{
-				if (s_backendState.nativeCursorWait)
-					REX::INFO("DearModdingUI: native cursor rendering is ready"sv);
-				s_backendState.nativeCursorWait.reset();
-				return;
-			}
-			const auto now = std::chrono::steady_clock::now();
-			if (!s_backendState.nativeCursorWait)
-			{
-				s_backendState.nativeCursorWait = now;
-				REX::INFO("DearModdingUI: waiting for the game's cursor before drawing the menu"sv);
-			}
-			// Allow asynchronous UI show/advance, but never leave an invisible modal owning input.
-			if (now - *s_backendState.nativeCursorWait >= std::chrono::seconds(2))
-			{
-				REX::ERROR("DearModdingUI: closing the menu because {}"sv,
-					s_backendState.nativeCursorIssue);
-				CloseModalStateLocked(DearModdingUI::HostMenu::Event::kBackendFailure);
-				s_backendState.nativeCursorWait.reset();
-			}
-			s_backendState.nativeCursorIssue = "the native cursor screen-space pass was not observed";
+			(void)s_rendererHealth.Observe(
+				DearModdingUI::HealthState::kWaiting,
+				Support::Message{ Support::Phrase{
+					"$DMUI_Renderer_WaitingForGameData",
+					"Waiting for the game to finish loading its data." } });
 		}
-	}
-
-	void ReleaseBackBufferLocked() noexcept
-	{
-		DearModdingUI::BackgroundBlur::InvalidateBackBuffer();
-		s_backendState.backBufferView.Reset();
-		s_backendState.backBuffer.Reset();
-		s_backendState.backBufferIdentity = {};
-	}
-
-	void ResetBackBufferFailureLocked() noexcept
-	{
-		s_backendState.backBufferFailureLogged = false;
-	}
-
-	void ShutdownBackendLocked() noexcept
-	{
-		auto& context = Context();
-		DearModdingUI::PresentationServices::InvalidateDevice();
-		CloseModalStateLocked(
-			DearModdingUI::HostMenu::Event::kShutdown);
-		DearModdingUI::CursorLoader::Shutdown();
-		context.frameSubmission.Reset();
-		s_backendState.nativeCursorWait.reset();
-		if (context.backend.load(std::memory_order_acquire) ==
-			Backend::kReady)
+		catch (...)
 		{
-			DearModdingUI::BackgroundBlur::ResetDeviceResources();
-			ImGui_ImplDX11_Shutdown();
-			ImGui_ImplWin32_Shutdown();
+			// Health is advisory; drawing does not depend on it.
 		}
-		context.backend.store(
-			Backend::kUninitialized,
-			std::memory_order_release);
 	}
 
-	void DrawFrameLocked(IDXGISwapChain* a_swapChain) noexcept
+	void DrawUiPassLocked() noexcept
 	{
-		auto& context = Context();
 		if (!BackendReadyLocked())
-		{
-			CloseModalStateLocked(
-				DearModdingUI::HostMenu::Event::kBackendFailure);
 			return;
-		}
 
 		const auto modalVisible =
 			DearModdingUI::CurrentInputMode() != DearModdingUI::HostInputMode::kGameplay;
 		const auto overlayDemanded =
 			DearModdingUI::NeedsFrame() && !modalVisible;
 		ApplyDrawingRequestLocked(modalVisible);
-		if (modalVisible && DearModdingUI::EngineFocus::Active())
-		{
-			WaitForNativeCursorLocked();
+		if (!ShouldRenderHostFrame(modalVisible, overlayDemanded))
 			return;
-		}
-		s_backendState.nativeCursorWait.reset();
-		if (!ShouldRenderHostFrame(modalVisible, overlayDemanded) ||
-			!EnsureBackBufferLocked(a_swapChain))
-			return;
-		SubmitFrameLocked(s_backendState.backBufferView.Get());
-	}
+		// Only a focused modal follows the game cursor.
+		const auto drawing = Context().drawingEnabled.load(std::memory_order_acquire);
 
-	void NoteGameCursorUnavailableLocked(std::string_view a_reason) noexcept
-	{
-		s_backendState.nativeCursorIssue = a_reason;
-	}
-
-	void ResetGameCursorWaitLocked() noexcept
-	{
-		s_backendState.nativeCursorWait.reset();
-		s_backendState.nativeCursorIssue = "the native cursor screen-space pass was not observed";
-	}
-
-	void DrawBeforeGameCursorLocked(MousePosition a_position) noexcept
-	{
-		auto& context = Context();
-		if (!EnsureBackBufferLocked(context.attachment.swapChain.Get()))
+		const auto target = ReadBoundTargetLocked();
+		if (!target)
 		{
-			NoteGameCursorUnavailableLocked("the active backbuffer is unavailable");
+			if (s_backendState.targetMissingLogged.First())
+				REX::WARN("Platform Imgui: the game's UI pass has no bound render target; frames are skipped"sv);
 			return;
 		}
-		Microsoft::WRL::ComPtr<ID3D11RenderTargetView> nativeTarget;
-		Microsoft::WRL::ComPtr<ID3D11Resource> nativeResource;
-		context.attachment.context->OMGetRenderTargets(1, &nativeTarget, nullptr);
-		if (nativeTarget)
-			nativeTarget->GetResource(&nativeResource);
-		if (nativeResource.Get() != s_backendState.backBuffer.Get() ||
-			context.attachment.context->GetType() != D3D11_DEVICE_CONTEXT_IMMEDIATE)
-		{
-			NoteGameCursorUnavailableLocked("the native UI is not rendering to the active backbuffer");
-			return;
-		}
-		const auto client = ReadClientSize(context.attachment.window);
-		if (!client.width || !client.height)
-		{
-			NoteGameCursorUnavailableLocked("the game window has no drawable client area");
-			return;
-		}
-		const auto position = MapNativeCursorToBackBuffer(
-			a_position,
-			client.width, client.height,
-			s_backendState.backBufferIdentity.width,
-			s_backendState.backBufferIdentity.height);
-		SubmitFrameLocked(nativeTarget.Get(), position);
+		SubmitFrameLocked(*target, drawing ? NativeCursorPositionLocked(*target) : std::nullopt);
 	}
 
 	MousePosition SamplePointerLocked() noexcept
 	{
 		const auto* cursor = RE::MenuCursor::GetSingleton();
-		const auto client = ReadClientSize(Context().attachment.window);
-		const auto& buffer = s_backendState.backBufferIdentity;
-		if (cursor && cursor->registeredCursors && client.width && client.height && buffer.Valid())
+		const auto client = ReadClientSize(GameWindow());
+		if (cursor && cursor->registeredCursors && client.width && client.height &&
+			s_backendState.targetWidth && s_backendState.targetHeight)
 		{
-			return MapNativeCursorToBackBuffer(
+			return MapNativeCursorToTarget(
 				{ static_cast<float>(cursor->cursorPosX), static_cast<float>(cursor->cursorPosY) },
-				client.width, client.height, buffer.width, buffer.height);
+				client.width, client.height,
+				s_backendState.targetWidth, s_backendState.targetHeight);
 		}
 		const auto& mouse = ImGui::GetIO().MousePos;
 		return { mouse.x, mouse.y };
@@ -626,5 +561,21 @@ namespace DearModdingUI::PlatformImGuiDetail
 	{
 		// The backend's code page serves the IME path of ANSI windows.
 		(void)ImGui_ImplWin32_WndProcHandlerEx(a_window, WM_INPUTLANGCHANGE, 0, 0, a_io);
+	}
+
+	bool QueryVideoMemoryLocked(uint64_t& a_used, uint64_t& a_budget) noexcept
+	{
+		const auto& adapter = Context().render.videoMemoryAdapter;
+		if (!adapter)
+			return false;
+		DXGI_QUERY_VIDEO_MEMORY_INFO info{};
+		if (FAILED(adapter->QueryVideoMemoryInfo(
+				0,
+				DXGI_MEMORY_SEGMENT_GROUP_LOCAL,
+				std::addressof(info))))
+			return false;
+		a_used = info.CurrentUsage;
+		a_budget = info.Budget;
+		return true;
 	}
 }

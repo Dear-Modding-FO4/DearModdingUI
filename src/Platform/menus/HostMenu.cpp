@@ -1,11 +1,10 @@
 #include <Platform/menus/HostMenu.h>
 
 #include <DearModdingUI/settings/HostSettings.h>
+#include <Platform/menus/HiddenMenu.h>
 
 #include <F4SE/API.h>
 #include <F4SE/Interfaces.h>
-#include <RE/B/BSScaleformManager.h>
-#include <RE/I/IMenu.h>
 #include <RE/U/UI.h>
 #include <RE/U/UIMessageQueue.h>
 #include <Support/OnceFlag.h>
@@ -22,8 +21,6 @@ namespace DearModdingUI::HostMenu
 		using namespace std::literals;
 
 		inline constexpr auto kMenuName = "DearModdingUI_Menu";
-		inline constexpr auto kMoviePath = "Interface/CursorMenu.swf"sv;
-		std::atomic<bool> s_onStack{ false };
 
 		void UpdatePauseSetting(RE::IMenu& a_menu) noexcept
 		{
@@ -32,17 +29,16 @@ namespace DearModdingUI::HostMenu
 				!HostSettings::Current().fallSoulsMode);
 		}
 
+		// Carries the game cursor, input context, and pause while DMUI is open.
 		class HostGameMenu final :
-			public RE::IMenu
+			public HiddenMenu::Menu
 		{
 		public:
-			HostGameMenu()
-			{
-				auto* scaleform = RE::BSScaleformManager::GetSingleton();
-				if (!scaleform || !scaleform->LoadMovieEx(*this, kMoviePath) || !uiMovie)
-					return;
+			static constexpr std::string_view kName{ kMenuName };
 
-				uiMovie->SetVisible(false);
+			HostGameMenu() :
+				HiddenMenu::Menu(kName)
+			{
 				// Explicitly return the shared game cursor from custom menu rendering to screen space.
 				customRendererName = "FlatScreenModel";
 				depthPriority = RE::UI_DEPTH_PRIORITY::kConsole;
@@ -55,55 +51,6 @@ namespace DearModdingUI::HostMenu
 				UpdatePauseSetting(*this);
 				inputContext = RE::UserEvents::INPUT_CONTEXT_ID::kCursor;
 			}
-
-			void AdvanceMovie(
-				[[maybe_unused]] float a_interval,
-				[[maybe_unused]] uint64_t a_currentTime) override
-			{}
-
-			RE::UI_MESSAGE_RESULTS ProcessMessage(
-				RE::UIMessage& a_message) override
-			{
-				return a_message.menu == kMenuName ?
-					RE::UI_MESSAGE_RESULTS::kHandled :
-					RE::UI_MESSAGE_RESULTS::kPassOn;
-			}
-
-			void PreDisplay() override
-			{
-				if (uiMovie)
-					uiMovie->SetVisible(false);
-			}
-
-			void OnAddedToMenuStack() override
-			{
-				RE::IMenu::OnAddedToMenuStack();
-				s_onStack.store(true, std::memory_order_release);
-			}
-
-			void OnRemovedFromMenuStack() override
-			{
-				s_onStack.store(false, std::memory_order_release);
-				RE::IMenu::OnRemovedFromMenuStack();
-			}
-
-			[[nodiscard]] bool Valid() const noexcept
-			{
-				return uiMovie != nullptr;
-			}
-
-			[[nodiscard]] static RE::IMenu* Creator(
-				[[maybe_unused]] const RE::UIMessage& a_message)
-			{
-				auto* menu = new HostGameMenu();
-				if (!menu->Valid())
-				{
-					REX::ERROR("DearModdingUI: host menu could not load Interface/CursorMenu.swf"sv);
-					delete menu;
-					return nullptr;
-				}
-				return menu;
-			}
 		};
 
 		std::atomic<bool> s_registrationAttempted{ false };
@@ -112,15 +59,6 @@ namespace DearModdingUI::HostMenu
 		Support::OnceFlag s_queueFailureLogged;
 		std::mutex s_stateLock;
 		State s_state{};
-
-		[[nodiscard]] bool HasExpectedRegistration(RE::UI& a_ui) noexcept
-		{
-			const RE::BSFixedString name{ kMenuName };
-			const RE::BSAutoReadLock lock{ RE::UI::GetMenuMapRWLock() };
-			const auto entry = a_ui.menuMap.find(name);
-			return entry != a_ui.menuMap.end() &&
-				entry->second.create == &HostGameMenu::Creator;
-		}
 
 		[[nodiscard]] bool Dispatch(Action a_action) noexcept
 		{
@@ -166,36 +104,8 @@ namespace DearModdingUI::HostMenu
 				expected, true, std::memory_order_acq_rel))
 			return s_registered.load(std::memory_order_acquire);
 
-		auto* ui = RE::UI::GetSingleton();
-		if (!ui)
-		{
-			REX::ERROR("DearModdingUI: host menu registration failed because UI is unavailable"sv);
-			return false;
-		}
-		if (HasExpectedRegistration(*ui))
-		{
-			s_registered.store(true, std::memory_order_release);
-			return true;
-		}
-
-		{
-			const RE::BSFixedString name{ kMenuName };
-			const RE::BSAutoReadLock lock{ RE::UI::GetMenuMapRWLock() };
-			if (ui->menuMap.find(name) != ui->menuMap.end())
-			{
-				REX::ERROR("DearModdingUI: host menu registration failed because \"{}\" is already registered"sv,
-					kMenuName);
-				return false;
-			}
-		}
-
-		ui->RegisterMenu(kMenuName, &HostGameMenu::Creator);
-		const auto registered = HasExpectedRegistration(*ui);
+		const auto registered = HiddenMenu::Register(kMenuName, &HiddenMenu::Create<HostGameMenu>);
 		s_registered.store(registered, std::memory_order_release);
-		if (registered)
-			REX::INFO("DearModdingUI: registered host menu \"{}\""sv, kMenuName);
-		else
-			REX::ERROR("DearModdingUI: host menu registration was not retained by UI"sv);
 		return registered;
 	}
 
@@ -209,10 +119,5 @@ namespace DearModdingUI::HostMenu
 		const auto action = Transition(s_state, a_event);
 		if (!Dispatch(action))
 			s_state = previous;
-	}
-
-	bool IsOpen() noexcept
-	{
-		return s_onStack.load(std::memory_order_acquire);
 	}
 }

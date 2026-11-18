@@ -5,11 +5,9 @@
 
 #include <cstdint>
 
-struct IDXGISwapChain;
-
 namespace DearModdingUI
 {
-	// The vtable and window hooks stay installed because process-exit teardown order is unsafe.
+	// Hooks stay installed; process-exit teardown order is unsafe.
 	namespace PlatformImGui
 	{
 		struct Callbacks
@@ -17,16 +15,32 @@ namespace DearModdingUI
 			void (*setup)(void* a_window) noexcept{ nullptr };
 			void (*draw)() noexcept{ nullptr };
 			void (*toggle)() noexcept{ nullptr };
+			// After the backend initialized and the host became ready.
+			void (*ready)() noexcept{ nullptr };
 
 			[[nodiscard]] constexpr bool Valid() const noexcept
 			{
-				return setup && draw && toggle;
+				return setup && draw && toggle && ready;
 			}
 		};
 
 		// The required callbacks are permanent. Setup runs on the render thread
 		// before backend initialization and font upload.
-		[[nodiscard]] bool InstallHooks(Callbacks a_callbacks) noexcept;
+		[[nodiscard]] bool Initialize(Callbacks a_callbacks) noexcept;
+
+		// The menus the engine asks to draw in each screen-space UI pass.
+		enum class UiPassSite : uint8_t
+		{
+			kFrameMenu,
+			kCursorMenu
+		};
+
+		// One UI pass; with the cursor open only its site draws, above the console.
+		void DrawUiPass(UiPassSite a_site) noexcept;
+		// The engine closed the frame menu; overlays stop until it reopens.
+		void HandleFrameMenuClosed() noexcept;
+		// Call from kGameDataReady; registration stays open until this thread exits.
+		void NoteGameDataThread() noexcept;
 
 		// Taps the calling thread's message loop; call on the game's main thread.
 		[[nodiscard]] bool InstallThreadTap() noexcept;
@@ -35,13 +49,6 @@ namespace DearModdingUI
 
 		// Logs the focus inputs so a wrong engine offset is visible.
 		void LogEngineFocus(std::string_view a_context) noexcept;
-
-		// Called at kGameLoaded, after the render window exists.
-		[[nodiscard]] bool InitializeWindow() noexcept;
-
-		// Deliberate external override for a final or proxy game swapchain.
-		[[nodiscard]] PlatformImGui::AttachmentResult AttachSwapChain(
-			IDXGISwapChain* a_swapChain) noexcept;
 
 		void SetDrawingEnabled(bool a_enabled) noexcept;
 		void HandleGameTransition() noexcept;

@@ -51,7 +51,6 @@ namespace vmm_tests
 			};
 			imgui.BeginWindow("##ActionUIContext");
 			RenderExecution::Guard execution{ RenderExecution::Phase::kFrameDraw };
-			(void)execution.NoteBinding(1);
 			const RenderExecution::ClientGuard callback{ handle, true };
 			const auto& actions = registry.OrderedActions();
 			require(registry.InvokeAction(actions[0].handle) == DMUI_RESULT_OK &&

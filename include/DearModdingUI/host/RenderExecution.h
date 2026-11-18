@@ -13,15 +13,6 @@ namespace DearModdingUI::RenderExecution
 		kFrameObservation
 	};
 
-	struct ThreadTransition
-	{
-		uint64_t previousThread{};
-		uint64_t currentThread{};
-		uint64_t bindingId{};
-		Phase phase{ Phase::kFrameDraw };
-		bool changed{};
-	};
-
 	class Guard
 	{
 	public:
@@ -33,13 +24,8 @@ namespace DearModdingUI::RenderExecution
 		Guard& operator=(const Guard&) = delete;
 		Guard& operator=(Guard&&) = delete;
 
-		[[nodiscard]] ThreadTransition NoteBinding(uint64_t a_bindingId) noexcept;
-
 	private:
 		Phase m_previousPhase;
-		uint64_t m_previousBinding;
-		bool m_outermost;
-		bool m_bindingNoted{};
 	};
 
 	class ClientGuard
@@ -65,6 +51,5 @@ namespace DearModdingUI::RenderExecution
 		DMUI_ClientHandle a_client,
 		bool a_drawingRequired) noexcept;
 	[[nodiscard]] Phase ActivePhase() noexcept;
-	[[nodiscard]] uint64_t ActiveBinding() noexcept;
 	[[nodiscard]] DMUI_PageHandle ActivePage() noexcept;
 }

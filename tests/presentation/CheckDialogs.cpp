@@ -21,7 +21,6 @@ namespace vmm_tests
 	{
 		runner.test("dialog session rejects completes cancels and isolates callbacks", [] {
 			RenderExecution::Guard execution{ RenderExecution::Phase::kFrameObservation };
-			(void)execution.NoteBinding(1);
 			const RenderExecution::ClientGuard callback{ 18, false };
 			static DMUI_DialogHandle requested{};
 			DMUI_HostAPI api{};
@@ -309,7 +308,6 @@ namespace vmm_tests
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameObservation
 			};
-			(void)execution.NoteBinding(1);
 			const RenderExecution::ClientGuard callback{ 16, false };
 			const DMUI_DialogDescriptor descriptor{
 				DMUI_DIALOG_KIND_TEXT_ENTRY,
@@ -416,7 +414,6 @@ namespace vmm_tests
 			RenderExecution::Guard execution{
 				RenderExecution::Phase::kFrameObservation
 			};
-			(void)execution.NoteBinding(1);
 			const RenderExecution::ClientGuard callback{ 17, false };
 			const DMUI_DialogDescriptor descriptor{
 				DMUI_DIALOG_KIND_CONFIRM,

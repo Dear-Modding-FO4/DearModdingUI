@@ -96,7 +96,6 @@ namespace vmm_tests
 			std::vector<DMUI_ImageHandle> handles;
 			ImageEnvironment()
 			{
-				(void)execution.NoteBinding(1);
 				images::SetDevice(resources.device.Get());
 			}
 			~ImageEnvironment()

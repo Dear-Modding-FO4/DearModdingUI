@@ -19,9 +19,7 @@ namespace vmm_tests
 		runner.test("host menu cleanup paths hide exactly one open entry", [] {
 			constexpr std::array cleanupEvents{
 				HostMenu::Event::kClose,
-				HostMenu::Event::kShutdown,
 				HostMenu::Event::kBackendFailure,
-				HostMenu::Event::kRetarget,
 				HostMenu::Event::kGameTransition
 			};
 			for (const auto event : cleanupEvents)

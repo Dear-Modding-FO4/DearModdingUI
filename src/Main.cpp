@@ -1,3 +1,4 @@
+#include <Platform/menus/FrameMenu.h>
 #include <Platform/menus/HostMenu.h>
 #include <DearModdingUI/host/Host.h>
 #include <DearModdingUI/host/ControllerNavigation.h>
@@ -52,6 +53,13 @@ namespace DearModdingUI::Plugin
 			DearModdingUI::PresentationServices::RegisterOverlaySettings();
 			DearModdingUI::Theme::Initialize(a_window);
 			REX::INFO("DearModdingUI: visuals configured"sv);
+		}
+
+		// The hint is claimed only once the host can draw it.
+		void HostReady() noexcept
+		{
+			const auto* devices = RE::BSInputDeviceManager::GetSingleton();
+			DearModdingUI::ToggleHint::ShowOnce(devices && devices->IsGamepadConnected());
 		}
 
 		void DrawHost() noexcept
@@ -112,6 +120,10 @@ namespace DearModdingUI::Plugin
 			case F4SE::MessagingInterface::kPostPostLoad:
 				// The title menu shows its rows while game data still loads.
 				(void)DearModdingUI::StartMenuEntry::Register(&ToggleHost);
+				if (!DearModdingUI::HostMenu::Register())
+					REX::ERROR("DearModdingUI: host menu registration failed"sv);
+				if (!DearModdingUI::FrameMenu::Register())
+					REX::ERROR("DearModdingUI: frame menu registration failed"sv);
 				// Game data loads on a worker that exits; this is the main thread.
 				(void)PlatformImGui::InstallThreadTap();
 				break;
@@ -119,27 +131,18 @@ namespace DearModdingUI::Plugin
 				PlatformImGui::HandleGameTransition();
 				if (a_message->data)
 				{
+					PlatformImGui::NoteGameDataThread();
 					Localization::EnableGameLanguage();
 					(void)GameInput::InstallHooks();
 					if (!DearModdingUI::StartMenuEntry::Register(&ToggleHost))
 						REX::ERROR("DearModdingUI: menu entry registration failed"sv);
 					(void)PlatformImGui::VerifyThreadTap();
 					PlatformImGui::LogEngineFocus("game data ready");
-					const auto* devices = RE::BSInputDeviceManager::GetSingleton();
-					DearModdingUI::ToggleHint::ShowOnce(devices && devices->IsGamepadConnected());
 				}
 				break;
 			default:
 				break;
 			}
-
-			if (a_message->type != F4SE::MessagingInterface::kGameLoaded)
-				return;
-
-			if (!DearModdingUI::HostMenu::Register())
-				REX::ERROR("DearModdingUI: host menu registration failed"sv);
-			if (!PlatformImGui::InitializeWindow())
-				REX::ERROR("DearModdingUI: render-window initialization failed"sv);
 		}
 
 		[[nodiscard]] bool InitializePlugin(
@@ -163,15 +166,12 @@ namespace DearModdingUI::Plugin
 					return;
 				}
 
-				const auto hooksInstalled = PlatformImGui::InstallHooks({
+				initialized = PlatformImGui::Initialize({
 					&SetupHost,
 					&DrawHost,
-					&ToggleHost
+					&ToggleHost,
+					&HostReady
 				});
-				if (!hooksInstalled)
-					REX::ERROR("DearModdingUI: renderer reconciliation could not be installed"sv);
-
-				initialized = hooksInstalled;
 				if (initialized)
 					REX::INFO("DearModdingUI initialized"sv);
 			});
